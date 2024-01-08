@@ -10,24 +10,25 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToLong}.
  * This class is generated. Do not edit it.
  */
-public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromGeoPointEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+public final class ToLongFromGeoPointEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public ToLongFromGeoPointEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
     super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToStringFromGeoPoint";
+    return "ToLongFromGeoPoint";
   }
 
   @Override
@@ -36,26 +37,26 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
     int positionCount = v.getPositionCount();
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
-      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
+      return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0, scratchPad), positionCount);
     }
-    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendBytesRef(evalValue(vector, p, scratchPad));
+        builder.appendLong(evalValue(vector, p, scratchPad));
       }
       return builder.build();
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private static long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromGeoPoint(value);
+    return ToLong.fromGeoPoint(value);
   }
 
   @Override
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
@@ -64,12 +65,12 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          BytesRef value = evalValue(block, i, scratchPad);
+          long value = evalValue(block, i, scratchPad);
           if (positionOpened == false && valueCount > 1) {
             builder.beginPositionEntry();
             positionOpened = true;
           }
-          builder.appendBytesRef(value);
+          builder.appendLong(value);
           valuesAppended = true;
         }
         if (valuesAppended == false) {
@@ -82,9 +83,9 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private static long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromGeoPoint(value);
+    return ToLong.fromGeoPoint(value);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -98,13 +99,13 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
     }
 
     @Override
-    public ToStringFromGeoPointEvaluator get(DriverContext context) {
-      return new ToStringFromGeoPointEvaluator(field.get(context), source, context);
+    public ToLongFromGeoPointEvaluator get(DriverContext context) {
+      return new ToLongFromGeoPointEvaluator(field.get(context), source, context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromGeoPointEvaluator[field=" + field + "]";
+      return "ToLongFromGeoPointEvaluator[field=" + field + "]";
     }
   }
 }

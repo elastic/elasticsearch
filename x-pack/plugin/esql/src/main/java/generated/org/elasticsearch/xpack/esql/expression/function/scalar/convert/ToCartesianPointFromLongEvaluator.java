@@ -4,59 +4,69 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToCartesianPoint}.
  * This class is generated. Do not edit it.
  */
-public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromGeoPointEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+public final class ToCartesianPointFromLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public ToCartesianPointFromLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
     super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToStringFromGeoPoint";
+    return "ToCartesianPointFromLong";
   }
 
   @Override
   public Block evalVector(Vector v) {
-    BytesRefVector vector = (BytesRefVector) v;
+    LongVector vector = (LongVector) v;
     int positionCount = v.getPositionCount();
-    BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
-      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
+      try {
+        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0), positionCount);
+      } catch (IllegalArgumentException  e) {
+        registerException(e);
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
+      }
     }
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendBytesRef(evalValue(vector, p, scratchPad));
+        try {
+          builder.appendBytesRef(evalValue(vector, p));
+        } catch (IllegalArgumentException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
       return builder.build();
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
-    BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromGeoPoint(value);
+  private static BytesRef evalValue(LongVector container, int index) {
+    long value = container.getLong(index);
+    return ToCartesianPoint.fromLong(value);
   }
 
   @Override
   public Block evalBlock(Block b) {
-    BytesRefBlock block = (BytesRefBlock) b;
+    LongBlock block = (LongBlock) b;
     int positionCount = block.getPositionCount();
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -64,13 +74,17 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          BytesRef value = evalValue(block, i, scratchPad);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+          try {
+            BytesRef value = evalValue(block, i);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendBytesRef(value);
+            valuesAppended = true;
+          } catch (IllegalArgumentException  e) {
+            registerException(e);
           }
-          builder.appendBytesRef(value);
-          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();
@@ -82,9 +96,9 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
-    BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromGeoPoint(value);
+  private static BytesRef evalValue(LongBlock container, int index) {
+    long value = container.getLong(index);
+    return ToCartesianPoint.fromLong(value);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -98,13 +112,13 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
     }
 
     @Override
-    public ToStringFromGeoPointEvaluator get(DriverContext context) {
-      return new ToStringFromGeoPointEvaluator(field.get(context), source, context);
+    public ToCartesianPointFromLongEvaluator get(DriverContext context) {
+      return new ToCartesianPointFromLongEvaluator(field.get(context), source, context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromGeoPointEvaluator[field=" + field + "]";
+      return "ToCartesianPointFromLongEvaluator[field=" + field + "]";
     }
   }
 }

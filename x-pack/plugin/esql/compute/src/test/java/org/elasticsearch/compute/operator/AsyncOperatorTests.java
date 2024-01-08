@@ -300,7 +300,7 @@ public class AsyncOperatorTests extends ESTestCase {
 
                 }
             };
-            asyncOperator.addInput(new Page(blockFactory.newConstantIntBlockWith(randomInt(), between(1, 10))));
+            asyncOperator.addInput(new Page(BlockFactory.getNonBreakingInstance().newConstantIntBlockWith(randomInt(), between(1, 10))));
             asyncOperator.finish();
             try {
                 barrier.await(10, TimeUnit.SECONDS);

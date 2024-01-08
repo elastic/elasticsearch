@@ -309,10 +309,11 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 childDoc.getPath(),
                 childDoc.getFields(
                     childDoc.getPath()
-                    + "."
-                    + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME
-                    + "."
-                    + SparseEmbeddingResults.Embedding.EMBEDDING).size()
+                        + "."
+                        + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME
+                        + "."
+                        + SparseEmbeddingResults.Embedding.EMBEDDING
+                ).size()
             )
         );
     }

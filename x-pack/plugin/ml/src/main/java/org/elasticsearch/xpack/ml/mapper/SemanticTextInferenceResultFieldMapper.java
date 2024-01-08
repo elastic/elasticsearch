@@ -196,11 +196,8 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         }
     }
 
-    private static void parseObject(
-        DocumentParserContext context,
-        ObjectMapper objectMapper,
-        Set<String> requiredSubfields
-    ) throws IOException {
+    private static void parseObject(DocumentParserContext context, ObjectMapper objectMapper, Set<String> requiredSubfields)
+        throws IOException {
         XContentParser parser = context.parser();
         DocumentParserContext childContext = context.createChildContext(objectMapper);
 
@@ -211,10 +208,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         Set<String> visitedSubfields = new HashSet<>();
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token != XContentParser.Token.FIELD_NAME) {
-                throw new DocumentParsingException(
-                    parser.getTokenLocation(),
-                    "Expected a FIELD_NAME, got " + parser.currentToken()
-                );
+                throw new DocumentParsingException(parser.getTokenLocation(), "Expected a FIELD_NAME, got " + parser.currentToken());
             }
 
             String currentName = parser.currentName();
@@ -262,15 +256,8 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             SPARSE_VECTOR_SUBFIELD_NAME,
             ObjectMapper.Defaults.SUBOBJECTS
         ).add(
-            new BooleanFieldMapper.Builder(
-                SparseEmbeddingResults.Embedding.IS_TRUNCATED,
-                ScriptCompiler.NONE,
-                false,
-                indexVersionCreated
-            )
-        ).add(
-            new SparseVectorFieldMapper.Builder(SparseEmbeddingResults.Embedding.EMBEDDING)
-        );
+            new BooleanFieldMapper.Builder(SparseEmbeddingResults.Embedding.IS_TRUNCATED, ScriptCompiler.NONE, false, indexVersionCreated)
+        ).add(new SparseVectorFieldMapper.Builder(SparseEmbeddingResults.Embedding.EMBEDDING));
         TextFieldMapper.Builder textMapperBuilder = new TextFieldMapper.Builder(
             TEXT_SUBFIELD_NAME,
             indexVersionCreated,

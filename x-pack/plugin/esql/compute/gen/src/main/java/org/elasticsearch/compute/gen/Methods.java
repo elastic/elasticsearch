@@ -83,7 +83,7 @@ public class Methods {
         if (method.getParameters().isEmpty()) {
             return new VariableElement[0];
         }
-        return method.getParameters().stream().filter(e -> filter.test(e)).toArray(VariableElement[]::new);
+        return method.getParameters().stream().filter(filter).toArray(VariableElement[]::new);
     }
 
     /**

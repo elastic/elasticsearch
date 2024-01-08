@@ -979,7 +979,22 @@ public final class TextFieldMapper extends FieldMapper {
                  */
                 return null;
             }
-            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
+        }
+
+        /**
+         * Build an iterator of documents that have the field. This mirrors parseCreateField,
+         * using whatever
+         */
+        private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
+            if (getTextSearchInfo().hasNorms()) {
+                return BlockSourceReader.lookupFromNorms(name());
+            }
+            if (isIndexed() == false && isStored() == false) {
+                return BlockSourceReader.lookupMatchingAll();
+            }
+            return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
         }
 
         @Override

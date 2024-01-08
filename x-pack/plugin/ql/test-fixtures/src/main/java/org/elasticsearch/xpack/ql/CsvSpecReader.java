@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ql;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
@@ -118,6 +119,16 @@ public final class CsvSpecReader {
                 }
             }
             return warnings;
+        }
+
+        /**
+         * Modifies the expected warnings.
+         * In some cases, we modify the query to run against multiple clusters. As a result, the line/column positions
+         * of the expected warnings no longer match the actual warnings. To enable reusing of spec tests, this method
+         * allows adjusting the expected warnings.
+         */
+        public void adjustExpectedWarnings(Function<String, String> updater) {
+            expectedWarnings.replaceAll(updater::apply);
         }
     }
 

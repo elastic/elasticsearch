@@ -17,32 +17,33 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
-public interface VersionRange {
+class VersionRange {
 
-    boolean matches(Set<String> nodesVersions);
+    private VersionRange() {}
 
-    VersionRange NEVER = v -> false;
+    static final Predicate<Set<String>> NEVER = v -> false;
 
-    VersionRange ALWAYS = v -> true;
+    static final Predicate<Set<String>> ALWAYS = v -> true;
 
-    VersionRange CURRENT = versions -> versions.size() == 1 && versions.contains(Build.current().version());
+    static final Predicate<Set<String>> CURRENT = versions -> versions.size() == 1 && versions.contains(Build.current().version());
 
-    VersionRange NON_CURRENT = versions -> CURRENT.matches(versions) == false;
+    static final Predicate<Set<String>> NON_CURRENT = versions -> CURRENT.test(versions) == false;
 
-    VersionRange MIXED = versions -> versions.size() > 1;
+    static final Predicate<Set<String>> MIXED = versions -> versions.size() > 1;
 
-    class MinimumContainedInVersionRange implements VersionRange {
-
+    static class MinimumContainedInVersionRange implements Predicate<Set<String>> {
         final Version lower;
         final Version upper;
 
-        public MinimumContainedInVersionRange(Version lower, Version upper) {
+        private MinimumContainedInVersionRange(Version lower, Version upper) {
             this.lower = lower;
             this.upper = upper;
         }
 
-        public boolean matches(Set<String> nodesVersions) {
+        @Override
+        public boolean test(Set<String> nodesVersions) {
             // Try to extract the minimum node version
             var minimumNodeVersion = nodesVersions.stream()
                 .map(ESRestTestCase::parseLegacyVersion)
@@ -51,14 +52,9 @@ public interface VersionRange {
                 .orElseThrow(() -> new IllegalArgumentException("Checks against a version range require semantic version format (x.y.z)"));
             return minimumNodeVersion.onOrAfter(lower) && minimumNodeVersion.onOrBefore(upper);
         }
-
-        @Override
-        public String toString() {
-            return "[" + lower + " - " + upper + "]";
-        }
     }
 
-    static List<VersionRange> parseVersionRanges(String rawRanges) {
+    static List<Predicate<Set<String>>> parseVersionRanges(String rawRanges) {
         if (rawRanges == null) {
             return List.of(NEVER);
         }
@@ -76,7 +72,7 @@ public interface VersionRange {
         }
 
         String[] ranges = rawRanges.split(",");
-        List<VersionRange> versionRanges = new ArrayList<>();
+        List<Predicate<Set<String>>> versionRanges = new ArrayList<>();
         for (String rawRange : ranges) {
             String[] skipVersions = rawRange.split("-", -1);
             if (skipVersions.length > 2) {
@@ -85,11 +81,11 @@ public interface VersionRange {
 
             String lower = skipVersions[0].trim();
             String upper = skipVersions[1].trim();
-            VersionRange versionRange = new MinimumContainedInVersionRange(
+            var minimumContainedInVersionRange = new MinimumContainedInVersionRange(
                 lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
                 upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
             );
-            versionRanges.add(versionRange);
+            versionRanges.add(minimumContainedInVersionRange);
         }
         return versionRanges;
     }

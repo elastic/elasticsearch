@@ -21,9 +21,9 @@ public class SkipCriteria {
     private SkipCriteria() {}
 
     static Predicate<ClientYamlTestExecutionContext> fromVersionRange(String versionRange) {
-        final List<VersionRange> versionRanges = VersionRange.parseVersionRanges(versionRange);
-        assert versionRanges.isEmpty() == false;
-        return context -> versionRanges.stream().anyMatch(range -> range.matches(context.nodesVersions()));
+        final var versionRangePredicates = VersionRange.parseVersionRanges(versionRange);
+        assert versionRangePredicates.isEmpty() == false;
+        return context -> versionRangePredicates.stream().anyMatch(range -> range.test(context.nodesVersions()));
     }
 
     static Predicate<ClientYamlTestExecutionContext> fromOsList(List<String> operatingSystems) {

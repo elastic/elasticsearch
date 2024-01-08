@@ -652,9 +652,13 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
-    private static boolean matchWithRange(String nodeVersionString, List<VersionRange> acceptedVersionRanges, XContentLocation location) {
+    private static boolean matchWithRange(
+        String nodeVersionString,
+        List<Predicate<Set<String>>> acceptedVersionRanges,
+        XContentLocation location
+    ) {
         try {
-            return acceptedVersionRanges.stream().anyMatch(v -> v.matches(Set.of(nodeVersionString)));
+            return acceptedVersionRanges.stream().anyMatch(v -> v.test(Set.of(nodeVersionString)));
         } catch (IllegalArgumentException e) {
             throw new XContentParseException(
                 location,

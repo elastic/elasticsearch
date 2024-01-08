@@ -121,7 +121,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             return null;
         }).when(client)
             .execute(
-                TransportPutComposableIndexTemplateAction.TYPE,
+                same(TransportPutComposableIndexTemplateAction.TYPE),
                 any(TransportPutComposableIndexTemplateAction.Request.class),
                 any(ActionListener.class)
             );

@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -113,7 +114,7 @@ public class RecallAtKTests extends ESTestCase {
     }
 
     public void testNoResults() throws Exception {
-        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", new SearchHit[0], Collections.emptyList());
+        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", SearchHits.EMPTY, Collections.emptyList());
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
         assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
@@ -123,7 +124,7 @@ public class RecallAtKTests extends ESTestCase {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(createRatedDoc("test", "0", RELEVANT_RATING));
 
-        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", new SearchHit[0], rated);
+        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", SearchHits.EMPTY, rated);
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
         assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());

@@ -253,16 +253,12 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     }
 
     public void testRankToXContent() throws IOException {
-        SearchHit searchHit = new SearchHit(1, "id1");
-        try {
-            searchHit.setRank(1);
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals("""
-                {"_id":"id1","_score":null,"_rank":1}""", Strings.toString(builder));
-        } finally {
-            searchHit.decRef();
-        }
+        SearchHit searchHit = SearchHit.unpooled(1, "id1");
+        searchHit.setRank(1);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"_id":"id1","_score":null,"_rank":1}""", Strings.toString(builder));
     }
 
     public void testSerializeShardTarget() throws Exception {
@@ -322,29 +318,22 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     }
 
     public void testNullSource() {
-        SearchHit searchHit = new SearchHit(0, "_id");
-        try {
-            assertThat(searchHit.getSourceAsMap(), nullValue());
-            assertThat(searchHit.getSourceRef(), nullValue());
-            assertThat(searchHit.getSourceAsMap(), nullValue());
-            assertThat(searchHit.getSourceAsString(), nullValue());
-            assertThat(searchHit.getSourceAsMap(), nullValue());
-            assertThat(searchHit.getSourceRef(), nullValue());
-            assertThat(searchHit.getSourceAsString(), nullValue());
-        } finally {
-            searchHit.decRef();
-        }
+        SearchHit searchHit = SearchHit.unpooled(0, "_id");
+
+        assertThat(searchHit.getSourceAsMap(), nullValue());
+        assertThat(searchHit.getSourceRef(), nullValue());
+        assertThat(searchHit.getSourceAsMap(), nullValue());
+        assertThat(searchHit.getSourceAsString(), nullValue());
+        assertThat(searchHit.getSourceAsMap(), nullValue());
+        assertThat(searchHit.getSourceRef(), nullValue());
+        assertThat(searchHit.getSourceAsString(), nullValue());
     }
 
     public void testHasSource() {
-        SearchHit searchHit = new SearchHit(randomInt());
-        try {
-            assertFalse(searchHit.hasSource());
-            searchHit.sourceRef(new BytesArray("{}"));
-            assertTrue(searchHit.hasSource());
-        } finally {
-            searchHit.decRef();
-        }
+        SearchHit searchHit = SearchHit.unpooled(randomInt());
+        assertFalse(searchHit.hasSource());
+        searchHit.sourceRef(new BytesArray("{}"));
+        assertTrue(searchHit.hasSource());
     }
 
     public void testWeirdScriptFields() throws Exception {
@@ -430,79 +419,67 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         Map<String, DocumentField> fields = new HashMap<>();
         fields.put("foo", new DocumentField("foo", Collections.emptyList()));
         fields.put("bar", new DocumentField("bar", Collections.emptyList()));
+        SearchHit hit = SearchHit.unpooled(0, "_id");
+        hit.addDocumentFields(fields, Map.of());
         {
-            SearchHit hit = new SearchHit(0, "_id");
-            try {
-                hit.addDocumentFields(fields, Map.of());
-                BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
-                // checks that the fields section is completely omitted in the rendering.
-                assertThat(originalBytes.utf8ToString(), not(containsString("fields")));
-                final SearchHit parsed;
-                try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-                    parser.nextToken(); // jump to first START_OBJECT
-                    parsed = SearchHit.fromXContent(parser);
-                    assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-                    assertNull(parser.nextToken());
-                }
-                try {
-                    assertThat(parsed.getFields().size(), equalTo(0));
-                } finally {
-                    parsed.decRef();
-                }
-            } finally {
-                hit.decRef();
+            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            // checks that the fields section is completely omitted in the rendering.
+            assertThat(originalBytes.utf8ToString(), not(containsString("fields")));
+            final SearchHit parsed;
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchHit.fromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
             }
-
-            fields = new HashMap<>();
-            fields.put("foo", new DocumentField("foo", Collections.emptyList()));
-            fields.put("bar", new DocumentField("bar", Collections.singletonList("value")));
-        }
-        {
-            var hit = new SearchHit(0, "_id");
             try {
-                hit.addDocumentFields(fields, Collections.emptyMap());
-                BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
-                final SearchHit parsed;
-                try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-                    parser.nextToken(); // jump to first START_OBJECT
-                    parsed = SearchHit.fromXContent(parser);
-                    assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-                    assertNull(parser.nextToken());
-                }
-                try {
-                    assertThat(parsed.getFields().size(), equalTo(1));
-                    assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
-                } finally {
-                    parsed.decRef();
-                }
+                assertThat(parsed.getFields().size(), equalTo(0));
             } finally {
-                hit.decRef();
+                parsed.decRef();
+            }
+        }
+
+        fields = new HashMap<>();
+        fields.put("foo", new DocumentField("foo", Collections.emptyList()));
+        fields.put("bar", new DocumentField("bar", Collections.singletonList("value")));
+        hit = SearchHit.unpooled(0, "_id");
+        hit.addDocumentFields(fields, Collections.emptyMap());
+        {
+            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            final SearchHit parsed;
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchHit.fromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            try {
+                assertThat(parsed.getFields().size(), equalTo(1));
+                assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
+            } finally {
+                parsed.decRef();
             }
 
             Map<String, DocumentField> metadata = new HashMap<>();
             metadata.put("_routing", new DocumentField("_routing", Collections.emptyList()));
         }
+        hit = SearchHit.unpooled(0, "_id");
+        hit.addDocumentFields(fields, Collections.emptyMap());
         {
-            var hit = new SearchHit(0, "_id");
+            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            final SearchHit parsed;
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchHit.fromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
             try {
-                hit.addDocumentFields(fields, Collections.emptyMap());
-                BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
-                final SearchHit parsed;
-                try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-                    parser.nextToken(); // jump to first START_OBJECT
-                    parsed = SearchHit.fromXContent(parser);
-                    assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-                    assertNull(parser.nextToken());
-                }
-                try {
-                    assertThat(parsed.getFields().size(), equalTo(1));
-                    assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
-                    assertNull(parsed.getFields().get("_routing"));
-                } finally {
-                    parsed.decRef();
-                }
+                assertThat(parsed.getFields().size(), equalTo(1));
+                assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
+                assertNull(parsed.getFields().get("_routing"));
             } finally {
-                hit.decRef();
+                parsed.decRef();
             }
         }
     }

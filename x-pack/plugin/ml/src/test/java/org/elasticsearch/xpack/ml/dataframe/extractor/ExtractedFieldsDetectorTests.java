@@ -814,25 +814,13 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         );
 
         SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
-        try {
-            assertThat(booleanField.value(hit), arrayContaining(1));
-        } finally {
-            hit.decRef();
-        }
+        assertThat(booleanField.value(hit), arrayContaining(1));
 
         hit = new SearchHitBuilder(42).addField("some_boolean", false).build();
-        try {
-            assertThat(booleanField.value(hit), arrayContaining(0));
-        } finally {
-            hit.decRef();
-        }
+        assertThat(booleanField.value(hit), arrayContaining(0));
 
         hit = new SearchHitBuilder(42).addField("some_boolean", Arrays.asList(false, true, false)).build();
-        try {
-            assertThat(booleanField.value(hit), arrayContaining(0, 1, 0));
-        } finally {
-            hit.decRef();
-        }
+        assertThat(booleanField.value(hit), arrayContaining(0, 1, 0));
     }
 
     public void testDetect_GivenBooleanField_OutlierDetection() {

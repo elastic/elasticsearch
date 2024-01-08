@@ -118,13 +118,14 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
     private Deque<T> mapHits(SearchResponse searchResponse) {
         Deque<T> results = new ArrayDeque<>();
 
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
+        SearchHit[] hits = searchResponse.getHits().getHits();
+        for (SearchHit hit : hits) {
             T mapped = map(hit);
             if (mapped != null) {
                 results.add(mapped);
             }
         }
-        count += searchResponse.getHits().getHits().length;
+        count += hits.length;
 
         if (hasNext() == false && scrollId != null) {
             client.prepareClearScroll().setScrollIds(Collections.singletonList(scrollId)).get();

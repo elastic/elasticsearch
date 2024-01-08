@@ -14,13 +14,9 @@ public class ScoreExtractorTests extends ESTestCase {
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
             float score = randomFloat();
-            SearchHit hit = new SearchHit(1);
-            try {
-                hit.score(score);
-                assertEquals(score, ScoreExtractor.INSTANCE.extract(hit));
-            } finally {
-                hit.decRef();
-            }
+            SearchHit hit = SearchHit.unpooled(1);
+            hit.score(score);
+            assertEquals(score, ScoreExtractor.INSTANCE.extract(hit));
         }
     }
 

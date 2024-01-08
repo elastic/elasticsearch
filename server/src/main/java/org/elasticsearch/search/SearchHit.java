@@ -315,6 +315,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         }
     }
 
+    public static SearchHit unpooled(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
+        final var res = new SearchHit(nestedTopDocId, id, nestedIdentity);
+        try {
+            return res.asUnpooled();
+        } finally {
+            res.decRef();
+        }
+    }
+
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override

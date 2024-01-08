@@ -152,6 +152,16 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         void run(List<List<Object>> fieldValues, int count) throws IOException;
     }
 
+    /**
+     * Helper to run the checks of some of the test cases. This will perform two verifications: one about the count of the values the query
+     * is supposed to match and one on the Warnings that are supposed to be raised.
+     * @param fieldValues The indexed values of the field the query runs against.
+     * @param count The count of the docs the query matched.
+     * @param docsStart The start of the slice in fieldValues we want to consider. If `null`, the start will be 0.
+     * @param docsStop The end of the slice in fieldValues we want to consider. If `null`, the end will be the fieldValues size.
+     * @param scanForMVs Should the check for Warnings scan the entire fieldValues? This will override the docsStart:docsStop interval,
+     *                   which is needed for some cases.
+     */
     private void runCase(List<List<Object>> fieldValues, int count, Integer docsStart, Integer docsStop, boolean scanForMVs) {
         int expected = 0;
         int min = docsStart != null ? docsStart : 0;

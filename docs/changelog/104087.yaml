@@ -5,7 +5,9 @@ type: deprecation
 issues: []
 deprecation:
   title: Deprecate machine learning on Intel macOS
-  area: Machine Learning
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: Packaging
+  details: The machine learning plugin will be permanently disabled on macOS x86_64
+    in new minor versions released from December 2024 onwards.
+  impact: To continue to use machine learning functionality on macOS please switch to
+    an arm64 machine (Apple silicon). Alternatively, it will still be possible to run
+    Elasticsearch with machine learning enabled in a Docker container on macOS x86_64.

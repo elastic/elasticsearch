@@ -54,7 +54,7 @@ public class ClusterInfoSimulator {
             var usage = entry.getValue();
 
             var reserved = allocation.clusterInfo().getReservedSpace(nodeId, usage.path());
-            if (reserved.getTotal() == 0) {
+            if (reserved.total() == 0) {
                 continue;
             }
             var node = allocation.routingNodes().node(nodeId);

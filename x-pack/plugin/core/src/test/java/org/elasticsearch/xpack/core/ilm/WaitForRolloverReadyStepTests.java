@@ -349,7 +349,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
                 .collect(Collectors.toMap(Condition::toString, condition -> conditionResult));
-            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
+            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false, false));
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
     }

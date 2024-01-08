@@ -83,7 +83,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 this.input = List.of(in.readString());
             }
-            this.taskSettings = in.readMap();
+            this.taskSettings = in.readGenericMap();
         }
 
         public TaskType getTaskType() {

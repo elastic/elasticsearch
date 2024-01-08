@@ -28,7 +28,7 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public MonitoringFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        exporters = in.readMap();
+        exporters = in.readGenericMap();
         collectionEnabled = in.readOptionalBoolean();
     }
 

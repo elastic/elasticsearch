@@ -1,7 +1,7 @@
 [[esql-async-query-delete-api]]
 === {esql} async query delete API
 ++++
-<titleabbrev>{esql} async query delete</titleabbrev>
+<titleabbrev>{esql} async query delete API</titleabbrev>
 ++++
 
 The {esql} async query delete API is used to manually delete an async query

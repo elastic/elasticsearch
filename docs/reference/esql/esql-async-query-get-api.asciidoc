@@ -1,7 +1,7 @@
 [[esql-async-query-get-api]]
 === {esql} async query get API
 ++++
-<titleabbrev>{esql} async query get</titleabbrev>
+<titleabbrev>{esql} async query get API</titleabbrev>
 ++++
 
 Returns the current status and available results for an <<esql-async-query-api,{esql}

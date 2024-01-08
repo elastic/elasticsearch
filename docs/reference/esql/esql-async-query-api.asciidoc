@@ -77,13 +77,15 @@ or alias you query.
 [[esql-async-query-api-path-params]]
 ==== {api-path-parms-title}
 
-The API accepts the same parameters as the <<esql-query-api,query API>>.
+The API accepts the same parameters as the synchronous
+<<esql-query-api-query-params,query API>>.
 
 [[esql-async-query-api-request-body]]
 ==== {api-request-body-title}
 
-The API accepts the same request body as the <<esql-query-api,query API>>,
-along with the following parameters:
+The API accepts the same request body as the synchronous
+<<esql-query-api-request-body,query API>>, along with the following
+parameters:
 
 [[esql-async-query-api-wait-for-completion-timeout]]
 `wait_for_completion_timeout`::
@@ -132,8 +134,9 @@ parameter, regardless of this value.
 [[esql-async-query-api-response-body]]
 ==== {api-response-body-title}
 
-The API returns the same response body as the <<esql-query-api,query API>>,
-along with the following properties:
+The API returns the same response body as the synchronous
+<<esql-query-api-response-body,query API>>, along with the following
+properties:
 
 [[esql-async-query-api-response-body-query-id]]
 `id`::

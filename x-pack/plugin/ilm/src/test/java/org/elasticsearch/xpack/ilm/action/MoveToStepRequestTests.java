@@ -5,17 +5,16 @@
  * 2.0.
  *
  */
-package org.elasticsearch.xpack.core.ilm.action;
+package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.StepKeyTests;
-import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Request;
 import org.junit.Before;
 
-public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<Request> {
+public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<TransportMoveToStepAction.Request> {
 
     private String index;
     private static final StepKeyTests stepKeyTests = new StepKeyTests();
@@ -26,25 +25,25 @@ public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<
     }
 
     @Override
-    protected Request createTestInstance() {
-        return new Request(index, stepKeyTests.createTestInstance(), randomStepSpecification());
+    protected TransportMoveToStepAction.Request createTestInstance() {
+        return new TransportMoveToStepAction.Request(index, stepKeyTests.createTestInstance(), randomStepSpecification());
     }
 
     @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
+    protected Writeable.Reader<TransportMoveToStepAction.Request> instanceReader() {
+        return TransportMoveToStepAction.Request::new;
     }
 
     @Override
-    protected Request doParseInstance(XContentParser parser) {
-        return Request.parseRequest(index, parser);
+    protected TransportMoveToStepAction.Request doParseInstance(XContentParser parser) {
+        return TransportMoveToStepAction.Request.parseRequest(index, parser);
     }
 
     @Override
-    protected Request mutateInstance(Request request) {
+    protected TransportMoveToStepAction.Request mutateInstance(TransportMoveToStepAction.Request request) {
         String indexName = request.getIndex();
         StepKey currentStepKey = request.getCurrentStepKey();
-        Request.PartialStepKey nextStepKey = request.getNextStepKey();
+        TransportMoveToStepAction.Request.PartialStepKey nextStepKey = request.getNextStepKey();
 
         switch (between(0, 2)) {
             case 0 -> indexName += randomAlphaOfLength(5);
@@ -53,18 +52,18 @@ public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new Request(indexName, currentStepKey, nextStepKey);
+        return new TransportMoveToStepAction.Request(indexName, currentStepKey, nextStepKey);
     }
 
-    private static Request.PartialStepKey randomStepSpecification() {
+    private static TransportMoveToStepAction.Request.PartialStepKey randomStepSpecification() {
         if (randomBoolean()) {
             StepKey key = stepKeyTests.createTestInstance();
-            return new Request.PartialStepKey(key.phase(), key.action(), key.name());
+            return new TransportMoveToStepAction.Request.PartialStepKey(key.phase(), key.action(), key.name());
         } else {
             String phase = randomAlphaOfLength(10);
             String action = randomBoolean() ? null : randomAlphaOfLength(6);
             String name = action == null ? null : (randomBoolean() ? null : randomAlphaOfLength(6));
-            return new Request.PartialStepKey(phase, action, name);
+            return new TransportMoveToStepAction.Request.PartialStepKey(phase, action, name);
         }
     }
 }

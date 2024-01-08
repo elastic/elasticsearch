@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
@@ -527,8 +526,7 @@ public class ReadOnlyEngine extends Engine {
         ActionListener<Void> listener
     ) {
         ActionListener.run(listener, l -> {
-            try (ReleasableLock lock = readLock.acquire()) {
-                ensureOpen();
+            try (var ignored = acquireEnsureOpenRef()) {
                 try {
                     translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
                 } catch (final Exception e) {

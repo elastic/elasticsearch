@@ -144,9 +144,9 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     public void testMissingSubfields() throws IOException {
         final String fieldName = randomAlphaOfLengthBetween(5, 15);
 
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> {
-            addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8));
-        }));
+        DocumentMapper documentMapper = createDocumentMapper(
+            mapping(b -> { addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8)); })
+        );
 
         {
             DocumentParsingException ex = expectThrows(
@@ -156,21 +156,16 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     source(
                         b -> addSemanticTextInferenceResults(
                             b,
-                            List.of(
-                                generateSemanticTextinferenceResults(fieldName, List.of("a b"))
-                            ),
+                            List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
                             false,
                             true
                         )
                     )
-                ));
+                )
+            );
             assertThat(
                 ex.getMessage(),
-                containsString(
-                    "Missing required subfields: [" +
-                        SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME +
-                        "]"
-                )
+                containsString("Missing required subfields: [" + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME + "]")
             );
         }
 
@@ -182,21 +177,16 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     source(
                         b -> addSemanticTextInferenceResults(
                             b,
-                            List.of(
-                                generateSemanticTextinferenceResults(fieldName, List.of("a b"))
-                            ),
+                            List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
                             true,
                             false
                         )
                     )
-                ));
+                )
+            );
             assertThat(
                 ex.getMessage(),
-                containsString(
-                    "Missing required subfields: [" +
-                        SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME +
-                        "]"
-                )
+                containsString("Missing required subfields: [" + SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME + "]")
             );
         }
 
@@ -208,22 +198,21 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     source(
                         b -> addSemanticTextInferenceResults(
                             b,
-                            List.of(
-                                generateSemanticTextinferenceResults(fieldName, List.of("a b"))
-                            ),
+                            List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
                             false,
                             false
                         )
                     )
-                ));
+                )
+            );
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "Missing required subfields: [" +
-                        SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME +
-                        ", " +
-                        SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME +
-                        "]"
+                    "Missing required subfields: ["
+                        + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME
+                        + ", "
+                        + SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME
+                        + "]"
                 )
             );
         }
@@ -285,10 +274,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     );
                 }
                 if (includeTextSubfield) {
-                    subfieldMap.put(
-                        SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME,
-                        text
-                    );
+                    subfieldMap.put(SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME, text);
                 }
 
                 parsedInferenceResults.add(subfieldMap);

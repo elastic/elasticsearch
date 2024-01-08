@@ -68,6 +68,12 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             // TODO: Support shapes in ESQL
             return null;
         }
+
+        @Override
+        protected Object nullValueAsSource(Object nullValue) {
+            // TODO: When we support shapes in ESQL; we need to return a shape in source format here
+            return nullValue;
+        }
     }
 
     protected Explicit<Boolean> coerce;

@@ -54,14 +54,14 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public EnterpriseSearchFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.searchApplicationsUsage = in.readMap();
+        this.searchApplicationsUsage = in.readGenericMap();
         Map<String, Object> analyticsCollectionsUsage = new HashMap<>();
         Map<String, Object> queryRulesUsage = new HashMap<>();
         if (in.getTransportVersion().onOrAfter(QUERY_RULES_TRANSPORT_VERSION)) {
-            analyticsCollectionsUsage = in.readMap();
-            queryRulesUsage = in.readMap();
+            analyticsCollectionsUsage = in.readGenericMap();
+            queryRulesUsage = in.readGenericMap();
         } else if (in.getTransportVersion().onOrAfter(BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION)) {
-            analyticsCollectionsUsage = in.readMap();
+            analyticsCollectionsUsage = in.readGenericMap();
         }
         this.analyticsCollectionsUsage = analyticsCollectionsUsage;
         this.queryRulesUsage = queryRulesUsage;

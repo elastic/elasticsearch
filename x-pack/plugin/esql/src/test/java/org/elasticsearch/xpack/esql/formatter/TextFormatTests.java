@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.formatter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -34,6 +35,7 @@ import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class TextFormatTests extends ESTestCase {
@@ -119,17 +121,17 @@ public class TextFormatTests extends ESTestCase {
     public void testCsvFormatWithRegularData() {
         String text = format(CSV, req(), regularData());
         assertEquals("""
-            string,number,location\r
-            Along The River Bank,708,POINT (12.0000000 56.0000000)\r
-            Mind Train,280,POINT (-97.0000000 26.0000000)\r
+            string,number,location,location2\r
+            Along The River Bank,708,POINT (12.000000 56.000000),POINT (1234.000000 5678.000000)\r
+            Mind Train,280,POINT (-97.000000 26.000000),POINT (-9753.000000 2611.000000)\r
             """, text);
     }
 
     public void testCsvFormatNoHeaderWithRegularData() {
         String text = format(CSV, reqWithParam("header", "absent"), regularData());
         assertEquals("""
-            Along The River Bank,708,POINT (12.0000000 56.0000000)\r
-            Mind Train,280,POINT (-97.0000000 26.0000000)\r
+            Along The River Bank,708,POINT (12.000000 56.000000),POINT (1234.000000 5678.000000)\r
+            Mind Train,280,POINT (-97.000000 26.000000),POINT (-9753.000000 2611.000000)\r
             """, text);
     }
 
@@ -141,18 +143,23 @@ public class TextFormatTests extends ESTestCase {
             "string",
             "number",
             "location",
+            "location2",
             "Along The River Bank",
             "708",
-            "POINT (12.0000000 56.0000000)",
+            "POINT (12.000000 56.000000)",
+            "POINT (1234.000000 5678.000000)",
             "Mind Train",
             "280",
-            "POINT (-97.0000000 26.0000000)"
+            "POINT (-97.000000 26.000000)",
+            "POINT (-9753.000000 2611.000000)"
         );
         List<String> expectedTerms = terms.stream()
             .map(x -> x.contains(String.valueOf(delim)) ? '"' + x + '"' : x)
             .collect(Collectors.toList());
         StringBuffer sb = new StringBuffer();
         do {
+            sb.append(expectedTerms.remove(0));
+            sb.append(delim);
             sb.append(expectedTerms.remove(0));
             sb.append(delim);
             sb.append(expectedTerms.remove(0));
@@ -166,9 +173,9 @@ public class TextFormatTests extends ESTestCase {
     public void testTsvFormatWithRegularData() {
         String text = format(TSV, req(), regularData());
         assertEquals("""
-            string\tnumber\tlocation
-            Along The River Bank\t708\tPOINT (12.0000000 56.0000000)
-            Mind Train\t280\tPOINT (-97.0000000 26.0000000)
+            string\tnumber\tlocation\tlocation2
+            Along The River Bank\t708\tPOINT (12.000000 56.000000)\tPOINT (1234.000000 5678.000000)
+            Mind Train\t280\tPOINT (-97.000000 26.000000)\tPOINT (-9753.000000 2611.000000)
             """, text);
     }
 
@@ -246,7 +253,8 @@ public class TextFormatTests extends ESTestCase {
         List<ColumnInfo> headers = asList(
             new ColumnInfo("string", "keyword"),
             new ColumnInfo("number", "integer"),
-            new ColumnInfo("location", "geo_point")
+            new ColumnInfo("location", "geo_point"),
+            new ColumnInfo("location2", "cartesian_point")
         );
 
         // values
@@ -257,7 +265,11 @@ public class TextFormatTests extends ESTestCase {
                     .appendBytesRef(new BytesRef("Mind Train"))
                     .build(),
                 blockFactory.newIntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock(),
-                blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock()
+                blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
+                blockFactory.newBytesRefBlockBuilder(2)
+                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(1234, 5678)))
+                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(-9753, 2611)))
+                    .build()
             )
         );
 

@@ -1,0 +1,5 @@
+pr: 104030
+summary: Add the possibility to transform WKT to WKB directly
+area: Geo
+type: enhancement
+issues: []

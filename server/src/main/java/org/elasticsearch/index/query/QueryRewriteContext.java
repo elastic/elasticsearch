@@ -94,6 +94,26 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
     }
 
+    public QueryRewriteContext(QueryRewriteContext source) {
+        this.mapperService = source.mapperService;
+        this.mappingLookup = source.mappingLookup;
+        this.runtimeMappings = source.runtimeMappings;
+        this.indexSettings = source.indexSettings;
+        this.fullyQualifiedIndex = source.fullyQualifiedIndex;
+        this.indexNameMatcher = source.indexNameMatcher;
+        this.writeableRegistry = source.writeableRegistry;
+        this.valuesSourceRegistry = source.valuesSourceRegistry;
+        this.allowExpensiveQueries = source.allowExpensiveQueries;
+        this.scriptService = source.scriptService;
+        this.parserConfiguration = source.parserConfiguration;
+        this.client = source.client;
+        this.nowInMillis = source.nowInMillis;
+        this.asyncActions.addAll(source.asyncActions);
+        this.allowUnmappedFields = source.allowUnmappedFields;
+        this.mapUnmappedFieldAsString = source.mapUnmappedFieldAsString;
+        this.allowedFields = source.allowedFields;
+    }
+
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
         this(
             parserConfiguration,

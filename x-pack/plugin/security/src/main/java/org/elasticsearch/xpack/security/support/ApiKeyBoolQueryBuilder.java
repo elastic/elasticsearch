@@ -12,9 +12,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.FilteredQueryRewriteContext;
 import org.elasticsearch.index.query.FilteredSearchExecutionContext;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -35,21 +37,16 @@ import java.util.Set;
 
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
-    // Field names allowed at the index level
-    private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES = Set.of(
-        "_id",
-        "creator.principal",
-        "creator.realm",
-        "doc_type",
-        "name",
-        "api_key_invalidated",
-        "invalidation_time",
-        "creation_time",
-        "expiration_time",
-        "metadata_flattened"
-    );
-
-    private ApiKeyBoolQueryBuilder() {}
+    private ApiKeyBoolQueryBuilder(BoolQueryBuilder originalQueryBuilder) {
+        originalQueryBuilder.must().forEach(this::must);
+        originalQueryBuilder.mustNot().forEach(this::must);
+        originalQueryBuilder.should().forEach(this::should);
+        originalQueryBuilder.filter().forEach(this::filter);
+        queryName(originalQueryBuilder.queryName());
+        adjustPureNegative(originalQueryBuilder.adjustPureNegative());
+        minimumShouldMatch(originalQueryBuilder.minimumShouldMatch());
+        boost(originalQueryBuilder.boost());
+    }
 
     /**
      * Build a bool query that is specialised for query API keys information from the security index.
@@ -67,30 +64,31 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
      *                       to only include API keys owned by the user.
      * @return A specialised query builder for API keys that is safe to run on the security index.
      */
-    public static ApiKeyBoolQueryBuilder build(QueryBuilder queryBuilder, @Nullable Authentication authentication) {
-        final ApiKeyBoolQueryBuilder finalQuery = new ApiKeyBoolQueryBuilder();
+    public static ApiKeyBoolQueryBuilder build(@Nullable QueryBuilder queryBuilder, @Nullable Authentication authentication) {
+        final BoolQueryBuilder apiKeyBoolQueryBuilder = new BoolQueryBuilder();
         if (queryBuilder != null) {
             QueryBuilder processedQuery = doProcess(queryBuilder);
-            finalQuery.must(processedQuery);
+            apiKeyBoolQueryBuilder.must(processedQuery);
         }
-        finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
-
+        apiKeyBoolQueryBuilder.filter(QueryBuilders.termQuery("doc_type", "api_key"));
         if (authentication != null) {
             if (authentication.isApiKey()) {
                 final String apiKeyId = (String) authentication.getAuthenticatingSubject()
                     .getMetadata()
                     .get(AuthenticationField.API_KEY_ID_KEY);
                 assert apiKeyId != null : "api key id must be present in the metadata";
-                finalQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyId));
+                apiKeyBoolQueryBuilder.filter(QueryBuilders.idsQuery().addIds(apiKeyId));
             } else {
-                finalQuery.filter(QueryBuilders.termQuery("username", authentication.getEffectiveSubject().getUser().principal()));
+                apiKeyBoolQueryBuilder.filter(
+                    QueryBuilders.termQuery("username", authentication.getEffectiveSubject().getUser().principal())
+                );
                 final String[] realms = ApiKeyService.getOwnersRealmNames(authentication);
                 final QueryBuilder realmsQuery = filterForRealmNames(realms);
                 assert realmsQuery != null;
-                finalQuery.filter(realmsQuery);
+                apiKeyBoolQueryBuilder.filter(realmsQuery);
             }
         }
-        return finalQuery;
+        return new ApiKeyBoolQueryBuilder(apiKeyBoolQueryBuilder);
     }
 
     private static QueryBuilder doProcess(QueryBuilder qb) {
@@ -141,15 +139,20 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (queryRewriteContext instanceof SearchExecutionContext) {
-            return super.doRewrite(wrapSearchExecutionContext((SearchExecutionContext) queryRewriteContext));
+        QueryBuilder rewritten = super.doRewrite(wrapQueryRewriteContext(queryRewriteContext));
+        if (rewritten == this) {
+            return rewritten;
+        } else if (rewritten instanceof BoolQueryBuilder rewrittenBoolQueryBuilder) {
+            return new ApiKeyBoolQueryBuilder(rewrittenBoolQueryBuilder);
+        } else if (rewritten instanceof MatchNoneQueryBuilder) {
+            return rewritten;
         } else {
-            return super.doRewrite(queryRewriteContext);
+            throw new IllegalStateException("Unexpected rewritten");
         }
     }
 
     static SearchExecutionContext wrapSearchExecutionContext(SearchExecutionContext context) {
-        SearchExecutionContext translatingSearchExecutionContext = new FilteredSearchExecutionContext(context) {
+        return new FilteredSearchExecutionContext(context) {
             @Override
             public Set<String> getMatchingFieldNames(String pattern) {
                 return ApiKeyFieldNameTranslators.matchPattern(pattern);
@@ -160,12 +163,33 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                 if (Set.of("_id", "doc_type").contains(name)) {
                     return super.fieldType(name);
                 } else {
-                    String translatedFieldName = ApiKeyFieldNameTranslators.translate(name);
-                    return super.fieldType(translatedFieldName);
+                    return super.fieldType(ApiKeyFieldNameTranslators.translate(name));
                 }
             }
         };
-        return translatingSearchExecutionContext;
+    }
+
+    static QueryRewriteContext wrapQueryRewriteContext(QueryRewriteContext context) {
+        return new FilteredQueryRewriteContext(context) {
+            @Override
+            public Set<String> getMatchingFieldNames(String pattern) {
+                return ApiKeyFieldNameTranslators.matchPattern(pattern);
+            }
+
+            @Override
+            public Iterable<String> getAllFieldNames() {
+                return ApiKeyFieldNameTranslators.matchPattern("*");
+            }
+
+            @Override
+            protected MappedFieldType fieldType(String name) {
+                if (Set.of("_id", "doc_type").contains(name)) {
+                    return super.fieldType(name);
+                } else {
+                    return super.fieldType(ApiKeyFieldNameTranslators.translate(name));
+                }
+            }
+        };
     }
 
     private static QueryBuilder filterForRealmNames(String[] realmNames) {

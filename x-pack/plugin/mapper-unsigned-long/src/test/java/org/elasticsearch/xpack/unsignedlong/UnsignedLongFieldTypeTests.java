@@ -110,10 +110,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermsQueryTimeUnitConversion() {
         UnsignedLongFieldType ft = fieldMapperWithUnit("us").fieldType();
-        assertEquals(
-            LongPoint.newSetQuery("field", 1, 2, 3, 4000),
-            ft.termsQuery(Arrays.asList(1, "2", "3us", "4ms"), MOCK_CONTEXT)
-        );
+        assertEquals(LongPoint.newSetQuery("field", 1, 2, 3, 4000), ft.termsQuery(Arrays.asList(1, "2", "3us", "4ms"), MOCK_CONTEXT));
     }
 
     public void testRangeQueryUnitConversion() {
@@ -210,8 +207,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static UnsignedLongFieldMapper fieldMapperWithUnit(String unit) {
-        return new UnsignedLongFieldMapper.Builder("field", false, null)
-            .meta(Map.of("unit", unit))
+        return new UnsignedLongFieldMapper.Builder("field", false, null).meta(Map.of("unit", unit))
             .build(MapperBuilderContext.root(false, false));
     }
 }

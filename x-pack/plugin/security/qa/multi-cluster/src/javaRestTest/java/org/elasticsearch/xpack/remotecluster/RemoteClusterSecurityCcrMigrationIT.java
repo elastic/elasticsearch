@@ -22,6 +22,7 @@ import org.elasticsearch.test.AnnotationTestOrdering.Order;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -43,6 +44,15 @@ import static org.hamcrest.Matchers.is;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
 public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSecurityTestCase {
+
+    @BeforeClass
+    public static void disableInFips() {
+        assumeFalse(
+            "Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload"
+                + "settings api call, requires TLS to be configured for the transport layer",
+            inFipsJvm()
+        );
+    }
 
     private static final String CCR_USER = "ccr_user";
     private static final String CCR_USER_ROLE = "ccr_user_role";

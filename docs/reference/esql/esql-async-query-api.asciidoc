@@ -64,7 +64,7 @@ complete results in the `wait_for_completion_timeout` parameter.
 
 [source,console]
 ----
-GET /_query/async/get/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=30s
+GET /_query/async/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=30s
 ----
 // TEST[skip: no access to search ID - may return response values]
 
@@ -87,6 +87,6 @@ is still running, {es} cancels it.
 
 [source,console]
 ----
-DELETE /_query/async/delete/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
+DELETE /_query/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
 ----
 // TEST[skip: no access to search ID]

@@ -95,7 +95,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                         fields.forEach((f, values) -> hit.setDocumentField(f, new DocumentField(f, values, List.of())));
                         searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
                     } else {
-                        searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
+                        searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
                     }
                     responses[i] = new MultiSearchResponse.Item(
                         new SearchResponse(

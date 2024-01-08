@@ -103,29 +103,9 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     }
 
     /**
-     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
-     * if you know the size up front because it's faster.
-     * @deprecated use {@link BlockFactory#newDoubleVectorBuilder}
-     */
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newDoubleVectorBuilder(estimatedSize);
-    }
-
-    /**
-     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
-     * if you know the size up front because it's faster.
-     * @deprecated use {@link BlockFactory#newDoubleVectorFixedBuilder}
-     */
-    @Deprecated
-    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        return blockFactory.newDoubleVectorFixedBuilder(size);
-    }
-
-    /**
      * A builder that grows as needed.
      */
-    sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder {
+    sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder, FixedBuilder {
         /**
          * Appends a double to the current entry.
          */
@@ -138,13 +118,11 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     /**
      * A builder that never grows.
      */
-    sealed interface FixedBuilder extends Vector.Builder permits DoubleVectorFixedBuilder {
+    sealed interface FixedBuilder extends Builder permits DoubleVectorFixedBuilder {
         /**
          * Appends a double to the current entry.
          */
-        FixedBuilder appendDouble(double value);
-
         @Override
-        DoubleVector build();
+        FixedBuilder appendDouble(double value);
     }
 }

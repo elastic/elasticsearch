@@ -94,7 +94,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
-        BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize, null);
+        BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         return List.of(
             new PlanExecutor(
                 new IndexResolver(

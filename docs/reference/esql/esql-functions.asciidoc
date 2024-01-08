@@ -29,7 +29,6 @@ these functions:
 * <<esql-ends_with>>
 * <<esql-floor>>
 * <<esql-greatest>>
-* <<esql-is_finite>>
 * <<esql-is_infinite>>
 * <<esql-least>>
 * <<esql-left>>
@@ -93,7 +92,6 @@ include::functions/e.asciidoc[]
 include::functions/ends_with.asciidoc[]
 include::functions/floor.asciidoc[]
 include::functions/greatest.asciidoc[]
-include::functions/is_finite.asciidoc[]
 include::functions/is_infinite.asciidoc[]
 include::functions/least.asciidoc[]
 include::functions/left.asciidoc[]

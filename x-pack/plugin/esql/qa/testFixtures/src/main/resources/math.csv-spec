@@ -210,20 +210,6 @@ salary:integer | s:double
 73851          | 1330201
 ;
 
-isFiniteFalse
-row d = 1.0 | eval s = is_finite(d/0);
-
-d:double | s:boolean
-1.0      | false
-;
-
-isFiniteTrue
-row d = 1.0 | eval s = is_finite(d);
-
-d:double | s:boolean
-1.0      | true
-;
-
 isInfiniteFalse
 row d = 1.0 | eval s = is_infinite(d);
 

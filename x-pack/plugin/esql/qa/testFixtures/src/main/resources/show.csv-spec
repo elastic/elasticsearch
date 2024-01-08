@@ -34,7 +34,6 @@ e                        |? e()                                                 
 ends_with                |? ends_with(arg1:?, arg2:?)                             |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 floor                    |"? floor(n:integer|long|double|unsigned_long)"    |n                        |"integer|long|double|unsigned_long"    | ""                                                 |?                    | ""                      | false                | false
 greatest                 |"? greatest(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        |[first, rest]            |["integer|long|double|boolean|keyword|text|ip|version", "integer|long|double|boolean|keyword|text|ip|version"]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
-is_finite                |boolean is_finite(n:double)                             |n                        |double            | "A floating-point value"                                                 |boolean              | "Returns true if the argument is a finite floating-point value."                      | false                | false
 is_infinite              |boolean is_infinite(n:double)                           |n                        |double            | "A floating-point value"                                                 |boolean             | "Returns true if the specified floating-point value is infinitely large in magnitude."                      | false                | false
 least                    |"? least(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        |[first, rest]            |["integer|long|double|boolean|keyword|text|ip|version", "integer|long|double|boolean|keyword|text|ip|version"]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
 left                     |"? left(string:keyword, length:integer)"                |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
@@ -124,7 +123,6 @@ synopsis:keyword
 ? ends_with(arg1:?, arg2:?)
 "? floor(n:integer|long|double|unsigned_long)"
 "? greatest(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"
-boolean is_finite(n:double)
 boolean is_infinite(n:double)
 "? least(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"
 ? left(string:keyword, length:integer)

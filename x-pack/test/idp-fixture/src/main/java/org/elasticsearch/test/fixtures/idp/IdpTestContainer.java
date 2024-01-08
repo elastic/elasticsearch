@@ -7,18 +7,17 @@
 
 package org.elasticsearch.test.fixtures.idp;
 
+import com.github.dockerjava.api.model.Link;
+
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
-import org.testcontainers.images.builder.dockerfile.statement.SingleArgumentStatement;
 import org.testcontainers.lifecycle.Startable;
-//import org.testcontainers.images.builder.dockerfile.statement.SingleArgumentStatement;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 
 import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
@@ -37,8 +36,8 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
     }
 
     public IdpTestContainer dependsOn(Startable... startables) {
-       super.dependsOn(startables);
-       return this;
+        super.dependsOn(startables);
+        return this;
     }
 
     public IdpTestContainer(Network network) {
@@ -135,12 +134,12 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
                     .run("chmod +x /opt/jetty-home/bin/jetty.sh")
                     // Opening 4443 (browser TLS), 8443 (mutual auth TLS)
                     .cmd("run-jetty.sh")
-//                    .withStatement(
-//                        new SingleArgumentStatement(
-//                            "HEALTHCHECK",
-//                            "CMD curl -f -s --http0.9 http://localhost:4443 " + "--connect-timeout 40 --max-time 60 --output - > /dev/null"
-//                        )
-//                    )
+                    // .withStatement(
+                    // new SingleArgumentStatement(
+                    // "HEALTHCHECK",
+                    // "CMD curl -f -s --http0.9 http://localhost:4443 " + "--connect-timeout 40 --max-time 60 --output - > /dev/null"
+                    // )
+                    // )
                     .build()
             )
                 .withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
@@ -154,6 +153,7 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
         withReuse(true);
         waitingFor(Wait.forListeningPorts(4443));
         addExposedPorts(4443, 8443);
+        withCreateContainerCmdModifier(cmd -> cmd.withLinks(Link.parse("openldap:openldap")));
     }
 
     @Override

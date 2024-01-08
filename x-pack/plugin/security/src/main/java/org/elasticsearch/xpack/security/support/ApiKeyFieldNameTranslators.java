@@ -57,7 +57,11 @@ public class ApiKeyFieldNameTranslators {
         Set<String> patternMatches = new HashSet<>();
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
             if (translator.supports(pattern)) {
-                patternMatches.add(((ExactFieldNameTranslator) translator).name);
+                if (translator instanceof ExactFieldNameTranslator) {
+                    patternMatches.add(((ExactFieldNameTranslator) translator).name);
+                } else {
+                    patternMatches.add(pattern);
+                }
             }
         }
         return patternMatches;

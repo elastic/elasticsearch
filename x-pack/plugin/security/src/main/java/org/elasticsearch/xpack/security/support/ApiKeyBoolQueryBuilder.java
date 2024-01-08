@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -159,13 +160,23 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
 
             @Override
-            protected MappedFieldType fieldType(String name) {
-                if (Set.of("_id", "doc_type").contains(name)) {
-                    return super.fieldType(name);
+            public Iterable<String> getAllFieldNames() {
+                return ApiKeyFieldNameTranslators.matchPattern("*");
+            }
+
+            @Override
+            public MappedFieldType getFieldType(String name) {
+                if (Set.of("_id", "doc_type", FieldNamesFieldMapper.NAME).contains(name)) {
+                    return super.getFieldType(name);
                 } else {
-                    return super.fieldType(ApiKeyFieldNameTranslators.translate(name));
+                    return super.getFieldType(ApiKeyFieldNameTranslators.translate(name));
                 }
             }
+
+            // TODO
+            //@Override
+            //public boolean isFieldMapped(String name) {
+            //}
         };
     }
 
@@ -182,12 +193,30 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
 
             @Override
-            protected MappedFieldType fieldType(String name) {
+            public MappedFieldType getFieldType(String name) {
                 if (Set.of("_id", "doc_type").contains(name)) {
-                    return super.fieldType(name);
+                    return super.getFieldType(name);
                 } else {
-                    return super.fieldType(ApiKeyFieldNameTranslators.translate(name));
+                    return super.getFieldType(ApiKeyFieldNameTranslators.translate(name));
                 }
+            }
+
+            @Override
+            public SearchExecutionContext convertToSearchExecutionContext() {
+                SearchExecutionContext searchExecutionContext = super.convertToSearchExecutionContext();
+                if (searchExecutionContext != null) {
+                    return wrapSearchExecutionContext(searchExecutionContext);
+                }
+                return null;
+            }
+
+            @Override
+            public QueryRewriteContext convertToIndexMetadataContext() {
+                QueryRewriteContext indexMetadataContext = super.convertToIndexMetadataContext();
+                if (indexMetadataContext != null) {
+                    return wrapQueryRewriteContext(indexMetadataContext);
+                }
+                return null;
             }
         };
     }

@@ -8,4 +8,4 @@ idp_user:
   applications:
     - application: elastic-cloud
       resources: ["ec:123456:abcdefg"]
-      privileges: ["sso:viewer"]
+      privileges: ["sso:viewer", "sso:custom"]

@@ -185,8 +185,8 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
                 equalTo("urn:oasis:names:tc:SAML:2.0:nameid-format:transient")
             );
             assertThat(ObjectPath.eval("metadata.saml_roles", authMap), instanceOf(List.class));
-            assertThat(ObjectPath.eval("metadata.saml_roles", authMap), hasSize(1));
-            assertThat(ObjectPath.eval("metadata.saml_roles", authMap), contains("viewer"));
+            assertThat(ObjectPath.eval("metadata.saml_roles", authMap), hasSize(2));
+            assertThat(ObjectPath.eval("metadata.saml_roles", authMap), contains("viewer", "custom"));
         }
     }
 

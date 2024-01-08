@@ -62,7 +62,7 @@
       "lazy":{
         "type":"boolean",
         "default":"false",
-        "description":"If set to true, the rollover action will only be mark a data stream to signal that it needs to be rolled over at the next write. Applies only to data streams."
+        "description":"If set to true, the rollover action will only mark a data stream to signal that it needs to be rolled over at the next write. Only allowed on data streams."
       }
     },
     "body":{

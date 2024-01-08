@@ -59,7 +59,9 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
             "geo_point",
             "cartesian_point",
             "version" },
-        description = "Accepts pairs of conditions and values. The function returns the value that belongs to the first condition that evaluates to true."
+        description = """
+            Accepts pairs of conditions and values.
+            The function returns the value that belongs to the first condition that evaluates to true."""
     )
     public Case(
         Source source,

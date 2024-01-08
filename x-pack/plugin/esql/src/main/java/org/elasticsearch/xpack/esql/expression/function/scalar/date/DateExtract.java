@@ -43,11 +43,13 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
     @FunctionInfo(returnType = "long", description = "Extracts parts of a date, like year, month, day, hour.")
     public DateExtract(
         Source source,
-        @Param(
-            name = "date_part",
-            type = { "keyword" },
-            description = "Part of the date to extract. Can be: aligned_day_of_week_in_month, aligned_day_of_week_in_year, aligned_week_of_month, aligned_week_of_year, ampm_of_day, clock_hour_of_ampm, clock_hour_of_day, day_of_month, day_of_week, day_of_year, epoch_day, era, hour_of_ampm, hour_of_day, instant_seconds, micro_of_day, micro_of_second, milli_of_day, milli_of_second, minute_of_day, minute_of_hour, month_of_year, nano_of_day, nano_of_second, offset_seconds, proleptic_month, second_of_day, second_of_minute, year, or year_of_era."
-        ) Expression chronoFieldExp,
+        @Param(name = "date_part", type = { "keyword" }, description = """
+            Part of the date to extract.
+            Can be: aligned_day_of_week_in_month, aligned_day_of_week_in_year, aligned_week_of_month,
+            aligned_week_of_year, ampm_of_day, clock_hour_of_ampm, clock_hour_of_day, day_of_month, day_of_week,
+            day_of_year, epoch_day, era, hour_of_ampm, hour_of_day, instant_seconds, micro_of_day, micro_of_second,
+            milli_of_day, milli_of_second, minute_of_day, minute_of_hour, month_of_year, nano_of_day, nano_of_second,
+            offset_seconds, proleptic_month, second_of_day, second_of_minute, year, or year_of_era.""") Expression chronoFieldExp,
         @Param(name = "field", type = "date", description = "Date expression") Expression field,
         Configuration configuration
     ) {

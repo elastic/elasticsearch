@@ -48,9 +48,9 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
         @Param(name = "date", type = { "date" }, description = "Date expression") Expression date,
         Configuration configuration
     ) {
-        super(source, second != null ? List.of(format, second) : List.of(format), configuration);
-        this.field = second != null ? second : format;
-        this.format = second != null ? format : null;
+        super(source, date != null ? List.of(format, date) : List.of(format), configuration);
+        this.field = date != null ? date : format;
+        this.format = date != null ? format : null;
     }
 
     @Override

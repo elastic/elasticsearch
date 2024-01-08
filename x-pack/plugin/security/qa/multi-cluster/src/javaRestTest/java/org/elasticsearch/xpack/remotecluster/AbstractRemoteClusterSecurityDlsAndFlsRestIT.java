@@ -171,7 +171,6 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
         String[] expectedRemoteIndices,
         String[] expectedFields
     ) {
-        assertOK(searchResponse);
         try {
             assertOK(searchResponse);
             var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
@@ -200,7 +199,6 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
         Response searchResponse,
         Map<String, Set<String>> expectedRemoteIndicesAndFields
     ) {
-        assertOK(searchResponse);
         try {
             assertOK(searchResponse);
             var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);

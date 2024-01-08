@@ -47,6 +47,14 @@ public interface LiveVersionMapArchive {
         return 0L;
     }
 
+    default long getReclaimableMemoryBytes() {
+        return 0;
+    }
+
+    default long getRefreshingBytes() {
+        return 0;
+    }
+
     LiveVersionMapArchive NOOP_ARCHIVE = new LiveVersionMapArchive() {
         @Override
         public void afterRefresh(LiveVersionMap.VersionLookup old) {}

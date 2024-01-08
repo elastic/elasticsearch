@@ -486,9 +486,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      * and from old to archive, so effectively refresh doesn't free up any memory.
      */
     long reclaimableRamBytes() {
-        return archive == LiveVersionMapArchive.NOOP_ARCHIVE
-            ? maps.current.ramBytesUsed.get()
-            : maps.ramBytesUsed() + archive.getMemoryBytesUsed() + ramBytesUsedTombstones.get();
+        return maps.ramBytesUsed() + archive.getReclaimableMemoryBytes();
     }
 
     /**
@@ -504,7 +502,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      * entries from the current to old and from old to archive, so effectively refresh doesn't free up any memory.
      */
     long getRefreshingBytes() {
-        return archive == LiveVersionMapArchive.NOOP_ARCHIVE ? maps.old.ramBytesUsed.get() : 0;
+        return archive == LiveVersionMapArchive.NOOP_ARCHIVE ? maps.old.ramBytesUsed.get() : archive.getRefreshingBytes();
     }
 
     /**

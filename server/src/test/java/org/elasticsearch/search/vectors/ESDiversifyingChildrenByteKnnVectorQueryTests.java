@@ -10,27 +10,29 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnByteVectorField;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.queries.function.FunctionQuery;
+import org.apache.lucene.queries.function.valuesource.ByteKnnVectorFieldSource;
+import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
+import org.apache.lucene.queries.function.valuesource.ConstKnnByteVectorValueSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 
 public class ESDiversifyingChildrenByteKnnVectorQueryTests extends AbstractESDiversifyingChildrenKnnVectorQueryTestCase {
 
     @Override
-    Query getParentJoinKnnQuery(
-        String fieldName,
-        float[] queryVector,
-        Query childFilter,
-        int k,
-        BitSetProducer parentBitSet,
-        boolean scoreAllMatchingChildren
-    ) {
-        return new ESDiversifyingChildrenByteKnnVectorQuery(
-            fieldName,
-            fromFloat(queryVector),
-            childFilter,
-            k,
+    Query getParentJoinKnnQuery(String fieldName, float[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
+        return new ESDiversifyingChildrenKnnVectorQuery(
+            new DiversifyingChildrenByteKnnVectorQuery(fieldName, fromFloat(queryVector), childFilter, k, parentBitSet),
             parentBitSet,
-            scoreAllMatchingChildren
+            new FunctionQuery(
+                new ByteVectorSimilarityFunction(
+                    VectorSimilarityFunction.COSINE,
+                    new ByteKnnVectorFieldSource(fieldName),
+                    new ConstKnnByteVectorValueSource(fromFloat(queryVector))
+                )
+            )
         );
     }
 

@@ -115,27 +115,7 @@ public class NestedKnnScoreDocQueryBuilder extends AbstractQueryBuilder<NestedKn
             // we are NOT in a nested context, coming from the top level knn search
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
         }
-
-        return switch (vectorFieldType.getElementType()) {
-            case FLOAT -> new ChildToParentToChildJoinVectorQuery(
-                kNNQuery,
-                ChildToParentToChildJoinVectorQuery.fromField(query, field),
-                parentFilter
-            );
-            case BYTE -> {
-                byte[] byteQuery = new byte[query.length];
-                for (int i = 0; i < query.length; i++) {
-                    assert query[i] >= Byte.MIN_VALUE && query[i] <= Byte.MAX_VALUE;
-                    byteQuery[i] = (byte) query[i];
-                }
-                yield new ChildToParentToChildJoinVectorQuery(
-                    kNNQuery,
-                    ChildToParentToChildJoinVectorQuery.fromField(byteQuery, field),
-                    parentFilter
-                );
-            }
-            default -> throw new IllegalArgumentException("unsupported vector element type: " + vectorFieldType.getElementType());
-        };
+        return new ChildToParentToChildJoinVectorQuery(kNNQuery, vectorFieldType.createExactKnnQuery(query), parentFilter);
     }
 
     @Override

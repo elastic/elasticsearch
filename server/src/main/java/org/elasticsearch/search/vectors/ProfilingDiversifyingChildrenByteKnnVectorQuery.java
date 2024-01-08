@@ -11,9 +11,10 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ProfilingDiversifyingChildrenByteKnnVectorQuery extends ESDiversifyingChildrenByteKnnVectorQuery implements ProfilingQuery {
+public class ProfilingDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery implements ProfilingQuery {
     private long vectorOpsCount;
 
     public ProfilingDiversifyingChildrenByteKnnVectorQuery(
@@ -21,10 +22,9 @@ public class ProfilingDiversifyingChildrenByteKnnVectorQuery extends ESDiversify
         byte[] query,
         Query childFilter,
         int k,
-        BitSetProducer parentsFilter,
-        boolean matchAllChildren
+        BitSetProducer parentsFilter
     ) {
-        super(field, query, childFilter, k, parentsFilter, matchAllChildren);
+        super(field, query, childFilter, k, parentsFilter);
     }
 
     @Override

@@ -8,10 +8,7 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.ByteVectorValues;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -37,54 +34,6 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  */
 class ChildToParentToChildJoinVectorQuery extends Query {
 
-    static RandomVectorScorerProvider fromField(byte[] query, String fieldName) {
-        return context -> {
-            final ByteVectorValues values = context.reader().getByteVectorValues(fieldName);
-            if (values == null) {
-                return null;
-            }
-            final VectorSimilarityFunction function = context.reader()
-                .getFieldInfos()
-                .fieldInfo(fieldName)
-                .getVectorSimilarityFunction();
-            return new VectorScorer() {
-                @Override
-                public float score() throws IOException {
-                    return function.compare(query, values.vectorValue());
-                }
-
-                @Override
-                public DocIdSetIterator iterator() {
-                    return values;
-                }
-            };
-        };
-    }
-
-    static RandomVectorScorerProvider fromField(float[] query, String fieldName) {
-        return context -> {
-            final FloatVectorValues values = context.reader().getFloatVectorValues(fieldName);
-            if (values == null) {
-                return null;
-            }
-            final VectorSimilarityFunction function = context.reader()
-                .getFieldInfos()
-                .fieldInfo(fieldName)
-                .getVectorSimilarityFunction();
-            return new VectorScorer() {
-                @Override
-                public float score() throws IOException {
-                    return function.compare(query, values.vectorValue());
-                }
-
-                @Override
-                public DocIdSetIterator iterator() {
-                    return values;
-                }
-            };
-        };
-    }
-
     interface VectorScorer {
         float score() throws IOException;
 
@@ -96,12 +45,12 @@ class ChildToParentToChildJoinVectorQuery extends Query {
     }
 
     private final Query nearestChildren;
-    private final RandomVectorScorerProvider scorerProvider;
+    private final Query exactKnnQuery;
     private final BitSetProducer parentsFilter;
 
-    ChildToParentToChildJoinVectorQuery(Query nearestChildren, RandomVectorScorerProvider scorerProvider, BitSetProducer parentsFilter) {
+    ChildToParentToChildJoinVectorQuery(Query nearestChildren, Query exactKnnQuery, BitSetProducer parentsFilter) {
         this.nearestChildren = nearestChildren;
-        this.scorerProvider = scorerProvider;
+        this.exactKnnQuery = exactKnnQuery;
         this.parentsFilter = parentsFilter;
     }
 
@@ -115,7 +64,7 @@ class ChildToParentToChildJoinVectorQuery extends Query {
         if (nearestChildren == this.nearestChildren) {
             return this;
         }
-        return new ChildToParentToChildJoinVectorQuery(nearestChildren, scorerProvider, parentsFilter);
+        return new ChildToParentToChildJoinVectorQuery(nearestChildren, exactKnnQuery, parentsFilter);
     }
 
     @Override
@@ -134,25 +83,25 @@ class ChildToParentToChildJoinVectorQuery extends Query {
         if (o == null || getClass() != o.getClass()) return false;
         ChildToParentToChildJoinVectorQuery that = (ChildToParentToChildJoinVectorQuery) o;
         return Objects.equals(nearestChildren, that.nearestChildren)
-            && Objects.equals(scorerProvider, that.scorerProvider)
+            && Objects.equals(exactKnnQuery, that.exactKnnQuery)
             && Objects.equals(parentsFilter, that.parentsFilter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nearestChildren, scorerProvider, parentsFilter);
+        return Objects.hash(nearestChildren, exactKnnQuery, parentsFilter);
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         final Weight nearestChildrenWeight = nearestChildren.createWeight(searcher, scoreMode, boost);
+        final Weight exactKnnWeight = exactKnnQuery.createWeight(searcher, scoreMode, boost);
 
-        return new ChildToParentToChildJoinVectorWeight(this, nearestChildrenWeight, scorerProvider, parentsFilter);
+        return new ChildToParentToChildJoinVectorWeight(this, nearestChildrenWeight, exactKnnWeight, parentsFilter);
     }
 
     static final class ChildToParentToChildJoinVectorWeight extends Weight {
-        private final Weight nearestChildren;
-        private final RandomVectorScorerProvider scorerProvider;
+        private final Weight nearestChildren, exactKnn;
         private final BitSetProducer parentsFilter;
 
         /**
@@ -160,15 +109,10 @@ class ChildToParentToChildJoinVectorQuery extends Query {
          *
          * @param query the parent query
          */
-        ChildToParentToChildJoinVectorWeight(
-            Query query,
-            Weight nearestChildren,
-            RandomVectorScorerProvider scorerProvider,
-            BitSetProducer parentsFilter
-        ) {
+        ChildToParentToChildJoinVectorWeight(Query query, Weight nearestChildren, Weight exactKnn, BitSetProducer parentsFilter) {
             super(query);
             this.nearestChildren = nearestChildren;
-            this.scorerProvider = scorerProvider;
+            this.exactKnn = exactKnn;
             this.parentsFilter = parentsFilter;
         }
 
@@ -187,7 +131,7 @@ class ChildToParentToChildJoinVectorQuery extends Query {
             if (parentBitSet == null) {
                 return null;
             }
-            VectorScorer scorer = scorerProvider.get(context);
+            Scorer scorer = exactKnn.scorer(context);
             if (scorer == null) {
                 return null;
             }
@@ -202,8 +146,7 @@ class ChildToParentToChildJoinVectorQuery extends Query {
     }
 
     static final class ChildToParentToChildJoinVectorScorer extends Scorer {
-        private final VectorScorer vectorScorer;
-        private final Scorer originallyMatchedChildren;
+        private final Scorer originallyMatchedChildren, vectorScorer;
         private final DocIdSetIterator childFilterIterator, originallyMatchedChildrenIterator;
         private final BitSet parentBitSet;
         private final double inverseParentPercentage;
@@ -214,7 +157,7 @@ class ChildToParentToChildJoinVectorQuery extends Query {
             Scorer originallyMatchedChildren,
             DocIdSetIterator childFilterIterator,
             BitSet parentBitSet,
-            VectorScorer vectorScorer
+            Scorer vectorScorer
         ) {
             super(weight);
             this.vectorScorer = vectorScorer;

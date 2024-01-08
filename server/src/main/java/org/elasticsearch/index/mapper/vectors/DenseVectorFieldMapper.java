@@ -29,6 +29,13 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.queries.function.FunctionQuery;
+import org.apache.lucene.queries.function.valuesource.ByteKnnVectorFieldSource;
+import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
+import org.apache.lucene.queries.function.valuesource.ConstKnnByteVectorValueSource;
+import org.apache.lucene.queries.function.valuesource.ConstKnnFloatValueSource;
+import org.apache.lucene.queries.function.valuesource.FloatKnnVectorFieldSource;
+import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.Query;
@@ -57,6 +64,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.vectors.ESDiversifyingChildrenKnnVectorQuery;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ProfilingKnnByteVectorQuery;
@@ -1064,6 +1072,57 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
+        public Query createExactKnnQuery(float[] queryVector) {
+            if (isIndexed() == false) {
+                throw new IllegalArgumentException(
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                );
+            }
+            if (queryVector.length != dims) {
+                throw new IllegalArgumentException(
+                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
+                );
+            }
+            elementType.checkVectorBounds(queryVector);
+            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
+                if (similarity == VectorSimilarity.COSINE
+                    && ElementType.FLOAT.equals(elementType)
+                    && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)
+                    && isNotUnitVector(squaredMagnitude)) {
+                    float length = (float) Math.sqrt(squaredMagnitude);
+                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
+                    for (int i = 0; i < queryVector.length; i++) {
+                        queryVector[i] /= length;
+                    }
+                }
+            }
+            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
+            return switch (elementType) {
+                case BYTE -> {
+                    byte[] bytes = new byte[queryVector.length];
+                    for (int i = 0; i < queryVector.length; i++) {
+                        bytes[i] = (byte) queryVector[i];
+                    }
+                    yield new FunctionQuery(
+                        new ByteVectorSimilarityFunction(
+                            vectorSimilarityFunction,
+                            new ByteKnnVectorFieldSource(name()),
+                            new ConstKnnByteVectorValueSource(bytes)
+                        )
+                    );
+                }
+                case FLOAT -> new FunctionQuery(
+                    new FloatVectorSimilarityFunction(
+                        vectorSimilarityFunction,
+                        new FloatKnnVectorFieldSource(name()),
+                        new ConstKnnFloatValueSource(queryVector)
+                    )
+                );
+            };
+        }
+
         public Query createKnnQuery(
             float[] queryVector,
             int numCands,
@@ -1083,6 +1142,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             elementType.checkVectorBounds(queryVector);
+            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
@@ -1104,29 +1164,59 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     for (int i = 0; i < queryVector.length; i++) {
                         bytes[i] = (byte) queryVector[i];
                     }
-                    yield nestedVectorSearchParams != null
-                        ? new ProfilingDiversifyingChildrenByteKnnVectorQuery(
+                    if (nestedVectorSearchParams != null) {
+                        Query innerQuery = new ProfilingDiversifyingChildrenByteKnnVectorQuery(
                             name(),
                             bytes,
                             filter,
                             numCands,
-                            nestedVectorSearchParams.parentFilter,
-                            nestedVectorSearchParams.innerHitBuilder == null
-                                ? false
-                                : nestedVectorSearchParams.innerHitBuilder.getSize() > 1
-                        )
-                        : new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
+                            nestedVectorSearchParams.parentFilter
+                        );
+                        if (nestedVectorSearchParams.innerHitBuilder == null || nestedVectorSearchParams.innerHitBuilder.getSize() == 1) {
+                            yield innerQuery;
+                        } else {
+                            yield new ESDiversifyingChildrenKnnVectorQuery(
+                                innerQuery,
+                                nestedVectorSearchParams.parentFilter,
+                                new FunctionQuery(
+                                    new ByteVectorSimilarityFunction(
+                                        vectorSimilarityFunction,
+                                        new ByteKnnVectorFieldSource(name()),
+                                        new ConstKnnByteVectorValueSource(bytes)
+                                    )
+                                )
+                            );
+                        }
+                    }
+                    yield new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
-                case FLOAT -> nestedVectorSearchParams != null
-                    ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(
-                        name(),
-                        queryVector,
-                        filter,
-                        numCands,
-                        nestedVectorSearchParams.parentFilter,
-                        nestedVectorSearchParams.innerHitBuilder == null ? false : nestedVectorSearchParams.innerHitBuilder.getSize() > 1
-                    )
-                    : new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
+                case FLOAT -> {
+                    if (nestedVectorSearchParams != null) {
+                        Query innerQuery = new ProfilingDiversifyingChildrenFloatKnnVectorQuery(
+                            name(),
+                            queryVector,
+                            filter,
+                            numCands,
+                            nestedVectorSearchParams.parentFilter
+                        );
+                        if (nestedVectorSearchParams.innerHitBuilder == null || nestedVectorSearchParams.innerHitBuilder.getSize() == 1) {
+                            yield innerQuery;
+                        } else {
+                            yield new ESDiversifyingChildrenKnnVectorQuery(
+                                innerQuery,
+                                nestedVectorSearchParams.parentFilter,
+                                new FunctionQuery(
+                                    new FloatVectorSimilarityFunction(
+                                        vectorSimilarityFunction,
+                                        new FloatKnnVectorFieldSource(name()),
+                                        new ConstKnnFloatValueSource(queryVector)
+                                    )
+                                )
+                            );
+                        }
+                    }
+                    yield new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
+                }
             };
 
             if (similarityThreshold != null) {

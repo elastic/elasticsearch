@@ -55,15 +55,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/420_percentile_ranks_tdigest_metric/filtered", "Hybrid t-digest produces different results.")
 
   task.addAllowedWarningRegex("\\[types removal\\].*")
-
-    //   useJUnitPlatform()
-    // distribution {
-    //   enabled = true
-    //   maxLocalExecutors = 0
-    // }
-    // javaLauncher = javaToolchains.launcherFor {
-    // //     // languageVersion = JavaLanguageVersion.of(20)
-    // }
 }
 
 artifacts {
@@ -77,10 +68,6 @@ dependencies {
   yamlRestTestImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
   yamlRestTestImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
   yamlRestTestImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
-
-  // yamlRestTestV7Implementation "org.junit.vintage:junit-vintage-engine:5.8.1"
-  // yamlRestTestV7Implementation "org.junit.platform:junit-platform-launcher:1.8.1"
-  // yamlRestTestV7Implementation "org.junit.jupiter:junit-jupiter:5.8.1"
 }
 
 tasks.named('yamlRestTest').configure {
@@ -89,7 +76,5 @@ tasks.named('yamlRestTest').configure {
       enabled = true
       maxLocalExecutors = 0
     }
-    javaLauncher = javaToolchains.launcherFor {
-    //     // languageVersion = JavaLanguageVersion.of(20)
-    }
+    javaLauncher = javaToolchains.launcherFor { }
 }

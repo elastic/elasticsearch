@@ -167,14 +167,6 @@ tasks.named('test').configure {
     }
 }
 
-// tasks.named('yamlRestTest').configure {
-//     useJUnitPlatform()
-//     distribution {
-//       enabled = true
-//       maxLocalExecutors = 0
-//     }
-// }
-
 tasks.register("integTest", Test) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath

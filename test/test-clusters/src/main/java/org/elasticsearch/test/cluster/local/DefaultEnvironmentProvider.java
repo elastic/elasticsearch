@@ -28,8 +28,7 @@ public class DefaultEnvironmentProvider implements EnvironmentProvider {
 
         // If we are testing the current version of Elasticsearch, use the configured runtime Java, otherwise use the bundled JDK
         if (nodeSpec.getDistributionType() == DistributionType.INTEG_TEST || nodeSpec.getVersion().equals(Version.CURRENT)) {
-            // environment.put("ES_JAVA_HOME", System.getProperty(TESTS_RUNTIME_JAVA_SYSPROP));
-            environment.put("ES_JAVA_HOME", "/Library/Java/JavaVirtualMachines/temurin-18.jdk/Contents/Home");
+            environment.put("ES_JAVA_HOME", System.getProperty(TESTS_RUNTIME_JAVA_SYSPROP));
         }
 
         // Override the system hostname variables for testing

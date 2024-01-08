@@ -28,38 +28,9 @@ dependencies {
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:mapper-extras')
 
-
-	// testImplementation(platform("org.junit:junit-bom:5.10.1"))
-
-	// testImplementation("org.junit.jupiter:junit-jupiter") {
-	// 	because 'allows to write and run Jupiter tests'
-	// }
-
-	// testImplementation("junit:junit:4.13.2")
-	// testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
-	// 	because 'allows JUnit 3 and JUnit 4 tests to run'
-	// }
-
-	// testRuntimeOnly("org.junit.platform:junit-platform-launcher") {
-	// 	because 'allows tests to run from IDEs that bundle older version of launcher'
-	// }
-
-    // testImplementation "junit:junit:4.13.2"
-    yamlRestTestImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
-    yamlRestTestImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
-    yamlRestTestImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
-
-  // testImplementation(platform(buildLibs.junit5.platform))
-  // testImplementation(buildLibs.junit5.jupiter) {
-  //     because 'allows to write and run Jupiter tests'
-  // }
-  // testRuntimeOnly(buildLibs.junit5.vintage) {
-  //     because 'allows JUnit 3 and JUnit 4 tests to run'
-  // }
-
-  // testRuntimeOnly(buildLibs.junit5.platform.launcher) {
-  //     because 'allows tests to run from IDEs that bundle older version of launcher'
-  // }
+  yamlRestTestImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
+  yamlRestTestImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
+  yamlRestTestImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
@@ -74,7 +45,6 @@ test {
       includeEngines 'junit-vintage'
     }
 
-
     distribution {
       enabled = true
       maxLocalExecutors = 0
@@ -87,7 +57,5 @@ tasks.named('yamlRestTest').configure {
       enabled = true
       maxLocalExecutors = 0
     }
-    javaLauncher = javaToolchains.launcherFor {
-    //     // languageVersion = JavaLanguageVersion.of(20)
-    }
+    javaLauncher = javaToolchains.launcherFor { }
 }

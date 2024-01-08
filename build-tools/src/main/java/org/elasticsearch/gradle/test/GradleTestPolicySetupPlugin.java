@@ -12,7 +12,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.tasks.testing.Test;
-// import com.gradle.enterprise.gradleplugin.testdistribution.TestDistributionExtension;
 
 public class GradleTestPolicySetupPlugin implements Plugin<Project> {
 
@@ -31,27 +30,6 @@ public class GradleTestPolicySetupPlugin implements Plugin<Project> {
                 gradle.getGradleUserHomeDir().getAbsolutePath() + "/caches/" + gradle.getGradleVersion() + "/workerMain/gradle-worker.jar"
             );
             test.getJvmArgumentProviders().add(nonInputProperties);
-
-            // test.useJUnitPlatform();
-            // // Distribution distribution = new Distribution();
-            // // distribution.enabled = true;
-            // // distribution.maxLocalExecutors = 0;
-            // // test.setDistribution(distribution);
-
-            // // programmatically configure test distribution
-            // test.setDistribution(new TestDistribution() {
-            //     @Override
-            //     public boolean isEnabled() {
-            //         return true;
-            //     }
-
-            //     @Override
-            //     public int getMaxLocalExecutors() {
-            //         return 0;
-            //     }
-            // });
-
-
         });
     }
 }

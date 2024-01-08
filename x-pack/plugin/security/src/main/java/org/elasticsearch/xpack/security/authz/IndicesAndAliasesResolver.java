@@ -11,6 +11,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.search.SearchContextId;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -174,6 +176,24 @@ class IndicesAndAliasesResolver {
             localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(name));
         }
         return new ResolvedIndices(localIndices, List.of());
+    }
+
+    /**
+     * Returns the resolved indices from the {@link SearchContextId} within the provided {@link SearchRequest}.
+     */
+    ResolvedIndices resolvePITIndices(SearchRequest request) {
+        assert request.pointInTimeBuilder() != null;
+        var indices = SearchContextId.decodeIndices(request.pointInTimeBuilder().getEncodedId());
+        final ResolvedIndices split;
+        if (request.allowsRemoteIndices()) {
+            split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indices);
+        } else {
+            split = new ResolvedIndices(Arrays.asList(indices), Collections.emptyList());
+        }
+        if (split.isEmpty()) {
+            return new ResolvedIndices(List.of(NO_INDEX_PLACEHOLDER), Collections.emptyList());
+        }
+        return split;
     }
 
     private static void throwOnUnexpectedWildcards(String action, String[] indices) {

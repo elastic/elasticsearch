@@ -145,7 +145,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.componentTemplates = in.readOptionalStringCollectionAsList();
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {

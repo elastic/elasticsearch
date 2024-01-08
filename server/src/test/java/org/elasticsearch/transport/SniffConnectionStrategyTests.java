@@ -192,7 +192,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        hasClusterCredentials ? new RemoteClusterCredentialsManager(clientSettings) : RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -262,7 +266,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -336,7 +344,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -424,7 +436,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -486,7 +502,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -549,7 +569,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -617,7 +641,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -694,7 +722,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -783,7 +815,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -895,7 +931,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -964,7 +1004,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     threadPool.getThreadContext()
                 );
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
                         clusterAlias,
                         localService,

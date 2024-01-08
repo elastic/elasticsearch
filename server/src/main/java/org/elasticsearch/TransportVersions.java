@@ -180,6 +180,7 @@ public class TransportVersions {
     public static final TransportVersion UPDATE_API_KEY_EXPIRATION_TIME_ADDED = def(8_568_00_0);
     public static final TransportVersion LAZY_ROLLOVER_ADDED = def(8_569_00_0);
     public static final TransportVersion ESQL_PLAN_POINT_LITERAL_WKB = def(8_570_00_0);
+    public static final TransportVersion HOT_THREADS_AS_BYTES = def(8_571_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

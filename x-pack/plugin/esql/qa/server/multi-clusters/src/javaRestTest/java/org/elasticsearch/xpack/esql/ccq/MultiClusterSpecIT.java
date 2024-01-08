@@ -10,9 +10,10 @@ package org.elasticsearch.xpack.esql.ccq;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -26,6 +27,7 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -43,13 +45,13 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
  * This suite loads the data into either the local cluster or the remote cluster, then run spec tests with CCQ.
  * TODO: Some spec tests prevents us from splitting data across multiple shards/indices/clusters
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103737")
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
@@ -111,19 +113,21 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
      */
     static RestClient twoClients(RestClient localClient, RestClient remoteClient) throws IOException {
         RestClient twoClients = mock(RestClient.class);
+        // write to a single cluster for now due to the precision of some functions such as avg and tests related to updates
+        final RestClient bulkClient = randomFrom(localClient, remoteClient);
         when(twoClients.performRequest(any())).then(invocation -> {
             Request request = invocation.getArgument(0);
-            if (request.getEndpoint().contains("_query")) {
+            String endpoint = request.getEndpoint();
+            if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);
-            } else if (request.getEndpoint().contains("_bulk")) {
-                if (randomBoolean()) {
-                    return remoteClient.performRequest(request);
-                } else {
-                    return localClient.performRequest(request);
-                }
+            } else if (endpoint.contains("_bulk")) {
+                return bulkClient.performRequest(request);
             } else {
-                localClient.performRequest(request);
-                return remoteClient.performRequest(request);
+                Request[] clones = cloneRequests(request, 2);
+                Response resp1 = remoteClient.performRequest(clones[0]);
+                Response resp2 = localClient.performRequest(clones[1]);
+                assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
+                return resp2;
             }
         });
         doAnswer(invocation -> {
@@ -131,6 +135,26 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return null;
         }).when(twoClients).close();
         return twoClients;
+    }
+
+    static Request[] cloneRequests(Request orig, int numClones) throws IOException {
+        Request[] clones = new Request[numClones];
+        for (int i = 0; i < clones.length; i++) {
+            clones[i] = new Request(orig.getMethod(), orig.getEndpoint());
+            clones[i].addParameters(orig.getParameters());
+        }
+        HttpEntity entity = orig.getEntity();
+        if (entity != null) {
+            byte[] bytes = entity.getContent().readAllBytes();
+            entity.getContent().close();
+            for (Request clone : clones) {
+                ByteArrayInputStream cloneInput = new ByteArrayInputStream(bytes);
+                HttpEntity cloneEntity = spy(entity);
+                when(cloneEntity.getContent()).thenReturn(cloneInput);
+                clone.setEntity(cloneEntity);
+            }
+        }
+        return clones;
     }
 
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {

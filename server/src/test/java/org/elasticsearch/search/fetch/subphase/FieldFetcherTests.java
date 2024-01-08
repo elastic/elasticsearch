@@ -1169,13 +1169,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             """;
 
         var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        SearchHit searchHit = new SearchHit(0);
-        try {
-            searchHit.addDocumentFields(results, Map.of());
-            assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
-        } finally {
-            searchHit.decRef();
-        }
+        SearchHit searchHit = SearchHit.unpooled(0);
+        searchHit.addDocumentFields(results, Map.of());
+        assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
     }
 
     public void testNestedIOOB() throws IOException {

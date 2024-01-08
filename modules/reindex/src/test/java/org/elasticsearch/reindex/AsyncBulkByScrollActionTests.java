@@ -609,6 +609,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 // The delay uses the new throttle
                 assertEquals(9, capturedDelay.get().seconds());
             }
+
             // Running the command ought to increment the delay counter on the task.
             capturedCommand.get().run();
             assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());

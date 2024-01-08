@@ -283,7 +283,8 @@ final class SearchResponseMerger implements Releasable {
     };
 
     private static TopDocs searchHitsToTopDocs(SearchHits searchHits, TotalHits totalHits, Map<ShardIdAndClusterAlias, Integer> shards) {
-        ScoreDoc[] scoreDocs = new ScoreDoc[searchHits.getHits().length];
+        SearchHit[] hits = searchHits.getHits();
+        ScoreDoc[] scoreDocs = new ScoreDoc[hits.length];
         final TopDocs topDocs;
         if (searchHits.getSortFields() != null) {
             if (searchHits.getCollapseField() != null) {
@@ -302,8 +303,8 @@ final class SearchResponseMerger implements Releasable {
             topDocs = new TopDocs(totalHits, scoreDocs);
         }
 
-        for (int i = 0; i < searchHits.getHits().length; i++) {
-            SearchHit hit = searchHits.getAt(i);
+        for (int i = 0; i < hits.length; i++) {
+            SearchHit hit = hits[i];
             SearchShardTarget shard = hit.getShard();
             ShardIdAndClusterAlias shardId = new ShardIdAndClusterAlias(shard.getShardId(), shard.getClusterAlias());
             shards.putIfAbsent(shardId, null);

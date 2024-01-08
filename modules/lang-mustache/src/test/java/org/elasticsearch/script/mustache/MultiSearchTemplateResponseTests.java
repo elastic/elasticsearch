@@ -95,7 +95,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     }
 
     @Override
-    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) {
+    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
         return MultiSearchTemplateResponse.fromXContext(parser);
     }
 

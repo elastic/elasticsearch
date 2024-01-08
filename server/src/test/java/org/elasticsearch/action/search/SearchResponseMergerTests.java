@@ -408,8 +408,9 @@ public class SearchResponseMergerTests extends ESTestCase {
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
+                SearchHits searchHits = SearchHits.empty(null, Float.NaN);
                 SearchResponse searchResponse = new SearchResponse(
-                    SearchHits.empty(null, Float.NaN),
+                    searchHits,
                     null,
                     suggest,
                     false,
@@ -563,6 +564,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             new DocValueFormat.DateTime(dateFormatter, ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS),
             Collections.emptyMap()
         );
+
         try (
             SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
                 0,

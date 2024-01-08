@@ -38,7 +38,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     public Split(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }) Expression str,
-        @Param(name = "delim", type = { "keyword", "text" }) Expression delim,
+        @Param(name = "delim", type = { "keyword", "text" }) Expression delim
     ) {
         super(source, str, delim);
     }

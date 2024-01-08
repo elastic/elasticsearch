@@ -38,7 +38,7 @@ public class StartsWith extends ScalarFunction implements EvaluatorMapper {
     public StartsWith(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }) Expression str,
-        @Param(name = "suffix", type = { "keyword", "text" }) Expression suffix
+        @Param(name = "prefix", type = { "keyword", "text" }) Expression prefix
     ) {
         super(source, Arrays.asList(str, prefix));
         this.str = str;

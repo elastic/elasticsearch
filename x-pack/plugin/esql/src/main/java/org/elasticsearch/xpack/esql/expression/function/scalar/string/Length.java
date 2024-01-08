@@ -32,7 +32,7 @@ public class Length extends UnaryScalarFunction implements EvaluatorMapper {
     @FunctionInfo(returnType = "integer", description = "Returns the character length of a string.")
     public Length(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }) Expression field,
+        @Param(name = "field", type = { "keyword", "text" }) Expression field
     ) {
         super(source, field);
     }

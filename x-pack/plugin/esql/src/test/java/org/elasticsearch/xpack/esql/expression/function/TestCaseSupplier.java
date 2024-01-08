@@ -551,17 +551,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<Long, Object> expectedValue,
+        Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            geoPointCases(),
-            expectedType,
-            n -> expectedValue.apply(n.longValue()),
-            warnings
-        );
+        unary(suppliers, expectedEvaluatorToString, geoPointCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
@@ -571,17 +564,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<Long, Object> expectedValue,
+        Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            cartesianPointCases(),
-            expectedType,
-            n -> expectedValue.apply(n.longValue()),
-            warnings
-        );
+        unary(suppliers, expectedEvaluatorToString, cartesianPointCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
@@ -926,13 +912,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    public static List<TypedDataSupplier> geoPointCases() {
-        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
+    private static List<TypedDataSupplier> geoPointCases() {
+        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsWKB(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
     }
 
-    public static List<TypedDataSupplier> cartesianPointCases() {
+    private static List<TypedDataSupplier> cartesianPointCases() {
         return List.of(
-            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsLong(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
+            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsWKB(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
         );
     }
 

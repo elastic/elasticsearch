@@ -62,6 +62,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+        // TODO: see if we can get the FieldExtractExec to know if spatial types need to be read from source or doc values, and capture
+        // that information in the BlockReaderFactories.loaders method so it is passed in the BlockLoaderContext
+        // to GeoPointFieldMapper.blockLoader
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
         List<ValuesSourceReaderOperator.ShardContext> readers = searchContexts.stream()
@@ -184,8 +187,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             docChannel,
             attrSource.name(),
             aggregatorFactories,
-            context.pageSize(aggregateExec.estimatedRowSize()),
-            context.bigArrays()
+            context.pageSize(aggregateExec.estimatedRowSize())
         );
     }
 }

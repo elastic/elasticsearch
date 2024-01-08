@@ -519,11 +519,6 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         @Override
-        public String getChannelType() {
-            return in.getChannelType();
-        }
-
-        @Override
         public void sendResponse(TransportResponse response) throws IOException {
             onResponse.accept(response);
             in.sendResponse(response);

@@ -105,19 +105,25 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQueryTimeUnitConversion() {
         UnsignedLongFieldType ft = fieldMapperWithUnit("us").fieldType();
-        assertEquals(LongPoint.newExactQuery("field", TimeUnit.MILLISECONDS.toMicros(42)), ft.termQuery("42ms", MOCK_CONTEXT));
+        assertEquals(
+            LongPoint.newExactQuery("field", toUnsignedLong(TimeUnit.MILLISECONDS.toMicros(42))),
+            ft.termQuery("42ms", MOCK_CONTEXT)
+        );
     }
 
     public void testTermsQueryTimeUnitConversion() {
         UnsignedLongFieldType ft = fieldMapperWithUnit("us").fieldType();
-        assertEquals(LongPoint.newSetQuery("field", 1, 2, 3, 4000), ft.termsQuery(Arrays.asList(1, "2", "3us", "4ms"), MOCK_CONTEXT));
+        assertEquals(
+            LongPoint.newSetQuery("field", toUnsignedLong(1), toUnsignedLong(2), toUnsignedLong(3), toUnsignedLong(4000)),
+            ft.termsQuery(Arrays.asList(1, "2", "3us", "4ms"), MOCK_CONTEXT)
+        );
     }
 
     public void testRangeQueryUnitConversion() {
         UnsignedLongFieldType ft = fieldMapperWithUnit("us").fieldType();
         Query expected = new IndexOrDocValuesQuery(
-            LongPoint.newRangeQuery("field", 1, 3000),
-            SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3000)
+            LongPoint.newRangeQuery("field", toUnsignedLong(1), toUnsignedLong(3000)),
+            SortedNumericDocValuesField.newSlowRangeQuery("field", toUnsignedLong(1), toUnsignedLong(3000))
         );
         assertEquals(expected, ft.rangeQuery("1us", "3ms", true, true, null, null, null, MOCK_CONTEXT));
     }
@@ -209,5 +215,10 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     private static UnsignedLongFieldMapper fieldMapperWithUnit(String unit) {
         return new UnsignedLongFieldMapper.Builder("field", false, null).meta(Map.of("unit", unit))
             .build(MapperBuilderContext.root(false, false));
+    }
+
+    private long toUnsignedLong(long l) {
+        assert l >= 0;
+        return Long.MIN_VALUE + l;
     }
 }

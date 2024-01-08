@@ -308,11 +308,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     public synchronized void updateRemoteClusterCredentials(Supplier<Settings> settingsSupplier, ActionListener<Void> listener) {
-        updateRemoteClusterCredentials(settingsSupplier.get(), listener);
-    }
-
-    // package-private for testing
-    synchronized void updateRemoteClusterCredentials(Settings settings, ActionListener<Void> listener) {
+        final Settings settings = settingsSupplier.get();
         final UpdateRemoteClusterCredentialsResult result = remoteClusterCredentialsManager.updateClusterCredentials(settings);
         // We only need to rebuild connections when a credential was newly added or removed for a cluster alias, not if the credential
         // value was updated. Therefore, only consider added or removed aliases
@@ -332,6 +328,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
         }
     }
+
+    // package-private for testing
 
     private void maybeRebuildConnectionOnCredentialsChange(String clusterAlias, Settings settings, RefCountingRunnable connectionRefs) {
         if (false == remoteClusters.containsKey(clusterAlias)) {

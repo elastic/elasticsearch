@@ -1467,10 +1467,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         final MockSecureSettings secureSettings = new MockSecureSettings();
                         secureSettings.setString("cluster.remote.cluster_1.credentials", randomAlphaOfLength(10));
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
-                        service.updateRemoteClusterCredentials(
-                            Settings.builder().put(clusterSettings).setSecureSettings(secureSettings).build(),
-                            listener
-                        );
+                        final Settings settings = Settings.builder().put(clusterSettings).setSecureSettings(secureSettings).build();
+                        service.updateRemoteClusterCredentials(() -> settings, listener);
                         listener.actionGet(10, TimeUnit.SECONDS);
                     }
 
@@ -1483,7 +1481,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
                         service.updateRemoteClusterCredentials(
                             // Settings without credentials constitute credentials removal
-                            clusterSettings,
+                            () -> clusterSettings,
                             listener
                         );
                         listener.actionGet(10, TimeUnit.SECONDS);
@@ -1568,10 +1566,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         secureSettings.setString("cluster.remote." + goodCluster + ".credentials", randomAlphaOfLength(10));
                         secureSettings.setString("cluster.remote." + missingCluster + ".credentials", randomAlphaOfLength(10));
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
-                        service.updateRemoteClusterCredentials(
-                            Settings.builder().put(cluster1Settings).put(cluster2Settings).setSecureSettings(secureSettings).build(),
-                            listener
-                        );
+                        final Settings settings = Settings.builder()
+                            .put(cluster1Settings)
+                            .put(cluster2Settings)
+                            .setSecureSettings(secureSettings)
+                            .build();
+                        service.updateRemoteClusterCredentials(() -> settings, listener);
                         listener.actionGet(10, TimeUnit.SECONDS);
                     }
 
@@ -1587,9 +1587,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
                     {
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                        final Settings settings = Settings.builder().put(cluster1Settings).put(cluster2Settings).build();
                         service.updateRemoteClusterCredentials(
                             // Settings without credentials constitute credentials removal
-                            Settings.builder().put(cluster1Settings).put(cluster2Settings).build(),
+                            () -> settings,
                             listener
                         );
                         listener.actionGet(10, TimeUnit.SECONDS);

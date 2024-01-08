@@ -18,7 +18,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.SortedSet;
+import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
@@ -40,19 +40,14 @@ public class RemoteClusterCredentialsManager {
             return new UpdateRemoteClusterCredentialsResult(new TreeSet<>(newClusterCredentials.keySet()), Collections.emptySortedSet());
         }
 
-        final SortedSet<String> addedClusterAliases = Sets.sortedDifference(newClusterCredentials.keySet(), clusterCredentials.keySet());
-        final SortedSet<String> removedClusterAliases = Sets.sortedDifference(clusterCredentials.keySet(), newClusterCredentials.keySet());
+        final Set<String> addedClusterAliases = Sets.difference(newClusterCredentials.keySet(), clusterCredentials.keySet());
+        final Set<String> removedClusterAliases = Sets.difference(clusterCredentials.keySet(), newClusterCredentials.keySet());
         setClusterCredentialsAndLog(newClusterCredentials);
         assert Sets.haveEmptyIntersection(removedClusterAliases, addedClusterAliases);
         return new UpdateRemoteClusterCredentialsResult(addedClusterAliases, removedClusterAliases);
     }
 
-    public record UpdateRemoteClusterCredentialsResult(
-        // Use sorted sets since we will iterate over these, and call a synchronized method for each.
-        // Sorting establishes a deterministic call order to prevent deadlocks
-        SortedSet<String> addedClusterAliases,
-        SortedSet<String> removedClusterAliases
-    ) {}
+    public record UpdateRemoteClusterCredentialsResult(Set<String> addedClusterAliases, Set<String> removedClusterAliases) {}
 
     @Nullable
     public SecureString resolveCredentials(String clusterAlias) {

@@ -1009,6 +1009,11 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Request createIndex = new Request("PUT", "/nofnf");
             createIndex.setJsonEntity("""
                 {
+                  "settings": {
+                    "index": {
+                      "number_of_replicas": 0
+                    }
+                  },
                   "mappings": {
                     "_field_names": { "enabled": false },
                     "properties": {

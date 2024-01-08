@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 
 import java.util.List;
 
@@ -35,6 +35,6 @@ public class RestStopAction extends BaseRestHandler {
         StopILMRequest request = new StopILMRequest();
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        return channel -> client.execute(StopILMAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(ILMActions.STOP, request, new RestToXContentListener<>(channel));
     }
 }

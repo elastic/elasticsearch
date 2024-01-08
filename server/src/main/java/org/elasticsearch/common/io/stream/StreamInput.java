@@ -694,7 +694,7 @@ public abstract class StreamInput extends InputStream {
      */
     @Nullable
     @SuppressWarnings("unchecked")
-    public Map<String, Object> readMap() throws IOException {
+    public Map<String, Object> readGenericMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
     }
 

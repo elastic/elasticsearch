@@ -155,7 +155,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService.documentMapper();
     }
 
-    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
+    public final MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(getVersion(), mappings);
     }
 
@@ -258,7 +258,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     /**
      * Build a {@link SourceToParse} with the id {@code "1"} and without any dynamic templates.
      */
-    protected static SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+    public static SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         return source("1", build, null);
     }
 
@@ -335,7 +335,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    protected static XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+    public static XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         buildFields.accept(builder);
         return builder.endObject().endObject().endObject();

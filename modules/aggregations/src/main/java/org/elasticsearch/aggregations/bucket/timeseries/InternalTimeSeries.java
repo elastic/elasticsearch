@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -28,22 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation.declareMultiBucketAggregationFields;
-
 public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalTimeSeries, InternalTimeSeries.InternalBucket> {
-
-    private static final ObjectParser<ParsedTimeSeries, Void> PARSER = new ObjectParser<>(
-        ParsedTimeSeries.class.getSimpleName(),
-        true,
-        ParsedTimeSeries::new
-    );
-    static {
-        declareMultiBucketAggregationFields(
-            PARSER,
-            parser -> ParsedTimeSeries.ParsedBucket.fromXContent(parser, false),
-            parser -> ParsedTimeSeries.ParsedBucket.fromXContent(parser, true)
-        );
-    }
 
     /**
      * A bucket associated with a specific time series (identified by its key)

@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
@@ -162,9 +163,13 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
 
     @Override
     protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
-        return isDateTimeOrTemporal(lhsType) || isDateTimeOrTemporal(rhsType)
-            ? isDateTime(lhsType) && isTemporalAmount(rhsType)
-            : super.supportsTypes(lhsType, rhsType);
+        if (isDateTimeOrTemporal(lhsType) || isDateTimeOrTemporal(rhsType)) {
+            return isNull(lhsType)
+                || isNull(rhsType)
+                || isDateTime(lhsType) && isTemporalAmount(rhsType)
+                || isTemporalAmount(lhsType) && isTemporalAmount(rhsType) && lhsType == rhsType;
+        }
+        return super.supportsTypes(lhsType, rhsType);
     }
 
     @Override
@@ -197,5 +202,15 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
     @Override
     protected long expectedValue(long datetime, TemporalAmount temporalAmount) {
         return asMillis(asDateTime(datetime).minus(temporalAmount));
+    }
+
+    @Override
+    protected Period expectedValue(Period lhs, Period rhs) {
+        return lhs.minus(rhs);
+    }
+
+    @Override
+    protected Duration expectedValue(Duration lhs, Duration rhs) {
+        return lhs.minus(rhs);
     }
 }

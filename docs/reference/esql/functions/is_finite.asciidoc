@@ -1,7 +1,26 @@
 [discrete]
 [[esql-is_finite]]
 === `IS_FINITE`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/is_finite.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
 Returns a boolean that indicates whether its input is a finite number.
+
+*Supported types*
+
+include::types/is_finite.asciidoc[]
+
+*Example*
 
 [source,esql]
 ----

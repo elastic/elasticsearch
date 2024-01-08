@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.common.notifications;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -262,7 +262,7 @@ public class AbstractAuditorTests extends ESTestCase {
             threadPool.generic().submit(onPutTemplate);
 
             return null;
-        }).when(client).execute(eq(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
 
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         AdminClient adminClient = mock(AdminClient.class);

@@ -11,8 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -28,6 +30,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -100,8 +103,8 @@ public final class ResponseValueUtils {
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
-            case "geo_point" -> GEO.longAsPoint(((LongBlock) block).getLong(offset));
-            case "cartesian_point" -> CARTESIAN.longAsPoint(((LongBlock) block).getLong(offset));
+            case "geo_point" -> pointValueAt(GEO, dataType, block, offset, scratch);
+            case "cartesian_point" -> pointValueAt(CARTESIAN, dataType, block, offset, scratch);
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -118,14 +121,25 @@ public final class ResponseValueUtils {
         };
     }
 
+    private static SpatialPoint pointValueAt(SpatialCoordinateTypes spatial, String dataType, Block block, int offset, BytesRef scratch) {
+        // TODO: Should we already return the WKT String here - if this is only used to display results?
+        if (block instanceof LongBlock longBlock) {
+            return spatial.longAsPoint(longBlock.getLong(offset));
+        } else if (block instanceof BytesRefBlock wkbBlock) {
+            return spatial.wkbAsPoint(wkbBlock.getBytesRef(offset, scratch));
+        } else {
+            throw new IllegalArgumentException("Unsupported block type for " + dataType + ": " + block.getWriteableName());
+        }
+    }
+
     /**
      * Converts a list of values to Pages so that we can parse from xcontent. It's not
      * super efficient, but it doesn't really have to be.
      */
-    static Page valuesToPage(List<ColumnInfo> columns, List<List<Object>> values) {
+    static Page valuesToPage(BlockFactory blockFactory, List<ColumnInfo> columns, List<List<Object>> values) {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         List<Block.Builder> results = dataTypes.stream()
-            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
+            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size(), blockFactory))
             .toList();
 
         for (List<Object> row : values) {
@@ -161,12 +175,14 @@ public final class ResponseValueUtils {
                         }
                     }
                     case "geo_point" -> {
-                        long longVal = GEO.pointAsLong(GEO.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                        BytesRef wkb = GEO.stringAsWKB(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     case "cartesian_point" -> {
-                        long longVal = CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                        BytesRef wkb = CARTESIAN.stringAsWKB(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }

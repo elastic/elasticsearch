@@ -144,14 +144,14 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertMappings(sourceIdx, requireRouting, true);
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get()
+            prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
         );
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // can-match phase pre-filters access to non-existing field
         assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")), 0);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
+        expectThrows(ClusterBlockException.class, client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete));
         internalCluster().ensureAtLeastNumDataNodes(2);
         setReplicaCount(1, sourceIdx);
         ensureGreen(sourceIdx);

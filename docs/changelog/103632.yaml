@@ -1,0 +1,5 @@
+pr: 103632
+summary: "ESQL: Check field exists before load from `_source`"
+area: ES|QL
+type: enhancement
+issues: []

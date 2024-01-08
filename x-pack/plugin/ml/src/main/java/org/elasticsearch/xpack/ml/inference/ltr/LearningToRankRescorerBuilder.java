@@ -89,7 +89,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
     public LearningToRankRescorerBuilder(StreamInput input, LearningToRankService learningToRankService) throws IOException {
         super(input);
         this.modelId = input.readString();
-        this.params = input.readMap();
+        this.params = input.readGenericMap();
         this.learningToRankConfig = (LearningToRankConfig) input.readOptionalNamedWriteable(InferenceConfig.class);
         this.learningToRankService = learningToRankService;
 

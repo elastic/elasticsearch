@@ -2,4 +2,5 @@ pr: 103511
 summary: Downsampling supports `date_histogram` with tz
 area: Downsampling
 type: bug
-issues: []
+issues:
+ - 101309

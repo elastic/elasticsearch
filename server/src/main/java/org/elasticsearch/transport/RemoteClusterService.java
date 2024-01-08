@@ -14,9 +14,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.CountDownActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -311,7 +311,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         updateRemoteClusterCredentials(settingsSupplier.get(), listener);
     }
 
-    public synchronized void updateRemoteClusterCredentials(Settings settings, ActionListener<Void> listener) {
+    // package-private for testing
+    synchronized void updateRemoteClusterCredentials(Settings settings, ActionListener<Void> listener) {
         final UpdateRemoteClusterCredentialsResult result = remoteClusterCredentialsManager.updateClusterCredentials(settings);
         // We only need to rebuild connections when a credential was newly added or removed for a cluster alias, not if the credential
         // value was updated. Therefore, only consider added or removed aliases
@@ -322,43 +323,45 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             return;
         }
         logger.info("rebuilding [{}] connections after credentials update", totalConnectionsToRebuild);
-        final GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(
-            totalConnectionsToRebuild,
-            listener.map(responses -> {
-                logger.info("rebuild complete for [{}] connections after credentials update", responses.size());
-                return null;
-            })
-        );
-        for (var clusterAlias : result.addedClusterAliases()) {
-            maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, groupedListener);
-        }
-        for (var clusterAlias : result.removedClusterAliases()) {
-            maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, groupedListener);
+        try (var refCountingListener = new RefCountingListener(totalConnectionsToRebuild, listener)) {
+            for (var clusterAlias : result.addedClusterAliases()) {
+                maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, refCountingListener);
+            }
+            for (var clusterAlias : result.removedClusterAliases()) {
+                maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, refCountingListener);
+            }
         }
     }
 
     private void maybeRebuildConnectionOnCredentialsChange(
         String clusterAlias,
         Settings settings,
-        GroupedActionListener<Void> groupedListener
+        RefCountingListener refCountingListener
     ) {
-        if (remoteClusters.containsKey(clusterAlias)) {
-            updateRemoteCluster(clusterAlias, settings, true, ActionListener.wrap(status -> {
+        if (false == remoteClusters.containsKey(clusterAlias)) {
+            // A credential was added or removed before a remote connection was configured.
+            // Without an existing connection, there is nothing to rebuild.
+            logger.info("no connection rebuild required for remote cluster [{}] after credentials change", clusterAlias);
+            return;
+        }
+
+        final var listener = refCountingListener.acquire();
+        updateRemoteCluster(clusterAlias, settings, true, new ActionListener<>() {
+            @Override
+            public void onResponse(RemoteClusterConnectionStatus status) {
                 logger.info("remote cluster connection [{}] updated after credentials change: [{}]", clusterAlias, status);
-                groupedListener.onResponse(null);
-            }, e -> {
-                logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "] after credentials change", e);
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
                 // We don't want to return an error to the upstream listener since a connection rebuild failure does not count as
                 // a failed credential reload; same as for remote cluster settings updates, we "handle" the failure by logging a WARN
                 // message
-                groupedListener.onResponse(null);
-            }));
-        } else {
-            // A credential was added before a remote connection was configured.
-            // Without an existing connection, there is nothing to rebuild.
-            logger.info("no connection rebuild required for remote cluster [{}] after credentials change", clusterAlias);
-            groupedListener.onResponse(null);
-        }
+                logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "] after credentials change", e);
+                listener.onResponse(null);
+            }
+        });
     }
 
     @Override

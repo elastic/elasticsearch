@@ -349,9 +349,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
             @Override
             public void onFailure(Exception e) {
-                // We don't want to return an error to the upstream listener since a connection rebuild failure does not count as
-                // a failed credential reload; same as for remote cluster settings updates, we "handle" the failure by logging a WARN
-                // message
+                // We don't want to return an error to the upstream listener here since a connection rebuild failure
+                // does *not* imply a failure to reload secure settings; however, that's how it would surface in the reload-settings call.
+                // Instead, we log a warning which is also consistent with how we handle remote cluster settings updates (logging instead of
+                // returning an error)
                 logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "] after credentials change", e);
             }
         }, connectionRefs.acquire()));

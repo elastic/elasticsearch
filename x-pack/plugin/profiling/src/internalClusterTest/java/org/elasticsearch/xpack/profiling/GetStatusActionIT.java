@@ -52,6 +52,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
         assertFalse(response.hasData());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104035")
     public void testWaitsUntilResourcesAreCreated() throws Exception {
         updateProfilingTemplatesEnabled(true);
         GetStatusAction.Request request = new GetStatusAction.Request();

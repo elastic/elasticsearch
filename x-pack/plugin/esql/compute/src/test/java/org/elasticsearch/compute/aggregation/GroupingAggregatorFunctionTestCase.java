@@ -608,7 +608,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                     @Override
                     public void close() {
-                        Releasables.close(delegate::close, seenGroupIds);
+                        Releasables.close(delegate, seenGroupIds);
                     }
 
                     @Override

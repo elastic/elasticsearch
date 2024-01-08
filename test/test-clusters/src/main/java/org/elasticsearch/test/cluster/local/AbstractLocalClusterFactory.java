@@ -472,7 +472,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     ? value
                     : spec.getKeystorePassword() + "\n" + value;
 
-                runToolScript("elasticsearch-keystore", input, "add", key);
+                runToolScript("elasticsearch-keystore", input, "add", "-x", key);
             });
         }
 

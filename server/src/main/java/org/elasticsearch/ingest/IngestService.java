@@ -669,28 +669,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    public void executeBulkRequest(
-        final int numberOfActionRequests,
-        final Iterable<DocWriteRequest<?>> actionRequests,
-        final IntConsumer onDropped,
-        final BiConsumer<Integer, Exception> onFailure,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final String executorName
-    ) {
-        // FIXME: Remove in refactoring step
-        //  Run ingest service as if failure store is disabled
-        executeBulkRequest(
-            numberOfActionRequests,
-            actionRequests,
-            onDropped,
-            (s) -> false,
-            (slot, targetIndex, e) -> onFailure.accept(slot, e),
-            onFailure,
-            onCompletion,
-            executorName
-        );
-    }
-
     private record IngestPipelinesExecutionResult(boolean success, boolean kept, Exception exception, String failedIndex) {}
     private static IngestPipelinesExecutionResult successResult() {
         return new IngestPipelinesExecutionResult(true, true, null, null);

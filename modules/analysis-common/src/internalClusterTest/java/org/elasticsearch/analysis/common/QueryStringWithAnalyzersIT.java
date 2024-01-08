@@ -49,7 +49,7 @@ public class QueryStringWithAnalyzersIT extends ESIntegTestCase {
                 .setMapping("field1", "type=text,analyzer=my_analyzer", "field2", "type=text,analyzer=my_analyzer")
         );
 
-        prepareIndex("test").setId("1").setSource("field1", "foo bar baz", "field2", "not needed").get();
+        indexDoc("test", "1", "field1", "foo bar baz", "field2", "not needed");
         refresh();
 
         assertHitCount(

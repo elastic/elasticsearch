@@ -60,11 +60,14 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
             """);
         clusterAdmin().putPipeline(new PutPipelineRequest("pipeline", pipelineBody, XContentType.JSON)).actionGet();
 
-        client().index(
-            new IndexRequest(TEST_INDEX_NAME).setPipeline("pipeline")
-                .id("1")
-                .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
-        ).actionGet();
+        IndexRequest indexRequest = new IndexRequest(TEST_INDEX_NAME);
+        try {
+            client().index(
+                indexRequest.setPipeline("pipeline").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
+            ).actionGet();
+        } finally {
+            indexRequest.decRef();
+        }
         assertTrue(hasWrappedParser);
         // there are more assertions in a TestDocumentParsingObserver
     }

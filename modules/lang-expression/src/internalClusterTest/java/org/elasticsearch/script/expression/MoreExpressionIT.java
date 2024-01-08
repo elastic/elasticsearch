@@ -555,11 +555,11 @@ public class MoreExpressionIT extends ESIntegTestCase {
 
     // test to make sure expressions are not allowed to be used as update scripts
     public void testInvalidUpdateScript() throws Exception {
+        UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
         try {
             createIndex("test_index");
             ensureGreen("test_index");
             indexRandomAndDecRefRequests(true, prepareIndex("test_index").setId("1").setSource("text_field", "text"));
-            UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
             urb.setId("1");
             urb.setScript(new Script(ScriptType.INLINE, ExpressionScriptEngine.NAME, "0", Collections.emptyMap()));
             urb.get();
@@ -569,6 +569,8 @@ public class MoreExpressionIT extends ESIntegTestCase {
             assertThat(message + " should have contained failed to execute", message.contains("failed to execute"), equalTo(true));
             message = e.getCause().getMessage();
             assertThat(message, equalTo("Failed to compile inline script [0] using lang [expression]"));
+        } finally {
+            urb.request().decRef();
         }
     }
 

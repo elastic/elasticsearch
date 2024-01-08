@@ -103,6 +103,9 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
         ); // date: Mar 23, dates: Mar 23, Apr 24
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 
@@ -217,6 +220,9 @@ public class DateDerivativeIT extends ESIntegTestCase {
         addNTimes(3, IDX_DST_START, DateFormatters.from(formatter.parse("2012-03-26T01:00:00")), builders);
         addNTimes(4, IDX_DST_START, DateFormatters.from(formatter.parse("2012-03-27T01:00:00")), builders);
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
 
         assertNoFailuresAndResponse(
@@ -274,6 +280,9 @@ public class DateDerivativeIT extends ESIntegTestCase {
         addNTimes(3, IDX_DST_END, DateFormatters.from(formatter.parse("2012-10-29T01:00:00")), builders);
         addNTimes(4, IDX_DST_END, DateFormatters.from(formatter.parse("2012-10-30T01:00:00")), builders);
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
 
         assertNoFailuresAndResponse(
@@ -333,6 +342,9 @@ public class DateDerivativeIT extends ESIntegTestCase {
         addNTimes(3, IDX_DST_KATHMANDU, DateFormatters.from(formatter.parse("1986-01-01T01:30:00")), builders);
         addNTimes(4, IDX_DST_KATHMANDU, DateFormatters.from(formatter.parse("1986-01-01T02:30:00")), builders);
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
 
         assertNoFailuresAndResponse(

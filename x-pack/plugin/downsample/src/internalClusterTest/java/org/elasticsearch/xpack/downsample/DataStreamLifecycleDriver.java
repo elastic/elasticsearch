@@ -187,10 +187,13 @@ public class DataStreamLifecycleDriver {
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int i = 0; i < docCount; i++) {
                 IndexRequest indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-                XContentBuilder source = docSourceSupplier.get();
-                indexRequest.source(source);
-                bulkRequestBuilder.add(indexRequest);
-                indexRequest.decRef();
+                try {
+                    XContentBuilder source = docSourceSupplier.get();
+                    indexRequest.source(source);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             bulkResponse = bulkRequestBuilder.get();
         }

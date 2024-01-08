@@ -294,7 +294,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
         IndexRequestBuilder indexRequestBuilder2 = prepareIndex("index");
         try {
-            prepareIndex("index").setId("passes1")
+            indexRequestBuilder2.setId("passes1")
                 .setSource("x", 2)
                 .setTimeout(TimeValue.timeValueSeconds(60)) // wait for second node to start in below
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

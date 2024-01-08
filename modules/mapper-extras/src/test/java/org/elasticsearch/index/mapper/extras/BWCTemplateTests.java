@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -34,8 +36,17 @@ public class BWCTemplateTests extends ESSingleNodeTestCase {
         indicesAdmin().preparePutTemplate("packetbeat").setSource(packetBeat, XContentType.JSON).get();
         indicesAdmin().preparePutTemplate("filebeat").setSource(fileBeat, XContentType.JSON).get();
 
-        prepareIndex("metricbeat-foo").setId("1").setSource("message", "foo").get();
-        prepareIndex("packetbeat-foo").setId("1").setSource("message", "foo").get();
-        prepareIndex("filebeat-foo").setId("1").setSource("message", "foo").get();
+        indexDoc("metricbeat-foo", "1", "message", "foo");
+        indexDoc("packetbeat-foo", "1", "message", "foo");
+        indexDoc("filebeat-foo", "1", "message", "foo");
+    }
+
+    protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

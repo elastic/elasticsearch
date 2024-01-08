@@ -455,7 +455,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         client().prepareIndex(indexName).setId("non-existing").setSource("field1", randomUnicodeOfLength(10)).get();
         IndicesStatsResponse statsBeforeIndexing = indicesAdmin().prepareStats().setSegments(true).get();
         var sizeBeforeIndexing = statsBeforeIndexing.getTotal().getSegments().getVersionMapMemoryInBytes();
-        indexDocs(indexName, randomIntBetween(1, 1000));
+        indexDocs(indexName, randomIntBetween(10, 1000));
         IndicesStatsResponse statsAfterIndexing = indicesAdmin().prepareStats().setSegments(true).get();
         var sizeAfterIndexing = statsAfterIndexing.getTotal().getSegments().getVersionMapMemoryInBytes();
         assertThat(sizeAfterIndexing, greaterThan(sizeBeforeIndexing));

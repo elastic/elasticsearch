@@ -54,7 +54,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         originalIndices = OriginalIndices.readOriginalIndices(in);
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readLong();
-        runtimeFields = in.readMap();
+        runtimeFields = in.readGenericMap();
     }
 
     FieldCapabilitiesNodeRequest(

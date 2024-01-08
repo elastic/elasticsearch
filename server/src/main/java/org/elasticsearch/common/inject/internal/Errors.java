@@ -19,6 +19,7 @@ package org.elasticsearch.common.inject.internal;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.MembersInjector;
 import org.elasticsearch.common.inject.Provider;
@@ -251,8 +252,9 @@ public final class Errors {
         );
     }
 
-    private static final String CONSTRUCTOR_RULES = "Classes must have either one (and only one) constructor "
-        + "annotated with @Inject or a zero-argument constructor that is not private.";
+    private static final String CONSTRUCTOR_RULES = "Classes must have either one (and only one) constructor annotated with @"
+        + Inject.class.getCanonicalName()
+        + " or a zero-argument constructor that is not private.";
 
     public Errors missingConstructor(Class<?> implementation) {
         return addMessage("Could not find a suitable constructor in %s. " + CONSTRUCTOR_RULES, implementation);

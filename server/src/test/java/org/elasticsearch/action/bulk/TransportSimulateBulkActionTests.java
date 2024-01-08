@@ -40,6 +40,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -191,6 +192,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             }
         };
         Map<String, Boolean> indicesToAutoCreate = Map.of(); // unused
+        Set<String> dataStreamsToRollover = Set.of(); // unused
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated = Map.of(); // unused
         long startTime = 0;
         bulkAction.createMissingIndicesAndIndexData(
@@ -199,6 +201,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             randomAlphaOfLength(10),
             listener,
             indicesToAutoCreate,
+            dataStreamsToRollover,
             indicesThatCannotBeCreated,
             startTime
         );

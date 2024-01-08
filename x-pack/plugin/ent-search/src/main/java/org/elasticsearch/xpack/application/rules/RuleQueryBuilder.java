@@ -83,7 +83,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     public RuleQueryBuilder(StreamInput in) throws IOException {
         super(in);
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
-        matchCriteria = in.readMap();
+        matchCriteria = in.readGenericMap();
         rulesetId = in.readString();
         pinnedIds = in.readOptionalStringCollectionAsList();
         pinnedIdsSupplier = null;

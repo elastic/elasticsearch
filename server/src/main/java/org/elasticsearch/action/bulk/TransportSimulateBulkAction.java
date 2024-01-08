@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.Set;
 
 public class TransportSimulateBulkAction extends TransportBulkAction {
     @Inject
@@ -69,6 +70,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         String executorName,
         ActionListener<BulkResponse> listener,
         Map<String, Boolean> indicesToAutoCreate,
+        Set<String> dataStreamsToRollover,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {

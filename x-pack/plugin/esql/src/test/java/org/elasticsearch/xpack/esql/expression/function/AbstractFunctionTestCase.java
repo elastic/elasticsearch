@@ -125,8 +125,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
-            case "geo_point" -> GEO.pointAsLong(randomGeoPoint());
-            case "cartesian_point" -> CARTESIAN.pointAsLong(randomCartesianPoint());
+            case "geo_point" -> GEO.pointAsWKB(randomGeoPoint());
+            case "cartesian_point" -> CARTESIAN.pointAsWKB(randomCartesianPoint());
             case "null" -> null;
             case "_source" -> {
                 try {
@@ -902,19 +902,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
         Map.entry(
-            Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.UNSIGNED_LONG, DataTypes.NULL),
-            "geo_point or long or string or unsigned_long"
+            Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.NULL),
+            "geo_point or long or string"
         ),
         Map.entry(
-            Set.of(
-                EsqlDataTypes.CARTESIAN_POINT,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
-            ),
-            "cartesian_point or long or string or unsigned_long"
+            Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.NULL),
+            "cartesian_point or long or string"
         )
     );
 

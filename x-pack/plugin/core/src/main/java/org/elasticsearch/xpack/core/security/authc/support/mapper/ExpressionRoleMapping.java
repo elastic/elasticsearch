@@ -102,7 +102,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             this.roleTemplates = Collections.emptyList();
         }
         this.expression = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
     }
 
     @Override

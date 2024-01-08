@@ -61,7 +61,7 @@ public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXC
     }
 
     public QueryConfig(final StreamInput in) throws IOException {
-        this.source = in.readMap();
+        this.source = in.readGenericMap();
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 

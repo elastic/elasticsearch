@@ -442,10 +442,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             this.events = in.readCollectionAsList(Event::readFrom);
         }
 
-        public static Sequence fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeGenericValue(joinKeys);

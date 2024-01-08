@@ -302,6 +302,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103439")
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
@@ -337,9 +338,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         rolloverMaxOneDocCondition(client(), dataStream);
 
         String rollupIndex = waitAndGetRollupIndexName(client(), backingIndexName, fixedInterval);
-        if (rollupIndex == null) {
-            logger.warn("explain:" + explainIndex(client(), backingIndexName));
-        }
         assertNotNull(String.format(Locale.ROOT, "Cannot retrieve rollup index [%s]", rollupIndex), rollupIndex);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
@@ -394,6 +392,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
         createIndex(index, alias, false);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
@@ -493,6 +492,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101428")
     public void testDownsampleTwiceSameInterval() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);
@@ -605,7 +605,7 @@ public class DownsampleActionIT extends ESRestTestCase {
      * @return the name of the rollup index for a given index, null if none exist
      */
     public String waitAndGetRollupIndexName(RestClient client, String originalIndexName, DateHistogramInterval fixedInterval)
-        throws InterruptedException {
+        throws InterruptedException, IOException {
         final String[] rollupIndexName = new String[1];
         waitUntil(() -> {
             try {
@@ -615,7 +615,15 @@ public class DownsampleActionIT extends ESRestTestCase {
                 return false;
             }
         }, 120, TimeUnit.SECONDS); // High timeout in case we're unlucky and end_time has been increased.
-        logger.info("--> original index name is [{}], rollup index name is [{}]", originalIndexName, rollupIndexName[0]);
+        if (rollupIndexName[0] == null) {
+            logger.warn(
+                "--> original index name is [{}], rollup index name is NULL, possible explanation: {}",
+                originalIndexName,
+                explainIndex(client(), originalIndexName)
+            );
+        } else {
+            logger.info("--> original index name is [{}], rollup index name is [{}]", originalIndexName, rollupIndexName[0]);
+        }
         return rollupIndexName[0];
     }
 

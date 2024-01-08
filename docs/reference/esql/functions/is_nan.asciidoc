@@ -1,7 +1,26 @@
 [discrete]
 [[esql-is_nan]]
 === `IS_NAN`
-Returns a boolean that indicates whether its input is not a number.
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/is_nan.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns a boolean that indicates whether its input is {wikipedia}/NaN[Not-a-Number] (NaN).
+
+*Supported types*
+
+include::types/is_nan.asciidoc[]
+
+*Example*
 
 [source,esql]
 ----

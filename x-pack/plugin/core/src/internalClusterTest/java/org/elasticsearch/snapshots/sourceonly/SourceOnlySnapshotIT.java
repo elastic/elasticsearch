@@ -59,6 +59,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
@@ -123,7 +124,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
 
         // can-match phase pre-filters access to non-existing field
-        assertEquals(0, prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
+        assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")), 0);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
@@ -143,14 +144,14 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertMappings(sourceIdx, requireRouting, true);
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get()
+            prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
         );
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // can-match phase pre-filters access to non-existing field
-        assertEquals(0, prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
+        assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")), 0);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
+        expectThrows(ClusterBlockException.class, client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete));
         internalCluster().ensureAtLeastNumDataNodes(2);
         setReplicaCount(1, sourceIdx);
         ensureGreen(sourceIdx);
@@ -253,7 +254,6 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void assertHits(String index, int numDocsExpected, boolean sourceHadDeletions) {
-        SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected).get();
         BiConsumer<SearchResponse, Boolean> assertConsumer = (res, allowHoles) -> {
             SearchHits hits = res.getHits();
             long i = 0;
@@ -272,9 +272,11 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                 assertEquals("r" + id, hit.field("_routing").getValue());
             }
         };
-        assertConsumer.accept(searchResponse, sourceHadDeletions);
-        assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
-        searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
+        assertResponse(prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected), searchResponse -> {
+            assertConsumer.accept(searchResponse, sourceHadDeletions);
+            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
+        });
+        SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
             .setScroll("1m")
             .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0, 1), 2))
             .setSize(randomIntBetween(1, 10))
@@ -283,12 +285,14 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
             do {
                 // now do a scroll with a slice
                 assertConsumer.accept(searchResponse, true);
+                searchResponse.decRef();
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
             } while (searchResponse.getHits().getHits().length > 0);
         } finally {
             if (searchResponse.getScrollId() != null) {
                 client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
             }
+            searchResponse.decRef();
         }
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -71,15 +72,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
 
     @Evaluator(warnExceptions = { ArithmeticException.class })
     static double process(double base, double exponent) {
-        return validateAsDouble(base, exponent);
-    }
-
-    private static double validateAsDouble(double base, double exponent) {
-        double result = Math.pow(base, exponent);
-        if (Double.isNaN(result) || Double.isInfinite(result)) {
-            throw new ArithmeticException("invalid result when computing pow");
-        }
-        return result;
+        return NumericUtils.asFiniteNumber(Math.pow(base, exponent));
     }
 
     @Override

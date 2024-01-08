@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
@@ -74,9 +75,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
             layout.append(attr);
             DataType dataType = attr.dataType();
+            ElementType elementType = PlannerUtils.toElementType(dataType);
             String fieldName = attr.name();
-            List<BlockLoader> loaders = BlockReaderFactories.loaders(searchContexts, fieldName, EsqlDataTypes.isUnsupported(dataType));
-            fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, loaders));
+            boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
+            IntFunction<BlockLoader> loader = s -> BlockReaderFactories.loader(
+                searchContexts.get(s).getSearchExecutionContext(),
+                fieldName,
+                isSupported
+            );
+            fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
     }
@@ -165,15 +172,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             .toList();
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
+        boolean isUnsupported = EsqlDataTypes.isUnsupported(attrSource.dataType());
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            BlockReaderFactories.loaders(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType())),
+            shardIdx -> BlockReaderFactories.loader(
+                searchContexts.get(shardIdx).getSearchExecutionContext(),
+                attrSource.name(),
+                isUnsupported
+            ),
             shardContexts,
             groupElementType,
             docChannel,
             attrSource.name(),
             aggregatorFactories,
-            context.pageSize(aggregateExec.estimatedRowSize()),
-            context.bigArrays()
+            context.pageSize(aggregateExec.estimatedRowSize())
         );
     }
 }

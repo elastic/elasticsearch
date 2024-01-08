@@ -52,6 +52,7 @@ teardown:
       security.delete_role:
         name: "x_cluster_role"
         ignore: 404
+
 ---
 "Index data and search on the mixed cluster":
 
@@ -236,6 +237,9 @@ teardown:
   - match: { aggregations.cluster.buckets.0.key: "local_cluster" }
   - match: { aggregations.cluster.buckets.0.doc_count: 5 }
 
+  - do:
+      indices.delete:
+        index: local_index
 ---
 "Add persistent remote cluster based on the preset cluster":
   - do:

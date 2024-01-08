@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,6 +43,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
     ClearVotingConfigExclusionsRequest,
     ActionResponse.Empty> {
 
+    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("cluster:admin/voting_config/clear_exclusions");
     private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
     private final Reconfigurator reconfigurator;
 
@@ -55,7 +57,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
         Reconfigurator reconfigurator
     ) {
         super(
-            ClearVotingConfigExclusionsAction.NAME,
+            TYPE.name(),
             false,
             transportService,
             clusterService,

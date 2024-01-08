@@ -32,7 +32,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -167,20 +166,13 @@ final class DefaultSearchContext extends SearchContext {
             this.indexShard = readerContext.indexShard();
 
             Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
-            int maximumNumberOfSlices;
-            if (hasSyntheticSource(indexService)) {
-                // accessing synthetic source is not thread safe
-                maximumNumberOfSlices = 1;
-            } else {
-                maximumNumberOfSlices = determineMaximumNumberOfSlices(
-                    executor,
-                    request,
-                    resultsType,
-                    enableQueryPhaseParallelCollection,
-                    field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
-                );
-
-            }
+            int maximumNumberOfSlices = determineMaximumNumberOfSlices(
+                executor,
+                request,
+                resultsType,
+                enableQueryPhaseParallelCollection,
+                field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
+            );
             if (executor == null) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
@@ -220,14 +212,6 @@ final class DefaultSearchContext extends SearchContext {
                 close();
             }
         }
-    }
-
-    private static boolean hasSyntheticSource(IndexService indexService) {
-        DocumentMapper documentMapper = indexService.mapperService().documentMapper();
-        if (documentMapper != null) {
-            return documentMapper.sourceMapper().isSynthetic();
-        }
-        return false;
     }
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {

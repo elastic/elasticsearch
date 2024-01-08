@@ -134,6 +134,9 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
      *     Implementations will rarely interact with the {@link TypeResolution}
      *     class directly, instead usually calling the utility methods on {@link TypeResolutions}.
      * </p>
+     * <p>
+     *     Implementations should fail if {@link #childrenResolved()} returns {@code false}.
+     * </p>
      */
     protected TypeResolution resolveType() {
         return TypeResolution.TYPE_RESOLVED;

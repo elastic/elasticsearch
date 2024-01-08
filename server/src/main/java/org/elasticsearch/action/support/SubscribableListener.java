@@ -34,6 +34,39 @@ import java.util.concurrent.Executor;
  * <p>
  * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
  * completed exceptionally then the exception is passed to subscribed listeners without modification.
+ * <p>
+ * Often this will be used to chain together a sequence of async actions such as in the following example:
+ * <pre>
+ * private void exampleAsyncMethod(String request, List&lt;Long> items, ActionListener&lt;Boolean> finalListener) {
+ *     SubscribableListener
+ *
+ *         // Step 1: Start the chain by running the first step
+ *         .&lt;String>newForked(l -> firstAsyncStep(request, l))
+ *
+ *         // Step 2: Run a second step when the first step completes; if the first step fails then the exception falls through to the end
+ *         // without executing the intervening steps.
+ *         .&lt;Integer>andThen((l, firstStepResult) -> secondAsyncStep(request, firstStepResult, l))
+ *
+ *         // Step 3: Run another step when the second step completes; again this only runs if the first two steps succeed.
+ *         .&lt;Boolean>andThen((l, secondStepResult) -> {
+ *             // Steps can fan out to multiple subsidiary actions using utilities like RefCountingListener
+ *             final var result = new AtomicBoolean();
+ *             try (var listeners = new RefCountingListener(l.map(v -> result.get()))) {
+ *                 for (final var item : items) {
+ *                     thirdAsyncStep(secondStepResult, item, listeners.acquire());
+ *                 }
+ *                 if (condition) {
+ *                     // Steps are exception-safe: an exception thrown here will be passed to the listener rather than escaping to the
+ *                     // caller.
+ *                     throw new IOException("failure");
+ *                 }
+ *             }
+ *         })
+ *
+ *         // Step 4: Complete the outer listener with the result of the previous step, or an exception if the chain failed
+ *         .addListener(finalListener);
+ * }
+ * </pre>
  */
 public class SubscribableListener<T> implements ActionListener<T> {
 

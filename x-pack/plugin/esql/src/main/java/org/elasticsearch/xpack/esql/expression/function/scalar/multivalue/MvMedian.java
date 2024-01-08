@@ -35,14 +35,11 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInte
  * Reduce a multivalued field to a single valued field containing the average value.
  */
 public class MvMedian extends AbstractMultivalueFunction {
-    @FunctionInfo(returnType = { "unsigned_long", "double",  "integer", "long" }, description = "Converts a multivalued field into a single valued field containing the median value.")
-    public MvMedian(
-        Source source,
-        @Param(
-            name = "v",
-            type = { "unsigned_long", "double",  "integer", "long" }
-        ) Expression field
-    ) {
+    @FunctionInfo(
+        returnType = { "unsigned_long", "double", "integer", "long" },
+        description = "Converts a multivalued field into a single valued field containing the median value."
+    )
+    public MvMedian(Source source, @Param(name = "v", type = { "unsigned_long", "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 

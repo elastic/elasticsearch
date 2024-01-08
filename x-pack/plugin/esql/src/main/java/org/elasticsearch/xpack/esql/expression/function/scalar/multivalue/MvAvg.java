@@ -32,20 +32,10 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
  */
 public class MvAvg extends AbstractMultivalueFunction {
     @FunctionInfo(
-        returnType = 
-            "double",
+        returnType = "double",
         description = "Converts a multivalued field into a single valued field containing the average of all of the values."
     )
-    public MvAvg(
-        Source source,
-        @Param(
-            name = "field",
-            type = { "double",
-                "long",
-                "unsigned_long",
-                "integer" }
-        ) Expression field
-    ) {
+    public MvAvg(Source source, @Param(name = "field", type = { "double", "long", "unsigned_long", "integer" }) Expression field) {
         super(source, field);
     }
 

@@ -12,7 +12,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -30,13 +29,7 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAddExact;
  * Reduce a multivalued field to a single valued field containing the sum of all values.
  */
 public class MvSum extends AbstractMultivalueFunction {
-    public MvSum(
-        Source source,
-        @Param(
-            name = "v",
-            type = { "unsigned_long", "double",  "integer", "long" }
-        ) Expression field
-    ) {
+    public MvSum(Source source, @Param(name = "v", type = { "unsigned_long", "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 

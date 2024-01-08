@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -25,18 +25,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Avg extends AggregateFunction implements SurrogateExpression {
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "The average of a numeric field.",
-        isAggregation = true
-    )
-    public Avg(
-        Source source,
-        @Param(
-            name = "field",
-            type = { "unsigned_long", "double",  "integer", "long" }
-        ) Expression field
-    ) {
+    @FunctionInfo(returnType = "double", description = "The average of a numeric field.", isAggregation = true)
+    public Avg(Source source, @Param(name = "field", type = { "unsigned_long", "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -17,12 +19,10 @@ import java.util.List;
 import java.util.function.Function;
 
 public class IsNaN extends RationalUnaryPredicate {
-    @FunctionInfo(returnType = "boolean", description = "Returns a boolean that indicates whether its input is not a number.")
-    public IsNaN(
-        Source source,
-        @Param(name = "value", type = { "double" }) Expression value
-    ) {
-        super(source, value);
+
+    @FunctionInfo(returnType = "boolean", description = "Returns true if the argument is a Not-a-Number (NaN) value.")
+    public IsNaN(Source source, @Param(name = "n", type = { "double" }, description = "A floating-point value") Expression field) {
+        super(source, field);
     }
 
     @Override

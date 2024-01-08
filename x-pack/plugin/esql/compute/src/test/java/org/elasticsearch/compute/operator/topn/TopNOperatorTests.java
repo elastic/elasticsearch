@@ -14,7 +14,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -123,7 +122,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     );
 
     @Override
-    protected TopNOperator.TopNOperatorFactory simple(BigArrays bigArrays) {
+    protected TopNOperator.TopNOperatorFactory simple() {
         return new TopNOperator.TopNOperatorFactory(
             4,
             List.of(LONG),
@@ -178,12 +177,12 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
+    protected ByteSizeValue memoryLimitForSimple() {
         /*
          * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker. So 775 is the max on this range.
+         * trip the breaker.
          */
-        return ByteSizeValue.ofBytes(between(1, 775));
+        return ByteSizeValue.ofBytes(775);
     }
 
     public void testRamBytesUsed() {

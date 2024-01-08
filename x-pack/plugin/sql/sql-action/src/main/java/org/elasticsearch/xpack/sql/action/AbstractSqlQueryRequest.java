@@ -438,7 +438,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         pageTimeout = in.readTimeValue();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            runtimeMappings = in.readMap();
+            runtimeMappings = in.readGenericMap();
         }
     }
 

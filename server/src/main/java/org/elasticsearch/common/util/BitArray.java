@@ -129,6 +129,10 @@ public final class BitArray implements Accountable, Releasable {
         return (bits.get(wordNum) & bitmask) != 0;
     }
 
+    public long size() {
+        return bits.size() * (long) Long.BYTES * Byte.SIZE;
+    }
+
     private static long wordNum(long index) {
         return index >> 6;
     }

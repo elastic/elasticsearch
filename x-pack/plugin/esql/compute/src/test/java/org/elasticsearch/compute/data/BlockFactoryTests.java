@@ -87,19 +87,19 @@ public class BlockFactoryTests extends ESTestCase {
             int positions = randomIntBetween(1, 16384);
             long preAdjustBytes = blockFactory.preAdjustBreakerForBoolean(positions);
             assertThat(preAdjustBytes, is((long) positions));
-            blockFactory.adjustBreaker(-preAdjustBytes, true);
+            blockFactory.adjustBreaker(-preAdjustBytes);
 
             preAdjustBytes = blockFactory.preAdjustBreakerForInt(positions);
             assertThat(preAdjustBytes, is((long) positions * 4));
-            blockFactory.adjustBreaker(-preAdjustBytes, true);
+            blockFactory.adjustBreaker(-preAdjustBytes);
 
             preAdjustBytes = blockFactory.preAdjustBreakerForLong(positions);
             assertThat(preAdjustBytes, is((long) positions * 8));
-            blockFactory.adjustBreaker(-preAdjustBytes, true);
+            blockFactory.adjustBreaker(-preAdjustBytes);
 
             preAdjustBytes = blockFactory.preAdjustBreakerForDouble(positions);
             assertThat(preAdjustBytes, is((long) positions * 8));
-            blockFactory.adjustBreaker(-preAdjustBytes, true);
+            blockFactory.adjustBreaker(-preAdjustBytes);
         }
     }
 
@@ -109,7 +109,7 @@ public class BlockFactoryTests extends ESTestCase {
         var block = builder.build();
         releaseAndAssertBreaker(block);
 
-        block = blockFactory.newIntArrayBlock(new int[] {}, 0, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newIntArrayBlock(new int[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
     }
@@ -121,7 +121,7 @@ public class BlockFactoryTests extends ESTestCase {
         var block = builder.build();
         releaseAndAssertBreaker(block);
 
-        block = blockFactory.newIntArrayBlock(new int[] { randomInt() }, 1, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newIntArrayBlock(new int[] { randomInt() }, 1, new int[] { 0, 1 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
 
@@ -199,7 +199,7 @@ public class BlockFactoryTests extends ESTestCase {
         var block = builder.build();
         releaseAndAssertBreaker(block);
 
-        block = blockFactory.newLongArrayBlock(new long[] {}, 0, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newLongArrayBlock(new long[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
     }
@@ -211,7 +211,7 @@ public class BlockFactoryTests extends ESTestCase {
         var block = builder.build();
         releaseAndAssertBreaker(block);
 
-        block = blockFactory.newLongArrayBlock(new long[] { randomLong() }, 1, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newLongArrayBlock(new long[] { randomLong() }, 1, new int[] { 0, 1 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
 
@@ -289,7 +289,7 @@ public class BlockFactoryTests extends ESTestCase {
         var block = builder.build();
         releaseAndAssertBreaker(block);
 
-        block = blockFactory.newDoubleArrayBlock(new double[] {}, 0, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newDoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
     }
@@ -301,7 +301,7 @@ public class BlockFactoryTests extends ESTestCase {
         var block = builder.build();
         releaseAndAssertBreaker(block);
 
-        block = blockFactory.newDoubleArrayBlock(new double[] { randomDouble() }, 1, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newDoubleArrayBlock(new double[] { randomDouble() }, 1, new int[] { 0, 1 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
 
@@ -379,7 +379,7 @@ public class BlockFactoryTests extends ESTestCase {
         var block = builder.build();
         releaseAndAssertBreaker(block);
 
-        block = blockFactory.newBooleanArrayBlock(new boolean[] {}, 0, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newBooleanArrayBlock(new boolean[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
     }
@@ -391,7 +391,7 @@ public class BlockFactoryTests extends ESTestCase {
         var block = builder.build();
         releaseAndAssertBreaker(block);
 
-        block = blockFactory.newBooleanArrayBlock(new boolean[] { randomBoolean() }, 1, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newBooleanArrayBlock(new boolean[] { randomBoolean() }, 1, new int[] { 0, 1 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
 
@@ -470,7 +470,7 @@ public class BlockFactoryTests extends ESTestCase {
         releaseAndAssertBreaker(block);
 
         var emptyArray = new BytesRefArray(0, bigArrays);
-        block = blockFactory.newBytesRefArrayBlock(emptyArray, 0, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newBytesRefArrayBlock(emptyArray, 0, new int[] { 0 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
     }
@@ -484,7 +484,7 @@ public class BlockFactoryTests extends ESTestCase {
 
         var array = new BytesRefArray(1, bigArrays);
         array.append(randomBytesRef());
-        block = blockFactory.newBytesRefArrayBlock(array, 1, new int[] {}, new BitSet(), randomOrdering());
+        block = blockFactory.newBytesRefArrayBlock(array, 1, new int[] { 0, 1 }, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         releaseAndAssertBreaker(block);
 
@@ -568,7 +568,6 @@ public class BlockFactoryTests extends ESTestCase {
             vector.close();
         }
         assertTrue(vector.isReleased());
-        assertTrue(vector.asBlock().isReleased());
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
@@ -651,12 +650,7 @@ public class BlockFactoryTests extends ESTestCase {
     public void testOwningFactoryOfVectorBlock() {
         BlockFactory parentFactory = blockFactory(ByteSizeValue.ofBytes(between(1024, 4096)));
         LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(parentFactory.breaker(), between(0, 1024), between(0, 1024));
-        BlockFactory localFactory = new BlockFactory(
-            localBreaker,
-            bigArrays,
-            BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE,
-            parentFactory
-        );
+        BlockFactory localFactory = parentFactory.newChildFactory(localBreaker);
         int numValues = between(2, 10);
         try (var builder = localFactory.newIntVectorBuilder(numValues)) {
             for (int i = 0; i < numValues; i++) {

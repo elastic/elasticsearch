@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 
 import java.util.List;
@@ -16,5 +15,5 @@ import java.util.List;
  * Expressions that have a mapping to an {@link AggregatorFunctionSupplier}.
  */
 public interface ToAggregator {
-    AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels);
+    AggregatorFunctionSupplier supplier(List<Integer> inputChannels);
 }

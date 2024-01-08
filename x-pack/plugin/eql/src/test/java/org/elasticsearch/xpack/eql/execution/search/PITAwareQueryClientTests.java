@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -243,9 +242,14 @@ public class PITAwareQueryClientTests extends ESTestCase {
             );
 
             SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
-            SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
             SearchResponse response = new SearchResponse(
-                internal,
+                searchHits,
+                null,
+                null,
+                false,
+                false,
+                null,
+                0,
                 null,
                 2,
                 0,

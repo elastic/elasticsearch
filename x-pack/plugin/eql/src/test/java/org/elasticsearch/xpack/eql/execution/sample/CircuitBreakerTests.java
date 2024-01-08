@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -222,12 +221,16 @@ public class CircuitBreakerTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             Aggregations aggs = new Aggregations(List.of(newInternalComposite()));
-
-            SearchResponseSections internal = new SearchResponseSections(null, aggs, null, false, false, null, 0);
             ActionListener.respondAndRelease(
                 listener,
                 (Response) new SearchResponse(
-                    internal,
+                    null,
+                    aggs,
+                    null,
+                    false,
+                    false,
+                    null,
+                    0,
                     null,
                     2,
                     0,
@@ -290,7 +293,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     }
 
                     @Override
-                    public Map<String, Object> readMap() throws IOException {
+                    public Map<String, Object> readGenericMap() throws IOException {
                         return emptyMap();
                     }
                 });

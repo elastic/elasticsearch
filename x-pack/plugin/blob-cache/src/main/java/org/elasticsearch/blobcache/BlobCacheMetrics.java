@@ -25,14 +25,14 @@ public class BlobCacheMetrics {
                 "count"
             ),
             meterRegistry.registerLongCounter(
-                "es.blob_cache.evicted_used_regions.total",
+                "es.blob_cache.count_of_evicted_used_regions.total",
                 "The number of times a cache entry was evicted where the frequency was not zero",
                 "entries"
             ),
             meterRegistry.registerLongHistogram(
-                "es.blob_cache.cache_miss_load.time",
-                "The timing data for populating entries in the blob store resulting from a cache miss.",
-                "Milliseconds"
+                "es.blob_cache.cache_miss_load_times.histogram",
+                "The time in microseconds for populating entries in the blob store resulting from a cache miss, expressed as a histogram.",
+                "micros"
             )
         );
     }

@@ -8,20 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BlockSourceReaderTests extends ESTestCase {
+public class BlockSourceReaderTests extends MapperServiceTestCase {
     public void testSingle() throws IOException {
         withIndex(
             source -> source.field("field", "foo"),
@@ -56,7 +48,9 @@ public class BlockSourceReaderTests extends ESTestCase {
     }
 
     private void loadBlock(LeafReaderContext ctx, Consumer<TestBlock> test) throws IOException {
-        BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(Set.of("field")));
+        ValueFetcher valueFetcher = SourceValueFetcher.toString(Set.of("field"));
+        BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromNorms("field");
+        BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup);
         assertThat(loader.columnAtATimeReader(ctx), nullValue());
         BlockLoader.RowStrideReader reader = loader.rowStrideReader(ctx);
         assertThat(loader.rowStrideStoredFieldSpec(), equalTo(StoredFieldsSpec.NEEDS_SOURCE));
@@ -74,23 +68,13 @@ public class BlockSourceReaderTests extends ESTestCase {
 
     private void withIndex(CheckedConsumer<XContentBuilder, IOException> buildSource, CheckedConsumer<LeafReaderContext, IOException> test)
         throws IOException {
-        try (
-            Directory directory = newDirectory();
-            RandomIndexWriter writer = new RandomIndexWriter(
-                random(),
-                directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
-            )
-        ) {
-            XContentBuilder source = JsonXContent.contentBuilder();
-            source.startObject();
-            buildSource.accept(source);
-            source.endObject();
-            writer.addDocument(List.of(new StoredField(SourceFieldMapper.NAME, BytesReference.bytes(source).toBytesRef())));
-            try (IndexReader reader = writer.getReader()) {
-                assertThat(reader.leaves(), hasSize(1));
-                test.accept(reader.leaves().get(0));
-            }
-        }
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        withLuceneIndex(mapperService, writer -> {
+            ParsedDocument parsed = mapperService.documentParser().parseDocument(source(buildSource), mapperService.mappingLookup());
+            writer.addDocuments(parsed.docs());
+        }, reader -> {
+            assertThat(reader.leaves(), hasSize(1));
+            test.accept(reader.leaves().get(0));
+        });
     }
 }

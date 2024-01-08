@@ -267,11 +267,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
 
                 Map<String, Object> subfieldMap = new HashMap<>();
                 if (includeSparseVectorSubfield) {
-                    // TODO: OK to omit is_truncated?
-                    subfieldMap.put(
-                        SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME,
-                        embedding.asMap().get(SparseEmbeddingResults.Embedding.EMBEDDING)
-                    );
+                    subfieldMap.put(SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME, embedding.asMap());
                 }
                 if (includeTextSubfield) {
                     subfieldMap.put(SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME, text);
@@ -311,7 +307,12 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         visitedChildDocs.add(
             new VisitedChildDocInfo(
                 childDoc.getPath(),
-                childDoc.getFields(childDoc.getPath() + "." + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME).size()
+                childDoc.getFields(
+                    childDoc.getPath()
+                    + "."
+                    + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME
+                    + "."
+                    + SparseEmbeddingResults.Embedding.EMBEDDING).size()
             )
         );
     }

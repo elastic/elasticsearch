@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -17,6 +19,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -24,7 +27,9 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,12 +54,15 @@ import java.util.stream.Collectors;
  *             "my_semantic_text_field": [
  *                 {
  *                     "sparse_embedding": {
- *                         "lucas": 0.05212344,
- *                         "ty": 0.041213956,
- *                         "dragon": 0.50991,
- *                         "type": 0.23241979,
- *                         "dr": 1.9312073,
- *                         "##o": 0.2797593
+ *                         "is_truncated": false,
+ *                         "embedding": {
+ *                             "lucas": 0.05212344,
+ *                             "ty": 0.041213956,
+ *                             "dragon": 0.50991,
+ *                             "type": 0.23241979,
+ *                             "dr": 1.9312073,
+ *                             "##o": 0.2797593
+ *                         }
  *                     },
  *                     "text": "these are not the droids you're looking for"
  *                 }
@@ -75,7 +83,9 @@ import java.util.stream.Collectors;
  *                 "type": "nested",
  *                 "properties": {
  *                     "sparse_embedding": {
- *                         "type": "sparse_vector"
+ *                         "embedding": {
+ *                             "type": "sparse_vector"
+ *                         }
  *                     },
  *                     "text": {
  *                         "type": "text",
@@ -178,48 +188,64 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             }
 
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
-                DocumentParserContext nestedContext = context.createChildContext(nestedObjectMapper)
-                    .createNestedContext(nestedObjectMapper);
-
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new DocumentParsingException(parser.getTokenLocation(), "Expected a START_OBJECT, got " + parser.currentToken());
-                }
-
-                Set<String> visitedSubfields = new HashSet<>();
-                for (token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-                    if (token != XContentParser.Token.FIELD_NAME) {
-                        throw new DocumentParsingException(
-                            parser.getTokenLocation(),
-                            "Expected a FIELD_NAME, got " + parser.currentToken()
-                        );
-                    }
-
-                    String currentName = parser.currentName();
-                    visitedSubfields.add(currentName);
-
-                    context.path().add(currentName);
-                    try {
-                        // TODO: Test how this code handles extra/missing fields
-                        FieldMapper childNestedMapper = (FieldMapper) nestedObjectMapper.getMapper(currentName);
-                        if (childNestedMapper == null) {
-                            throw new DocumentParsingException(parser.getTokenLocation(), "Unexpected field name: " + currentName);
-                        }
-                        parser.nextToken();
-                        childNestedMapper.parse(nestedContext);
-                    } finally {
-                        context.path().remove();
-                    }
-                }
-
-                if (visitedSubfields.equals(REQUIRED_SUBFIELDS) == false) {
-                    Set<String> missingSubfields = REQUIRED_SUBFIELDS.stream()
-                        .filter(s -> visitedSubfields.contains(s) == false)
-                        .collect(Collectors.toSet());
-                    throw new DocumentParsingException(parser.getTokenLocation(), "Missing required subfields: " + missingSubfields);
-                }
+                DocumentParserContext nestedContext = context.createNestedContext(nestedObjectMapper);
+                parseObject(nestedContext, nestedObjectMapper, REQUIRED_SUBFIELDS);
             }
         } finally {
             context.path().remove();
+        }
+    }
+
+    private static void parseObject(
+        DocumentParserContext context,
+        ObjectMapper objectMapper,
+        Set<String> requiredSubfields
+    ) throws IOException {
+        XContentParser parser = context.parser();
+        DocumentParserContext childContext = context.createChildContext(objectMapper);
+
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new DocumentParsingException(parser.getTokenLocation(), "Expected a START_OBJECT, got " + parser.currentToken());
+        }
+
+        Set<String> visitedSubfields = new HashSet<>();
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new DocumentParsingException(
+                    parser.getTokenLocation(),
+                    "Expected a FIELD_NAME, got " + parser.currentToken()
+                );
+            }
+
+            String currentName = parser.currentName();
+            visitedSubfields.add(currentName);
+
+            // TODO: Test missing/extra field handling
+            Mapper childMapper = objectMapper.getMapper(currentName);
+            if (childMapper == null) {
+                throw new DocumentParsingException(parser.getTokenLocation(), "Unexpected field name: " + currentName);
+            }
+
+            if (childMapper instanceof FieldMapper) {
+                parser.nextToken();
+                ((FieldMapper) childMapper).parse(childContext);
+            } else if (childMapper instanceof ObjectMapper) {
+                parser.nextToken();
+                parseObject(childContext, (ObjectMapper) childMapper, null);
+            } else {
+                // This should never happen, but fail parsing if it does so that it's not a silent failure
+                throw new DocumentParsingException(
+                    parser.getTokenLocation(),
+                    Strings.format("Unhandled mapper type [%s] for field [%s]", childMapper.getClass(), currentName)
+                );
+            }
+        }
+
+        if (requiredSubfields != null && visitedSubfields.containsAll(requiredSubfields) == false) {
+            Set<String> missingSubfields = requiredSubfields.stream()
+                .filter(s -> visitedSubfields.contains(s) == false)
+                .collect(Collectors.toSet());
+            throw new DocumentParsingException(parser.getTokenLocation(), "Missing required subfields: " + missingSubfields);
         }
     }
 
@@ -231,10 +257,23 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
 
         // TODO: Use keyword field type for text?
         // TODO: Why add text field to mapper if it's not indexed or stored?
-        SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(SPARSE_VECTOR_SUBFIELD_NAME);
+        IndexVersion indexVersionCreated = context.indexSettings().getIndexVersionCreated();
+        ObjectMapper.Builder sparseVectorMapperBuilder = new ObjectMapper.Builder(
+            SPARSE_VECTOR_SUBFIELD_NAME,
+            ObjectMapper.Defaults.SUBOBJECTS
+        ).add(
+            new BooleanFieldMapper.Builder(
+                SparseEmbeddingResults.Embedding.IS_TRUNCATED,
+                ScriptCompiler.NONE,
+                false,
+                indexVersionCreated
+            )
+        ).add(
+            new SparseVectorFieldMapper.Builder(SparseEmbeddingResults.Embedding.EMBEDDING)
+        );
         TextFieldMapper.Builder textMapperBuilder = new TextFieldMapper.Builder(
             TEXT_SUBFIELD_NAME,
-            context.indexSettings().getIndexVersionCreated(),
+            indexVersionCreated,
             context.indexAnalyzers()
         ).index(false).store(false);
 

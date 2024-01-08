@@ -607,7 +607,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Tuple<Object, GeoPoint> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), v.v2(), asWKT(v.v2()), this::mapping);
+                    return new SyntheticSourceExample(v.v1(), v.v2(), v.v2().toWKT(), this::mapping);
                 }
                 List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
                 // For the synthetic source tests, the results are sorted in order of encoded values, but for row-stride reader
@@ -619,7 +619,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 List<GeoPoint> outList = sorted.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<String> outBlockList = outList.stream().map(this::asWKT).toList();
+                List<String> outBlockList = outList.stream().map(GeoPoint::toWKT).toList();
                 Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
                 return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
@@ -652,10 +652,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                         yield Map.of("coordinates", coords, "type", "point");
                     }
                 };
-            }
-
-            private String asWKT(GeoPoint point) {
-                return WellKnownText.toWKT(new Point(point.getX(), point.getY()));
             }
 
             private long encode(GeoPoint point) {

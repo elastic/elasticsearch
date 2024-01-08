@@ -87,7 +87,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {
 
         protected final Parser<T> geometryParser;
-        private final T nullValue;
+        protected final T nullValue;
 
         protected AbstractGeometryFieldType(
             String name,
@@ -130,7 +130,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         public ValueFetcher valueFetcher(Set<String> sourcePaths, Object nullValue, String format) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-            return new ArraySourceValueFetcher(sourcePaths, nullValue) {
+            return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue)) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     final List<T> values = new ArrayList<>();
@@ -140,13 +140,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             };
         }
 
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // Currently we can only load from source in ESQL
-            ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
-            // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
-            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
-        }
+        protected abstract Object nullValueAsSource(Object nullValue);
     }
 
     private final Explicit<Boolean> ignoreMalformed;

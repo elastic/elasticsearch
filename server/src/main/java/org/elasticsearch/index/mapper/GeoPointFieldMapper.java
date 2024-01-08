@@ -357,7 +357,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         return CONTENT_TYPE;
     }
 
-    public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
+    public static class GeoPointFieldType extends AbstractPointFieldType<GeoPoint> implements GeoShapeQueryable {
         private final TimeSeriesParams.MetricType metricType;
 
         public static final GeoFormatterFactory<GeoPoint> GEO_FORMATTER_FACTORY = new GeoFormatterFactory<>(

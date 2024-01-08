@@ -174,9 +174,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
 
             // TODO
-            //@Override
-            //public boolean isFieldMapped(String name) {
-            //}
+            // @Override
+            // public boolean isFieldMapped(String name) {
+            // }
         };
     }
 

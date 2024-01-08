@@ -110,7 +110,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         fields = (ArrayList<String>) in.readGenericValue();
         userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         format = in.readOptionalString();
-        missingMap = in.readMap();
+        missingMap = in.readGenericMap();
     }
 
     @Override

@@ -110,8 +110,8 @@ setup:
 ---
 unsupported:
   - skip:
-      version: " - 8.11.99"
-      reason: "Latest types supported in ESQL starting with 8.12.0"
+      version: " - 8.12.99"
+      reason: "Latest types supported in ESQL as of 8.13.0"
 
   - do:
       allowed_warnings_regex:
@@ -189,8 +189,8 @@ unsupported:
   - match: { values.0.5: null }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
-  - match: { values.0.8: "POINT (9.999999990686774 11.999999997206032)" }
-  - match: { values.0.9: "POINT (9.999999990686774 11.999999997206032)" }
+  - match: { values.0.8: "POINT (10.0 12.0)" }
+  - match: { values.0.9: "POINT (10.0 12.0)" }
   - match: { values.0.10: null }
   - match: { values.0.11: null }
   - match: { values.0.12: null }
@@ -198,7 +198,7 @@ unsupported:
   - match: { values.0.14: null }
   - match: { values.0.15: "foo bar baz" }
   - match: { values.0.16: Alice }
-  - match: { values.0.17: "POINT (-97.15447235107422 25.996152877807617)" }
+  - match: { values.0.17: "POINT (-97.15447 25.9961525)" }
   - match: { values.0.18: null }
   - match: { values.0.19: null }
   - match: { values.0.20: null }
@@ -290,8 +290,8 @@ unsupported:
 ---
 unsupported with sort:
   - skip:
-      version: " - 8.11.99"
-      reason: "Latest types supported in ESQL starting with 8.12.0"
+      version: " - 8.12.99"
+      reason: "Latest types supported in ESQL as of 8.13.0"
 
   - do:
       allowed_warnings_regex:
@@ -369,8 +369,8 @@ unsupported with sort:
   - match: { values.0.5: null }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
-  - match: { values.0.8: "POINT (9.999999990686774 11.999999997206032)" }
-  - match: { values.0.9: "POINT (9.999999990686774 11.999999997206032)" }
+  - match: { values.0.8: "POINT (10.0 12.0)" }
+  - match: { values.0.9: "POINT (10.0 12.0)" }
   - match: { values.0.10: null }
   - match: { values.0.11: null }
   - match: { values.0.12: null }
@@ -378,7 +378,7 @@ unsupported with sort:
   - match: { values.0.14: null }
   - match: { values.0.15: "foo bar baz" }
   - match: { values.0.16: Alice }
-  - match: { values.0.17: "POINT (-97.15447235107422 25.996152877807617)" }
+  - match: { values.0.17: "POINT (-97.15447 25.9961525)" }
   - match: { values.0.18: null }
   - match: { values.0.19: null }
   - match: { values.0.20: null }

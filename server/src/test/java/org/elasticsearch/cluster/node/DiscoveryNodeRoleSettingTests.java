@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
@@ -40,10 +42,10 @@ public class DiscoveryNodeRoleSettingTests extends ESTestCase {
     }
 
     private void runRoleTest(final Predicate<Settings> predicate, final DiscoveryNodeRole role) {
-        assertTrue(predicate.test(onlyRole(role)));
+        assertThat(predicate, trueWith(onlyRole(role)));
         assertThat(DiscoveryNode.getRolesFromSettings(onlyRole(role)), hasItem(role));
 
-        assertFalse(predicate.test(removeRoles(Set.of(role))));
+        assertThat(predicate, falseWith(removeRoles(Set.of(role))));
         assertThat(DiscoveryNode.getRolesFromSettings(removeRoles(Set.of(role))), not(hasItem(role)));
     }
 

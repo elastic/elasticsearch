@@ -188,8 +188,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             indicesPrivileges[i] = new IndicesPrivileges(in);
         }
         this.runAs = in.readStringArray();
-        this.metadata = in.readMap();
-        this.transientMetadata = in.readMap();
+        this.metadata = in.readGenericMap();
+        this.transientMetadata = in.readGenericMap();
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);

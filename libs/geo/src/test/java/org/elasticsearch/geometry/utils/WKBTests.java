@@ -149,9 +149,10 @@ public class WKBTests extends ESTestCase {
             final int offset = randomInt(extraBytes);
             System.arraycopy(b, 0, oversizeB, offset, b.length);
             assertEquals(geometry, WellKnownBinary.fromWKB(StandardValidator.instance(hasZ), randomBoolean(), oversizeB, offset, b.length));
+            assertEquals(WellKnownText.toWKT(geometry), WellKnownText.fromWKB(oversizeB, offset, b.length));
         } else {
             assertEquals(geometry, WellKnownBinary.fromWKB(StandardValidator.instance(hasZ), randomBoolean(), b));
+            assertEquals(WellKnownText.toWKT(geometry), WellKnownText.fromWKB(b, 0, b.length));
         }
     }
-
 }

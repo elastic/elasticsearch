@@ -238,20 +238,6 @@ d:double | s:boolean
 Infinity | true
 ;
 
-isNaN
-row d = 1.0 | eval s = is_nan(d);
-
-d:double | s:boolean
-1.0      | false
-;
-
-isNaNTrue
-row d = 0.0/0.0 | eval s = is_nan(d);
-
-d:double | s:boolean
-NaN      | true
-;
-
 log10
 // tag::log10[]
 ROW d = 1000.0 
@@ -1011,13 +997,6 @@ warning:Line 1:25: java.lang.ArithmeticException: Square root of negative
 
 d:double | s:double
 -1.0     | null
-;
-
-sqrtOfNan
-row d = 0.0/0.0 | eval s = is_nan(sqrt(d));
-
-d:double | s:boolean
-NaN      | true
 ;
 
 sqrtOfZero

@@ -31,7 +31,6 @@ these functions:
 * <<esql-greatest>>
 * <<esql-is_finite>>
 * <<esql-is_infinite>>
-* <<esql-is_nan>>
 * <<esql-least>>
 * <<esql-left>>
 * <<esql-length>>
@@ -96,7 +95,6 @@ include::functions/floor.asciidoc[]
 include::functions/greatest.asciidoc[]
 include::functions/is_finite.asciidoc[]
 include::functions/is_infinite.asciidoc[]
-include::functions/is_nan.asciidoc[]
 include::functions/least.asciidoc[]
 include::functions/left.asciidoc[]
 include::functions/length.asciidoc[]

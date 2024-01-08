@@ -35,10 +35,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
     );
 
     @FunctionInfo(returnType = "geo_point", description = "Converts an input value to a geo_point value.")
-    public ToGeoPoint(
-        Source source,
-        @Param(name = "v", type = { "geo_point", "long", "keyword", "text" }) Expression field
-    ) {
+    public ToGeoPoint(Source source, @Param(name = "v", type = { "geo_point", "long", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 

@@ -782,8 +782,6 @@ FROM sample_data
 
 median_duration:double | client_ip:ip
 ;
-<<<<<<< HEAD
-=======
 
 fieldEscaping#[skip:-8.12.99, reason:Fixed bug in 8.13 of removing the leading/trailing backquotes of an identifier]
 FROM sample_data
@@ -881,4 +879,3 @@ AVG(salary):double | avg_salary_rounded:double
 48248.55           | 48249.0
 // end::statsUnnamedColumnEval-result[]
 ;
->>>>>>> c6723a3c1d9 ([DOCS] More ES|QL backtick examples (#103995))

@@ -159,7 +159,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.EnumSet;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -213,7 +213,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexEventListener indexEventListener;
     private final QueryCachingPolicy cachingPolicy;
     private final Supplier<Sort> indexSortSupplier;
-    private final HashMap<String, Boolean> fieldHasValue;
+    private final Set<String> fieldHasValue;
     // Package visible for testing
     final CircuitBreakerService circuitBreakerService;
 
@@ -400,7 +400,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.fieldHasValue = new HashMap<>();
+        this.fieldHasValue = new HashSet<>();
     }
 
     public ThreadPool getThreadPool() {
@@ -994,11 +994,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void setFieldHasValue(String fieldName) {
-        fieldHasValue.put(fieldName, true);
+        fieldHasValue.add(fieldName);
     }
 
     public boolean fieldHasValue(String fieldName) {
-        return fieldHasValue.getOrDefault(fieldName, false);
+        return fieldHasValue.contains(fieldName);
     }
 
     public static Engine.Index prepareIndex(

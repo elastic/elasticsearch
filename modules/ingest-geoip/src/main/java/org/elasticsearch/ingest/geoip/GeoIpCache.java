@@ -40,7 +40,6 @@ final class GeoIpCache {
         String databasePath,
         Function<InetAddress, AbstractResponse> retrieveFunction
     ) {
-
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.

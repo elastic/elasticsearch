@@ -146,7 +146,6 @@ public enum SpatialCoordinateTypes {
     }
 
     public String wkbAsString(BytesRef wkb) {
-        // TODO: we should be able to transform WKB to WKT without building the geometry
-        return WellKnownText.toWKT(WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length));
+        return WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length);
     }
 }

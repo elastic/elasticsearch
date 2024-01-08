@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export RUNTIME_JAVA_HOME=$HOME/.java/openjdk22
+
 rm -Rfv ~/.gradle/init.d
 mkdir -p ~/.gradle/init.d && cp -v $WORKSPACE/.ci/init.gradle ~/.gradle/init.d
 

@@ -9,15 +9,15 @@ package org.elasticsearch.xpack.security.authc.apikey;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
@@ -60,7 +61,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApi
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
-import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -276,8 +276,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             clientKey1 = client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue));
         } else {
             final CreateTokenResponse createTokenResponse = new CreateTokenRequestBuilder(
-                client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue)),
-                CreateTokenAction.INSTANCE
+                client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue))
             ).setGrantType("client_credentials").get();
             clientKey1 = client().filterWithHeader(Map.of("Authorization", "Bearer " + createTokenResponse.getTokenString()));
         }
@@ -316,7 +315,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(securityClient.getApiKey(apiKeyId).getUsername(), equalTo("user2"));
         final Client clientWithGrantedKey = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue));
         // The API key has privileges (inherited from user2) to check cluster health
-        clientWithGrantedKey.execute(ClusterHealthAction.INSTANCE, new ClusterHealthRequest()).actionGet();
+        clientWithGrantedKey.execute(TransportClusterHealthAction.TYPE, new ClusterHealthRequest()).actionGet();
         // If the API key is granted with limiting descriptors, it should not be able to read pipeline
         if (grantApiKeyRequest.getApiKeyRequest().getRoleDescriptors().isEmpty()) {
             clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest()).actionGet();
@@ -333,8 +332,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(
             expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> new CreateTokenRequestBuilder(clientWithGrantedKey, CreateTokenAction.INSTANCE).setGrantType("client_credentials")
-                    .get()
+                () -> new CreateTokenRequestBuilder(clientWithGrantedKey).setGrantType("client_credentials").get()
             ).getMessage(),
             containsString("unauthorized")
         );
@@ -578,7 +576,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         );
 
         // Check the API key attributes with raw document
-        final Map<String, Object> document = client().execute(GetAction.INSTANCE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId))
+        final Map<String, Object> document = client().execute(TransportGetAction.TYPE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId))
             .actionGet()
             .getSource();
         assertThat(document.get("type"), equalTo("cross_cluster"));
@@ -709,7 +707,13 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             updateMetadata = null;
         }
 
-        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(apiKeyId, roleDescriptorBuilder, updateMetadata);
+        final boolean shouldUpdateExpiration = randomBoolean();
+        TimeValue expiration = null;
+        if (shouldUpdateExpiration) {
+            ApiKeyTests.randomFutureExpirationTime();
+        }
+
+        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(apiKeyId, roleDescriptorBuilder, updateMetadata, expiration);
         final UpdateApiKeyResponse updateApiKeyResponse = client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateApiKeyRequest)
             .actionGet();
 
@@ -807,7 +811,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {
-        final GetResponse getResponse = client().execute(GetAction.INSTANCE, new GetRequest(".security-7", apiKeyId)).actionGet();
+        final GetResponse getResponse = client().execute(TransportGetAction.TYPE, new GetRequest(".security-7", apiKeyId)).actionGet();
         return getResponse.getSource();
     }
 }

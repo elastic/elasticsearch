@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
@@ -240,16 +239,16 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
-            final InternalSearchResponse internalResponse = SearchPhaseController.merge(true, queryPhase, fetchResults);
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
             }
-            listener.onResponse(
+            ActionListener.respondAndRelease(
+                listener,
                 new SearchResponse(
-                    internalResponse,
+                    SearchPhaseController.merge(true, queryPhase, fetchResults),
                     scrollId,
                     this.scrollId.getContext().length,
                     successfulOps.get(),

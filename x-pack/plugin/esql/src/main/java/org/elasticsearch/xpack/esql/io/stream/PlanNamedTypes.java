@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,9 +39,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -170,6 +174,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -188,6 +193,10 @@ import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 /**
  * A utility class that consists solely of static methods that describe how to serialize and
@@ -321,9 +330,11 @@ public final class PlanNamedTypes {
             of(ESQL_UNARY_SCLR_CLS, Tan.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Tanh.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToBoolean.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ESQL_UNARY_SCLR_CLS, ToCartesianPoint.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToDatetime.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToDegrees.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToDouble.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ESQL_UNARY_SCLR_CLS, ToGeoPoint.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToIP.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToInteger.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToLong.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
@@ -1155,9 +1166,11 @@ public final class PlanNamedTypes {
         entry(name(Tan.class), Tan::new),
         entry(name(Tanh.class), Tanh::new),
         entry(name(ToBoolean.class), ToBoolean::new),
+        entry(name(ToCartesianPoint.class), ToCartesianPoint::new),
         entry(name(ToDatetime.class), ToDatetime::new),
         entry(name(ToDegrees.class), ToDegrees::new),
         entry(name(ToDouble.class), ToDouble::new),
+        entry(name(ToGeoPoint.class), ToGeoPoint::new),
         entry(name(ToIP.class), ToIP::new),
         entry(name(ToInteger.class), ToInteger::new),
         entry(name(ToLong.class), ToLong::new),
@@ -1566,13 +1579,62 @@ public final class PlanNamedTypes {
     // -- Expressions (other)
 
     static Literal readLiteral(PlanStreamInput in) throws IOException {
-        return new Literal(in.readSource(), in.readGenericValue(), in.dataTypeFromTypeName(in.readString()));
+        Source source = in.readSource();
+        Object value = in.readGenericValue();
+        DataType dataType = in.dataTypeFromTypeName(in.readString());
+        return new Literal(source, mapToLiteralValue(in, dataType, value), dataType);
     }
 
     static void writeLiteral(PlanStreamOutput out, Literal literal) throws IOException {
         out.writeNoSource();
-        out.writeGenericValue(literal.value());
+        out.writeGenericValue(mapFromLiteralValue(out, literal.dataType(), literal.value()));
         out.writeString(literal.dataType().typeName());
+    }
+
+    /**
+     * Not all literal values are currently supported in StreamInput/StreamOutput as generic values.
+     * This mapper allows for addition of new and interesting values without (yet) adding to StreamInput/Output.
+     * This makes the most sense during the pre-GA version of ESQL. When we get near GA we might want to push this down.
+     * <p>
+     * For the spatial point type support we need to care about the fact that 8.12.0 uses encoded longs for serializing
+     * while 8.13 uses WKB.
+     */
+    private static Object mapFromLiteralValue(PlanStreamOutput out, DataType dataType, Object value) {
+        if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
+            // In 8.12.0 and earlier builds of 8.13 (pre-release) we serialized point literals as encoded longs, but now use WKB
+            if (out.getTransportVersion().before(TransportVersions.ESQL_PLAN_POINT_LITERAL_WKB)) {
+                if (value instanceof List<?> list) {
+                    return list.stream().map(v -> mapFromLiteralValue(out, dataType, v)).toList();
+                }
+                return wkbAsLong(dataType, (BytesRef) value);
+            }
+        }
+        return value;
+    }
+
+    /**
+     * Not all literal values are currently supported in StreamInput/StreamOutput as generic values.
+     * This mapper allows for addition of new and interesting values without (yet) changing StreamInput/Output.
+     */
+    private static Object mapToLiteralValue(PlanStreamInput in, DataType dataType, Object value) {
+        if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
+            // In 8.12.0 and earlier builds of 8.13 (pre-release) we serialized point literals as encoded longs, but now use WKB
+            if (in.getTransportVersion().before(TransportVersions.ESQL_PLAN_POINT_LITERAL_WKB)) {
+                if (value instanceof List<?> list) {
+                    return list.stream().map(v -> mapToLiteralValue(in, dataType, v)).toList();
+                }
+                return longAsWKB(dataType, (Long) value);
+            }
+        }
+        return value;
+    }
+
+    private static BytesRef longAsWKB(DataType dataType, long encoded) {
+        return dataType == GEO_POINT ? GEO.longAsWKB(encoded) : CARTESIAN.longAsWKB(encoded);
+    }
+
+    private static long wkbAsLong(DataType dataType, BytesRef wkb) {
+        return dataType == GEO_POINT ? GEO.wkbAsLong(wkb) : CARTESIAN.wkbAsLong(wkb);
     }
 
     static Order readOrder(PlanStreamInput in) throws IOException {

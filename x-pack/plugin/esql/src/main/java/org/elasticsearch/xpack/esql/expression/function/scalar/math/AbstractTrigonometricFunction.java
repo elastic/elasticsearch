@@ -33,7 +33,7 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction impleme
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return doubleEvaluator(Cast.cast(field().dataType(), DataTypes.DOUBLE, toEvaluator.apply(field())));
+        return doubleEvaluator(Cast.cast(source(), field().dataType(), DataTypes.DOUBLE, toEvaluator.apply(field())));
     }
 
     @Override

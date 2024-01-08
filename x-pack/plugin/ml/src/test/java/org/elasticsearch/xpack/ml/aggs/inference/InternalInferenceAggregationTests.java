@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResu
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,7 +40,7 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY);
+        return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
     }
 
     @Override

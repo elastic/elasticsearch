@@ -229,7 +229,7 @@ public class CsvTests extends ESTestCase {
     }
 
     public boolean logResults() {
-        return true;
+        return false;
     }
 
     private void doTest() throws Exception {
@@ -329,11 +329,19 @@ public class CsvTests extends ESTestCase {
         String sessionId = "csv-test";
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), threadPool.executor(ESQL_THREAD_POOL_NAME));
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(between(1, 64), threadPool::relativeTimeInMillis);
+        Settings.Builder settings = Settings.builder();
+
+        BlockFactory blockFactory = new BlockFactory(
+            bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
+            bigArrays,
+            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
+        );
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             bigArrays,
-            new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays),
+            blockFactory,
+            randomNodeSettings(),
             configuration,
             exchangeSource,
             exchangeSink,
@@ -404,8 +412,17 @@ public class CsvTests extends ESTestCase {
             }));
             return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
-            Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
+            Releasables.close(() -> Releasables.close(drivers));
         }
+    }
+
+    private Settings randomNodeSettings() {
+        Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofBytes(randomIntBetween(0, 4096)));
+            builder.put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofBytes(randomIntBetween(0, 16 * 1024)));
+        }
+        return builder.build();
     }
 
     private Throwable reworkException(Throwable th) {
@@ -441,6 +458,6 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        assertMap(normalized, matchesList(testCase.expectedWarnings));
+        assertMap(normalized, matchesList(testCase.expectedWarnings(true)));
     }
 }

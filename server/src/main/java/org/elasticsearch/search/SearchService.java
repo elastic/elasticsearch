@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -116,7 +115,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.telemetry.tracing.SpanId;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
@@ -494,7 +492,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
         ReaderContext readerContext = createOrGetReaderContext(request);
         try (@SuppressWarnings("unused") // withScope call is necessary to instrument search execution
-        Releasable scope = tracer.withScope(SpanId.forTask(task));
+        Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
@@ -541,6 +539,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
             }
+            // TODO: i think it makes sense to always do a canMatch here and
+            // return an empty response (not null response) in case canMatch is false?
             ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
         }));
     }
@@ -654,22 +654,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        executor.execute(ActionRunnable.wrap(listener, new CheckedConsumer<>() {
-            @Override
-            public void accept(ActionListener<T> l) throws Exception {
-                var res = executable.get();
-                try {
-                    l.onResponse(res);
-                } finally {
-                    res.decRef();
-                }
-            }
-
-            @Override
-            public String toString() {
-                return executable.toString();
-            }
-        }));
+        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
     }
 
     /**
@@ -679,9 +664,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request);
-        SpanId spanId = SpanId.forTask(task);
         try (
-            Releasable scope = tracer.withScope(spanId);
+            Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)
         ) {
@@ -694,7 +678,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 afterQueryTime = executor.success();
             } finally {
-                tracer.stopTrace(spanId);
+                tracer.stopTrace(task);
             }
             if (request.numberOfShards() == 1 && (request.source() == null || request.source().rankBuilder() == null)) {
                 // we already have query results, but we can run fetch at the same time
@@ -725,7 +709,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
         try (
-            Releasable scope = tracer.withScope(SpanId.forTask(context.getTask()));
+            Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
             fetchPhase.execute(context, shortcutDocIdsToLoad(context));

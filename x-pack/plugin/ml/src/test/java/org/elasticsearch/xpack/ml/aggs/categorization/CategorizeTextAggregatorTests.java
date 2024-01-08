@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,7 +54,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new MachineLearning(Settings.EMPTY));
+        return List.of(MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY));
     }
 
     private static final String TEXT_FIELD_NAME = "text";

@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -91,9 +90,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            geoBoundingBox = new GeoBoundingBox(in);
-        }
+        geoBoundingBox = new GeoBoundingBox(in);
+
     }
 
     @Override
@@ -111,9 +109,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         out.writeVInt(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            geoBoundingBox.writeTo(out);
-        }
+        geoBoundingBox.writeTo(out);
     }
 
     /**

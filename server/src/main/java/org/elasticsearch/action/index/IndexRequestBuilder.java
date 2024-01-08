@@ -28,12 +28,12 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     implements
         WriteRequestBuilder<IndexRequestBuilder> {
 
-    public IndexRequestBuilder(ElasticsearchClient client, IndexAction action) {
-        super(client, action, new IndexRequest());
+    public IndexRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportIndexAction.TYPE, new IndexRequest());
     }
 
-    public IndexRequestBuilder(ElasticsearchClient client, IndexAction action, @Nullable String index) {
-        super(client, action, new IndexRequest(index));
+    public IndexRequestBuilder(ElasticsearchClient client, @Nullable String index) {
+        super(client, TransportIndexAction.TYPE, new IndexRequest(index));
     }
 
     /**

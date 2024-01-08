@@ -25,8 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -63,7 +62,6 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
@@ -101,17 +99,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return rules();
     }
 
-    protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>(
-            "Substitutions",
-            Limiter.ONCE,
-            new SubstituteSurrogates(),
-            new ReplaceRegexMatch(),
-            new ReplaceAliasingEvalWithProject()
-            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
-        );
-
-        var operators = new Batch<>(
+    protected static Batch<LogicalPlan> operators() {
+        return new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
             new CombineEvals(),
@@ -146,19 +135,33 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneOrderByBeforeStats(),
             new PruneRedundantSortClauses()
         );
+    }
 
-        var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
-        var cleanup = new Batch<>(
+    protected static Batch<LogicalPlan> cleanup() {
+        return new Batch<>(
             "Clean Up",
             new ReplaceDuplicateAggWithEval(),
             // pushing down limits again, because ReplaceDuplicateAggWithEval could create new Project nodes that can still be optimized
             new PushDownAndCombineLimits(),
             new ReplaceLimitAndSortAsTopN()
         );
+    }
+
+    protected static List<Batch<LogicalPlan>> rules() {
+        var substitutions = new Batch<>(
+            "Substitutions",
+            Limiter.ONCE,
+            new SubstituteSurrogates(),
+            new ReplaceRegexMatch(),
+            new ReplaceAliasingEvalWithProject()
+            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
+        );
+
+        var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
         var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(substitutions, operators, skip, cleanup, defaultTopN, label);
+        return asList(substitutions, operators(), skip, cleanup(), defaultTopN, label);
     }
 
     // TODO: currently this rule only works for aggregate functions (AVG)
@@ -633,6 +636,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
+    @SuppressWarnings("removal")
     static class PropagateEmptyRelation extends OptimizerRules.OptimizerRule<UnaryPlan> {
 
         @Override
@@ -650,29 +654,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return p;
         }
 
-        private static List<Block> aggsFromEmpty(List<? extends NamedExpression> aggs) {
-            // TODO: Should we introduce skip operator that just never queries the source
+        private List<Block> aggsFromEmpty(List<? extends NamedExpression> aggs) {
             List<Block> blocks = new ArrayList<>();
-            var blockFactory = BlockFactory.getNonBreakingInstance();
+            var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
             int i = 0;
             for (var agg : aggs) {
                 // there needs to be an alias
                 if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
-                    List<Attribute> output = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(agg), List.of());
-                    for (Attribute o : output) {
-                        DataType dataType = o.dataType();
-                        // fill the boolean block later in LocalExecutionPlanner
-                        if (dataType != DataTypes.BOOLEAN) {
-                            // look for count(literal) with literal != null
-                            var wrapper = BlockUtils.wrapperFor(blockFactory, LocalExecutionPlanner.toElementType(dataType), 1);
-                            if (aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)) {
-                                wrapper.accept(0L);
-                            } else {
-                                wrapper.accept(null);
-                            }
-                            blocks.add(wrapper.builder().build());
-                        }
-                    }
+                    aggOutput(agg, aggFunc, blockFactory, blocks);
                 } else {
                     throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
                 }
@@ -680,6 +669,16 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return blocks;
         }
 
+        /**
+         * The folded aggregation output - this variant is for the coordinator/final.
+         */
+        protected void aggOutput(NamedExpression agg, AggregateFunction aggFunc, BlockFactory blockFactory, List<Block> blocks) {
+            // look for count(literal) with literal != null
+            Object value = aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null) ? 0L : null;
+            var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(aggFunc.dataType()), 1);
+            wrapper.accept(value);
+            blocks.add(wrapper.builder().build());
+        }
     }
 
     private static LogicalPlan skipPlan(UnaryPlan plan) {

@@ -172,44 +172,6 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     }
 
     /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newBytesRefBlockBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newBytesRefBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newBytesRefBlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantBytesRefBlockWith}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static BytesRefBlock newConstantBlockWith(BytesRef value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantBytesRefBlockWith}
-     */
-    @Deprecated
-    static BytesRefBlock newConstantBlockWith(BytesRef value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantBytesRefBlockWith(value, positions);
-    }
-
-    /**
      * Builder for {@link BytesRefBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.BytesRefBuilder permits BytesRefBlockBuilder {

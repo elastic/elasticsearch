@@ -8,30 +8,20 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
 
 /**
- * Base class that holds the various sections which a search response is
- * composed of (hits, aggs, suggestions etc.) and allows to retrieve them.
- *
- * The reason why this class exists is that the high level REST client uses its own classes
- * to parse aggregations into, which are not serializable. This is the common part that can be
- * shared between core and client.
+ * Holds some sections that a search response is composed of (hits, aggs, suggestions etc.) during some steps of the search response
+ * building.
  */
-public class SearchResponseSections implements ChunkedToXContent {
+public class SearchResponseSections {
 
     protected final SearchHits hits;
     protected final Aggregations aggregations;
@@ -97,34 +87,5 @@ public class SearchResponseSections implements ChunkedToXContent {
             return Collections.emptyMap();
         }
         return profileResults.getShardResults();
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(
-            Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
-            Iterators.single((ToXContent) (b, p) -> {
-                if (aggregations != null) {
-                    aggregations.toXContent(b, p);
-                }
-                return b;
-            }),
-            Iterators.single((b, p) -> {
-                if (suggest != null) {
-                    suggest.toXContent(b, p);
-                }
-                return b;
-            }),
-            Iterators.single((b, p) -> {
-                if (profileResults != null) {
-                    profileResults.toXContent(b, p);
-                }
-                return b;
-            })
-        );
-    }
-
-    protected void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
     }
 }

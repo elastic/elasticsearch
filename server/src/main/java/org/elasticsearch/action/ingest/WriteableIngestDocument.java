@@ -103,7 +103,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     }
 
     WriteableIngestDocument(StreamInput in) throws IOException {
-        this(in.readMap(), in.readMap());
+        this(in.readGenericMap(), in.readGenericMap());
     }
 
     @Override

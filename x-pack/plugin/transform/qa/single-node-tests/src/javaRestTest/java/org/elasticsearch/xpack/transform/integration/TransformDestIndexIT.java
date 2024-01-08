@@ -123,7 +123,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
     }
 
     private void testTransformDestIndexCreatedDuringUpdate(boolean deferValidation) throws Exception {
-        String transformId = "test_dest_index_on_update";
+        String transformId = "test_dest_index_on_update" + (deferValidation ? "-defer" : "");
         String destIndex = transformId + "-dest";
 
         assertFalse(indexExists(destIndex));

@@ -193,7 +193,6 @@ SHOW functions
        name:keyword      |                        synopsis:keyword                |       argNames:keyword  | argTypes:keyword |  argDescriptions:keyword | returnType:keyword |   description:keyword  |   optionalArgs:boolean |  variadic:boolean
 sin                      | "double sin(n:integer|long|double|unsigned_long)"      |n      |"integer|long|double|unsigned_long" | "An angle, in radians"   | double             | "Returns the trigonometric sine of an angle" | false | false
 sinh                     | "double sinh(n:integer|long|double|unsigned_long)"     |n      |"integer|long|double|unsigned_long" | "The number to return the hyperbolic sine of" | "double" | "Returns the hyperbolic sine of a number" | false | false
-}
 // end::showFunctionsFiltered-result[]
 ;
 

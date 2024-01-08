@@ -181,7 +181,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * listener when the task is finished or when the provided <code>waitForCompletion</code>
      * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
      */
-    public void addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    public boolean addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
         boolean executeImmediately = false;
         long startTime = threadPool.relativeTimeInMillis();
         synchronized (this) {
@@ -204,6 +204,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         if (executeImmediately) {
             ActionListener.respondAndRelease(listener, getResponseWithHeaders());
         }
+        return true; // unused
     }
 
     /**

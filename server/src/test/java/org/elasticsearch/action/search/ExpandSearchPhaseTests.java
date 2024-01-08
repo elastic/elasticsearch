@@ -113,7 +113,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
                     @Override
                     public void run() {
-                        mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
+                        var sections = new SearchResponseSections(hits, null, null, false, null, null, 1);
+                        try {
+                            mockSearchPhaseContext.sendSearchResponse(sections, null);
+                        } finally {
+                            sections.decRef();
+                        }
                     }
                 });
 

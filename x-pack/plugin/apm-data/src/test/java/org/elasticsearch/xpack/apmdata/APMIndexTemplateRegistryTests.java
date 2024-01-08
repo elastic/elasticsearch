@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -274,10 +274,11 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         if (action instanceof PutComponentTemplateAction) {
             componentTemplatesCounter.incrementAndGet();
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             indexTemplatesCounter.incrementAndGet();
-            assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-            final PutComposableIndexTemplateAction.Request putRequest = ((PutComposableIndexTemplateAction.Request) request);
+            assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+            final TransportPutComposableIndexTemplateAction.Request putRequest =
+                ((TransportPutComposableIndexTemplateAction.Request) request);
             assertThat(putRequest.indexTemplate().version(), equalTo((long) apmIndexTemplateRegistry.getVersion()));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;

@@ -147,8 +147,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         // Note that at this point the destination index could have already been created by the indexing process of the running transform
         // but the update code should cope with this situation.
         updateTransform(transformId, """
-            { "settings": { "max_page_search_size": 123 } }""",
-            deferValidation);
+            { "settings": { "max_page_search_size": 123 } }""", deferValidation);
 
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));

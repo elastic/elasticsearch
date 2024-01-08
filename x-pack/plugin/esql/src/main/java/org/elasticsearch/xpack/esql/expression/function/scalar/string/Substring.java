@@ -12,6 +12,8 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -38,9 +40,9 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
     @FunctionInfo(returnType = "keyword", description = "Returns a substring of a string, specified by a start position and an optional length")
     public Substring(
         Source source, 
-        @Param(name = "str", type = { "text", "keyword" }) Expression str,
-        @Param(name = "start", type = { "text", "keyword" }) Expression start,
-        @Param(name = "length", type = { "integer" }) Expression length
+        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "start", type = { "keyword", "text" }) Expression start,
+        @Param(optional = true, name = "length", type = { "integer" }) Expression length
     ) {
         super(source, length == null ? Arrays.asList(str, start) : Arrays.asList(str, start, length));
         this.str = str;

@@ -12,6 +12,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -35,8 +37,8 @@ public class StartsWith extends ScalarFunction implements EvaluatorMapper {
     @FunctionInfo(returnType = "boolean", description = "Returns a boolean that indicates whether a keyword string starts with another string")
     public StartsWith(
         Source source,
-        @Param(name = "str", type = { "text", "keyword" }) Expression str,
-        @Param(name = "suffix", type = { "text", "keyword" }) Expression suffix
+        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "suffix", type = { "keyword", "text" }) Expression suffix
     ) {
         super(source, Arrays.asList(str, prefix));
         this.str = str;

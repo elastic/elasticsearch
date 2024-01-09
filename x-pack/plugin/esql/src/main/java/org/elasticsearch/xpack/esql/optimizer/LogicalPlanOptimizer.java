@@ -623,8 +623,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     /**
-     * This rule must always be placed after {@link LiteralsOnTheRight}, since it looks for numerical literals
-     * on the right hand-side of {@link BinaryComparison}s that may be out of range.
+     * Look for numerical literals on the right hand side of a {@link BinaryComparison}s that are out of range for the left hand side data
+     * type and replace the comparison by a literal TRUE or FALSE. This rule should be placed after {@link LiteralsOnTheRight}.
      */
     private static class OutOfRangeBinaryComparison extends OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
 

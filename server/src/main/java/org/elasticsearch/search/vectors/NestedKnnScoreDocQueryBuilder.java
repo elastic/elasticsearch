@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -115,7 +116,7 @@ public class NestedKnnScoreDocQueryBuilder extends AbstractQueryBuilder<NestedKn
             // we are NOT in a nested context, coming from the top level knn search
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
         }
-        return new ChildToParentToChildJoinVectorQuery(kNNQuery, vectorFieldType.createExactKnnQuery(query), parentFilter);
+        return new ESDiversifyingChildrenKnnVectorQuery(kNNQuery, vectorFieldType.createExactKnnQuery(query), parentFilter);
     }
 
     @Override
@@ -130,11 +131,15 @@ public class NestedKnnScoreDocQueryBuilder extends AbstractQueryBuilder<NestedKn
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        return super.doRewrite(queryRewriteContext);
+        QueryBuilder rewritten = kNNQuery.rewrite(queryRewriteContext);
+        if (rewritten == kNNQuery) {
+            return this;
+        }
+        return new NestedKnnScoreDocQueryBuilder(rewritten, query, field);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current();
+        return TransportVersions.NESTED_KNN_MORE_INNER_HITS;
     }
 }

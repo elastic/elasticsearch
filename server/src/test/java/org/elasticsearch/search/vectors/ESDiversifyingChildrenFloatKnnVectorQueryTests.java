@@ -11,10 +11,9 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.queries.function.FunctionQuery;
-import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
 import org.apache.lucene.queries.function.valuesource.ConstKnnFloatValueSource;
 import org.apache.lucene.queries.function.valuesource.FloatKnnVectorFieldSource;
+import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
@@ -25,14 +24,14 @@ public class ESDiversifyingChildrenFloatKnnVectorQueryTests extends AbstractESDi
     Query getParentJoinKnnQuery(String fieldName, float[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
         return new ESDiversifyingChildrenKnnVectorQuery(
             new DiversifyingChildrenFloatKnnVectorQuery(fieldName, queryVector, childFilter, k, parentBitSet),
-            parentBitSet,
-            new FunctionQuery(
-                new ByteVectorSimilarityFunction(
-                    VectorSimilarityFunction.COSINE,
+            new BruteForceKnnQuery(
+                new FloatVectorSimilarityFunction(
+                    VectorSimilarityFunction.EUCLIDEAN,
                     new FloatKnnVectorFieldSource(fieldName),
                     new ConstKnnFloatValueSource(queryVector)
                 )
-            )
+            ),
+            parentBitSet
         );
     }
 

@@ -64,6 +64,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.vectors.BruteForceKnnQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenKnnVectorQuery;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenFloatKnnVectorQuery;
@@ -1177,14 +1178,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         } else {
                             yield new ESDiversifyingChildrenKnnVectorQuery(
                                 innerQuery,
-                                nestedVectorSearchParams.parentFilter,
-                                new FunctionQuery(
+                                new BruteForceKnnQuery(
                                     new ByteVectorSimilarityFunction(
                                         vectorSimilarityFunction,
                                         new ByteKnnVectorFieldSource(name()),
                                         new ConstKnnByteVectorValueSource(bytes)
                                     )
-                                )
+                                ),
+                                nestedVectorSearchParams.parentFilter
                             );
                         }
                     }
@@ -1204,14 +1205,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         } else {
                             yield new ESDiversifyingChildrenKnnVectorQuery(
                                 innerQuery,
-                                nestedVectorSearchParams.parentFilter,
-                                new FunctionQuery(
+                                new BruteForceKnnQuery(
                                     new FloatVectorSimilarityFunction(
                                         vectorSimilarityFunction,
                                         new FloatKnnVectorFieldSource(name()),
                                         new ConstKnnFloatValueSource(queryVector)
                                     )
-                                )
+                                ),
+                                nestedVectorSearchParams.parentFilter
                             );
                         }
                     }
@@ -1237,7 +1238,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return dims;
         }
 
-        public ElementType getElementType() {
+        ElementType getElementType() {
             return elementType;
         }
     }

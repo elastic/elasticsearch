@@ -248,7 +248,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
         for (int i = 0; i < scores.length; i++) {
             int docId = it.nextDoc();
             assertNotEquals(NO_MORE_DOCS, docId);
-            assertEquals(scores[i], scorer.score(), 0.0001);
+            assertEquals(Arrays.toString(scores) + Arrays.toString(ids), scores[i], scorer.score(), 0.0001);
             assertIdMatches(reader, ids[i], docId);
         }
     }

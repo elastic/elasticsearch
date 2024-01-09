@@ -21,14 +21,21 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -55,6 +62,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 
@@ -345,15 +353,20 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(RestHandlerParameters parameters) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return List.of(
             new RestGetGlobalCheckpointsAction(),
-            new RestFleetSearchAction(parameters.restController().getSearchUsageHolder(), parameters.namedWriteableRegistry()),
-            new RestFleetMultiSearchAction(
-                parameters.settings(),
-                parameters.restController().getSearchUsageHolder(),
-                parameters.namedWriteableRegistry()
-            ),
+            new RestFleetSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry),
+            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder(), namedWriteableRegistry),
             new RestGetSecretsAction(),
             new RestPostSecretsAction(),
             new RestDeleteSecretsAction()

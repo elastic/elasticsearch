@@ -9,8 +9,14 @@ package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -19,6 +25,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
@@ -143,6 +150,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
@@ -248,7 +256,16 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(RestHandlerParameters parameters) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
 
         if (enabled == false) {
             return Collections.emptyList();

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,8 +33,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -77,6 +80,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.script.ScriptContext;
@@ -226,11 +230,41 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(RestHandlerParameters parameters) {
-        List<RestHandler> handlers = new ArrayList<>(super.getRestHandlers(parameters));
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        List<RestHandler> handlers = new ArrayList<>(
+            super.getRestHandlers(
+                settings,
+                namedWriteableRegistry,
+                restController,
+                clusterSettings,
+                indexScopedSettings,
+                settingsFilter,
+                indexNameExpressionResolver,
+                nodesInCluster
+            )
+        );
         filterPlugins(ActionPlugin.class).forEach(
-            p -> handlers.addAll(p.getRestHandlers(parameters))
-
+            p -> handlers.addAll(
+                p.getRestHandlers(
+                    settings,
+                    namedWriteableRegistry,
+                    restController,
+                    clusterSettings,
+                    indexScopedSettings,
+                    settingsFilter,
+                    indexNameExpressionResolver,
+                    nodesInCluster
+                )
+            )
         );
         return handlers;
     }

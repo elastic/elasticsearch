@@ -14,7 +14,6 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.test.ESTestCase;
@@ -35,7 +34,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 public class WatcherPluginTests extends ESTestCase {
 
@@ -46,9 +44,7 @@ public class WatcherPluginTests extends ESTestCase {
         List<ExecutorBuilder<?>> executorBuilders = watcher.getExecutorBuilders(settings);
         assertThat(executorBuilders, hasSize(0));
         assertThat(watcher.getActions(), hasSize(2));
-        ActionPlugin.RestHandlerParameters params = mock(ActionPlugin.RestHandlerParameters.class);
-        when(params.settings()).thenReturn(settings);
-        assertThat(watcher.getRestHandlers(params), hasSize(0));
+        assertThat(watcher.getRestHandlers(settings, null, null, null, null, null, null, null), hasSize(0));
 
         // ensure index module is not called, even if watches index is tried
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(Watch.INDEX, settings);

@@ -890,9 +890,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(true));
         assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(true));
 
-        assertThat(kibanaRole.cluster().check("cluster:admin/xpack/connector/secret/get", request, authentication), is(false));
-        assertThat(kibanaRole.cluster().check("cluster:admin/xpack/connector/secret/post", request, authentication), is(true));
-
         // read-only indices for Fleet telemetry
         Arrays.asList("logs-elastic_agent-default", "logs-elastic_agent.fleet_server-default").forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
@@ -1591,6 +1588,26 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
             assertViewIndexMetadata(kibanaRole, indexName);
         });
+
+        // Connector secrets. Kibana only has write access.
+        final IndexAbstraction dotConnectorSecretsIndex = mockIndexAbstraction(".connector-secrets");
+        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(dotConnectorSecretsIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(dotConnectorSecretsIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(dotConnectorSecretsIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotConnectorSecretsIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(dotConnectorSecretsIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(dotConnectorSecretsIndex), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(dotConnectorSecretsIndex), is(false));
+        assertThat(
+            kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(dotConnectorSecretsIndex),
+            is(false)
+        );
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(dotConnectorSecretsIndex), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotConnectorSecretsIndex), is(false));
+
+        assertThat(kibanaRole.cluster().check("cluster:admin/xpack/connector/secret/get", request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check("cluster:admin/xpack/connector/secret/post", request, authentication), is(true));
+
     }
 
     public void testKibanaAdminRole() {

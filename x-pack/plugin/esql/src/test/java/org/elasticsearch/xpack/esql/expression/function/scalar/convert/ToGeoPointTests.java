@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -68,7 +69,7 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<geo point as string>",
-                    () -> new BytesRef(GEO.pointAsString(randomGeoPoint())),
+                    () -> new BytesRef(GEO.pointAsString(GeometryTestUtils.randomPoint())),
                     DataTypes.KEYWORD
                 )
             ),

@@ -29,6 +29,11 @@
         "type":"string",
         "description":"The character to use between values within a CSV row. Only valid for the csv format.",
         "default":false
+      },
+      "drop_null_columns": {
+        "type": "boolean",
+        "description": "Should null columns be removed from the main output and reported in a special null_columns section?",
+        "default": false
       }
     },
     "body":{

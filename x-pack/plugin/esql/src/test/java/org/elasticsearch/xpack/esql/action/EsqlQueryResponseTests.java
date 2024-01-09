@@ -40,9 +40,11 @@ import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ParserConstructor;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -56,14 +58,17 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXContent;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.esql.action.ResponseValueUtils.valuesToPage;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 
 public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<EsqlQueryResponse> {
     private BlockFactory blockFactory;
@@ -325,28 +330,38 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     public void testSimpleXContentColumnar() {
         try (EsqlQueryResponse response = simple(true)) {
-            assertThat(Strings.toString(response), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response)), equalTo("""
                 {"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}"""));
+        }
+    }
+
+    public void testSimpleXContentColumnarDropNulls() {
+        try (EsqlQueryResponse response = simple(true)) {
+            assertThat(
+                Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
+                equalTo("""
+                    {"null_columns":[],"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}""")
+            );
         }
     }
 
     public void testSimpleXContentColumnarAsync() {
         try (EsqlQueryResponse response = simple(true, true)) {
-            assertThat(Strings.toString(response), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response)), equalTo("""
                 {"is_running":false,"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}"""));
         }
     }
 
     public void testSimpleXContentRows() {
         try (EsqlQueryResponse response = simple(false)) {
-            assertThat(Strings.toString(response), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response)), equalTo("""
                 {"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
         }
     }
 
     public void testSimpleXContentRowsAsync() {
         try (EsqlQueryResponse response = simple(false, true)) {
-            assertThat(Strings.toString(response), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response)), equalTo("""
                 {"is_running":false,"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
         }
     }
@@ -365,6 +380,28 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         ) {
             assertThat(Strings.toString(response), equalTo("""
                 {"id":"id-123","is_running":true,"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
+        }
+    }
+
+    public void testNullColumnsXContentColumnarDropNulls() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("all_null", "integer")),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock(), blockFactory.newConstantNullBlock(2))),
+                null,
+                false,
+                null,
+                false,
+                false
+            )
+        ) {
+            assertThat(
+                Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
+                equalTo("{" + """
+                    "null_columns":[{"name":"all_null","type":"integer"}],""" + """
+                    "columns":[{"name":"foo","type":"integer"}],""" + """
+                    "values":[[40],[80]]}""")
+            );
         }
     }
 

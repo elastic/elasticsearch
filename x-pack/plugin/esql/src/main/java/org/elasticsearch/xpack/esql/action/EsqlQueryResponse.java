@@ -26,10 +26,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.core.security.action.profile.Profile;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -165,11 +163,11 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-        boolean[] keepColumns = keepColumns(dropNullColumns);
+        boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
         Iterator<? extends ToXContent> columnHeadings = dropNullColumns
-            ? ResponseXContentUtils.columnHeadingsNullColumnsMoved(columns, keepColumns)
+            ? ResponseXContentUtils.columnHeadingsNullColumnsMoved(columns, nullColumns)
             : ResponseXContentUtils.columnHeadings(columns);
-        Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, keepColumns);
+        Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
         Iterator<ToXContent> profileRender = profile == null
             ? List.<ToXContent>of().iterator()
             : ChunkedToXContentHelper.field("profile", profile, params);
@@ -183,16 +181,12 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         );
     }
 
-    private boolean[] keepColumns(boolean dropNullColumns) {
-        boolean[] keepColumns = new boolean[columns.size()];
-        if (dropNullColumns) {
-            for (int c = 0; c < keepColumns.length; c++) {
-                keepColumns[c] = allColumnsAreNull(c) == false;
-            }
-        } else {
-            Arrays.fill(keepColumns, true);
+    private boolean[] nullColumns() {
+        boolean[] nullColumns = new boolean[columns.size()];
+        for (int c = 0; c < nullColumns.length; c++) {
+            nullColumns[c] = allColumnsAreNull(c);
         }
-        return keepColumns;
+        return nullColumns;
     }
 
     private boolean allColumnsAreNull(int c) {

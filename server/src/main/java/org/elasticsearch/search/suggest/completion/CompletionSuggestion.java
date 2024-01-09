@@ -396,9 +396,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 }
                 CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(-1, text, score, contexts);
                 option.setHit(hit);
-                if (hit != null) {
-                    hit.decRef();
-                }
                 return option;
             }
 

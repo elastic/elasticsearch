@@ -38,14 +38,12 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 
-public class GetAllShardSizesAction extends ActionType<GetAllShardSizesAction.Response> {
+public class GetAllShardSizesAction {
 
-    public static final GetAllShardSizesAction INSTANCE = new GetAllShardSizesAction();
     public static final String NAME = "cluster:monitor/stateless/autoscaling/get_all_shard_sizes";
+    public static final ActionType<GetAllShardSizesAction.Response> INSTANCE = ActionType.localOnly(NAME);
 
-    public GetAllShardSizesAction() {
-        super(NAME, GetAllShardSizesAction.Response::new);
-    }
+    private GetAllShardSizesAction() {/* no instances */}
 
     public static class TransportGetAllShardSizes extends TransportAction<Request, Response> {
 

@@ -32,6 +32,6 @@ public class IndicesMappingSizePublisher {
 
     public void publishIndicesMappingSize(final HeapMemoryUsage heapMemoryUsage, final ActionListener<ActionResponse.Empty> listener) {
         var request = new PublishHeapMemoryMetricsRequest(heapMemoryUsage);
-        client.execute(PublishHeapMemoryMetricsAction.INSTANCE, request, listener);
+        client.execute(TransportPublishHeapMemoryMetrics.INSTANCE, request, listener);
     }
 }

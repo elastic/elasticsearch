@@ -87,7 +87,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishHeapMemoryMetricsAction.NAME)) {
+                if (action.equals(TransportPublishHeapMemoryMetrics.NAME)) {
                     transportMetricCounter.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -144,7 +144,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishHeapMemoryMetricsAction.NAME)) {
+                if (action.equals(TransportPublishHeapMemoryMetrics.NAME)) {
                     safeAwait(mappingUpdated);
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -177,7 +177,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishHeapMemoryMetricsAction.NAME)) {
+                if (action.equals(TransportPublishHeapMemoryMetrics.NAME)) {
                     transportMetricCounter.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -227,7 +227,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishHeapMemoryMetricsAction.NAME)) {
+                if (action.equals(TransportPublishHeapMemoryMetrics.NAME)) {
                     transportMetricCounter.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -314,7 +314,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishHeapMemoryMetricsAction.NAME)) {
+                if (action.equals(TransportPublishHeapMemoryMetrics.NAME)) {
                     transportMetricCounter.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -415,7 +415,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         var primaryShardRelocated = new AtomicBoolean();
         var transportService = (MockTransportService) internalCluster().getCurrentMasterNodeInstance(TransportService.class);
-        transportService.addRequestHandlingBehavior(PublishHeapMemoryMetricsAction.NAME, (handler, request, channel, task) -> {
+        transportService.addRequestHandlingBehavior(TransportPublishHeapMemoryMetrics.NAME, (handler, request, channel, task) -> {
             // Ignore memory metrics until the primary shard moves into the new node to ensure that we transition to the new state correctly
             if (primaryShardRelocated.get()) {
                 handler.messageReceived(request, channel, task);
@@ -527,7 +527,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishHeapMemoryMetricsAction.NAME)) {
+                if (action.equals(TransportPublishHeapMemoryMetrics.NAME)) {
                     transportMetricCounter.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -708,7 +708,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         CountDownLatch requestsAreSubmitted = new CountDownLatch(attempts);
         CountDownLatch requestsAreHandled = new CountDownLatch(attempts);
         List<CheckedRunnable<Exception>> pendingRequests = new ArrayList<>();
-        transportService.addRequestHandlingBehavior(PublishHeapMemoryMetricsAction.NAME, (handler, request, channel, task) -> {
+        transportService.addRequestHandlingBehavior(TransportPublishHeapMemoryMetrics.NAME, (handler, request, channel, task) -> {
             assertTrue("No retry requests should be submitted", requestsAreSubmitted.getCount() > 0);
             synchronized (pendingRequests) {
                 pendingRequests.add(() -> {

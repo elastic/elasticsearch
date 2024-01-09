@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +35,9 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPublishHeapMemoryMetrics extends TransportMasterNodeAction<PublishHeapMemoryMetricsRequest, ActionResponse.Empty> {
 
+    public static final String NAME = "cluster:monitor/stateless/autoscaling/publish_heap_memory_metrics";
+    public static final ActionType<ActionResponse.Empty> INSTANCE = ActionType.localOnly(NAME);
+
     private final MemoryMetricsService memoryMetricsService;
 
     @Inject
@@ -46,7 +50,7 @@ public class TransportPublishHeapMemoryMetrics extends TransportMasterNodeAction
         final MemoryMetricsService memoryMetricsService
     ) {
         super(
-            PublishHeapMemoryMetricsAction.NAME,
+            NAME,
             transportService,
             clusterService,
             threadPool,

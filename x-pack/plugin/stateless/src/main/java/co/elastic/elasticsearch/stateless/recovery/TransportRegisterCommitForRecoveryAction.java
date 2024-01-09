@@ -41,7 +41,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportRegisterCommitForRecoveryAction extends HandledTransportAction<RegisterCommitRequest, RegisterCommitResponse> {
 
     public static final String NAME = "internal:index/shard/recovery:register_commit_for_recovery";
-    public static final ActionType<RegisterCommitResponse> TYPE = new ActionType<>(NAME, RegisterCommitResponse::new);
+    public static final ActionType<RegisterCommitResponse> TYPE = ActionType.localOnly(NAME);
 
     private final IndicesService indicesService;
     private final ClusterService clusterService;

@@ -2,4 +2,5 @@ pr: 104118
 summary: "ESQL: add `date_diff` function"
 area: ES|QL
 type: enhancement
-issues: []
+issues:
+ - 101942

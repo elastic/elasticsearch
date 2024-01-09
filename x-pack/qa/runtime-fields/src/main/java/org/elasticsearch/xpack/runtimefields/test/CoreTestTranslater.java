@@ -369,12 +369,17 @@ public abstract class CoreTestTranslater {
             return true;
         }
 
-        private boolean handleIndex(ApiCallSection indexRequest) {
-            String index = indexRequest.getParams().get("index");
-            String pipeline = indexRequest.getParams().get("pipeline");
-            assert indexRequest.getBodies().size() == 1;
+        private boolean handleIndex(ApiCallSection apiCallSection) {
+            String index = apiCallSection.getParams().get("index");
+            String pipeline = apiCallSection.getParams().get("pipeline");
+            assert apiCallSection.getBodies().size() == 1;
             try {
-                return handleIndex(new IndexRequest(index).setPipeline(pipeline).source(indexRequest.getBodies().get(0)));
+                IndexRequest indexRequest = new IndexRequest(index);
+                try {
+                    return handleIndex(indexRequest.setPipeline(pipeline).source(apiCallSection.getBodies().get(0)));
+                } finally {
+                    indexRequest.decRef();
+                }
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

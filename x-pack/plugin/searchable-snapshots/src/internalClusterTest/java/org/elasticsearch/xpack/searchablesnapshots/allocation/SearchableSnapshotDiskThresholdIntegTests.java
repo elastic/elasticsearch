@@ -234,10 +234,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         ClusterInfoServiceUtils.refresh(masterInfoService);
 
         DiskUsage usage = masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId);
-        assertThat(
-                usage.totalBytes(),
-            equalTo(totalSpace)
-        );
+        assertThat(usage.totalBytes(), equalTo(totalSpace));
 
         mountIndices(indicesStoresSizes.keySet(), "mounted-", repositoryName, snapshot, storage);
 
@@ -312,10 +309,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         );
         ClusterInfoServiceUtils.refresh(masterInfoService);
         DiskUsage usage = masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(coldNodeId);
-        assertThat(
-                usage.totalBytes(),
-            equalTo(totalSpace)
-        );
+        assertThat(usage.totalBytes(), equalTo(totalSpace));
 
         String prefix = "mounted-";
         mountIndices(indicesToBeMounted.keySet(), prefix, repositoryName, snapshotName, FULL_COPY);

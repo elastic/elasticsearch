@@ -20,27 +20,23 @@ public class TestContainerUtils {
         tagAndPush(container, repository, System.getProperty("os.arch"));
     }
 
-        public static void tagAndPush(GenericContainer<?> container, String repository, String tag) {
+    public static void tagAndPush(GenericContainer<?> container, String repository, String tag) {
         // Get the DockerClient used by the Testcontainer library (you can also use your own if they every make that private).
         final DockerClient dockerClient = container.getDockerClient();
-        dockerClient.commitCmd(container.getContainerId())
-            .withRepository(repository)
-            .withTag(tag)
-            .exec();
+        dockerClient.commitCmd(container.getContainerId()).withRepository(repository).withTag(tag).exec();
 
         // Push new image to your repository. (equivalent to command line 'docker push')
         try {
             String pushImageId = repository + ":" + tag;
-            dockerClient.pushImageCmd(pushImageId)
-                .exec(new ResultCallback.Adapter<>() {
-                    @Override
-                    public void onNext(PushResponseItem object) {
-                        if(object.isErrorIndicated()) {
-                            // This is just to fail the build in case push of new image fails
-                            throw new RuntimeException("Failed push: " + object.getErrorDetail());
-                        }
+            dockerClient.pushImageCmd(pushImageId).exec(new ResultCallback.Adapter<>() {
+                @Override
+                public void onNext(PushResponseItem object) {
+                    if (object.isErrorIndicated()) {
+                        // This is just to fail the build in case push of new image fails
+                        throw new RuntimeException("Failed push: " + object.getErrorDetail());
                     }
-                }).awaitCompletion();
+                }
+            }).awaitCompletion();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

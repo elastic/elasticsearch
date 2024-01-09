@@ -495,4 +495,25 @@ public class LiveVersionMapTests extends ESTestCase {
             .sum();
         assertEquals(actualRamBytesUsed, vl.ramBytesUsed());
     }
+
+    public void testVersionMapReclaimableRamBytes() throws IOException {
+        LiveVersionMap map = new LiveVersionMap();
+        assertEquals(map.ramBytesUsedForRefresh(), 0L);
+        assertEquals(map.reclaimableRamBytes(), 0L);
+        IntStream.range(0, randomIntBetween(10, 100)).forEach(i -> {
+            BytesRefBuilder uid = new BytesRefBuilder();
+            uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
+            try (Releasable r = map.acquireLock(uid.toBytesRef())) {
+                map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
+            }
+        });
+        assertThat(map.reclaimableRamBytes(), greaterThan(0L));
+        assertEquals(map.reclaimableRamBytes(), map.ramBytesUsedForRefresh());
+        map.beforeRefresh();
+        assertEquals(map.reclaimableRamBytes(), 0L);
+        assertThat(map.ramBytesUsedForRefresh(), greaterThan(0L));
+        map.afterRefresh(randomBoolean());
+        assertEquals(map.reclaimableRamBytes(), 0L);
+        assertEquals(map.ramBytesUsedForRefresh(), 0L);
+    }
 }

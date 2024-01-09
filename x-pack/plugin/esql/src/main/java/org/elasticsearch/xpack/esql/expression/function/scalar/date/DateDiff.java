@@ -101,18 +101,21 @@ public class DateDiff extends ScalarFunction implements OptionalArgument, Evalua
             Part datePartField = DateTimeField.resolveMatch(NAME_TO_PART, dateTimeUnit);
             if (datePartField == null) {
                 List<String> similar = DateTimeField.findSimilar(NAME_TO_PART.keySet(), dateTimeUnit);
-                String errorMessage = String.format(
-                    Locale.ROOT,
-                    "A value of %s or their aliases is required; received [%s]",
-                    Arrays.asList(Part.values()),
-                    dateTimeUnit
-                );
+                String errorMessage;
                 if (similar.isEmpty() == false) {
                     errorMessage = String.format(
                         Locale.ROOT,
                         "Received value [%s] is not valid date part to add; did you mean %s?",
                         dateTimeUnit,
                         similar
+                    );
+                }
+                else {
+                    errorMessage = String.format(
+                        Locale.ROOT,
+                        "A value of %s or their aliases is required; received [%s]",
+                        Arrays.asList(Part.values()),
+                        dateTimeUnit
                     );
                 }
                 throw new IllegalArgumentException(errorMessage);
@@ -164,7 +167,7 @@ public class DateDiff extends ScalarFunction implements OptionalArgument, Evalua
                 Part datePartField = Part.resolve(((BytesRef) unit.fold()).utf8ToString());
                 return new DateDiffConstantEvaluator.Factory(source(), datePartField, startTimestampEvaluator, endTimestampEvaluator);
             } catch (IllegalArgumentException e) {
-                throw new EsqlIllegalArgumentException(e, "invalid unit format for [{}]: {}", sourceText(), e.getMessage());
+                throw new InvalidArgumentException("invalid unit format for [{}]: {}", sourceText(), e.getMessage());
             }
         }
         ExpressionEvaluator.Factory unitEvaluator = toEvaluator.apply(unit);

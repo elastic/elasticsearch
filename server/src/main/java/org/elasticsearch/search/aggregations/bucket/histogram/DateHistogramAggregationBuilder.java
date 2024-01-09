@@ -15,8 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -412,7 +410,9 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         boolean downsampledResultsOffset = false;
         final ZoneId tz = timeZone();
-        if (context.getIndexSettings().getIndexMetadata().isDownsampledIndex()) {
+
+        String downsamplingInterval = context.getIndexSettings().getIndexMetadata().getDownsamplingInterval();
+        if (downsamplingInterval != null) {
             if (DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
                 throw new IllegalArgumentException(
                     config.getDescription()
@@ -429,29 +429,19 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             // the difference between UTC (where stored data refers to) and the requested timezone. For instance:
             // a. A TZ shifted by -01:15 over hourly downsampled data will lead to buckets with times XX:45, instead of XX:00
             // b. A TZ shifted by +07:00 over daily downsampled data will lead to buckets with times 07:00, instead of 00:00
-            if (tz != null
-                && ZoneId.of("UTC").equals(tz) == false
-                && field().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                && context.getMappingLookup() != null) {
-                Mapper mapper = context.getMappingLookup().getMapper(field());
-                if (mapper != null && mapper instanceof DateFieldMapper timestampMapper) {
-                    // Check if the time-series index is downsampled.
-                    if (timestampMapper.fieldType().meta().containsKey(dateHistogramIntervalType.getPreferredName())) {
-                        // Get the downsampling interval.
-                        DateHistogramInterval interval = new DateHistogramInterval(
-                            timestampMapper.fieldType().meta().get(dateHistogramIntervalType.getPreferredName())
-                        );
-                        long downsamplingResolution = interval.estimateMillis();
-                        long aggregationResolution = dateHistogramInterval.getAsFixedInterval().estimateMillis();
+            if (tz != null && ZoneId.of("UTC").equals(tz) == false && field().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)) {
 
-                        // If the aggregation resolution is not a multiple of the downsampling resolution, the reported time for each
-                        // bucket needs to be shifted by the mod - in addition to rounding that's applied as usual.
-                        long aggregationOffset = SimpleTimeZone.getTimeZone(tz).getOffset(aggregationResolution) % downsamplingResolution;
-                        if (aggregationOffset != 0) {
-                            downsampledResultsOffset = true;
-                            offset += aggregationOffset;
-                        }
-                    }
+                // Get the downsampling interval.
+                DateHistogramInterval interval = new DateHistogramInterval(downsamplingInterval);
+                long downsamplingResolution = interval.estimateMillis();
+                long aggregationResolution = dateHistogramInterval.getAsFixedInterval().estimateMillis();
+
+                // If the aggregation resolution is not a multiple of the downsampling resolution, the reported time for each
+                // bucket needs to be shifted by the mod - in addition to rounding that's applied as usual.
+                long aggregationOffset = SimpleTimeZone.getTimeZone(tz).getOffset(aggregationResolution) % downsamplingResolution;
+                if (aggregationOffset != 0) {
+                    downsampledResultsOffset = true;
+                    offset += aggregationOffset;
                 }
             }
         }

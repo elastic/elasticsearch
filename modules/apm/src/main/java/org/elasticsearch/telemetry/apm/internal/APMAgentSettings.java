@@ -127,7 +127,7 @@ public class APMAgentSettings {
 
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
         "telemetry.agent.",
-        Setting.prefixKeySetting(APM_SETTING_PREFIX + "agent.", APMAgentSettings::parseString),
+        APM_SETTING_PREFIX + "agent.",
         APMAgentSettings::parseString
     );
 

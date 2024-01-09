@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.ToLongFunction;
 
 public class FollowStatsAction extends ActionType<FollowStatsAction.StatsResponses> {
 
@@ -95,7 +94,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
                         Iterators.<ToXContent>single(
                             (builder, params) -> builder.startObject()
                                 .field("index", indexEntry.getKey())
-                                .field("follower_to_leader_lagging_ops_count", calcFollowerToLeaderLaggingOps(indexEntry.getValue()))
+                                .field("total_global_checkpoint_lag", calcFollowerToLeaderLaggingOps(indexEntry.getValue()))
                                 .startArray("shards")
                         ),
                         indexEntry.getValue().values().iterator(),
@@ -106,11 +105,9 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
             );
         }
 
-        private static final ToLongFunction<ShardFollowNodeTaskStatus> leaderToFollowerGCPDiff = s -> s.leaderGlobalCheckpoint() - s
-            .followerGlobalCheckpoint();
-
         private static long calcFollowerToLeaderLaggingOps(Map<Integer, StatsResponse> followShardTaskStats) {
-            return followShardTaskStats.values().stream().map(StatsResponse::status).mapToLong(leaderToFollowerGCPDiff).sum();
+            return followShardTaskStats.values().stream().map(StatsResponse::status).mapToLong(s -> s.leaderGlobalCheckpoint() - s
+                .followerGlobalCheckpoint()).sum();
         }
 
         @Override

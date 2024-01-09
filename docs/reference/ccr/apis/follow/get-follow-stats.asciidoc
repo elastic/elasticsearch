@@ -74,7 +74,8 @@ task. In this situation, the following task must be resumed manually with the
 
 `index`::
 (string) The name of the follower index.
-`follower_to_leader_lagging_ops_count`::
+
+`total_global_checkpoint_lag`::
 (long) Total number of pending indexing operations
 
 //Begin shards
@@ -221,7 +222,7 @@ The API returns the following results:
   "indices" : [
     {
       "index" : "follower_index",
-      "follower_to_leader_lagging_ops_count" : 256,
+      "total_global_checkpoint_lag" : 256,
       "shards" : [
         {
           "remote_cluster" : "remote_cluster",
@@ -258,7 +259,7 @@ The API returns the following results:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"follower_to_leader_lagging_ops_count" : 256/"follower_to_leader_lagging_ops_count" : 0/]
+// TESTRESPONSE[s/"total_global_checkpoint_lag" : 256/"total_global_checkpoint_lag" : 0/]
 // TESTRESPONSE[s/"leader_global_checkpoint" : 1024/"leader_global_checkpoint" : $body.indices.0.shards.0.leader_global_checkpoint/]
 // TESTRESPONSE[s/"leader_max_seq_no" : 1536/"leader_max_seq_no" : $body.indices.0.shards.0.leader_max_seq_no/]
 // TESTRESPONSE[s/"follower_global_checkpoint" : 768/"follower_global_checkpoint" : $body.indices.0.shards.0.follower_global_checkpoint/]

@@ -86,6 +86,18 @@ public final class ApiKey implements ToXContentObject, Writeable {
         }
     }
 
+    public record Version(int version) {
+        public boolean before(Version other) {
+            return this.version < other.version;
+        }
+
+        public boolean onOrBefore(Version other) {
+            return this.version <= other.version;
+        }
+    }
+
+    public static final ApiKey.Version CURRENT_API_KEY_VERSION = new ApiKey.Version(8_13_00_99);
+
     private final String name;
     private final String id;
     private final Type type;

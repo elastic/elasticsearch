@@ -114,7 +114,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
-    public void testUnauthorizedIndices() {
+    public void testUnauthorizedIndices() throws IOException {
         ResponseException error;
         error = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "from index-user2 | stats sum(value)"));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
@@ -271,11 +271,32 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(new Request("DELETE", "_enrich/policy/songs"));
     }
 
-    private Response runESQLCommand(String user, String command) throws IOException {
+    protected Response runESQLCommand(String user, String command) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
         }
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", command);
+        addRandomPragmas(json);
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        return client().performRequest(request);
+    }
+
+    static void addRandomPragmas(XContentBuilder builder) throws IOException {
+        Settings pragmas = randomPragmas();
+        if (pragmas != Settings.EMPTY) {
+            builder.startObject("pragma");
+            builder.value(pragmas);
+            builder.endObject();
+        }
+    }
+
+    static Settings randomPragmas() {
         Settings pragmas = Settings.EMPTY;
         if (Build.current().isSnapshot()) {
             Settings.Builder settings = Settings.builder();
@@ -293,19 +314,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
             }
             pragmas = settings.build();
         }
-        XContentBuilder query = JsonXContent.contentBuilder();
-        query.startObject();
-        query.field("query", command);
-        if (pragmas != Settings.EMPTY) {
-            query.startObject("pragma");
-            query.value(pragmas);
-            query.endObject();
-        }
-        query.endObject();
-        Request request = new Request("POST", "_query");
-        request.setJsonEntity("{\"query\":\"" + command + "\"}");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
-        return client().performRequest(request);
+        return pragmas;
     }
-
 }

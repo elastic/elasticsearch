@@ -103,7 +103,7 @@ class S3RetryingInputStream extends InputStream {
                 }
 
                 maybeRecordAndLogForRetry("opening", e);
-                maybeDelaySafely();
+                maybeDelay();
             }
         }
     }
@@ -175,7 +175,7 @@ class S3RetryingInputStream extends InputStream {
         maybeAbort(currentStream);
         IOUtils.closeWhileHandlingException(currentStream);
 
-        maybeDelaySafely();
+        maybeDelay();
         openStreamWithRetry();
     }
 
@@ -187,8 +187,8 @@ class S3RetryingInputStream extends InputStream {
         }
 
         attempt += 1;
-        // Log at info level every ~5 minutes
-        logForRetry(attempt % 30 == 0 ? Level.INFO : Level.DEBUG, action, e);
+        // Log at info level for the 1st retry and every ~5 minutes afterward
+        logForRetry((attempt == 2 || attempt % 30 == 0) ? Level.INFO : Level.DEBUG, action, e);
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);
         }
@@ -253,14 +253,15 @@ class S3RetryingInputStream extends InputStream {
         return purpose == OperationPurpose.INDICES ? Integer.MAX_VALUE : (blobStore.getMaxRetries() + 1);
     }
 
-    private void maybeDelaySafely() {
+    private void maybeDelay() {
         final long delayInMillis = getRetryDelayInMillis();
         if (delayInMillis > 0) {
             try {
                 assert purpose == OperationPurpose.INDICES : "only retries for reading indices data should ever reach here";
                 Thread.sleep(delayInMillis);
             } catch (InterruptedException e) {
-                logger.info("delay interrupted", e);
+                logger.info("s3 input stream delay interrupted", e);
+                Thread.currentThread().interrupt();
             }
         }
     }
@@ -273,7 +274,9 @@ class S3RetryingInputStream extends InputStream {
             // Cap max delay at 10 * 1024 millis, i.e. it retries every ~10 seconds at a minimum
             return initialDelayInMillis << (Math.min(attempt - maxAttempts - 1, 10));
         } else {
-            return 0; // No delay for initial retries within maxAttempts
+            // No delay for initial retries within maxAttempts. This is to keep the existing behaviour
+            // that retries are immediate for resumed reads within configured maxAttempts
+            return 0;
         }
     }
 

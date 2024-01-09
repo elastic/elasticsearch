@@ -371,6 +371,9 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                     indexRequestBuilders.add(prepareIndex(indexName).setSource(builder));
                 }
                 indexRandom(true, indexRequestBuilders);
+                for (IndexRequestBuilder builder : indexRequestBuilders) {
+                    builder.request().decRef();
+                }
 
                 final String snapshot = "snapshot-" + i;
                 createSnapshot(repositoryName, snapshot, List.of(indexName));

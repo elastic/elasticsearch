@@ -213,6 +213,9 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             indexRequestBuilders.add(prepareIndex(indexName).setSource(key, randomBoolean() ? "bar" : "baz"));
         }
         indexRandom(true, true, indexRequestBuilders);
+        for (IndexRequestBuilder builder : indexRequestBuilders) {
+            builder.request().decRef();
+        }
         refresh(indexName);
         if (randomBoolean()) {
             assertThat(

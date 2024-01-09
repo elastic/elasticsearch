@@ -28,6 +28,8 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
@@ -125,8 +127,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
-            case "geo_point" -> GEO.pointAsWKB(randomGeoPoint());
-            case "cartesian_point" -> CARTESIAN.pointAsWKB(randomCartesianPoint());
+            case "geo_point" -> GEO.pointAsWKB(GeometryTestUtils.randomPoint());
+            case "cartesian_point" -> CARTESIAN.pointAsWKB(ShapeTestUtils.randomPoint());
             case "null" -> null;
             case "_source" -> {
                 try {

@@ -220,7 +220,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }) : ALWAYS_REFERENCED;
     }
 
-    public static SearchHit readFrom(StreamInput in) throws IOException {
+    public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
         final float score = in.readFloat();
         final int rank;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
@@ -236,7 +236,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         final long version = in.readLong();
         final long seqNo = in.readZLong();
         final long primaryTerm = in.readVLong();
-        BytesReference source = in.readBytesReference();
+        BytesReference source = pooled ? in.readReleasableBytesReference() : in.readBytesReference();
         if (source.length() == 0) {
             source = null;
         }
@@ -275,7 +275,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (size > 0) {
             innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
-                innerHits.put(in.readString(), SearchHits.readFrom(in));
+                innerHits.put(in.readString(), SearchHits.readFrom(in, pooled));
             }
         } else {
             innerHits = null;
@@ -301,7 +301,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             innerHits,
             documentFields,
             metaFields,
-            null
+            pooled ? null : ALWAYS_REFERENCED
         );
     }
 

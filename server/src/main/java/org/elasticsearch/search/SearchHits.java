@@ -130,7 +130,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return true;
     }
 
-    public static SearchHits readFrom(StreamInput in) throws IOException {
+    public static SearchHits readFrom(StreamInput in, boolean pooled) throws IOException {
         final TotalHits totalHits;
         if (in.readBoolean()) {
             totalHits = Lucene.readTotalHits(in);
@@ -146,13 +146,17 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = SearchHit.readFrom(in);
+                hits[i] = SearchHit.readFrom(in, pooled);
             }
         }
         var sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
         var collapseField = in.readOptionalString();
         var collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
-        return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        if (pooled) {
+            return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        } else {
+            return unpooled(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        }
     }
 
     @Override

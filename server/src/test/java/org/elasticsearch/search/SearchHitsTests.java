@@ -198,7 +198,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
 
     @Override
     protected Writeable.Reader<SearchHits> instanceReader() {
-        return SearchHits::readFrom;
+        return in -> SearchHits.readFrom(in, randomBoolean());
     }
 
     @Override

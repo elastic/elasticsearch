@@ -32,7 +32,6 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     private final RefCounted refCounted;
 
     public static ReleasableBytesReference empty() {
-        EMPTY.incRef();
         return EMPTY;
     }
 
@@ -147,6 +146,9 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         assert hasReferences();
         return new BytesReferenceStreamInput(this) {
             private ReleasableBytesReference retainAndSkip(int len) throws IOException {
+                if (len == 0) {
+                    return ReleasableBytesReference.empty();
+                }
                 // instead of reading the bytes from a stream we just create a slice of the underlying bytes
                 final ReleasableBytesReference result = retainedSlice(offset(), len);
                 // move the stream manually since creating the slice didn't move it

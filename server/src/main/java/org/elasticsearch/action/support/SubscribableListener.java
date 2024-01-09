@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
@@ -36,7 +37,8 @@ import java.util.concurrent.Executor;
  * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
  * completed exceptionally then the exception is passed to subscribed listeners without modification.
  * <p>
- * Often this will be used to chain together a sequence of async actions such as in the following example:
+ * Often this will be used to chain together a sequence of async actions, similarly to {@link CompletionStage} (without the
+ * {@code catch (Throwable t)}), such as in the following example:
  * <pre>
  * private void exampleAsyncMethod(String request, List&lt;Long> items, ActionListener&lt;Boolean> finalListener) {
  *     SubscribableListener

@@ -31,9 +31,9 @@ wkt:keyword                                                                     
 ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
 ;
 
-centroidFromLong#[skip:-8.12.99, reason:st_centroid added in 8.13]
-row long = [1512146573982606908, 2329183180959557901]
-| eval pt = to_geopoint(long)
+centroidFromString#[skip:-8.12.99, reason:st_centroid added in 8.13]
+row wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)"]
+| eval pt = to_geopoint(wkt)
 | stats c = st_centroid(pt);
 
 c:geo_point
@@ -137,9 +137,9 @@ wkt:keyword                                                                     
 ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
 ;
 
-centroidFromCartesianLong#[skip:-8.12.99, reason:st_centroid added in 8.13]
-row long = [5009771769843126025, 5038656556796611666]
-| eval pt = to_cartesianpoint(long)
+centroidFromCartesianString#[skip:-8.12.99, reason:st_centroid added in 8.13]
+row wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)"]
+| eval pt = to_cartesianpoint(wkt)
 | stats c = st_centroid(pt);
 
 c:cartesian_point

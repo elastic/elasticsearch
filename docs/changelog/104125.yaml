@@ -1,0 +1,12 @@
+pr: 104125
+summary: Disable machine learning on macOS x86_64
+area: Machine Learning
+type: breaking
+issues: []
+breaking:
+  title: Disable machine learning on macOS x86_64
+  area: Machine Learning
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

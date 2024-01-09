@@ -9,8 +9,6 @@ Runs an async <<esql,{esql} query>>.
 The async query API lets you asynchronously execute a query request,
 monitor its progress, and retrieve results when they become available.
 
-Queries initiated by this API may return results or not.
-
 The API accepts the same parameters and request body as the synchronous
 <<esql-query-api,query API>>, along with additional async related
 properties as outline below.

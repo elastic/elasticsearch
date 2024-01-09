@@ -723,6 +723,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // No inference fields? Just execute the request
             if (fieldsForModels.isEmpty()) {
                 executeBulkShardRequest(bulkShardRequest, releaseOnFinish);
+                return;
             }
 
             Runnable onInferenceComplete = () -> {
@@ -892,9 +893,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
             if (bulkShardRequest.items().length == 0) {
                 // No requests to execute due to previous errors, terminate early
-                listener.onResponse(
-                    new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-                );
                 releaseOnFinish.close();
                 return;
             }

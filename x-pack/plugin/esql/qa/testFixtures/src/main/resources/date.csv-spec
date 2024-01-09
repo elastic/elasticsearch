@@ -567,6 +567,30 @@ dt:datetime              |plus:datetime
 2100-01-01T01:01:01.001Z |2100-01-01T00:00:00.000Z
 ;
 
+datePlusNull#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+row dt = to_dt("2100-01-01T01:01:01.001Z")
+| eval plus_post = dt + null, plus_pre = null + dt;
+
+dt:datetime              |plus_post:datetime |plus_pre:datetime
+2100-01-01T01:01:01.001Z |null               |null
+;
+
+datePlusNullAndDuration#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+row dt = to_dt("2100-01-01T01:01:01.001Z")
+| eval plus_post = dt + null + 1 hour, plus_pre = 1 second + null + dt;
+
+dt:datetime              |plus_post:datetime |plus_pre:datetime
+2100-01-01T01:01:01.001Z |null               |null
+;
+
+datePlusNullAndPeriod#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+row dt = to_dt("2100-01-01T01:01:01.001Z")
+| eval plus_post = dt + null + 2 years, plus_pre = 3 weeks + null + dt;
+
+dt:datetime              |plus_post:datetime |plus_pre:datetime
+2100-01-01T01:01:01.001Z |null               |null
+;
+
 dateMinusDuration
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval minus = dt - 1 hour - 1 minute - 1 second - 1 milliseconds;
@@ -598,6 +622,33 @@ row n = to_dt("1953-04-04T04:03:02.001Z")
 
 then:datetime
 1953-04-04T00:00:00.000Z
+;
+
+dateMinusNull#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+row dt = to_dt("1953-04-04T04:03:02.001Z")
+| eval minus = dt - null
+;
+
+dt:datetime              |minus:datetime
+1953-04-04T04:03:02.001Z |null
+;
+
+dateMinusNullAndPeriod#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+row dt = to_dt("1953-04-04T04:03:02.001Z")
+| eval minus = dt - null - 4 minutes
+;
+
+dt:datetime              |minus:datetime
+1953-04-04T04:03:02.001Z |null
+;
+
+dateMinusNullAndDuration#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+row dt = to_dt("1953-04-04T04:03:02.001Z")
+| eval minus = dt - 6 days - null
+;
+
+dt:datetime              |minus:datetime
+1953-04-04T04:03:02.001Z |null
 ;
 
 datePlusPeriodAndDuration

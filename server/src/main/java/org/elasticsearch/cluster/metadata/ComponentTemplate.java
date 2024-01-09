@@ -88,7 +88,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         this.template = new Template(in);
         this.version = in.readOptionalVLong();
         if (in.readBoolean()) {
-            this.metadata = in.readMap();
+            this.metadata = in.readGenericMap();
         } else {
             this.metadata = null;
         }

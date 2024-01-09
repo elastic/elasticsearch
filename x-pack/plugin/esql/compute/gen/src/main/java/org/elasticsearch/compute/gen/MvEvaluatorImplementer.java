@@ -130,7 +130,6 @@ public class MvEvaluatorImplementer {
 
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
-        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         builder.addMethod(ctor());
         builder.addMethod(name());
@@ -159,12 +158,11 @@ public class MvEvaluatorImplementer {
             builder.addParameter(SOURCE, "source");
         }
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
-        builder.addStatement("super($L)", "field");
+        builder.addStatement("super(driverContext, field)");
         if (warnExceptions.isEmpty() == false) {
             builder.addStatement("this.warnings = new Warnings(source)");
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        builder.addStatement("this.driverContext = driverContext");
         return builder.build();
     }
 

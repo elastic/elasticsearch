@@ -1491,7 +1491,7 @@ public class AnalyzerTests extends ESTestCase {
             """));
         assertThat(
             e.getMessage(),
-            containsString(" first argument of [first_name =~ 12] is [keyword] so second argument must also be [keyword] but was [integer]")
+            containsString("second argument of [first_name =~ 12] must be [string], found value [12] type [integer]")
         );
 
         e = expectThrows(VerificationException.class, () -> analyze("""
@@ -1500,9 +1500,16 @@ public class AnalyzerTests extends ESTestCase {
             """));
         assertThat(
             e.getMessage(),
-            containsString(
-                " first argument of [first_name =~ languages] is [keyword] so second argument must also be [keyword] but was [integer]"
-            )
+            containsString("second argument of [first_name =~ languages] must be [string], found value [languages] type [integer]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where languages =~ "foo"
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [languages =~ \"foo\"] must be [string], found value [languages] type [integer]")
         );
     }
 

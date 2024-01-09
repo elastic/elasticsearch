@@ -283,7 +283,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         return switch (op.getSymbol().getType()) {
             case EsqlBaseParser.EQ -> new Equals(source, left, right, zoneId);
-            case EsqlBaseParser.SEQ -> new InsensitiveEquals(source, left, right, zoneId);
+            case EsqlBaseParser.CIEQ -> new InsensitiveEquals(source, left, right, zoneId);
             case EsqlBaseParser.NEQ -> new Not(source, new Equals(source, left, right, zoneId));
             case EsqlBaseParser.LT -> new LessThan(source, left, right, zoneId);
             case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId);

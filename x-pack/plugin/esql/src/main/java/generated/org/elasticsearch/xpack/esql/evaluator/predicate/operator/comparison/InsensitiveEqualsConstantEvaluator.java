@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -24,17 +25,17 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link InsensitiveEquals}.
  * This class is generated. Do not edit it.
  */
-public final class InsensitiveEqualsKeywordsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator lhs;
 
-  private final EvalOperator.ExpressionEvaluator rhs;
+  private final ByteRunAutomaton rhs;
 
   private final DriverContext driverContext;
 
-  public InsensitiveEqualsKeywordsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+  public InsensitiveEqualsConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
+      ByteRunAutomaton rhs, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
@@ -44,24 +45,17 @@ public final class InsensitiveEqualsKeywordsEvaluator implements EvalOperator.Ex
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock lhsBlock = (BytesRefBlock) lhs.eval(page)) {
-      try (BytesRefBlock rhsBlock = (BytesRefBlock) rhs.eval(page)) {
-        BytesRefVector lhsVector = lhsBlock.asVector();
-        if (lhsVector == null) {
-          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-        }
-        BytesRefVector rhsVector = rhsBlock.asVector();
-        if (rhsVector == null) {
-          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-        }
-        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+      BytesRefVector lhsVector = lhsBlock.asVector();
+      if (lhsVector == null) {
+        return eval(page.getPositionCount(), lhsBlock);
       }
+      return eval(page.getPositionCount(), lhsVector).asBlock();
     }
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock lhsBlock, BytesRefBlock rhsBlock) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock lhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
-      BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -74,29 +68,17 @@ public final class InsensitiveEqualsKeywordsEvaluator implements EvalOperator.Ex
           result.appendNull();
           continue position;
         }
-        if (rhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (rhsBlock.getValueCount(p) != 1) {
-          if (rhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBoolean(InsensitiveEquals.processKeywords(lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch)));
+        result.appendBoolean(InsensitiveEquals.processConstant(lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhs));
       }
       return result.build();
     }
   }
 
-  public BooleanVector eval(int positionCount, BytesRefVector lhsVector, BytesRefVector rhsVector) {
+  public BooleanVector eval(int positionCount, BytesRefVector lhsVector) {
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
-      BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(InsensitiveEquals.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)));
+        result.appendBoolean(InsensitiveEquals.processConstant(lhsVector.getBytesRef(p, lhsScratch), rhs));
       }
       return result.build();
     }
@@ -104,12 +86,12 @@ public final class InsensitiveEqualsKeywordsEvaluator implements EvalOperator.Ex
 
   @Override
   public String toString() {
-    return "InsensitiveEqualsKeywordsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    return "InsensitiveEqualsConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(lhs, rhs);
+    Releasables.closeExpectNoException(lhs);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -117,23 +99,23 @@ public final class InsensitiveEqualsKeywordsEvaluator implements EvalOperator.Ex
 
     private final EvalOperator.ExpressionEvaluator.Factory lhs;
 
-    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+    private final ByteRunAutomaton rhs;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
-        EvalOperator.ExpressionEvaluator.Factory rhs) {
+        ByteRunAutomaton rhs) {
       this.source = source;
       this.lhs = lhs;
       this.rhs = rhs;
     }
 
     @Override
-    public InsensitiveEqualsKeywordsEvaluator get(DriverContext context) {
-      return new InsensitiveEqualsKeywordsEvaluator(source, lhs.get(context), rhs.get(context), context);
+    public InsensitiveEqualsConstantEvaluator get(DriverContext context) {
+      return new InsensitiveEqualsConstantEvaluator(source, lhs.get(context), rhs, context);
     }
 
     @Override
     public String toString() {
-      return "InsensitiveEqualsKeywordsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+      return "InsensitiveEqualsConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
     }
   }
 }

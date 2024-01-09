@@ -7,10 +7,13 @@
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -38,38 +41,27 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
         return new InsensitiveEquals(source(), newLeft, newRight, zoneId());
     }
 
-    @Evaluator(extraName = "Ints")
-    static boolean processInts(int lhs, int rhs) {
-        return lhs == rhs;
+    @Evaluator
+    static boolean process(BytesRef lhs, BytesRef rhs) {
+        return processConstant(lhs, new ByteRunAutomaton(automaton(rhs)));
     }
 
-    @Evaluator(extraName = "Longs")
-    static boolean processLongs(long lhs, long rhs) {
-        return lhs == rhs;
-    }
-
-    @Evaluator(extraName = "Doubles")
-    static boolean processDoubles(double lhs, double rhs) {
-        return lhs == rhs;
-    }
-
-    @Evaluator(extraName = "Keywords")
-    static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
-        return lhs.utf8ToString().equalsIgnoreCase(rhs.utf8ToString());
-    }
-
-    @Evaluator(extraName = "KeywordsConstant")
-    static boolean processKeywords(BytesRef lhs, @Fixed ByteRunAutomaton rhs) {
+    @Evaluator(extraName = "Constant")
+    static boolean processConstant(BytesRef lhs, @Fixed ByteRunAutomaton rhs) {
         return rhs.run(lhs.bytes, lhs.offset, lhs.length);
     }
 
-    @Evaluator(extraName = "Bools")
-    static boolean processBools(boolean lhs, boolean rhs) {
-        return lhs == rhs;
+    public String symbol() {
+        return "=~";
     }
 
-    public Object symbol() {
-        return "=~";
+    protected TypeResolution resolveType() {
+        return TypeResolutions.isString(left(), sourceText(), TypeResolutions.ParamOrdinal.FIRST)
+            .and(TypeResolutions.isString(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
+    }
+
+    public static Automaton automaton(BytesRef val) {
+        return AutomatonQueries.toCaseInsensitiveString(val.utf8ToString());
     }
 
     @Override
@@ -80,7 +72,7 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
             if (leftVal == null || rightVal == null) {
                 return null;
             }
-            return processKeywords(leftVal, rightVal);
+            return process(leftVal, rightVal);
         }
         return new Equals(source(), left(), right()).fold();
     }

@@ -426,4 +426,10 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
+
+    @Override
+    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+        // Currently ESQL support for cartesian_point is limited to source values
+        return false;
+    }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -150,8 +151,7 @@ public class MeanReciprocalRankTests extends ESTestCase {
     }
 
     public void testNoResults() throws Exception {
-        SearchHit[] hits = new SearchHit[0];
-        EvalQueryQuality evaluated = (new MeanReciprocalRank()).evaluate("id", hits, Collections.emptyList());
+        EvalQueryQuality evaluated = (new MeanReciprocalRank()).evaluate("id", SearchHits.EMPTY, Collections.emptyList());
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
         assertEquals(-1, ((MeanReciprocalRank.Detail) evaluated.getMetricDetails()).getFirstRelevantRank());
     }

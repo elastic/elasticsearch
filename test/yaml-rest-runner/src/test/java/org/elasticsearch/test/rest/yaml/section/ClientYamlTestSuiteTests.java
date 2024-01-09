@@ -653,7 +653,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        SkipSection skipSection = new SkipSection(emptyList(), singletonList("warnings"), null);
+        SkipSection skipSection = new SkipSection(emptyList(), emptyList(), singletonList("warnings"), null);
         createTestSuite(skipSection, doSection).validate();
     }
 
@@ -662,13 +662,13 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("foo")));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        SkipSection skipSection = new SkipSection(emptyList(), singletonList("warnings_regex"), null);
+        SkipSection skipSection = new SkipSection(emptyList(), emptyList(), singletonList("warnings_regex"), null);
         createTestSuite(skipSection, doSection).validate();
     }
 
     public void testAddingDoWithNodeSelectorWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(emptyList(), singletonList("node_selector"), null);
+        SkipSection skipSection = new SkipSection(emptyList(), emptyList(), singletonList("node_selector"), null);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
         apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
@@ -678,7 +678,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingDoWithHeadersWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(emptyList(), singletonList("headers"), null);
+        SkipSection skipSection = new SkipSection(emptyList(), emptyList(), singletonList("headers"), null);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCallSection = new ApiCallSection("test");
         apiCallSection.addHeaders(singletonMap("foo", "bar"));
@@ -688,7 +688,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingContainsWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(emptyList(), singletonList("contains"), null);
+        SkipSection skipSection = new SkipSection(emptyList(), emptyList(), singletonList("contains"), null);
         ContainsAssertion containsAssertion = new ContainsAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),
@@ -699,7 +699,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingCloseToWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(emptyList(), singletonList("close_to"), null);
+        SkipSection skipSection = new SkipSection(emptyList(), emptyList(), singletonList("close_to"), null);
         CloseToAssertion closeToAssertion = new CloseToAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),
@@ -711,7 +711,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingIsAfterWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(emptyList(), singletonList("is_after"), null);
+        SkipSection skipSection = new SkipSection(emptyList(), emptyList(), singletonList("is_after"), null);
         IsAfterAssertion isAfterAssertion = new IsAfterAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),

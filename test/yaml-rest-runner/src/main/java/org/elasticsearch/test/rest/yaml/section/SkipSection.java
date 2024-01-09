@@ -130,28 +130,35 @@ public class SkipSection {
         }
 
         public SkipSection build() {
-            final List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList;
+            final List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList = new ArrayList<>();
+            final List<Predicate<ClientYamlTestExecutionContext>> requireCriteriaList;
 
             // Check if the test runner supports all YAML framework features (see {@link Features}). If not, default to always skip this
             // section.
             if (Features.areAllSupported(requiredYamlRunnerFeatures) == false) {
-                skipCriteriaList = List.of(SkipCriteria.SKIP_ALWAYS);
+                requireCriteriaList = List.of(Prerequisites.FALSE);
             } else {
-                skipCriteriaList = new ArrayList<>();
-                if (xpackRequired == XPackRequired.YES || xpackRequired == XPackRequired.NO) {
-                    skipCriteriaList.add(SkipCriteria.fromClusterModules(xpackRequired == XPackRequired.YES));
+                requireCriteriaList = new ArrayList<>();
+                if (xpackRequired == XPackRequired.YES) {
+                    requireCriteriaList.add(Prerequisites.hasXPack());
+                }
+                if (xpackRequired == XPackRequired.NO) {
+                    skipCriteriaList.add(Prerequisites.hasXPack());
                 }
                 if (Strings.hasLength(version)) {
-                    skipCriteriaList.add(SkipCriteria.fromVersionRange(version));
+                    skipCriteriaList.add(Prerequisites.skipOnVersionRange(version));
                 }
                 if (operatingSystems.isEmpty() == false) {
-                    skipCriteriaList.add(SkipCriteria.fromOsList(operatingSystems));
+                    skipCriteriaList.add(Prerequisites.skipOnOsList(operatingSystems));
                 }
-                if (requiredClusterFeatures.isEmpty() == false || forbiddenClusterFeatures.isEmpty() == false) {
-                    skipCriteriaList.add(SkipCriteria.fromClusterFeatures(requiredClusterFeatures, forbiddenClusterFeatures));
+                if (requiredClusterFeatures.isEmpty() == false) {
+                    requireCriteriaList.add(Prerequisites.requireClusterFeatures(requiredClusterFeatures));
+                }
+                if (forbiddenClusterFeatures.isEmpty() == false) {
+                    skipCriteriaList.add(Prerequisites.skipOnClusterFeatures(forbiddenClusterFeatures));
                 }
             }
-            return new SkipSection(skipCriteriaList, requiredYamlRunnerFeatures, reason);
+            return new SkipSection(skipCriteriaList, requireCriteriaList, requiredYamlRunnerFeatures, reason);
         }
     }
 
@@ -159,7 +166,6 @@ public class SkipSection {
      * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
      */
     public static SkipSection parseIfNext(XContentParser parser) throws IOException {
-
         PrerequisiteSectionBuilder builder = new PrerequisiteSectionBuilder();
         var insidePrerequisiteSection = true;
         while (insidePrerequisiteSection) {
@@ -254,17 +260,25 @@ public class SkipSection {
     public static final SkipSection EMPTY = new SkipSection();
 
     private final List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList;
+    private final List<Predicate<ClientYamlTestExecutionContext>> requireCriteriaList;
     private final List<String> yamlRunnerFeatures;
     private final String reason;
 
     private SkipSection() {
         this.skipCriteriaList = new ArrayList<>();
+        this.requireCriteriaList = new ArrayList<>();
         this.yamlRunnerFeatures = new ArrayList<>();
         this.reason = null;
     }
 
-    SkipSection(List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList, List<String> yamlRunnerFeatures, String reason) {
+    SkipSection(
+        List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList,
+        List<Predicate<ClientYamlTestExecutionContext>> requireCriteriaList,
+        List<String> yamlRunnerFeatures,
+        String reason
+    ) {
         this.skipCriteriaList = skipCriteriaList;
+        this.requireCriteriaList = requireCriteriaList;
         this.yamlRunnerFeatures = yamlRunnerFeatures;
         this.reason = reason;
     }
@@ -282,11 +296,15 @@ public class SkipSection {
             return false;
         }
 
+        if (requireCriteriaList.stream().allMatch(c -> c.test(context)) == false) {
+            return true;
+        }
+
         return skipCriteriaList.stream().anyMatch(c -> c.test(context));
     }
 
     public boolean isEmpty() {
-        return skipCriteriaList.isEmpty() && yamlRunnerFeatures.isEmpty();
+        return skipCriteriaList.isEmpty() && requireCriteriaList.isEmpty() && yamlRunnerFeatures.isEmpty();
     }
 
     public String getSkipMessage(String description) {

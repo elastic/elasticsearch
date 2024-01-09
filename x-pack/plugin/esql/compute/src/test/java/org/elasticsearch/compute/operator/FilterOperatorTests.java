@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -112,10 +111,5 @@ public class FilterOperatorTests extends OperatorTestCase {
         assertThat(found, equalTo(List.of(true, true)));
         results.forEach(Page::releaseBlocks);
         assertThat(context.breaker().getUsed(), equalTo(0L));
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofKb(1);
     }
 }

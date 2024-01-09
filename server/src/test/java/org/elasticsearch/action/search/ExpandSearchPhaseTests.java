@@ -91,10 +91,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
                         List<MultiSearchResponse.Item> mSearchResponses = new ArrayList<>(numInnerHits);
                         for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
-                            mockSearchPhaseContext.sendSearchResponse(
-                                new SearchResponseSections(collapsedHits.get(innerHitNum), null, null, false, null, null, 1),
-                                null
-                            );
+                            var sections = new SearchResponseSections(collapsedHits.get(innerHitNum), null, null, false, null, null, 1);
+                            try {
+                                mockSearchPhaseContext.sendSearchResponse(sections, null);
+                            } finally {
+                                sections.decRef();
+                            }
                             mSearchResponses.add(new MultiSearchResponse.Item(mockSearchPhaseContext.searchResponse.get(), null));
                         }
 
@@ -111,7 +113,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
                     @Override
                     public void run() {
-                        mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
+                        var sections = new SearchResponseSections(hits, null, null, false, null, null, 1);
+                        try {
+                            mockSearchPhaseContext.sendSearchResponse(sections, null);
+                        } finally {
+                            sections.decRef();
+                        }
                     }
                 });
 
@@ -194,7 +201,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
             @Override
             public void run() {
-                mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
+                var sections = new SearchResponseSections(hits, null, null, false, null, null, 1);
+                try {
+                    mockSearchPhaseContext.sendSearchResponse(sections, null);
+                } finally {
+                    sections.decRef();
+                }
             }
         });
         phase.run();
@@ -222,7 +234,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
                 @Override
                 public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
+                    var sections = new SearchResponseSections(hits, null, null, false, null, null, 1);
+                    try {
+                        mockSearchPhaseContext.sendSearchResponse(sections, null);
+                    } finally {
+                        sections.decRef();
+                    }
                 }
             });
             phase.run();

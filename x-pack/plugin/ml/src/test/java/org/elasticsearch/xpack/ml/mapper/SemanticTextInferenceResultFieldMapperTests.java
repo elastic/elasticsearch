@@ -35,6 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -145,7 +146,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         final String fieldName = randomAlphaOfLengthBetween(5, 15);
 
         DocumentMapper documentMapper = createDocumentMapper(
-            mapping(b -> { addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8)); })
+            mapping(b -> addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8)))
         );
 
         {
@@ -158,7 +159,8 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                             b,
                             List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
                             false,
-                            true
+                            true,
+                            null
                         )
                     )
                 )
@@ -179,7 +181,8 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                             b,
                             List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
                             true,
-                            false
+                            false,
+                            null
                         )
                     )
                 )
@@ -200,7 +203,8 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                             b,
                             List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
                             false,
-                            false
+                            false,
+                            null
                         )
                     )
                 )
@@ -218,6 +222,103 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         }
 
         // TODO: Check for missing subfields in sparse_embedding object
+    }
+
+    public void testExtraSubfields() throws IOException {
+        final String fieldName = randomAlphaOfLengthBetween(5, 15);
+        final List<SemanticTextInferenceResults> semanticTextInferenceResultsList = List.of(
+            generateSemanticTextinferenceResults(fieldName, List.of("a b"))
+        );
+
+        DocumentMapper documentMapper = createDocumentMapper(
+            mapping(b -> addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8)))
+        );
+
+        Consumer<ParsedDocument> checkParsedDocument = d -> {
+            Set<VisitedChildDocInfo> visitedChildDocs = new HashSet<>();
+            Set<VisitedChildDocInfo> expectedVisitedChildDocs = Set.of(new VisitedChildDocInfo(fieldName, 2));
+
+            List<LuceneDocument> luceneDocs = d.docs();
+            assertEquals(2, luceneDocs.size());
+            assertValidChildDoc(luceneDocs.get(0), d.rootDoc(), visitedChildDocs);
+            assertEquals(d.rootDoc(), luceneDocs.get(1));
+            assertNull(luceneDocs.get(1).getParent());
+            assertEquals(expectedVisitedChildDocs, visitedChildDocs);
+        };
+
+        {
+            ParsedDocument doc = documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        b,
+                        semanticTextInferenceResultsList,
+                        true,
+                        true,
+                        Map.of("extra_key", "extra_value")
+                    )
+                )
+            );
+
+            checkParsedDocument.accept(doc);
+            LuceneDocument childDoc = doc.docs().get(0);
+            assertEquals(0, childDoc.getFields(childDoc.getPath() + ".extra_key").size());
+        }
+        {
+            ParsedDocument doc = documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        b,
+                        semanticTextInferenceResultsList,
+                        true,
+                        true,
+                        Map.of("extra_key", Map.of("k1", "v1"))
+                    )
+                )
+            );
+
+            checkParsedDocument.accept(doc);
+            LuceneDocument childDoc = doc.docs().get(0);
+            assertEquals(0, childDoc.getFields(childDoc.getPath() + ".extra_key").size());
+        }
+        {
+            ParsedDocument doc = documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        b,
+                        semanticTextInferenceResultsList,
+                        true,
+                        true,
+                        Map.of("extra_key", List.of("v1"))
+                    )
+                )
+            );
+
+            checkParsedDocument.accept(doc);
+            LuceneDocument childDoc = doc.docs().get(0);
+            assertEquals(0, childDoc.getFields(childDoc.getPath() + ".extra_key").size());
+        }
+        {
+            Map<String, Object> extraSubfields = new HashMap<>();
+            extraSubfields.put("extra_key", null);
+
+            ParsedDocument doc = documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        b,
+                        semanticTextInferenceResultsList,
+                        true,
+                        true,
+                        extraSubfields
+                    )
+                )
+            );
+
+            checkParsedDocument.accept(doc);
+            LuceneDocument childDoc = doc.docs().get(0);
+            assertEquals(0, childDoc.getFields(childDoc.getPath() + ".extra_key").size());
+        }
+
+        // TODO: test parsing a document with an extra subfield containing invalid JSON
     }
 
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {
@@ -245,14 +346,15 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         XContentBuilder sourceBuilder,
         List<SemanticTextInferenceResults> semanticTextInferenceResults
     ) throws IOException {
-        addSemanticTextInferenceResults(sourceBuilder, semanticTextInferenceResults, true, true);
+        addSemanticTextInferenceResults(sourceBuilder, semanticTextInferenceResults, true, true, null);
     }
 
     private static void addSemanticTextInferenceResults(
         XContentBuilder sourceBuilder,
         List<SemanticTextInferenceResults> semanticTextInferenceResults,
         boolean includeSparseVectorSubfield,
-        boolean includeTextSubfield
+        boolean includeTextSubfield,
+        Map<String, Object> extraSubfields
     ) throws IOException {
 
         Map<String, List<Map<String, Object>>> inferenceResultsMap = new HashMap<>();
@@ -274,6 +376,9 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 if (includeTextSubfield) {
                     subfieldMap.put(SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME, text);
                 }
+                if (extraSubfields != null) {
+                    subfieldMap.putAll(extraSubfields);
+                }
 
                 parsedInferenceResults.add(subfieldMap);
             }
@@ -285,6 +390,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     }
 
     private static void addInferenceResultsNestedMapping(XContentBuilder mappingBuilder, String semanticTextFieldName) throws IOException {
+        // TODO: Update mapping to account for embedding
         mappingBuilder.startObject(semanticTextFieldName);
         mappingBuilder.field("type", "nested");
         mappingBuilder.startObject("properties");

@@ -27,6 +27,8 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -106,6 +108,8 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
     public static final TypeParser PARSER = new FixedTypeParser(c -> new SemanticTextInferenceResultFieldMapper());
 
     private static final Set<String> REQUIRED_SUBFIELDS = Set.of(SPARSE_VECTOR_SUBFIELD_NAME, TEXT_SUBFIELD_NAME);
+
+    private static final Logger logger = LogManager.getLogger(SemanticTextInferenceResultFieldMapper.class);
 
     // TODO: Need to query this as a nested field type?
     static class SemanticTextInferenceFieldType extends MappedFieldType {
@@ -214,10 +218,11 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             String currentName = parser.currentName();
             visitedSubfields.add(currentName);
 
-            // TODO: Test missing/extra field handling
             Mapper childMapper = objectMapper.getMapper(currentName);
             if (childMapper == null) {
-                throw new DocumentParsingException(parser.getTokenLocation(), "Unexpected field name: " + currentName);
+                logger.warn("Skipping indexing of unrecognized field name [" + currentName + "]");
+                advancePastCurrentFieldName(parser);
+                continue;
             }
 
             if (childMapper instanceof FieldMapper) {
@@ -271,6 +276,17 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         nestedBuilder.add(sparseVectorMapperBuilder).add(textMapperBuilder);
 
         return nestedBuilder.build(mapperBuilderContext);
+    }
+
+    private static void advancePastCurrentFieldName(XContentParser parser) throws IOException {
+        assert parser.currentToken() == XContentParser.Token.FIELD_NAME;
+
+        XContentParser.Token token = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren();
+        } else if (token.isValue() == false && token != XContentParser.Token.VALUE_NULL) {
+            throw new DocumentParsingException(parser.getTokenLocation(), "Expected a START_* or VALUE_*, got " + token);
+        }
     }
 
     @Override

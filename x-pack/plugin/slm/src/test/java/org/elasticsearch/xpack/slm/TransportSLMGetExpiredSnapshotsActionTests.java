@@ -56,7 +56,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
+public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
 
     public void testEmpty() {
         runActionTest(List.of(), Set.of());
@@ -137,8 +137,8 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
             }
         });
 
-        final var action = new SLMGetExpiredSnapshotsAction.LocalAction(transportService, repositoriesService, new ActionFilters(Set.of()));
-        final var task = new Task(1, "direct", SLMGetExpiredSnapshotsAction.INSTANCE.name(), "", TaskId.EMPTY_TASK_ID, Map.of());
+        final var action = new TransportSLMGetExpiredSnapshotsAction(transportService, repositoriesService, new ActionFilters(Set.of()));
+        final var task = new Task(1, "direct", TransportSLMGetExpiredSnapshotsAction.INSTANCE.name(), "", TaskId.EMPTY_TASK_ID, Map.of());
 
         final var policyMap = createPolicies(
             snapshotInfos.stream()
@@ -148,8 +148,8 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
             snapshotsToDelete
         );
 
-        final var responseFuture = new PlainActionFuture<SLMGetExpiredSnapshotsAction.Response>();
-        action.doExecute(task, new SLMGetExpiredSnapshotsAction.Request(List.of(REPO_NAME), policyMap), responseFuture);
+        final var responseFuture = new PlainActionFuture<TransportSLMGetExpiredSnapshotsAction.Response>();
+        action.doExecute(task, new TransportSLMGetExpiredSnapshotsAction.Request(List.of(REPO_NAME), policyMap), responseFuture);
         deterministicTaskQueue.runAllTasks();
         assertTrue(responseFuture.isDone());
         final var deletedSnapshots = responseFuture.actionGet().snapshotsToDelete();
@@ -179,8 +179,13 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
 
             .<RepositoryData>newForked(l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
 
-            .<SLMGetExpiredSnapshotsAction.SnapshotDetailsByPolicy>andThen(
-                (l, rd) -> SLMGetExpiredSnapshotsAction.getSnapshotDetailsByPolicy(EsExecutors.DIRECT_EXECUTOR_SERVICE, repository, rd, l)
+            .<TransportSLMGetExpiredSnapshotsAction.SnapshotDetailsByPolicy>andThen(
+                (l, rd) -> TransportSLMGetExpiredSnapshotsAction.getSnapshotDetailsByPolicy(
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    repository,
+                    rd,
+                    l
+                )
             )
 
             .andThenAccept(snapshotDetailsByPolicy -> {
@@ -197,39 +202,55 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
     }
 
     public void testGetSnapshotsToDelete() {
-        final var snapshotDetailsByPolicy = new SLMGetExpiredSnapshotsAction.SnapshotDetailsByPolicy();
+        final var snapshotDetailsByPolicy = new TransportSLMGetExpiredSnapshotsAction.SnapshotDetailsByPolicy();
 
         assertEquals(
             List.of(),
-            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(REPO_NAME, createPolicies(Set.of(), Set.of()), snapshotDetailsByPolicy)
+            TransportSLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
+                REPO_NAME,
+                createPolicies(Set.of(), Set.of()),
+                snapshotDetailsByPolicy
+            )
         );
 
         snapshotDetailsByPolicy.add(mkId("snapshot-with-unknown-policy"), mkDetails("unknown-policy-id"));
 
         assertEquals(
             List.of(),
-            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(REPO_NAME, createPolicies(Set.of(), Set.of()), snapshotDetailsByPolicy)
+            TransportSLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
+                REPO_NAME,
+                createPolicies(Set.of(), Set.of()),
+                snapshotDetailsByPolicy
+            )
         );
 
         snapshotDetailsByPolicy.add(mkId("no-retention"), mkDetails(NO_RETENTION_POLICY_ID));
 
         assertEquals(
             List.of(),
-            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(REPO_NAME, createPolicies(Set.of(), Set.of()), snapshotDetailsByPolicy)
+            TransportSLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
+                REPO_NAME,
+                createPolicies(Set.of(), Set.of()),
+                snapshotDetailsByPolicy
+            )
         );
 
         snapshotDetailsByPolicy.add(mkId("other-repo-policy"), mkDetails(OTHER_REPO_POLICY_ID));
 
         assertEquals(
             List.of(),
-            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(REPO_NAME, createPolicies(Set.of(), Set.of()), snapshotDetailsByPolicy)
+            TransportSLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
+                REPO_NAME,
+                createPolicies(Set.of(), Set.of()),
+                snapshotDetailsByPolicy
+            )
         );
 
         snapshotDetailsByPolicy.add(mkId("expiry-candidate"), mkDetails(POLICY_ID));
 
         assertEquals(
             List.of(),
-            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
+            TransportSLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
                 REPO_NAME,
                 createPolicies(Set.of(mkId("expiry-candidate")), Set.of()),
                 snapshotDetailsByPolicy
@@ -238,7 +259,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
 
         assertEquals(
             List.of(Tuple.tuple(mkId("expiry-candidate"), POLICY_ID)),
-            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
+            TransportSLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
                 REPO_NAME,
                 createPolicies(Set.of(mkId("expiry-candidate")), Set.of(mkId("expiry-candidate"))),
                 snapshotDetailsByPolicy

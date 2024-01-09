@@ -36,6 +36,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -124,6 +127,14 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                     ),
                     RestStatus.BAD_REQUEST
                 )
+            );
+            return;
+        }
+
+        var assignments = TrainedModelAssignmentUtils.modelAssignments(request.getModelId(), clusterService.state());
+        if ((assignments == null || assignments.isEmpty()) == false) {
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
             );
             return;
         }

@@ -848,6 +848,69 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     /**
+     * Finds the specific data stream aliases that match with the specified aliases directly or partially via wildcards, and
+     * that point to the specified data streams (directly or matching data streams via wildcards).
+     *
+     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
+     * @param dataStreams The data streams that the aliases must point to in order to be returned
+     * @return A map of data stream name to the list of DataStreamAlias objects that match. If a data stream does not have matching
+     * aliases then the result will <b>not</b> include the data stream's key.
+     */
+    public Map<String, List<DataStreamAlias>> findDataStreamAliases(final String[] aliases, final String[] dataStreams) {
+        assert aliases != null;
+        assert dataStreams != null;
+        if (dataStreams.length == 0) {
+            return ImmutableOpenMap.of();
+        }
+        String[] patterns = new String[aliases.length];
+        boolean[] include = new boolean[aliases.length];
+        for (int i = 0; i < aliases.length; i++) {
+            String alias = aliases[i];
+            if (alias.charAt(0) == '-') {
+                patterns[i] = alias.substring(1);
+                include[i] = false;
+            } else {
+                patterns[i] = alias;
+                include[i] = true;
+            }
+        }
+        boolean matchAllAliases = patterns.length == 0;
+        ImmutableOpenMap.Builder<String, List<DataStreamAlias>> mapBuilder = ImmutableOpenMap.builder();
+
+        var allDataStreamAliases = dataStreamAliases().values();
+        for (String dataStream : dataStreams) {
+            List<DataStreamAlias> filteredValues = new ArrayList<>();
+            List<DataStreamAlias> dsAliases = allDataStreamAliases
+                .stream()
+                .filter(alias -> alias.getDataStreams().contains(dataStream))
+                .toList();
+            for (DataStreamAlias dsAlias : dsAliases) {
+                boolean matched = matchAllAliases;
+                String alias = dsAlias.getName();
+                for (int i = 0; i < patterns.length; i++) {
+                    if (include[i]) {
+                        if (matched == false) {
+                            String pattern = patterns[i];
+                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
+                        }
+                    } else if (matched) {
+                        matched = Regex.simpleMatch(patterns[i], alias) == false;
+                    }
+                }
+                if (matched) {
+                    filteredValues.add(dsAlias);
+                }
+            }
+            if (filteredValues.isEmpty() == false) {
+                // Make the list order deterministic
+                CollectionUtil.timSort(filteredValues, Comparator.comparing(DataStreamAlias::getName));
+                mapBuilder.put(dataStream, Collections.unmodifiableList(filteredValues));
+            }
+        }
+        return mapBuilder.build();
+    }
+
+    /**
      * Finds all mappings for concrete indices. Only fields that match the provided field
      * filter will be returned (default is a predicate that always returns true, which can be
      * overridden via plugins)
@@ -2432,7 +2495,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         reported = true;
                     }
                 }
-                // This is for adding an error message for when a data steam alias has the same name as a data stream.
+                // This is for adding an error message for when a data stream alias has the same name as a data stream.
                 if (reported == false && dataStreamMetadata != null && dataStreamMetadata.dataStreams().containsKey(alias)) {
                     duplicates.add("data stream alias and data stream have the same name (" + alias + ")");
                 }

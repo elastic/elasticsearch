@@ -147,20 +147,18 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         ClusterState state
     ) {
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
-        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
+
+        Map<String, List<DataStreamAlias>> dsAliases = state
+            .metadata()
+            .findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
+
         for (String requestedDataStream : requestedDataStreams) {
-            List<DataStreamAlias> aliases = state.metadata()
-                .dataStreamAliases()
-                .values()
-                .stream()
-                .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
-                .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
-                .toList();
-            if (aliases.isEmpty() == false) {
-                result.put(requestedDataStream, aliases);
+            if (dsAliases.containsKey(requestedDataStream)) {
+                result.put(requestedDataStream, dsAliases.get(requestedDataStream));
             }
         }
+
         return result;
     }
 

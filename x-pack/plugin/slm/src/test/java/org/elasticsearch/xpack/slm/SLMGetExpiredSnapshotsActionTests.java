@@ -137,7 +137,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
             }
         });
 
-        final var action = new SLMGetExpiredSnapshotsAction.LocalAction(transportService, repositoriesService, new ActionFilters(Set.of()));
+        final var action = new SLMGetExpiredSnapshotsAction(transportService, repositoriesService, new ActionFilters(Set.of()));
         final var task = new Task(1, "direct", SLMGetExpiredSnapshotsAction.INSTANCE.name(), "", TaskId.EMPTY_TASK_ID, Map.of());
 
         final var policyMap = createPolicies(

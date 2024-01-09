@@ -337,7 +337,7 @@ AVG(salary):double | bucket:date
 // end::auto_bucket_in_agg-result[]
 ;
 
-evalDateDiffInNanoAndMicroAndMilliSeconds
+evalDateDiffInNanoAndMicroAndMilliSeconds#[skip:-8.12.99, reason:date_diff added in 8.13]
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-02T11:00:00.001Z") 
 | EVAL dd_ns1=date_diff("nanoseconds", date1, date2), dd_ns2=date_diff("ns", date1, date2)
 | EVAL dd_mcs1=date_diff("microseconds", date1, date2), dd_mcs2=date_diff("mcs", date1, date2)
@@ -349,7 +349,7 @@ dd_ns1:integer  | dd_ns2:integer    | dd_mcs1:integer   | dd_mcs2:integer   | dd
 1000000         | 1000000           | 1000              | 1000              | 1                 | 1                         
 ;
 
-evalDateDiffInSecondsAndMinutesAndHours
+evalDateDiffInSecondsAndMinutesAndHours#[skip:-8.12.99, reason:date_diff added in 8.13]
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-02T12:00:00.000Z") 
 | EVAL dd_s1=date_diff("seconds", date1, date2), dd_s2=date_diff("ss", date1, date2), dd_s3=date_diff("s", date1, date2)
 | EVAL dd_m1=date_diff("minutes", date1, date2), dd_m2=date_diff("mi", date1, date2), dd_m3=date_diff("n", date1, date2)
@@ -361,7 +361,7 @@ dd_s1:integer   | dd_s2:integer | dd_s3:integer | dd_m1:integer | dd_m2:integer 
 3600            | 3600          | 3600          | 60            | 60            | 60            | 1             | 1                         
 ;
 
-evalDateDiffInDaysAndWeeks
+evalDateDiffInDaysAndWeeks#[skip:-8.12.99, reason:date_diff added in 8.13]
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-24T11:00:00.000Z") 
 | EVAL dd_wd1=date_diff("weekdays", date1, date2), dd_wd2=date_diff("dw", date1, date2)
 | EVAL dd_w1=date_diff("weeks", date1, date2), dd_w2=date_diff("wk", date1, date2), dd_w3=date_diff("ww", date1, date2)
@@ -374,7 +374,7 @@ dd_wd1:integer  | dd_wd2:integer    | dd_w1:integer | dd_w2:integer | dd_w3:inte
 22              | 22                | 3             | 3             | 3             | 22            | 22            | 22                | 22                | 22                     
 ;
 
-evalDateDiffInMonthsAndQuartersAndYears
+evalDateDiffInMonthsAndQuartersAndYears#[skip:-8.12.99, reason:date_diff added in 8.13]
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2024-12-24T11:00:00.000Z") 
 | EVAL dd_m1=date_diff("months", date1, date2), dd_m2=date_diff("mm", date1, date2), dd_m3=date_diff("m", date1, date2)
 | EVAL dd_q1=date_diff("quarters", date1, date2), dd_q2=date_diff("qq", date1, date2), dd_q3=date_diff("q", date1, date2)
@@ -386,7 +386,7 @@ dd_m1:integer   | dd_m2:integer | dd_m3:integer | dd_q1:integer | dd_q2:integer 
 12              | 12            | 12            | 4             | 4             | 4             | 1             | 1             | 1                                     
 ;
 
-evalDateDiffErrorOutOfIntegerRange
+evalDateDiffErrorOutOfIntegerRange#[skip:-8.12.99, reason:date_diff added in 8.13]
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-23T11:00:00.000Z") 
 | EVAL dd_oo=date_diff("nanoseconds", date1, date2)
 | keep dd_oo

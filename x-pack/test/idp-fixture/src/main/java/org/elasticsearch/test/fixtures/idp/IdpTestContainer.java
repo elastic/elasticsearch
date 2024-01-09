@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
+import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.pushForArch;
+import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.tagAndPush;
 
 public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer {
 
@@ -168,33 +170,9 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
     @SuppressWarnings("fallthrough")
     public void start() {
         super.start();
-
-        // // Get the DockerClient used by the Testcontainer library (you can also use your own if they every make that private).
-        // final DockerClient dockerClient = getDockerClient();
-        //
-        // // Commit docker container changes into new image (equivalent to command line 'docker commit')
-        // dockerClient.commitCmd(getContainerId())
-        // .withRepository("breskeby/test-fixture-idp")
-        // .withTag("latest")
-        // .exec();
-        //
-        // // Push new image to your repository. (equivalent to command line 'docker push')
-        // try {
-        // dockerClient.pushImageCmd("breskeby/test-fixture-idp:latest")
-        // .exec(new ResultCallback.Adapter<>() {
-        // @Override
-        // public void onNext(PushResponseItem object) {
-        //// logger().info(object.toString());
-        // if(object.isErrorIndicated()) {
-        // // This is just to fail the build in case push of new image fails
-        // throw new RuntimeException("Failed push: " + object.getErrorDetail());
-        // }
-        // }
-        // }).awaitCompletion();
-        // } catch (InterruptedException e) {
-        // throw new RuntimeException(e);
-        // }
-
+//        if("true".equals(System.getProperty("dockerpush"))) {
+            pushForArch(this, "breskeby/test-fixtures-idp");
+//        }
     }
 
     @Override

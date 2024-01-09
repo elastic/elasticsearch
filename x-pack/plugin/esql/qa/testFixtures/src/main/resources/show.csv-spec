@@ -26,6 +26,7 @@ cos                      |"double cos(n:double|integer|long|unsigned_long)"     
 cosh                     |"double cosh(n:double|integer|long|unsigned_long)"     |n                        |"double|integer|long|unsigned_long"                 | "The number who's hyperbolic cosine is to be returned" |double                    | "Returns the hyperbolic cosine of a number"                      | false                | false
 count                    |"long count(?field:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"                                         |field                     |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"                 | "Column or literal for which to count the number of values."                                                 |long                    | "Returns the total number (count) of input values."                      | true                | false
 count_distinct           |"long count_distinct(field:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version, ?precision:integer)"                        |[field, precision]             |["boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version, integer"]            |["Column or literal for which to count the number of distinct values.", ""]                                            |long                    | "Returns the approximate number of distinct values."                      | [false, false]       | false
+date_diff                |"integer date_diff(unit:keyword|text, startTimestamp:date, endTimestamp:date)"|[unit, startTimestamp, endTimestamp] |["keyword|text", "date", "date"]  |["A valid date unit", "A string representing a start timestamp", "A string representing an end timestamp"] |integer | "Subtract 2 dates and return their difference in multiples of a unit specified in the 1st argument" | [false, false, false] | false
 date_extract             |long date_extract(date_part:keyword, field:date)                          |[date_part, field]             |[keyword, date]            |["Part of the date to extract. Can be: aligned_day_of_week_in_month, aligned_day_of_week_in_year, aligned_week_of_month, aligned_week_of_year, ampm_of_day, clock_hour_of_ampm, clock_hour_of_day, day_of_month, day_of_week, day_of_year, epoch_day, era, hour_of_ampm, hour_of_day, instant_seconds, micro_of_day, micro_of_second, milli_of_day, milli_of_second, minute_of_day, minute_of_hour, month_of_year, nano_of_day, nano_of_second, offset_seconds, proleptic_month, second_of_day, second_of_minute, year, or year_of_era.", "Date expression"]                                            |long                    | "Extracts parts of a date, like year, month, day, hour."                      | [false, true]       | false
 date_format              |keyword date_format(?format:keyword, date:date)                           |[format, date]             |[keyword, date]            |["A valid date pattern", "Date expression"]                                            |keyword                    | "Returns a string representation of a date, in the provided format."                      | [true, false]       | false
 date_parse               |"date date_parse(?datePattern:keyword, dateString:keyword|text)"|[datePattern, dateString]|["keyword", "keyword|text"]|["A valid date pattern", "A string representing a date"]|date                 |Parses a string into a date value | [true, false]       | false         
@@ -50,6 +51,8 @@ mv_avg                   |"double mv_avg(field:double|integer|long|unsigned_long
 mv_concat                |"keyword mv_concat(v:text|keyword, delim:text|keyword)" |[v, delim]               |["text|keyword", "text|keyword"] |["values to join", "delimiter"]      |keyword              | "Reduce a multivalued string field to a single valued field by concatenating all values." | [false, false]       | false
 mv_count                 |"integer mv_count(v:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)" |v      | "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version" | "" | integer | "Reduce a multivalued field to a single valued field containing the count of values."       | false                | false
 mv_dedupe                |"boolean|date|double|integer|ip|keyword|long|text|version mv_dedupe(v:boolean|date|double|integer|ip|keyword|long|text|version)" |v | "boolean|date|double|integer|ip|keyword|long|text|version" | "" |"boolean|date|double|integer|ip|keyword|long|text|version"   | "Remove duplicate values from a multivalued field."                      | false                | false
+mv_first                 |"? mv_first(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point" | "" |?   | "Reduce a multivalued field to a single valued field containing the first value."                      | false                | false
+mv_last                  |"? mv_last(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point" | "" |?   | "Reduce a multivalued field to a single valued field containing the last value."                      | false                | false
 mv_max                   |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(v:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)" |v | "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version" | "" |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"      | "Reduce a multivalued field to a single valued field containing the maximum value." | false                | false
 mv_median                |"double|integer|long|unsigned_long mv_median(v:double|integer|long|unsigned_long)"                                     |v                     |"double|integer|long|unsigned_long"                 | ""                                                 |"double|integer|long|unsigned_long"                    | "Converts a multivalued field into a single valued field containing the median value."                      | false                | false
 mv_min                   |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_min(v:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)" |v | "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version" | "" |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"      | "Reduce a multivalued field to a single valued field containing the minimum value." | false                | false
@@ -117,6 +120,7 @@ boolean cidr_match(ip:ip, blockX...:keyword)
 "double cosh(n:double|integer|long|unsigned_long)"
 "long count(?field:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
 "long count_distinct(field:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version, ?precision:integer)"
+"integer date_diff(unit:keyword|text, startTimestamp:date, endTimestamp:date)"
 long date_extract(date_part:keyword, field:date)
 keyword date_format(?format:keyword, date:date)
 "date date_parse(?datePattern:keyword, dateString:keyword|text)"
@@ -141,6 +145,8 @@ boolean is_nan(n:double)
 "keyword mv_concat(v:text|keyword, delim:text|keyword)"
 "integer mv_count(v:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
 "boolean|date|double|integer|ip|keyword|long|text|version mv_dedupe(v:boolean|date|double|integer|ip|keyword|long|text|version)"
+"? mv_first(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"
+"? mv_last(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"
 "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(v:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)"
 "double|integer|long|unsigned_long mv_median(v:double|integer|long|unsigned_long)"
 "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_min(v:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)"
@@ -205,9 +211,9 @@ is_nan                   |boolean is_nan(n:double)                              
 
 
 // see https://github.com/elastic/elasticsearch/issues/102120
-countFunctions#[skip:-8.11.99]
+countFunctions#[skip:-8.12.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-84     | 84     | 84
+87     | 87     | 87
 ;

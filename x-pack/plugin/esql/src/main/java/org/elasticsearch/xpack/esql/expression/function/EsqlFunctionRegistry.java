@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
@@ -66,6 +67,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
@@ -160,6 +163,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(EndsWith.class, EndsWith::new, "ends_with") },
             // date
             new FunctionDefinition[] {
+                def(DateDiff.class, DateDiff::new, "date_diff"),
                 def(DateExtract.class, DateExtract::new, "date_extract"),
                 def(DateFormat.class, DateFormat::new, "date_format"),
                 def(DateParse.class, DateParse::new, "date_parse"),
@@ -192,6 +196,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(MvConcat.class, MvConcat::new, "mv_concat"),
                 def(MvCount.class, MvCount::new, "mv_count"),
                 def(MvDedupe.class, MvDedupe::new, "mv_dedupe"),
+                def(MvFirst.class, MvFirst::new, "mv_first"),
+                def(MvLast.class, MvLast::new, "mv_last"),
                 def(MvMax.class, MvMax::new, "mv_max"),
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMin.class, MvMin::new, "mv_min"),

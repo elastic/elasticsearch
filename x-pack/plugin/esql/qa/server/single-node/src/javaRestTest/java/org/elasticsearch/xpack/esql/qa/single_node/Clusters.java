@@ -14,7 +14,6 @@ public class Clusters {
     public static ElasticsearchCluster testCluster() {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .nodes(1)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .shared(true)

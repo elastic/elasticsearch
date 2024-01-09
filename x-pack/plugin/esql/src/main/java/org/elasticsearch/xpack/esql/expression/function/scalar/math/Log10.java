@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
     @FunctionInfo(returnType = "double", description = "Returns the log base 10.")
-    public Log10(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    public Log10(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 

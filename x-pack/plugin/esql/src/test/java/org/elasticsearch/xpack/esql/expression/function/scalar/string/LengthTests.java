@@ -41,19 +41,28 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
                 equalTo(UnicodeUtil.codePointCount(value))
             );
         }),
-            new TestCaseSupplier("empty string", () -> makeTestCase("", 0)),
-            new TestCaseSupplier("single ascii character", () -> makeTestCase("a", 1)),
-            new TestCaseSupplier("ascii string", () -> makeTestCase("clump", 5)),
-            new TestCaseSupplier("3 bytes, 1 code point", () -> makeTestCase("☕", 1)),
-            new TestCaseSupplier("6 bytes, 2 code points", () -> makeTestCase("❗️", 2)),
-            new TestCaseSupplier("100 random alpha", () -> makeTestCase(randomAlphaOfLength(100), 100)),
-            new TestCaseSupplier("100 random code points", () -> makeTestCase(randomUnicodeOfCodepointLength(100), 100))
+            new TestCaseSupplier("empty string", () -> makeTestCaseAsKeyword("", 0)),
+            new TestCaseSupplier("single ascii character", () -> makeTestCaseAsKeyword("a", 1)),
+            new TestCaseSupplier("ascii string", () -> makeTestCaseAsKeyword("clump", 5)),
+            new TestCaseSupplier("3 bytes, 1 code point", () -> makeTestCaseAsKeyword("☕", 1)),
+            new TestCaseSupplier("6 bytes, 2 code points", () -> makeTestCaseAsKeyword("❗️", 2)),
+            new TestCaseSupplier("100 random alpha", () -> makeTestCaseAsKeyword(randomAlphaOfLength(100), 100)),
+            new TestCaseSupplier("100 random code points", () -> makeTestCaseAsKeyword(randomUnicodeOfCodepointLength(100), 100)),
+            new TestCaseSupplier("ascii string as text", () -> makeTestCaseAsText("clump", 5))
         ));
     }
 
-    private static TestCaseSupplier.TestCase makeTestCase(String text, int expectedLength) {
+    private static TestCaseSupplier.TestCase makeTestCaseAsText(String text, int expectedLength) {
+        return makeTestCase(text, expectedLength, true);
+    }
+
+    private static TestCaseSupplier.TestCase makeTestCaseAsKeyword(String text, int expectedLength) {
+        return makeTestCase(text, expectedLength, false);
+    }
+
+    private static TestCaseSupplier.TestCase makeTestCase(String text, int expectedLength, boolean asText) {
         return new TestCaseSupplier.TestCase(
-            List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "f")),
+            List.of(new TestCaseSupplier.TypedData(new BytesRef(text), asText ? DataTypes.TEXT : DataTypes.KEYWORD, "f")),
             "LengthEvaluator[val=Attribute[channel=0]]",
             DataTypes.INTEGER,
             equalTo(expectedLength)

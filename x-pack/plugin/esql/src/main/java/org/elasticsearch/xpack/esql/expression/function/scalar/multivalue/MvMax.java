@@ -30,14 +30,14 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  */
 public class MvMax extends AbstractMultivalueFunction {
     @FunctionInfo(
-        returnType = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" },
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
         description = "Reduce a multivalued field to a single valued field containing the maximum value."
     )
     public MvMax(
         Source source,
         @Param(
             name = "v",
-            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" }
         ) Expression v
     ) {
         super(source, v);

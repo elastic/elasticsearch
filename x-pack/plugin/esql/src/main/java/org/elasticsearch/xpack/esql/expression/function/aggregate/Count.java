@@ -28,13 +28,24 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 
 public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator {
 
-    @FunctionInfo(returnType = "long", description = "The average of a numeric field.", isAggregation = true)
+    @FunctionInfo(returnType = "long", description = "Returns the total number (count) of input values.", isAggregation = true)
     public Count(
         Source source,
         @Param(
             optional = true,
             name = "field",
-            type = { "keyword" },
+            type = {
+                "boolean",
+                "date",
+                "keyword",
+                "text",
+                "double",
+                "long",
+                "unsigned_long",
+                "integer",
+                "geo_point",
+                "cartesian_point",
+                "version" },
             description = "Column or literal for which to count the number of values.",
             canBeWildcard = true
         ) Expression field

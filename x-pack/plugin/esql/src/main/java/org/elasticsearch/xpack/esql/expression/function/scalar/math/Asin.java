@@ -22,7 +22,7 @@ import java.util.List;
  */
 public class Asin extends AbstractTrigonometricFunction {
     @FunctionInfo(returnType = "double", description = "Inverse sine trigonometric function.")
-    public Asin(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    public Asin(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 

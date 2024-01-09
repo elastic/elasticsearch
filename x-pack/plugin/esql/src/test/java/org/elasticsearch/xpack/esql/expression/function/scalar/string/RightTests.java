@@ -154,7 +154,19 @@ public class RightTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(""))
             );
         }));
-
+        suppliers.add(new TestCaseSupplier("ascii as text", () -> {
+            String text = randomAlphaOfLengthBetween(1, 64);
+            int length = between(1, text.length());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                ),
+                "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
+                DataTypes.KEYWORD,
+                equalTo(new BytesRef(unicodeRightSubstring(text, length)))
+            );
+        }));
         return parameterSuppliersFromTypedData(suppliers);
     }
 

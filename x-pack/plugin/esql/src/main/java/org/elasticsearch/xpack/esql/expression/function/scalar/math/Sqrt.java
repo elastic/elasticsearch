@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
     @FunctionInfo(returnType = "double", description = "Returns the square root of a number.")
-    public Sqrt(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    public Sqrt(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 

@@ -42,7 +42,18 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Source source,
         @Param(
             name = "field",
-            type = { "keyword" },
+            type = {
+                "boolean",
+                "date",
+                "keyword",
+                "text",
+                "double",
+                "long",
+                "unsigned_long",
+                "integer",
+                "geo_point",
+                "cartesian_point",
+                "version" },
             description = "Column or literal for which to count the number of distinct values."
         ) Expression field,
         @Param(optional = true, name = "precision", type = { "integer" }) Expression precision

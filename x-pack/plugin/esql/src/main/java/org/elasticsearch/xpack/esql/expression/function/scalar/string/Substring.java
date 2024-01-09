@@ -44,7 +44,7 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
     public Substring(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }) Expression str,
-        @Param(name = "start", type = { "keyword", "text" }) Expression start,
+        @Param(name = "start", type = { "integer" }) Expression start,
         @Param(optional = true, name = "length", type = { "integer" }) Expression length
     ) {
         super(source, length == null ? Arrays.asList(str, start) : Arrays.asList(str, start, length));

@@ -28,13 +28,13 @@ public class Percentile extends NumericAggregate {
     private final Expression percentile;
 
     @FunctionInfo(
-        returnType = { "unsigned_long", "double", "integer", "long" },
+        returnType = { "double", "integer", "long", "unsigned_long" },
         description = "The value at which a certain percentage of observed values occur.",
         isAggregation = true
     )
     public Percentile(
         Source source,
-        @Param(name = "field", type = { "unsigned_long", "double", "integer", "long" }) Expression field,
+        @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
     ) {
         super(source, field, List.of(percentile));

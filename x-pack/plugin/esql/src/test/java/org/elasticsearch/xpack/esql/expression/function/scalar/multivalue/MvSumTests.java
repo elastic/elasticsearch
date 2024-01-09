@@ -33,7 +33,7 @@ public class MvSumTests extends AbstractMultivalueFunctionTestCase {
         // TODO turn these on once we are summing without overflow
         // ints(cases, "mv_sum", "MvSum", (size, values) -> equalTo(values.sum()));
         // longs(cases, "mv_sum", "MvSum", (size, values) -> equalTo(values.sum()));
-        // unsignedLongAsBigInteger(cases, "mv_sum", "MvSum", (size, values) -> equalTo(values.sum()));
+        // unsignedLongs(cases, "mv_sum", "MvSum", (size, values) -> equalTo(values.sum()));
         return parameterSuppliersFromTypedData(cases);
     }
 

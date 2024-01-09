@@ -22,7 +22,7 @@ import java.util.List;
  */
 public class Atan extends AbstractTrigonometricFunction {
     @FunctionInfo(returnType = "double", description = "Inverse tangent trigonometric function.")
-    public Atan(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    public Atan(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 

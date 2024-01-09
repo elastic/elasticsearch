@@ -65,7 +65,7 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
     )
     public Case(
         Source source,
-        @Param(name = "first", type = { "boolean" }) Expression first,
+        @Param(name = "condition", type = { "boolean" }) Expression first,
         @Param(
             name = "rest",
             type = {

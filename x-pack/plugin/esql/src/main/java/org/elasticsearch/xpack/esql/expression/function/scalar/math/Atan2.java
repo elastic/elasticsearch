@@ -40,8 +40,8 @@ public class Atan2 extends ScalarFunction implements EvaluatorMapper {
     )
     public Atan2(
         Source source,
-        @Param(name = "y", type = { "integer", "long", "double", "unsigned_long" }) Expression y,
-        @Param(name = "x", type = { "integer", "long", "double", "unsigned_long" }) Expression x
+        @Param(name = "y", type = { "double", "integer", "long", "unsigned_long" }) Expression y,
+        @Param(name = "x", type = { "double", "integer", "long", "unsigned_long" }) Expression x
     ) {
         super(source, List.of(y, x));
         this.y = y;

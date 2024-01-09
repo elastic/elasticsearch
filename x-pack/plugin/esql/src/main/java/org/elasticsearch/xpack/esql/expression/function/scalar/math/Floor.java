@@ -31,8 +31,11 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
  * </p>
  */
 public class Floor extends UnaryScalarFunction implements EvaluatorMapper {
-    @FunctionInfo(returnType = "double", description = "Round a number down to the nearest integer.")
-    public Floor(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Round a number down to the nearest integer."
+    )
+    public Floor(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 

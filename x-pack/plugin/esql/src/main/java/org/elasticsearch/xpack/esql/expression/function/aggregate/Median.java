@@ -27,11 +27,11 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 public class Median extends AggregateFunction implements SurrogateExpression {
     // TODO: Add the compression parameter
     @FunctionInfo(
-        returnType = { "unsigned_long", "double", "integer", "long" },
-        description = "The value that is greater than half of all values and less than half of all values,",
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "The value that is greater than half of all values and less than half of all values.",
         isAggregation = true
     )
-    public Median(Source source, @Param(name = "field", type = { "unsigned_long", "double", "integer", "long" }) Expression field) {
+    public Median(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 

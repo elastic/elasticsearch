@@ -23,11 +23,11 @@ import java.util.List;
 public class Max extends NumericAggregate {
 
     @FunctionInfo(
-        returnType = { "unsigned_long", "double", "integer", "long" },
+        returnType = { "double", "integer", "long", "unsigned_long" },
         description = "The maximum value of a numeric field.",
         isAggregation = true
     )
-    public Max(Source source, @Param(name = "field", type = { "unsigned_long", "double", "integer", "long" }) Expression field) {
+    public Max(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 

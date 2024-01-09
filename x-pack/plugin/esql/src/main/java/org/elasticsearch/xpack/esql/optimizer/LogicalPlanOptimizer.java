@@ -41,6 +41,13 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
@@ -50,6 +57,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerUtils;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -62,6 +70,7 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
@@ -115,6 +124,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
             new BinaryComparisonSimplification(),
+            new OutOfRangeBinaryComparison(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),
             new PropagateNullable(),
@@ -610,6 +620,65 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return null;
         }
 
+    }
+
+    /**
+     * This rule must always be placed after {@link LiteralsOnTheRight}, since it looks for numerical literals
+     * on the right hand-side of {@link BinaryComparison}s that may be out of range.
+     */
+    private static class OutOfRangeBinaryComparison extends OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+
+        OutOfRangeBinaryComparison() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(BinaryComparison bc) {
+            // TODO: add tests with null literals if they do not already exist
+            if (bc.left().dataType().isNumeric() == false || bc.right().dataType().isNumeric() == false) {
+                return bc;
+            }
+
+            if (bc.right() instanceof Literal r) {
+                if (r.value() == null || isInRange(bc.left().dataType(), r.value())) {
+                    return bc;
+                }
+
+                if (bc instanceof org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals || bc instanceof NullEquals) {
+                    return Literal.falseWithSource(bc.source());
+                }
+                if (bc instanceof NotEquals) {
+                    return Literal.trueWithSource(bc.source());
+                }
+
+                boolean isPositive = OptimizerUtils.isPositive(r);
+                if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
+                    return isPositive ? Literal.falseWithSource(bc.source()) : Literal.trueWithSource(bc.source());
+                }
+                if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                    return isPositive == false ? Literal.falseWithSource(bc.source()) : Literal.trueWithSource(bc.source());
+                }
+            }
+
+            return bc;
+        }
+
+        private static boolean isInRange(DataType dataType, Object value) {
+            assert value != null;
+            if ((dataType == DataTypes.INTEGER || dataType == DataTypes.SHORT || dataType == DataTypes.BYTE)) {
+                return OptimizerUtils.isInIntegerRange(value);
+            }
+            // TODO: The half_float and float cases never trigger because we widen them to double
+            // https://github.com/elastic/elasticsearch/issues/100130
+            if (dataType == DataTypes.HALF_FLOAT) {
+                return OptimizerUtils.isInHalfFloatRange(value);
+            }
+            if (dataType == DataTypes.FLOAT) {
+                return OptimizerUtils.isInFloatRange(value);
+            }
+
+            return true;
+        }
     }
 
     static class PruneFilters extends OptimizerRules.PruneFilters {

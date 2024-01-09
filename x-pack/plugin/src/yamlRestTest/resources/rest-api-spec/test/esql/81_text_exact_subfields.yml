@@ -30,6 +30,14 @@ setup:
                   raw:
                     type: keyword
                     normalizer: my_normalizer
+              non_indexed:
+                type: text
+                fields:
+                  raw:
+                    type: "keyword"
+                    index: false
+                    doc_values: false
+                    store: true
 
   - do:
       bulk:
@@ -37,9 +45,9 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "emp_no": 10, "text_ignore_above":"this is a long text", "text_normalizer": "CamelCase"}
+          - { "emp_no": 10, "text_ignore_above":"this is a long text", "text_normalizer": "CamelCase", "non_indexed": "foo"}
           - { "index": { } }
-          - { "emp_no": 20, "text_ignore_above":"this", "text_normalizer": "abc"}
+          - { "emp_no": 20, "text_ignore_above":"this", "text_normalizer": "abc", "non_indexed": "bar"}
 
 ---
 "extract":
@@ -48,7 +56,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | sort emp_no | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | sort emp_no | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -58,10 +66,14 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase"] }
-  - match: { values.1: [ "this", "this", "abc", "abc" ]}
+  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ]}
 
 ---
 "filter ignore above":
@@ -70,7 +82,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | where text_ignore_above == "this" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | where text_ignore_above == "this" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -80,16 +92,20 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this", "this", "abc", "abc" ]}
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
 
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | where text_ignore_above == "this is a long text" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | where text_ignore_above == "this is a long text" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -99,9 +115,13 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase"] }
+  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
 
 
   - do:
@@ -109,7 +129,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | where text_ignore_above is null | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | where text_ignore_above is null | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -119,6 +139,10 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 0 }
 
@@ -128,7 +152,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | where text_ignore_above LIKE "*long*" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | where text_ignore_above LIKE "*long*" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -138,9 +162,13 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase"] }
+  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
 
 ---
 "filter with normalizer":
@@ -149,7 +177,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | where text_normalizer == "CamelCase" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | where text_normalizer == "CamelCase" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -159,9 +187,13 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase"] }
+  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
 
 
   - do:
@@ -169,7 +201,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | where text_normalizer == text_normalizer.raw | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | where text_normalizer == text_normalizer.raw | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -179,9 +211,13 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 1 }
-  - match: { values.0: [ "this", "this", "abc", "abc" ]}
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
 
 
 ---
@@ -191,7 +227,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | sort text_ignore_above asc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | sort text_ignore_above asc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -201,17 +237,21 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
 
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | sort text_ignore_above desc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | sort text_ignore_above desc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -221,17 +261,21 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase"] }
-  - match: { values.1: [ "this", "this", "abc", "abc" ]}
+  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ]}
 
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | sort text_ignore_above asc nulls first | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | sort text_ignore_above asc nulls first | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -241,17 +285,21 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
 
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | sort text_ignore_above asc nulls last | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | sort text_ignore_above asc nulls last | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -261,10 +309,14 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
 
 
 
@@ -275,7 +327,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | sort text_normalizer asc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | sort text_normalizer asc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -285,10 +337,14 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase"] }
-  - match: { values.1: [ "this", "this", "abc", "abc" ]}
+  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ]}
 
 
   - do:
@@ -296,7 +352,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | sort text_normalizer desc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | sort text_normalizer desc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -306,10 +362,14 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
 
 
   - do:
@@ -317,7 +377,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test | sort text_normalizer.raw asc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw'
+          query: 'from test | sort text_normalizer.raw asc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
 
   - match: { columns.0.name: "text_ignore_above" }
   - match: { columns.0.type: "text" }
@@ -327,7 +387,85 @@ setup:
   - match: { columns.2.type: "text" }
   - match: { columns.3.name: "text_normalizer.raw" }
   - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
 
   - length: { values: 2 }
-  - match: { values.0: [ "this", "this", "abc", "abc" ]}
-  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase"] }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+
+
+---
+"non indexed":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort non_indexed asc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
+
+  - match: { columns.0.name: "text_ignore_above" }
+  - match: { columns.0.type: "text" }
+  - match: { columns.1.name: "text_ignore_above.raw" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "text_normalizer" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "text_normalizer.raw" }
+  - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+  - match: { values.1: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort non_indexed desc | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
+
+  - match: { columns.0.name: "text_ignore_above" }
+  - match: { columns.0.type: "text" }
+  - match: { columns.1.name: "text_ignore_above.raw" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "text_normalizer" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "text_normalizer.raw" }
+  - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }
+  - match: { values.1: [ "this", "this", "abc", "abc", "bar", "bar" ]}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where non_indexed == "foo" | keep text_ignore_above, text_ignore_above.raw, text_normalizer, text_normalizer.raw, non_indexed, non_indexed.raw'
+
+  - match: { columns.0.name: "text_ignore_above" }
+  - match: { columns.0.type: "text" }
+  - match: { columns.1.name: "text_ignore_above.raw" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "text_normalizer" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "text_normalizer.raw" }
+  - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "non_indexed" }
+  - match: { columns.4.type: "text" }
+  - match: { columns.5.name: "non_indexed.raw" }
+  - match: { columns.5.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ "this is a long text", null, "CamelCase", "camelcase", "foo", "foo"] }

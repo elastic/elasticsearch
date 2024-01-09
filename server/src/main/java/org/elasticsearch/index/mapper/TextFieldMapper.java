@@ -940,7 +940,7 @@ public final class TextFieldMapper extends FieldMapper {
         public boolean canUseSyntheticSourceDelegateForQuerying() {
             return syntheticSourceDelegate != null
                 && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
-                && syntheticSourceDelegate.isIndexed();
+                && (syntheticSourceDelegate.isIndexed() || syntheticSourceDelegate.isStored());
         }
 
         @Override

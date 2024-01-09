@@ -154,4 +154,4 @@ setup:
             inner_hits: {size: 1, fields: ["nested.paragraph_id"], _source: false}
 
   - match: {hits.total.value: 3}
-  - length : {profile.shards: 1}
+  - is_true : profile

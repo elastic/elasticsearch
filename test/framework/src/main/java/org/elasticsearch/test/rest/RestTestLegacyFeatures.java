@@ -16,6 +16,7 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 
 /**
  * This class groups historical features that have been removed from the production codebase, but are still used by the test
@@ -37,6 +38,23 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED = new NodeFeature(
         "indices.delete_template_multiple_names_supported"
     );
+    public static final NodeFeature ML_NEW_MEMORY_FORMAT = new NodeFeature("ml.new_memory_format");
+    @UpdateForV9
+    public static final NodeFeature SUPPORTS_VENDOR_XCONTENT_TYPES = new NodeFeature("rest.supports_vendor_xcontent_types");
+    @UpdateForV9
+    public static final NodeFeature SUPPORTS_TRUE_BINARY_RESPONSES = new NodeFeature("rest.supports_true_binary_responses");
+
+    /** These are "pure test" features: normally we would not need them, and test for TransportVersion/fallback to Version (see for example
+     * {@code ESRestTestCase#minimumTransportVersion()}. However, some tests explicitly check and validate the content of a response, so
+     * we need these features to support them.
+     */
+    public static final NodeFeature TRANSPORT_VERSION_SUPPORTED = new NodeFeature("transport_version_supported");
+    public static final NodeFeature STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION = new NodeFeature(
+        "state.transport_version_to_nodes_version"
+    );
+
+    // Ref: https://github.com/elastic/elasticsearch/pull/86416
+    public static final NodeFeature ML_MEMORY_OVERHEAD_FIXED = new NodeFeature("ml.memory_overhead_fixed");
 
     // QA - rolling upgrade tests
     public static final NodeFeature SECURITY_UPDATE_API_KEY = new NodeFeature("security.api_key_update");
@@ -73,6 +91,12 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0),
             entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
             entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0),
+            entry(ML_NEW_MEMORY_FORMAT, Version.V_8_11_0),
+            entry(SUPPORTS_VENDOR_XCONTENT_TYPES, Version.V_7_11_0),
+            entry(SUPPORTS_TRUE_BINARY_RESPONSES, Version.V_7_7_0),
+            entry(TRANSPORT_VERSION_SUPPORTED, VERSION_INTRODUCING_TRANSPORT_VERSIONS),
+            entry(STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION, Version.V_8_11_0),
+            entry(ML_MEMORY_OVERHEAD_FIXED, Version.V_8_2_1),
             entry(WATCHES_VERSION_IN_META, Version.V_7_13_0),
             entry(SECURITY_ROLE_DESCRIPTORS_OPTIONAL, Version.V_7_3_0),
             entry(SEARCH_AGGREGATIONS_FORCE_INTERVAL_SELECTION_DATE_HISTOGRAM, Version.V_7_2_0),

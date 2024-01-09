@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -51,13 +51,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.XPackSettings.APM_DATA_ENABLED;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -137,30 +138,30 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         assertThat(actualInstalledIndexTemplates.get(), equalTo(0));
     }
 
-    public void testIngestPipelines() {
+    public void testIngestPipelines() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         final List<IngestPipelineConfig> pipelineConfigs = apmIndexTemplateRegistry.getIngestPipelines();
         assertThat(pipelineConfigs, is(not(empty())));
 
-        pipelineConfigs.forEach(ingestPipelineConfig -> {
-            AtomicInteger putPipelineRequestsLocal = new AtomicInteger(0);
-            client.setVerifier((a, r, l) -> {
-                if (r instanceof PutPipelineRequest && ingestPipelineConfig.getId().equals(((PutPipelineRequest) r).getId())) {
-                    putPipelineRequestsLocal.incrementAndGet();
+        final Set<String> expectedPipelines = apmIndexTemplateRegistry.getIngestPipelines()
+            .stream()
+            .map(IngestPipelineConfig::getId)
+            .collect(Collectors.toSet());
+        final Set<String> installedPipelines = ConcurrentHashMap.newKeySet(pipelineConfigs.size());
+        client.setVerifier((a, r, l) -> {
+            if (r instanceof PutPipelineRequest putPipelineRequest) {
+                if (expectedPipelines.contains(putPipelineRequest.getId())) {
+                    installedPipelines.add(putPipelineRequest.getId());
                 }
-                return AcknowledgedResponse.TRUE;
-            });
-
-            apmIndexTemplateRegistry.clusterChanged(
-                createClusterChangedEvent(Map.of(), Map.of(), ingestPipelineConfig.getPipelineDependencies(), nodes)
-            );
-            try {
-                assertBusy(() -> assertThat(putPipelineRequestsLocal.get(), greaterThanOrEqualTo(1)));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
+            return AcknowledgedResponse.TRUE;
+        });
+
+        assertBusy(() -> {
+            apmIndexTemplateRegistry.clusterChanged(createClusterChangedEvent(Map.of(), Map.of(), List.copyOf(installedPipelines), nodes));
+            assertThat(installedPipelines, equalTo(expectedPipelines));
         });
     }
 
@@ -273,14 +274,15 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         if (action instanceof PutComponentTemplateAction) {
             componentTemplatesCounter.incrementAndGet();
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             indexTemplatesCounter.incrementAndGet();
-            assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-            final PutComposableIndexTemplateAction.Request putRequest = ((PutComposableIndexTemplateAction.Request) request);
+            assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+            final TransportPutComposableIndexTemplateAction.Request putRequest =
+                ((TransportPutComposableIndexTemplateAction.Request) request);
             assertThat(putRequest.indexTemplate().version(), equalTo((long) apmIndexTemplateRegistry.getVersion()));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutPipelineAction) {
+        } else if (action == PutPipelineTransportAction.TYPE) {
             ingestPipelinesCounter.incrementAndGet();
             return AcknowledgedResponse.TRUE;
         } else {
@@ -309,7 +311,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
     private ClusterChangedEvent createClusterChangedEvent(
         Map<String, Integer> existingComponentTemplates,
         Map<String, Integer> existingComposableTemplates,
-        List<String> ingestPipelines,
+        List<String> existingIngestPipelines,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
@@ -317,7 +319,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             Settings.EMPTY,
             existingComponentTemplates,
             existingComposableTemplates,
-            ingestPipelines,
+            existingIngestPipelines,
             existingPolicies,
             nodes
         );

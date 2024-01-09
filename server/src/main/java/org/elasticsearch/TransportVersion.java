@@ -109,13 +109,11 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     private static class CurrentHolder {
         private static final TransportVersion CURRENT = findCurrent();
 
-        // finds the pluggable current version, or uses the given fallback
+        // finds the pluggable current version
         private static TransportVersion findCurrent() {
-            var versionExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class), () -> null);
-            if (versionExtension == null) {
-                return TransportVersions.LATEST_DEFINED;
-            }
-            var version = versionExtension.getCurrentTransportVersion(TransportVersions.LATEST_DEFINED);
+            var version = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
+                .map(e -> e.getCurrentTransportVersion(TransportVersions.LATEST_DEFINED))
+                .orElse(TransportVersions.LATEST_DEFINED);
             assert version.onOrAfter(TransportVersions.LATEST_DEFINED);
             return version;
         }

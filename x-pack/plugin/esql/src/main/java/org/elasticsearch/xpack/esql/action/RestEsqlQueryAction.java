@@ -19,7 +19,6 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -48,7 +47,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         EsqlQueryRequest esqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            esqlRequest = EsqlQueryRequest.fromXContent(parser);
+            esqlRequest = EsqlQueryRequest.fromXContentSync(parser);
         }
 
         LOGGER.info("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());

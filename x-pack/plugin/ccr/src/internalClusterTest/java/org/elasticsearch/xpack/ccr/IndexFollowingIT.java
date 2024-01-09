@@ -34,7 +34,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -1348,10 +1348,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             final IndexRoutingTable indexRoutingTable = leaderRoutingTable.index("index1");
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 final ShardId shardId = indexRoutingTable.shard(i).shardId();
-                leaderClient().execute(
-                    RetentionLeaseActions.Remove.INSTANCE,
-                    new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)
-                ).get();
+                leaderClient().execute(RetentionLeaseActions.REMOVE, new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId))
+                    .get();
             }
         }, exceptions -> assertThat(exceptions.size(), greaterThan(0)));
     }
@@ -1736,8 +1734,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         ComposableIndexTemplate cit = ComposableIndexTemplate.builder().indexPatterns(List.of("follower")).template(template).build();
         assertAcked(
             followerClient().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
             )
         );
     }

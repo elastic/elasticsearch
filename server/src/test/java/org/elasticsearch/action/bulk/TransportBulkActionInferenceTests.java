@@ -278,11 +278,16 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
             var listener = (ActionListener<BulkShardResponse>) invocation.getArguments()[2];
             var bulkShardRequest = (BulkShardRequest) invocation.getArguments()[1];
             ShardId shardId = new ShardId(INDEX_NAME, "UUID", 0);
-                BulkItemResponse[] bulkItemResponses = Arrays.stream(bulkShardRequest.items()).map(item -> BulkItemResponse.success(item.id(), DocWriteRequest.OpType.INDEX, new IndexResponse(
-                    shardId,
-                    "id",
-                    0, 0, 0, true
-                ))).toArray(BulkItemResponse[]::new);
+                BulkItemResponse[] bulkItemResponses = Arrays.stream(bulkShardRequest.items())
+                    .map(item -> BulkItemResponse.success(
+                        item.id(),
+                        DocWriteRequest.OpType.INDEX,
+                        new IndexResponse(
+                            shardId,
+                            "id",
+                            0, 0, 0, true)
+                    )
+                ).toArray(BulkItemResponse[]::new);
 
                 listener.onResponse(new BulkShardResponse(shardId, bulkItemResponses));
             return null;
@@ -301,7 +306,8 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
             listener.onResponse(
                 new InferenceAction.Response(
                     new SparseEmbeddingResults(
-                        request.getInput().stream()
+                        request.getInput()
+                            .stream()
                             .map(
                                 text -> new SparseEmbeddingResults.Embedding(
                                     List.of(new SparseEmbeddingResults.WeightedToken(text.toString(), 1.0f)),

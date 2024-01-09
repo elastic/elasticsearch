@@ -395,7 +395,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue memoryLimitForSimple() {
+    protected ByteSizeValue enoughMemoryForSimple() {
         assumeFalse("strange exception in the test, fix soon", true);
         return ByteSizeValue.ofKb(1);
     }

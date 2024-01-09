@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -570,7 +570,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     @TestLogging(reason = "Get HttpTracer to output trace logs", value = "org.elasticsearch.http.HttpTracer:TRACE")
     public void testHttpTracerSendResponseSuccess() {
-        final ListenableActionFuture<Void> sendResponseFuture = new ListenableActionFuture<>();
+        final SubscribableListener<Void> sendResponseFuture = new SubscribableListener<>();
         final HttpChannel httpChannel = new FakeRestRequest.FakeHttpChannel(InetSocketAddress.createUnresolved("127.0.0.1", 9200)) {
             @Override
             public void sendResponse(HttpResponse response, ActionListener<Void> listener) {

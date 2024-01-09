@@ -177,15 +177,6 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
     }
 
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        /*
-         * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker.
-         */
-        return ByteSizeValue.ofBytes(775);
-    }
-
     public void testRamBytesUsed() {
         RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
             @Override

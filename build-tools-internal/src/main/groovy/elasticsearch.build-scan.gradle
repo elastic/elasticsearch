@@ -111,6 +111,9 @@ buildScan {
 
       value 'Job Name', jobName
       tag jobName
+      jobName.split('_').each { jobNamePart ->
+        tag jobNamePart
+      }
 
       if (branch) {
         tag branch

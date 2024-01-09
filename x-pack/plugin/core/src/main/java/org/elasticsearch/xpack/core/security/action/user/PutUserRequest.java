@@ -44,7 +44,7 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         roles = in.readStringArray();
         fullName = in.readOptionalString();
         email = in.readOptionalString();
-        metadata = in.readBoolean() ? in.readMap() : null;
+        metadata = in.readBoolean() ? in.readGenericMap() : null;
         refreshPolicy = RefreshPolicy.readFrom(in);
         enabled = in.readBoolean();
     }

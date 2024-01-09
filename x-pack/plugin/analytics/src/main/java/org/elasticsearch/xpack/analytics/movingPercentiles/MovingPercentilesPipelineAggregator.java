@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
@@ -41,7 +42,6 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        @SuppressWarnings("unchecked")
         InternalMultiBucketAggregation<?, ?> histo = (InternalMultiBucketAggregation<?, ?>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
@@ -74,7 +74,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
         List<TDigestState> values = buckets.stream()
             .map(b -> resolveTDigestBucketValue(histo, b, bucketsPaths()[0]))
-            .filter(v -> v != null)
+            .filter(Objects::nonNull)
             .toList();
 
         int index = 0;
@@ -124,7 +124,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
         List<DoubleHistogram> values = buckets.stream()
             .map(b -> resolveHDRBucketValue(histo, b, bucketsPaths()[0]))
-            .filter(v -> v != null)
+            .filter(Objects::nonNull)
             .toList();
 
         int index = 0;
@@ -257,10 +257,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         if (index < 0) {
             return 0;
         }
-        if (index > length) {
-            return length;
-        }
-        return index;
+        return Math.min(index, length);
     }
 
     // TODO: replace this with the PercentilesConfig that's used by the percentiles builder.

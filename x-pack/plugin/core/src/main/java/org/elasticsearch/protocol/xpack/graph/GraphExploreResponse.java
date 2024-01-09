@@ -13,23 +13,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
-import org.elasticsearch.protocol.xpack.graph.Connection.UnresolvedConnection;
 import org.elasticsearch.protocol.xpack.graph.Vertex.VertexId;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Graph explore response holds a graph of {@link Vertex} and {@link Connection} objects
@@ -199,52 +193,6 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         builder.endArray();
         builder.endObject();
         return builder;
-    }
-
-    private static final ConstructingObjectParser<GraphExploreResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "GraphExploreResponsenParser",
-        true,
-        args -> {
-            GraphExploreResponse result = new GraphExploreResponse();
-            result.vertices = new HashMap<>();
-            result.connections = new HashMap<>();
-
-            result.tookInMillis = (Long) args[0];
-            result.timedOut = (Boolean) args[1];
-
-            @SuppressWarnings("unchecked")
-            List<Vertex> vertices = (List<Vertex>) args[2];
-            @SuppressWarnings("unchecked")
-            List<UnresolvedConnection> unresolvedConnections = (List<UnresolvedConnection>) args[3];
-            @SuppressWarnings("unchecked")
-            List<ShardSearchFailure> failures = (List<ShardSearchFailure>) args[4];
-            for (Vertex vertex : vertices) {
-                // reverse-engineer if detailed stats were requested -
-                // mainly here for testing framework's equality tests
-                result.returnDetailedInfo = result.returnDetailedInfo || vertex.getFg() > 0;
-                result.vertices.put(vertex.getId(), vertex);
-            }
-            for (UnresolvedConnection unresolvedConnection : unresolvedConnections) {
-                Connection resolvedConnection = unresolvedConnection.resolve(vertices);
-                result.connections.put(resolvedConnection.getId(), resolvedConnection);
-            }
-            if (failures.size() > 0) {
-                result.shardFailures = failures.toArray(new ShardSearchFailure[failures.size()]);
-            }
-            return result;
-        }
-    );
-
-    static {
-        PARSER.declareLong(constructorArg(), TOOK);
-        PARSER.declareBoolean(constructorArg(), TIMED_OUT);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> Vertex.fromXContent(p), VERTICES);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> UnresolvedConnection.fromXContent(p), CONNECTIONS);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.fromXContent(p), FAILURES);
-    }
-
-    public static GraphExploreResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
     }
 
 }

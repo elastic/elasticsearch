@@ -156,7 +156,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
             }
         }
         if (in.readBoolean()) {
-            perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
+            perFieldAnalyzer = readPerFieldAnalyzer(in.readGenericMap());
         }
         if (in.readBoolean()) {
             filterSettings = new FilterSettings();

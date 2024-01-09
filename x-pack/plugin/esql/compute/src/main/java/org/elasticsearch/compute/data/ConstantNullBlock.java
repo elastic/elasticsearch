@@ -124,7 +124,7 @@ final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, Int
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed());
     }
 
     static class Builder implements Block.Builder {

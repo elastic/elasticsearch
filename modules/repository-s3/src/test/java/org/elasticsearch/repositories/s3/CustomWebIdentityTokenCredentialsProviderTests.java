@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
@@ -39,6 +40,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
@@ -63,7 +66,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "HTTP server is used for testing")
-    public void testCreateWebIdentityTokenCredentialsProvider() throws Exception {
+    private static HttpServer getHttpServer(Consumer<String> webIdentityTokenCheck) throws IOException {
         HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
         httpServer.createContext("/", exchange -> {
             try (exchange) {
@@ -72,6 +75,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                     .map(e -> e.split("="))
                     .collect(Collectors.toMap(e -> e[0], e -> URLDecoder.decode(e[1], StandardCharsets.UTF_8)));
                 assertEquals(ROLE_NAME, params.get("RoleSessionName"));
+                webIdentityTokenCheck.accept(params.get("WebIdentityToken"));
 
                 exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=UTF-8");
                 byte[] response = Strings.format(
@@ -107,20 +111,35 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             }
         });
         httpServer.start();
+        return httpServer;
+    }
+
+    @SuppressForbidden(reason = "HTTP server is used for testing")
+    private static Map<String, String> getSystemProperties(HttpServer httpServer) {
+        return Map.of(
+            "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
+            "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
+        );
+    }
+
+    private static Map<String, String> environmentVariables() {
+        return Map.of("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token", "AWS_ROLE_ARN", ROLE_ARN);
+    }
+
+    private static void assertCredentials(AWSCredentials credentials) {
+        Assert.assertFalse(credentials.getAWSAccessKeyId().isEmpty());
+        Assert.assertFalse(credentials.getAWSSecretKey().isEmpty());
+    }
+
+    @SuppressForbidden(reason = "HTTP server is used for testing")
+    public void testCreateWebIdentityTokenCredentialsProvider() throws Exception {
+        HttpServer httpServer = getHttpServer(s -> assertEquals("YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl", s));
 
         Environment environment = getEnvironment();
 
         // No region is set, but the SDK shouldn't fail because of that
-        Map<String, String> environmentVariables = Map.of(
-            "AWS_WEB_IDENTITY_TOKEN_FILE",
-            "/var/run/secrets/eks.amazonaws.com/serviceaccount/token",
-            "AWS_ROLE_ARN",
-            ROLE_ARN
-        );
-        Map<String, String> systemProperties = Map.of(
-            "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
-            "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
-        );
+        Map<String, String> environmentVariables = environmentVariables();
+        Map<String, String> systemProperties = getSystemProperties(httpServer);
         var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
             environment,
             environmentVariables::get,
@@ -136,8 +155,64 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                 webIdentityTokenCredentialsProvider
             ).getCredentials();
 
-            Assert.assertEquals("sts_access_key", credentials.getAWSAccessKeyId());
-            Assert.assertEquals("secret_access_key", credentials.getAWSSecretKey());
+            assertCredentials(credentials);
+        } finally {
+            webIdentityTokenCredentialsProvider.shutdown();
+            httpServer.stop(0);
+        }
+    }
+
+    private static class DelegatingConsumer implements Consumer<String> {
+        private Consumer<String> delegate;
+
+        private DelegatingConsumer(Consumer<String> delegate) {
+            this.delegate = delegate;
+        }
+
+        private void setDelegate(Consumer<String> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void accept(String s) {
+            delegate.accept(s);
+        }
+    }
+
+    @SuppressForbidden(reason = "HTTP server is used for testing")
+    public void testPickUpNewWebIdentityTokenInBackground() throws Exception {
+        DelegatingConsumer webIdentityTokenCheck = new DelegatingConsumer(s -> assertEquals("YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl", s));
+
+        HttpServer httpServer = getHttpServer(webIdentityTokenCheck);
+        Environment environment = getEnvironment();
+        Map<String, String> environmentVariables = environmentVariables();
+        Map<String, String> systemProperties = getSystemProperties(httpServer);
+        var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
+            environment,
+            environmentVariables::get,
+            systemProperties::getOrDefault,
+            Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC),
+            threadPool,
+            TimeValue.timeValueSeconds(1)
+        );
+        try {
+            AWSCredentialsProvider awsCredentialsProvider = S3Service.buildCredentials(
+                LogManager.getLogger(S3Service.class),
+                S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8)),
+                webIdentityTokenCredentialsProvider
+            );
+            assertCredentials(awsCredentialsProvider.getCredentials());
+
+            String newWebIdentityToken = "88f84342080d4671a511e10ae905b2b0";
+            Files.writeString(environment.configFile().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
+            var latch = new CountDownLatch(1);
+            webIdentityTokenCheck.setDelegate(s -> {
+                if (s.equals(newWebIdentityToken)) {
+                    latch.countDown();
+                }
+            });
+            safeAwait(latch);
+            assertCredentials(awsCredentialsProvider.getCredentials());
         } finally {
             webIdentityTokenCredentialsProvider.shutdown();
             httpServer.stop(0);

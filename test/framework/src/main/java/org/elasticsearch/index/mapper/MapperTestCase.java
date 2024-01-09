@@ -1263,7 +1263,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * @param columnAtATimeReader true if reading from doc-values is supported
      * @param rowStrideReader true if reading from source is supported
      */
-    protected record SupportedReaders(boolean columnAtATimeReader, boolean rowStrideReader) {}
+    public record SupportedReaders(boolean columnAtATimeReader, boolean rowStrideReader) {}
 
     private void testBlockLoader(boolean syntheticSource, boolean columnReader) throws IOException {
         // TODO if we're not using synthetic source use a different sort of example. Or something.

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.SystemIndices;
@@ -149,8 +148,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
 
-        Map<String, List<DataStreamAlias>> dsAliases = state
-            .metadata()
+        Map<String, List<DataStreamAlias>> dsAliases = state.metadata()
             .findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
 
         for (String requestedDataStream : requestedDataStreams) {

@@ -880,8 +880,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         var allDataStreamAliases = dataStreamAliases().values();
         for (String dataStream : dataStreams) {
             List<DataStreamAlias> filteredValues = new ArrayList<>();
-            List<DataStreamAlias> dsAliases = allDataStreamAliases
-                .stream()
+            List<DataStreamAlias> dsAliases = allDataStreamAliases.stream()
                 .filter(alias -> alias.getDataStreams().contains(dataStream))
                 .toList();
             for (DataStreamAlias dsAlias : dsAliases) {

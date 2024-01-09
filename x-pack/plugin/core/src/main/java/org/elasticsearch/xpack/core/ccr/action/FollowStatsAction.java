@@ -106,8 +106,11 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         }
 
         private static long calcFollowerToLeaderLaggingOps(Map<Integer, StatsResponse> followShardTaskStats) {
-            return followShardTaskStats.values().stream().map(StatsResponse::status).mapToLong(s -> s.leaderGlobalCheckpoint() - s
-                .followerGlobalCheckpoint()).sum();
+            return followShardTaskStats.values()
+                .stream()
+                .map(StatsResponse::status)
+                .mapToLong(s -> s.leaderGlobalCheckpoint() - s.followerGlobalCheckpoint())
+                .sum();
         }
 
         @Override

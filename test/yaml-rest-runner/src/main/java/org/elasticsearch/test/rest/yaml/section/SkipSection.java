@@ -215,9 +215,9 @@ public class SkipSection {
                     parseFeature(parser.text(), builder);
                 } else if ("os".equals(currentFieldName)) {
                     builder.skipOs(parser.text());
-                } else if ("cluster_has_features".equals(currentFieldName)) {
+                } else if ("cluster_features_present".equals(currentFieldName)) {
                     builder.skipIfClusterFeaturesPresent(parser.text());
-                } else if ("cluster_lacks_features".equals(currentFieldName)) {
+                } else if ("cluster_features_absent".equals(currentFieldName)) {
                     builder.skipIfClusterFeaturesAbsent(parser.text());
                 } else {
                     throw new ParsingException(
@@ -234,11 +234,11 @@ public class SkipSection {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         builder.skipOs(parser.text());
                     }
-                } else if ("cluster_has_features".equals(currentFieldName)) {
+                } else if ("cluster_features_present".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         builder.skipIfClusterFeaturesPresent(parser.text());
                     }
-                } else if ("cluster_lacks_features".equals(currentFieldName)) {
+                } else if ("cluster_features_absent".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         builder.skipIfClusterFeaturesAbsent(parser.text());
                     }

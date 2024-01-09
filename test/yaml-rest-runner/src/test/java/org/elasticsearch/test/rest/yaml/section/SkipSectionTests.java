@@ -314,7 +314,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionRequireClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-            cluster_lacks_features:          needed-feature
+            cluster_features_absent:          needed-feature
             reason:      test skipped when cluster lacks needed-feature
             """);
 
@@ -327,7 +327,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionSkipClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-            cluster_has_features:          undesired-feature
+            cluster_features_present:          undesired-feature
             reason:      test skipped when undesired-feature is present
             """);
 
@@ -340,8 +340,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionRequireAndSkipClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-            cluster_lacks_features:        needed-feature
-            cluster_has_features:          undesired-feature
+            cluster_features_absent:        needed-feature
+            cluster_features_present:          undesired-feature
             reason:      test need needed-feature to run, but not when undesired-feature is present
             """);
 
@@ -355,8 +355,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionRequireAndSkipMultipleClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-            cluster_lacks_features:        [needed-feature-1, needed-feature-2]
-            cluster_has_features:          [undesired-feature-1, undesired-feature-2]
+            cluster_features_absent:        [needed-feature-1, needed-feature-2]
+            cluster_features_present:          [undesired-feature-1, undesired-feature-2]
             reason:      test needs some to run, but not when others are present
             """);
 
@@ -370,8 +370,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionSameRequireAndSkipClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-            cluster_lacks_features:        some-feature
-            cluster_has_features:          some-feature
+            cluster_features_absent:        some-feature
+            cluster_features_present:          some-feature
             reason:      test needs some-feature to run, but not when some-feature is present
             """);
 

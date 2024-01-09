@@ -28,12 +28,12 @@ public class OptionalMatchers {
 
         @Override
         protected void describeMismatchSafely(Optional<?> item, Description mismatchDescription) {
-            mismatchDescription.appendText("was not an empty optional");
+            mismatchDescription.appendText("a non-empty optional ").appendValue(item.get());
         }
 
         @Override
         public void describeTo(Description description) {
-            description.appendText("empty optional");
+            description.appendText("an empty optional");
         }
     }
 
@@ -56,18 +56,18 @@ public class OptionalMatchers {
 
         @Override
         public void describeTo(Description description) {
-            description.appendText("non-empty optional with item ").appendDescriptionOf(contents);
+            description.appendText("a non-empty optional ").appendDescriptionOf(contents);
         }
 
         @Override
         public void describeMismatch(Object item, Description description) {
             Optional<?> opt = (Optional<?>) item;
             if (opt.isEmpty()) {
-                description.appendText("empty optional");
+                description.appendText("an empty optional");
                 return;
             }
 
-            description.appendText("optional with ");
+            description.appendText("an optional ");
             contents.describeMismatch(opt.get(), description);
         }
     }

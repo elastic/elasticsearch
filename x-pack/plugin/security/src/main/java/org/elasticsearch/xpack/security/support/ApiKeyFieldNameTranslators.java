@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.common.regex.Regex;
+
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -20,12 +24,14 @@ public class ApiKeyFieldNameTranslators {
         FIELD_NAME_TRANSLATORS = List.of(
             new ExactFieldNameTranslator(s -> "creator.principal", "username"),
             new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
-            new ExactFieldNameTranslator(Function.identity(), "name"),
+            new ExactFieldNameTranslator(s -> "name", "name"),
             new ExactFieldNameTranslator(s -> "creation_time", "creation"),
             new ExactFieldNameTranslator(s -> "expiration_time", "expiration"),
             new ExactFieldNameTranslator(s -> "api_key_invalidated", "invalidated"),
             new ExactFieldNameTranslator(s -> "invalidation_time", "invalidation"),
-            new PrefixFieldNameTranslator(s -> "metadata_flattened" + s.substring(8), "metadata.")
+            // allows querying on all metadata values as keywords because "metadata_flattened" is a flattened field type
+            new ExactFieldNameTranslator(s -> "metadata_flattened", "metadata"),
+            new PrefixFieldNameTranslator(s -> "metadata_flattened." + s.substring("metadata.".length()), "metadata.")
         );
     }
 
@@ -34,12 +40,25 @@ public class ApiKeyFieldNameTranslators {
      * It throws an exception if the field name is not explicitly allowed.
      */
     public static String translate(String fieldName) {
+        if (Regex.isSimpleMatchPattern(fieldName)) {
+            throw new IllegalArgumentException("Field name pattern [" + fieldName + "] is not allowed for API Key query");
+        }
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
             if (translator.supports(fieldName)) {
                 return translator.translate(fieldName);
             }
         }
         throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query");
+    }
+
+    public static Set<String> translatePattern(String fieldNamePattern) {
+        Set<String> indexFieldNames = new HashSet<>();
+        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
+            if (translator.supports(fieldNamePattern)) {
+                indexFieldNames.add(translator.translate(fieldNamePattern));
+            }
+        }
+        return indexFieldNames;
     }
 
     abstract static class FieldNameTranslator {
@@ -66,8 +85,12 @@ public class ApiKeyFieldNameTranslators {
         }
 
         @Override
-        public boolean supports(String fieldName) {
-            return name.equals(fieldName);
+        public boolean supports(String fieldNameOrPattern) {
+            if (Regex.isSimpleMatchPattern(fieldNameOrPattern)) {
+                return Regex.simpleMatch(fieldNameOrPattern, name);
+            } else {
+                return name.equals(fieldNameOrPattern);
+            }
         }
     }
 
@@ -80,8 +103,13 @@ public class ApiKeyFieldNameTranslators {
         }
 
         @Override
-        boolean supports(String fieldName) {
-            return fieldName.startsWith(prefix);
+        boolean supports(String fieldNamePrefix) {
+            // a pattern can generally match a prefix in multiple ways
+            // moreover, it's not possible to iterate the concrete fields matching the prefix
+            if (Regex.isSimpleMatchPattern(fieldNamePrefix)) {
+                return false;
+            }
+            return fieldNamePrefix.startsWith(prefix);
         }
     }
 }

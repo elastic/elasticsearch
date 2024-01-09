@@ -19,14 +19,18 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
@@ -139,6 +143,27 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                 newQuery.to(query.to()).includeUpper(query.includeUpper());
             }
             return newQuery.boost(query.boost());
+        } else if (qb instanceof final SimpleQueryStringBuilder simpleQueryStringBuilder) {
+            if (simpleQueryStringBuilder.fields().isEmpty()) {
+                simpleQueryStringBuilder.field("*");
+            }
+            // override lenient if querying all the fields, because, due to different field mappings,
+            // the query parsing will almost certainly fail otherwise
+            if (QueryParserHelper.hasAllFieldsWildcard(simpleQueryStringBuilder.fields().keySet())) {
+                simpleQueryStringBuilder.lenient(true);
+            }
+            Map<String, Float> requestedFields = new HashMap<>(simpleQueryStringBuilder.fields());
+            simpleQueryStringBuilder.fields().clear();
+            for (Map.Entry<String, Float> requestedFieldNameOrPattern : requestedFields.entrySet()) {
+                for (String translatedField : ApiKeyFieldNameTranslators.translatePattern(requestedFieldNameOrPattern.getKey())) {
+                    simpleQueryStringBuilder.fields()
+                        .compute(
+                            translatedField,
+                            (k, v) -> (v == null) ? requestedFieldNameOrPattern.getValue() : v * requestedFieldNameOrPattern.getValue()
+                        );
+                }
+            }
+            return simpleQueryStringBuilder;
         } else {
             throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
         }

@@ -114,6 +114,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "read_security",
     "read_slm",
     "transport_client",
+    "write_connector_secrets",
     "write_fleet_secrets"
   ],
   "index" : [

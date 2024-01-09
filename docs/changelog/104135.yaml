@@ -1,6 +1,0 @@
-pr: 104135
-summary: "[s3-repository] Refresh Web Identity Credentials in background"
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 101828

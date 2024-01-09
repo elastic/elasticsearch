@@ -85,8 +85,10 @@ import java.util.stream.Collectors;
  *                 "type": "nested",
  *                 "properties": {
  *                     "sparse_embedding": {
- *                         "embedding": {
- *                             "type": "sparse_vector"
+ *                         "properties": {
+ *                             "embedding": {
+ *                                 "type": "sparse_vector"
+ *                             }
  *                         }
  *                     },
  *                     "text": {
@@ -261,6 +263,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             SPARSE_VECTOR_SUBFIELD_NAME,
             ObjectMapper.Defaults.SUBOBJECTS
         ).add(
+            // TODO: How to add this field mapper without indexing the value?
             new BooleanFieldMapper.Builder(SparseEmbeddingResults.Embedding.IS_TRUNCATED, ScriptCompiler.NONE, false, indexVersionCreated)
         ).add(new SparseVectorFieldMapper.Builder(SparseEmbeddingResults.Embedding.EMBEDDING));
         TextFieldMapper.Builder textMapperBuilder = new TextFieldMapper.Builder(

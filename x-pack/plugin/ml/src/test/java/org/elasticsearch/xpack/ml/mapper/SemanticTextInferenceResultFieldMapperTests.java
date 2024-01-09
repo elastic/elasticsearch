@@ -378,12 +378,15 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     }
 
     private static void addInferenceResultsNestedMapping(XContentBuilder mappingBuilder, String semanticTextFieldName) throws IOException {
-        // TODO: Update mapping to account for embedding
         mappingBuilder.startObject(semanticTextFieldName);
         mappingBuilder.field("type", "nested");
         mappingBuilder.startObject("properties");
         mappingBuilder.startObject(SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME);
+        mappingBuilder.startObject("properties");
+        mappingBuilder.startObject(SparseEmbeddingResults.Embedding.EMBEDDING);
         mappingBuilder.field("type", "sparse_vector");
+        mappingBuilder.endObject();
+        mappingBuilder.endObject();
         mappingBuilder.endObject();
         mappingBuilder.startObject(SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME);
         mappingBuilder.field("type", "text");
@@ -398,7 +401,6 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         LuceneDocument expectedParent,
         Set<VisitedChildDocInfo> visitedChildDocs
     ) {
-
         assertEquals(expectedParent, childDoc.getParent());
         visitedChildDocs.add(
             new VisitedChildDocInfo(

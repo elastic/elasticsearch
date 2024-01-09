@@ -383,7 +383,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
-    public void testNullColumnsXContentColumnarDropNulls() {
+    public void testNullColumnsXContentDropNulls() {
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
                 List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("all_null", "integer")),
@@ -402,6 +402,36 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     "columns":[{"name":"foo","type":"integer"}],""" + """
                     "values":[[40],[80]]}""")
             );
+        }
+    }
+
+    /**
+     * This is a paranoid test to make sure the {@link Block}s produced by {@link Block.Builder}
+     * that contain only {@code null} entries are properly recognized by the {@link EsqlQueryResponse#DROP_NULL_COLUMNS_OPTION}.
+     */
+    public void testNullColumnsFromBuilderXContentDropNulls() {
+        try (IntBlock.Builder b = blockFactory.newIntBlockBuilder(2)) {
+            b.appendNull();
+            b.appendNull();
+            try (
+                EsqlQueryResponse response = new EsqlQueryResponse(
+                    List.of(new ColumnInfo("foo", "integer"), new ColumnInfo("all_null", "integer")),
+                    List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock(), b.build())),
+                    null,
+                    false,
+                    null,
+                    false,
+                    false
+                )
+            ) {
+                assertThat(
+                    Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
+                    equalTo("{" + """
+                        "null_columns":[{"name":"all_null","type":"integer"}],""" + """
+                        "columns":[{"name":"foo","type":"integer"}],""" + """
+                        "values":[[40],[80]]}""")
+                );
+            }
         }
     }
 

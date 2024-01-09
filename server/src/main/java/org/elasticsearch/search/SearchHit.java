@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Poolable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -76,7 +75,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  * @see SearchHits
  */
-public final class SearchHit implements Writeable, ToXContentObject, Poolable<SearchHit>, RefCounted {
+public final class SearchHit implements Writeable, ToXContentObject, RefCounted {
 
     private final transient int docId;
 
@@ -735,7 +734,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         return refCounted.hasReferences();
     }
 
-    @Override
     public SearchHit asUnpooled() {
         assert hasReferences();
         if (isPooled() == false) {
@@ -768,7 +766,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         );
     }
 
-    @Override
     public boolean isPooled() {
         return refCounted != ALWAYS_REFERENCED;
     }

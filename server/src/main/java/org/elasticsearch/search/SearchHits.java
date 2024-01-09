@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Poolable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.transport.LeakTracker;
@@ -36,7 +35,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Poolable<SearchHits>, Iterable<SearchHit> {
+public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
     public static final SearchHits EMPTY_WITH_TOTAL_HITS = SearchHits.empty(new TotalHits(0, Relation.EQUAL_TO), 0);
@@ -254,10 +253,9 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return refCounted.hasReferences();
     }
 
-    @Override
     public SearchHits asUnpooled() {
         assert hasReferences();
-        if (isPooled() == false) {
+        if (refCounted == ALWAYS_REFERENCED) {
             return this;
         }
         final SearchHit[] unpooledHits = new SearchHit[hits.length];
@@ -265,11 +263,6 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             unpooledHits[i] = hits[i].asUnpooled();
         }
         return unpooled(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues);
-    }
-
-    @Override
-    public boolean isPooled() {
-        return refCounted != ALWAYS_REFERENCED;
     }
 
     public static final class Fields {

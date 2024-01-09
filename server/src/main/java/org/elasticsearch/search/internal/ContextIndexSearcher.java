@@ -194,8 +194,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        Timer rewriteTimer = null;
         if (profiler != null) {
-            profiler.startRewriteTime();
+            rewriteTimer = profiler.startRewriteTime();
         }
         try {
             return super.rewrite(original);
@@ -204,7 +205,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return new MatchNoDocsQuery("rewrite timed out");
         } finally {
             if (profiler != null) {
-                profiler.stopAndAddRewriteTime();
+                profiler.stopAndAddRewriteTime(rewriteTimer);
             }
         }
     }

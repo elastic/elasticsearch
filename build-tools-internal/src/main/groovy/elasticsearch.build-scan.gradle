@@ -169,5 +169,5 @@ buildScan {
 }
 
 static def safeName(String string) {
-  return string.replaceAll(/[^a-zA-Z0-9_\-]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
+  return string.replaceAll(/[^a-zA-Z0-9_\-\.]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 }

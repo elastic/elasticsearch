@@ -1193,7 +1193,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         return v -> ((BytesRef) v).utf8ToString();
     }
 
-    protected boolean nullLoaderExpected(MapperService mapper, String fieldName) {
+    private boolean nullLoaderExpected(MapperService mapper, String fieldName) {
         MappedFieldType type = mapper.fieldType(fieldName);
         if (type instanceof TextFieldType t) {
             if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegateForQuerying() || t.isStored()) {

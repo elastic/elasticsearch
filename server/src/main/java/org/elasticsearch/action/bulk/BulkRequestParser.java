@@ -399,6 +399,12 @@ public final class BulkRequestParser {
                                 "Update requests do not support versioning. " + "Please use `if_seq_no` and `if_primary_term` instead"
                             );
                         }
+                        if (requireDataStream) {
+                            throw new IllegalArgumentException(
+                                "Update requests do not support the `require_data_stream` flag, "
+                                    + "as data streams do not support update operations"
+                            );
+                        }
                         // TODO: support dynamic_templates in update requests
                         if (dynamicTemplates.isEmpty() == false) {
                             throw new IllegalArgumentException(
@@ -412,7 +418,6 @@ public final class BulkRequestParser {
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)
                             .setRequireAlias(requireAlias)
-                            .setRequireDataStream(requireDataStream)
                             .routing(routing);
                         try (
                             XContentParser sliceParser = createParser(

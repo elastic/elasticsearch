@@ -103,7 +103,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
     private void registerMlNodeMetrics(MeterRegistry meterRegistry) {
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.native_memory.usage",
+                "es.ml.native_memory.limit.size",
                 "ML native memory limit on this node.",
                 "bytes",
                 () -> new LongWithAttributes(nativeMemLimit, Map.of())
@@ -111,7 +111,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.native_memory.usage.anomaly_detectors.usage",
+                "es.ml.native_memory.anomaly_detectors.usage",
                 "ML native memory used by anomaly detection jobs on this node.",
                 "bytes",
                 () -> new LongWithAttributes(nativeMemAdUsage, Map.of())
@@ -119,7 +119,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.native_memory.usage.data_frame_analytics.usage",
+                "es.ml.native_memory.data_frame_analytics.usage",
                 "ML native memory used by data frame analytics jobs on this node.",
                 "bytes",
                 () -> new LongWithAttributes(nativeMemDfaUsage, Map.of())
@@ -127,7 +127,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.native_memory.usage.trained_models.usage",
+                "es.ml.native_memory.trained_models.usage",
                 "ML native memory used by trained models on this node.",
                 "bytes",
                 () -> new LongWithAttributes(nativeMemTrainedModelUsage, Map.of())

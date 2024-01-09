@@ -46,7 +46,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         );
         final Exception ex = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex("test").setSource(
+            prepareIndex("test").setSource(
                 "routing_field",
                 randomAlphaOfLength(10),
                 dimensionFieldName,
@@ -55,7 +55,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
                 randomIntBetween(10, 20),
                 "@timestamp",
                 Instant.now().toEpochMilli()
-            ).get()
+            )
         );
         assertThat(
             ex.getCause().getMessage(),
@@ -78,14 +78,14 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             .get();
         final Exception ex = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex("test").setSource(
+            prepareIndex("test").setSource(
                 "field",
                 randomAlphaOfLength(1025),
                 "gauge",
                 randomIntBetween(10, 20),
                 "@timestamp",
                 startTime + 1
-            ).get()
+            )
         );
         assertThat(ex.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1025]."));
     }
@@ -169,7 +169,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         for (int i = 0; i < dimensionFieldLimit; i++) {
             source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1024));
         }
-        final Exception ex = expectThrows(DocumentParsingException.class, () -> prepareIndex("test").setSource(source).get());
+        final Exception ex = expectThrows(DocumentParsingException.class, prepareIndex("test").setSource(source));
         assertEquals("_tsid longer than [32766] bytes [33903].", ex.getCause().getMessage());
     }
 

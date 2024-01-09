@@ -156,6 +156,25 @@ final class DynamicFieldsBuilder {
     }
 
     /**
+     * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
+     */
+    static Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
+        Mapper mapper = createObjectMapperFromTemplate(context, name);
+        return mapper != null
+            ? mapper
+            : new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(ObjectMapper.Defaults.ENABLED)
+                .build(context.createDynamicMapperBuilderContext());
+    }
+
+    /**
+     * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
+     */
+    static Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
+        Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
+        return templateBuilder == null ? null : templateBuilder.build(context.createDynamicMapperBuilderContext());
+    }
+
+    /**
      * Creates a dynamic string field based on a matching dynamic template.
      * No field is created in case there is no matching dynamic template.
      */
@@ -234,10 +253,7 @@ final class DynamicFieldsBuilder {
         return true;
     }
 
-    /**
-     * Returns a dynamically created object builder, based exclusively on a matching dynamic template, null otherwise.
-     */
-    static Mapper.Builder findTemplateBuilderForObject(DocumentParserContext context, String name) {
+    private static Mapper.Builder findTemplateBuilderForObject(DocumentParserContext context, String name) {
         DynamicTemplate.XContentFieldType matchType = DynamicTemplate.XContentFieldType.OBJECT;
         DynamicTemplate dynamicTemplate = context.findDynamicTemplate(name, matchType);
         if (dynamicTemplate == null) {
@@ -293,7 +309,7 @@ final class DynamicFieldsBuilder {
 
         void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
             Mapper mapper = builder.build(context.createDynamicMapperBuilderContext());
-            context.addDynamicMapper(mapper.name(), builder);
+            context.addDynamicMapper(mapper);
             parseField.accept(context, mapper);
         }
 

@@ -13,7 +13,6 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.StreamReadConstraints;
 
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,6 +20,7 @@ import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.XContentImplUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,12 +46,7 @@ public class JsonXContentImpl implements XContent {
     }
 
     static {
-        var builder = new JsonFactoryBuilder();
-        // jackson 2.15 introduced a max string length. We have other limits in place to constrain max doc size,
-        // so here we set to max value (2GiB) so as not to constrain further than those existing limits.
-        builder.streamReadConstraints(StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build());
-
-        jsonFactory = builder.build();
+        jsonFactory = XContentImplUtils.configure(new JsonFactoryBuilder());
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...

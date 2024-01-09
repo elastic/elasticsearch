@@ -66,7 +66,7 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         this.application = input.readString();
         this.name = input.readString();
         this.actions = input.readCollectionAsImmutableSet(StreamInput::readString);
-        this.metadata = Collections.unmodifiableMap(input.readMap());
+        this.metadata = Collections.unmodifiableMap(input.readGenericMap());
     }
 
     @Override

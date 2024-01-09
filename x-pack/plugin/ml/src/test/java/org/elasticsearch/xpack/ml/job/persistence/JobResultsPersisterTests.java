@@ -11,9 +11,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -373,7 +373,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
+        doAnswer(withResponse(indexResponse)).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
 
         Quantiles quantiles = new Quantiles("foo", new Date(), "bar");
         ActionListener<DocWriteResponse> indexResponseListener = mock(ActionListener.class);
@@ -381,7 +381,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         InOrder inOrder = inOrder(client, indexResponseListener);
         inOrder.verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
-        inOrder.verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        inOrder.verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         inOrder.verify(indexResponseListener).onResponse(any());
         inOrder.verifyNoMoreInteractions();
 

@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.AdminClient;
@@ -121,12 +121,13 @@ public class MlIndexAndAliasTests extends ESTestCase {
             return null;
         }).when(client)
             .execute(
-                any(PutComposableIndexTemplateAction.class),
-                any(PutComposableIndexTemplateAction.Request.class),
+                same(TransportPutComposableIndexTemplateAction.TYPE),
+                any(TransportPutComposableIndexTemplateAction.Request.class),
                 any(ActionListener.class)
             );
 
         listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
 
         createRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         aliasesRequestCaptor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
@@ -171,7 +172,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
             listener
         );
         InOrder inOrder = inOrder(client, listener);
-        inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        inOrder.verify(listener).delegateFailureAndWrap(any());
+        inOrder.verify(client).execute(same(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
         inOrder.verify(listener).onResponse(true);
     }
 
@@ -236,7 +238,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
             listener
         );
         InOrder inOrder = inOrder(client, listener);
-        inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        inOrder.verify(listener).delegateFailureAndWrap(any());
+        inOrder.verify(client).execute(same(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
         inOrder.verify(listener).onResponse(true);
     }
 

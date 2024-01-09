@@ -11,7 +11,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -21,7 +22,7 @@ public class Cast {
     /**
      * Build the evaluator supplier to cast {@code in} from {@code current} to {@code required}.
      */
-    public static ExpressionEvaluator.Factory cast(DataType current, DataType required, ExpressionEvaluator.Factory in) {
+    public static ExpressionEvaluator.Factory cast(Source source, DataType current, DataType required, ExpressionEvaluator.Factory in) {
         if (current == required) {
             return in;
         }
@@ -30,27 +31,27 @@ public class Cast {
         }
         if (required == DataTypes.DOUBLE) {
             if (current == DataTypes.LONG) {
-                return new CastLongToDoubleEvaluator.Factory(in);
+                return new CastLongToDoubleEvaluator.Factory(source, in);
             }
             if (current == DataTypes.INTEGER) {
-                return new CastIntToDoubleEvaluator.Factory(in);
+                return new CastIntToDoubleEvaluator.Factory(source, in);
             }
             if (current == DataTypes.UNSIGNED_LONG) {
-                return new CastUnsignedLongToDoubleEvaluator.Factory(in);
+                return new CastUnsignedLongToDoubleEvaluator.Factory(source, in);
             }
             throw cantCast(current, required);
         }
         if (required == DataTypes.UNSIGNED_LONG) {
             if (current == DataTypes.LONG) {
-                return new CastLongToUnsignedLongEvaluator.Factory(in);
+                return new CastLongToUnsignedLongEvaluator.Factory(source, in);
             }
             if (current == DataTypes.INTEGER) {
-                return new CastIntToUnsignedLongEvaluator.Factory(in);
+                return new CastIntToUnsignedLongEvaluator.Factory(source, in);
             }
         }
         if (required == DataTypes.LONG) {
             if (current == DataTypes.INTEGER) {
-                return new CastIntToLongEvaluator.Factory(in);
+                return new CastIntToLongEvaluator.Factory(source, in);
             }
             throw cantCast(current, required);
         }
@@ -87,9 +88,10 @@ public class Cast {
     }
 
     @Evaluator(extraName = "LongToUnsignedLong")
+    // TODO: catch-to-null in evaluator?
     static long castLongToUnsignedLong(long v) {
         if (v < 0) {
-            throw new QlIllegalArgumentException("[" + v + "] out of [unsigned_long] range");
+            throw new InvalidArgumentException("[" + v + "] out of [unsigned_long] range");
         }
         return v;
     }

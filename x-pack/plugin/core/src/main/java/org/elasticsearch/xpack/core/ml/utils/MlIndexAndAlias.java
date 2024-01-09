@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -113,13 +113,13 @@ public final class MlIndexAndAlias {
         });
 
         // If both the index and alias were successfully created then wait for the shards of the index that the alias points to be ready
-        ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(created -> {
+        ActionListener<Boolean> indexCreatedListener = loggingListener.delegateFailureAndWrap((delegate, created) -> {
             if (created) {
-                waitForShardsReady(client, alias, masterNodeTimeout, loggingListener);
+                waitForShardsReady(client, alias, masterNodeTimeout, delegate);
             } else {
-                loggingListener.onResponse(false);
+                delegate.onResponse(false);
             }
-        }, loggingListener::onFailure);
+        });
 
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
@@ -152,9 +152,8 @@ public final class MlIndexAndAlias {
                     firstConcreteIndex,
                     alias,
                     false,
-                    ActionListener.wrap(
-                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, indexCreatedListener),
-                        loggingListener::onFailure
+                    indexCreatedListener.delegateFailureAndWrap(
+                        (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, l)
                     )
                 );
                 return;
@@ -218,10 +217,7 @@ public final class MlIndexAndAlias {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             createIndexRequest,
-            ActionListener.<CreateIndexResponse>wrap(
-                r -> indexCreatedListener.onResponse(r.isAcknowledged()),
-                indexCreatedListener::onFailure
-            ),
+            indexCreatedListener.<CreateIndexResponse>delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged())),
             client.admin().indices()::create
         );
     }
@@ -235,10 +231,7 @@ public final class MlIndexAndAlias {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             healthRequest,
-            ActionListener.<ClusterHealthResponse>wrap(
-                response -> listener.onResponse(response.isTimedOut() == false),
-                listener::onFailure
-            ),
+            listener.<ClusterHealthResponse>delegateFailureAndWrap((l, response) -> l.onResponse(response.isTimedOut() == false)),
             client.admin().cluster()::health
         );
     }
@@ -302,7 +295,7 @@ public final class MlIndexAndAlias {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             request,
-            ActionListener.<AcknowledgedResponse>wrap(resp -> listener.onResponse(resp.isAcknowledged()), listener::onFailure),
+            listener.<AcknowledgedResponse>delegateFailureAndWrap((l, resp) -> l.onResponse(resp.isAcknowledged())),
             client.admin().indices()::aliases
         );
     }
@@ -335,12 +328,10 @@ public final class MlIndexAndAlias {
             return;
         }
 
-        PutComposableIndexTemplateAction.Request request;
-        try {
-            request = new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                ComposableIndexTemplate.parse(
-                    JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())
-                )
+        TransportPutComposableIndexTemplateAction.Request request;
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+            request = new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
+                ComposableIndexTemplate.parse(parser)
             ).masterNodeTimeout(masterTimeout);
         } catch (IOException e) {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
@@ -362,7 +353,7 @@ public final class MlIndexAndAlias {
     public static void installIndexTemplateIfRequired(
         ClusterState clusterState,
         Client client,
-        PutComposableIndexTemplateAction.Request templateRequest,
+        TransportPutComposableIndexTemplateAction.Request templateRequest,
         ActionListener<Boolean> listener
     ) {
         // The check for existence of the template is against the cluster state, so very cheap
@@ -371,14 +362,14 @@ public final class MlIndexAndAlias {
             return;
         }
 
-        ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(response -> {
+        ActionListener<AcknowledgedResponse> innerListener = listener.delegateFailureAndWrap((l, response) -> {
             if (response.isAcknowledged() == false) {
                 logger.warn("error adding template [{}], request was not acknowledged", templateRequest.name());
             }
-            listener.onResponse(response.isAcknowledged());
-        }, listener::onFailure);
+            l.onResponse(response.isAcknowledged());
+        });
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, PutComposableIndexTemplateAction.INSTANCE, templateRequest, innerListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportPutComposableIndexTemplateAction.TYPE, templateRequest, innerListener);
     }
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName) {

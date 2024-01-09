@@ -43,7 +43,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final Map<String, AliasFilter> aliasFilter,
         final Map<String, Float> concreteIndexBoosts,
         final Executor executor,
-        final QueryPhaseResultConsumer resultConsumer,
+        final SearchPhaseResults<SearchPhaseResult> resultConsumer,
         final SearchRequest request,
         final ActionListener<SearchResponse> listener,
         final GroupShardsIterator<SearchShardIterator> shardsIts,

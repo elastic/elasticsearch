@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -144,7 +144,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
                     .timeout(request.masterNodeTimeout()),
                 // fork to snapshot meta since building the response is expensive for large snapshots
-                new ThreadedActionListener<>(
+                new RefCountAwareThreadedActionListener<>(
                     threadPool.executor(ThreadPool.Names.SNAPSHOT_META),
                     listener.delegateFailureAndWrap(
                         (l, nodeSnapshotStatuses) -> buildResponse(
@@ -227,7 +227,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     // state and the repository contents in the below logic
                     final SnapshotIndexShardStage stage = switch (shardEntry.getValue().state()) {
                         case FAILED, ABORTED, MISSING -> SnapshotIndexShardStage.FAILURE;
-                        case INIT, WAITING, QUEUED -> SnapshotIndexShardStage.STARTED;
+                        case INIT, WAITING, PAUSED_FOR_NODE_REMOVAL, QUEUED -> SnapshotIndexShardStage.STARTED;
                         case SUCCESS -> SnapshotIndexShardStage.DONE;
                     };
                     final SnapshotIndexShardStatus shardStatus;

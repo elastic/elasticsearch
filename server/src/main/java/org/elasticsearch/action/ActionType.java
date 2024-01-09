@@ -22,6 +22,10 @@ public class ActionType<Response extends ActionResponse> {
         return new ActionType<>(name, Writeable.Reader.localOnly());
     }
 
+    public static ActionType<ActionResponse.Empty> emptyResponse(String name) {
+        return new ActionType<>(name, in -> ActionResponse.Empty.INSTANCE);
+    }
+
     /**
      * @param name The name of the action, must be unique across actions.
      * @param responseReader A reader for the response type

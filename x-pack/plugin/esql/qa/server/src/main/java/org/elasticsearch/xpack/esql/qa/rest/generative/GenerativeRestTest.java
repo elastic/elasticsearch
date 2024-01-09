@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -17,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
@@ -29,14 +33,31 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     public static final int MAX_DEPTH = 10;
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
-        "is ambiguous (to disambiguate use quotes or qualifiers)",
-        "due to ambiguities being mapped as"
+        "Reference \\[.*\\] is ambiguous",
+        "Cannot use field \\[.*\\] due to ambiguities"
     );
+
+    public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
+        .map(x -> ".*" + x + ".*")
+        .map(x -> Pattern.compile(x, Pattern.DOTALL))
+        .collect(Collectors.toSet());
 
     @Before
     public void setup() throws IOException {
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
             loadDataSetIntoEs(client());
+        }
+    }
+
+    @AfterClass
+    public static void wipeTestData() throws IOException {
+        try {
+            adminClient().performRequest(new Request("DELETE", "/*"));
+        } catch (ResponseException e) {
+            // 404 here just means we had no indexes
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
         }
     }
 
@@ -65,8 +86,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {
-        for (String allowedError : ALLOWED_ERRORS) {
-            if (query.exception().getMessage().contains(allowedError)) {
+        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+            if (allowedError.matcher(query.exception().getMessage()).matches()) {
                 return;
             }
         }
@@ -75,7 +96,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
         try {
-            Map<String, Object> a = RestEsqlTestCase.runEsql(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
+            Map<String, Object> a = RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
             List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
             return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, null);
         } catch (Exception e) {

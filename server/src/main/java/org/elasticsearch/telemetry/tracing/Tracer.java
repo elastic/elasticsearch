@@ -8,10 +8,7 @@
 
 package org.elasticsearch.telemetry.tracing;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.tasks.Task;
 
 import java.util.Map;
 
@@ -37,27 +34,13 @@ public interface Tracer {
 
     /**
      * Called when a span starts.
-     * @param threadContext the current context. Required for tracing parent/child span activity.
-     * @param spanId a unique identifier for the activity, and will not be sent to the tracing system. Add the ID
-     *               to the attributes if it is important
+     * @param traceContext the current context. Required for tracing parent/child span activity.
+     * @param traceable provides a unique identifier for the activity, and will not be sent to the tracing system. Add the ID
+     *                  to the attributes if it is important
      * @param name the name of the span. Used to filter out spans, but also sent to the tracing system
      * @param attributes arbitrary key/value data for the span. Sent to the tracing system
      */
-    void startTrace(ThreadContext threadContext, SpanId spanId, String name, Map<String, Object> attributes);
-
-    /**
-     * @see Tracer#startTrace(ThreadContext, SpanId, String, Map)
-     */
-    default void startTrace(ThreadContext threadContext, Task task, String name, Map<String, Object> attributes) {
-        startTrace(threadContext, SpanId.forTask(task), name, attributes);
-    }
-
-    /**
-     * @see Tracer#startTrace(ThreadContext, SpanId, String, Map)
-     */
-    default void startTrace(ThreadContext threadContext, RestRequest restRequest, String name, Map<String, Object> attributes) {
-        startTrace(threadContext, SpanId.forRestRequest(restRequest), name, attributes);
-    }
+    void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes);
 
     /**
      * Called when a span starts. This version of the method relies on context to assign the span a parent.
@@ -67,23 +50,9 @@ public interface Tracer {
 
     /**
      * Called when a span ends.
-     * @param spanId an identifier for the span
+     * @param traceable provides an identifier for the span
      */
-    void stopTrace(SpanId spanId);
-
-    /**
-     * @see Tracer#stopTrace(SpanId)
-     */
-    default void stopTrace(Task task) {
-        stopTrace(SpanId.forTask(task));
-    }
-
-    /**
-     * @see Tracer#stopTrace(SpanId)
-     */
-    default void stopTrace(RestRequest restRequest) {
-        stopTrace(SpanId.forRestRequest(restRequest));
-    }
+    void stopTrace(Traceable traceable);
 
     /**
      * Called when a span ends. This version of the method relies on context to select the span to stop.
@@ -94,58 +63,51 @@ public interface Tracer {
      * Some tracing implementations support the concept of "events" within a span, marking a point in time during the span
      * when something interesting happened. If the tracing implementation doesn't support events, then nothing will be recorded.
      * This should only be called when a trace already been started on the {@code traceable}.
-     * @param spanId an identifier for the span
+     * @param traceable provides an identifier for the span
      * @param eventName the event that happened. This should be something meaningful to people reviewing the data, for example
      *                  "send response", "finished processing", "validated request", etc.
      */
-    void addEvent(SpanId spanId, String eventName);
+    void addEvent(Traceable traceable, String eventName);
 
     /**
      * If an exception occurs during a span, you can add data about the exception to the span where the exception occurred.
      * This should only be called when a span has been started, otherwise it has no effect.
-     * @param spanId an identifier for the span
+     * @param traceable provides an identifier for the span
      * @param throwable the exception that occurred.
      */
-    void addError(SpanId spanId, Throwable throwable);
-
-    /**
-     * @see Tracer#addError(SpanId, Throwable)
-     */
-    default void addError(RestRequest restRequest, Throwable throwable) {
-        addError(SpanId.forRestRequest(restRequest), throwable);
-    }
+    void addError(Traceable traceable, Throwable throwable);
 
     /**
      * Adds a boolean attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param spanId an identifier for the span
+     * @param traceable provides an identifier for the span
      * @param key the attribute key
      * @param value the attribute value
      */
-    void setAttribute(SpanId spanId, String key, boolean value);
+    void setAttribute(Traceable traceable, String key, boolean value);
 
     /**
      * Adds a double attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param spanId an identifier for the span
+     * @param traceable provides an identifier for the span
      * @param key the attribute key
      * @param value the attribute value
      */
-    void setAttribute(SpanId spanId, String key, double value);
+    void setAttribute(Traceable traceable, String key, double value);
 
     /**
      * Adds a long attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param spanId an identifier for the span
+     * @param traceable provides an identifier for the span
      * @param key the attribute key
      * @param value the attribute value
      */
-    void setAttribute(SpanId spanId, String key, long value);
+    void setAttribute(Traceable traceable, String key, long value);
 
     /**
      * Adds a String attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param spanId an identifier for the span
+     * @param traceable provides an identifier for the span
      * @param key the attribute key
      * @param value the attribute value
      */
-    void setAttribute(SpanId spanId, String key, String value);
+    void setAttribute(Traceable traceable, String key, String value);
 
     /**
      * Usually you won't need this about scopes when using tracing. However,
@@ -172,10 +134,10 @@ public interface Tracer {
      * <p>Nonetheless, it is possible to manually use scope where more detail is needed by
      * explicitly opening a scope via the `Tracer`.
      *
-     * @param spanId an identifier for the span
+     * @param traceable provides an identifier for the span
      * @return a scope. You MUST close it when you are finished with it.
      */
-    Releasable withScope(SpanId spanId);
+    Releasable withScope(Traceable traceable);
 
     /**
      * A Tracer implementation that does nothing. This is used when no tracer is configured,
@@ -183,52 +145,37 @@ public interface Tracer {
      */
     Tracer NOOP = new Tracer() {
         @Override
-        public void startTrace(ThreadContext threadContext, SpanId spanId, String name, Map<String, Object> attributes) {}
-
-        @Override
-        public void startTrace(ThreadContext threadContext, Task task, String name, Map<String, Object> attributes) {}
-
-        @Override
-        public void startTrace(ThreadContext threadContext, RestRequest restRequest, String name, Map<String, Object> attributes) {}
+        public void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes) {}
 
         @Override
         public void startTrace(String name, Map<String, Object> attributes) {}
 
         @Override
-        public void stopTrace(SpanId spanId) {}
-
-        @Override
-        public void stopTrace(Task task) {}
-
-        @Override
-        public void stopTrace(RestRequest restRequest) {}
+        public void stopTrace(Traceable traceable) {}
 
         @Override
         public void stopTrace() {}
 
         @Override
-        public void addEvent(SpanId spanId, String eventName) {}
+        public void addEvent(Traceable traceable, String eventName) {}
 
         @Override
-        public void addError(SpanId spanId, Throwable throwable) {}
+        public void addError(Traceable traceable, Throwable throwable) {}
 
         @Override
-        public void addError(RestRequest restRequest, Throwable throwable) {}
+        public void setAttribute(Traceable traceable, String key, boolean value) {}
 
         @Override
-        public void setAttribute(SpanId spanId, String key, boolean value) {}
+        public void setAttribute(Traceable traceable, String key, double value) {}
 
         @Override
-        public void setAttribute(SpanId spanId, String key, double value) {}
+        public void setAttribute(Traceable traceable, String key, long value) {}
 
         @Override
-        public void setAttribute(SpanId spanId, String key, long value) {}
+        public void setAttribute(Traceable traceable, String key, String value) {}
 
         @Override
-        public void setAttribute(SpanId spanId, String key, String value) {}
-
-        @Override
-        public Releasable withScope(SpanId spanId) {
+        public Releasable withScope(Traceable traceable) {
             return () -> {};
         }
     };

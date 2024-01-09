@@ -166,6 +166,12 @@ class S3RetryingInputStream extends InputStream {
     }
 
     private void reopenStreamOrFail(IOException e) throws IOException {
+        if (purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
+            logger.warn(() -> format("""
+                failed reading [%s/%s] at offset [%s]""", blobStore.bucket(), blobKey, start + currentOffset), e);
+            throw e;
+        }
+
         final int maxAttempts = blobStore.getMaxRetries() + 1;
 
         final long meaningfulProgressSize = Math.max(1L, blobStore.bufferSizeInBytes() / 100L);

@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -37,7 +40,8 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         )
     );
 
-    public ToDegrees(Source source, Expression field) {
+    @FunctionInfo(returnType = "double")
+    public ToDegrees(Source source, @Param(name = "v", type = { "double", "long", "unsigned_long", "integer" }) Expression field) {
         super(source, field);
     }
 
@@ -61,8 +65,8 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         return DOUBLE;
     }
 
-    @ConvertEvaluator
+    @ConvertEvaluator(warnExceptions = { ArithmeticException.class })
     static double process(double deg) {
-        return Math.toDegrees(deg);
+        return NumericUtils.asFiniteNumber(Math.toDegrees(deg));
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
@@ -256,8 +258,11 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
-        assertThat(stat.query(), is(QueryBuilders.existsQuery("salary")));
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary");
+        Source source = new Source(2, 8, "salary > 1000");
+        var exists = QueryBuilders.existsQuery("salary");
+        assertThat(stat.query(), is(exists));
+        var range = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
+        var expected = QueryBuilders.boolQuery().must(range).must(exists);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
@@ -297,7 +302,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no");
+        var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
+        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
@@ -308,8 +314,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *   \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c, COUNT(1[INTEGER]) AS c_literal],FINAL,null]
      *     \_ExchangeExec[[count{r}#18, seen{r}#19, count{r}#20, seen{r}#21],true]
      *       \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null], Stat[name=*, type=COUNT, query=null]]],
-     *         query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}}}}]
-     *         [count{r}#23, seen{r}#24, count{r}#25, seen{r}#26], limit[],
+     *         query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}},
+     *         "source":"emp_no > 10010@2:9"}}][count{r}#23, seen{r}#24, count{r}#25, seen{r}#26], limit[],
      */
     public void testMultiCountAllWithFilter() {
         var plan = plan("""
@@ -331,7 +337,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen", "count", "seen"));
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no");
+        var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
+        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
@@ -376,8 +383,30 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(localSource.output()), contains("count", "seen"));
     }
 
-    private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName) {
-        return FilterTests.singleValueQuery(inner, fieldName);
+    public void testIsNotNullPushdownFilter() {
+        var plan = plan("from test | where emp_no is not null");
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var query = as(exchange.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(500));
+        var expected = QueryBuilders.existsQuery("emp_no");
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testIsNullPushdownFilter() {
+        var plan = plan("from test | where emp_no is null");
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var query = as(exchange.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(500));
+        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {
+        return FilterTests.singleValueQuery(inner, fieldName, source);
     }
 
     private Stat queryStatsFor(PhysicalPlan plan) {

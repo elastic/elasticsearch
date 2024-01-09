@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -89,39 +89,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
         this.customPerCoreWattX86 = customPerCoreWattX86;
-        this.customPerCoreWattARM64 = customPerCoreWattX86;
+        this.customPerCoreWattARM64 = customPerCoreWattARM64;
         this.customCostPerCoreHour = customCostPerCoreHour;
     }
 
-    public GetStackTracesRequest(StreamInput in) throws IOException {
-        this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
-        this.sampleSize = in.readOptionalInt();
-        this.requestedDuration = in.readOptionalDouble();
-        this.awsCostFactor = in.readOptionalDouble();
-        this.adjustSampleCount = in.readOptionalBoolean();
-        this.indices = in.readOptionalString();
-        this.stackTraceIds = in.readOptionalString();
-        this.customCO2PerKWH = in.readOptionalDouble();
-        this.customDatacenterPUE = in.readOptionalDouble();
-        this.customPerCoreWattX86 = in.readOptionalDouble();
-        this.customPerCoreWattARM64 = in.readOptionalDouble();
-        this.customCostPerCoreHour = in.readOptionalDouble();
-    }
-
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalNamedWriteable(query);
-        out.writeOptionalInt(sampleSize);
-        out.writeOptionalDouble(requestedDuration);
-        out.writeOptionalDouble(awsCostFactor);
-        out.writeOptionalBoolean(adjustSampleCount);
-        out.writeOptionalString(indices);
-        out.writeOptionalString(stackTraceIds);
-        out.writeOptionalDouble(customCO2PerKWH);
-        out.writeOptionalDouble(customDatacenterPUE);
-        out.writeOptionalDouble(customPerCoreWattX86);
-        out.writeOptionalDouble(customPerCoreWattARM64);
-        out.writeOptionalDouble(customCostPerCoreHour);
+    public void writeTo(StreamOutput out) {
+        TransportAction.localOnly();
     }
 
     public Integer getSampleSize() {
@@ -247,13 +221,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     validationException
                 );
             }
-            // we don't do downsampling when a custom index is provided
-            if (sampleSize != null) {
-                validationException = addValidationError(
-                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] must not be set",
-                    validationException
-                );
-            }
         } else {
             if (stackTraceIds != null) {
                 validationException = addValidationError(
@@ -261,8 +228,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     validationException
                 );
             }
-            validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
         }
+        validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
         validationException = requirePositive(REQUESTED_DURATION_FIELD, requestedDuration, validationException);
         validationException = requirePositive(AWS_COST_FACTOR_FIELD, awsCostFactor, validationException);
         validationException = requirePositive(CUSTOM_CO2_PER_KWH, customCO2PerKWH, validationException);

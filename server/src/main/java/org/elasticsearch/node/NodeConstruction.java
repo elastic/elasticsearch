@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedCom
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -125,6 +126,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -200,6 +202,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -382,6 +385,7 @@ class NodeConstruction {
         );
         logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
         logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
+        logger.info("Default Locale [{}]", Locale.getDefault());
         if (Build.current().isProductionRelease() == false) {
             logger.warn(
                 "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
@@ -869,6 +873,7 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
+        final SearchTransportAPMMetrics searchTransportAPMMetrics = new SearchTransportAPMMetrics(telemetryProvider.getMeterRegistry());
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,
             client,
@@ -963,6 +968,8 @@ class NodeConstruction {
             repositoryService
         );
 
+        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
+
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
             clusterService,
@@ -992,7 +999,15 @@ class NodeConstruction {
 
         modules.add(
             loadPluginShutdownService(clusterService),
-            loadDiagnosticServices(settings, discoveryModule.getCoordinator(), clusterService, transportService, featureService, threadPool)
+            loadDiagnosticServices(
+                settings,
+                discoveryModule.getCoordinator(),
+                clusterService,
+                transportService,
+                featureService,
+                threadPool,
+                telemetryProvider
+            )
         );
 
         RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
@@ -1035,10 +1050,12 @@ class NodeConstruction {
             b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
             b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
             b.bind(SearchService.class).toInstance(searchService);
+            b.bind(SearchTransportAPMMetrics.class).toInstance(searchTransportAPMMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
             b.bind(Transport.class).toInstance(transport);
             b.bind(TransportService.class).toInstance(transportService);
+            b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
@@ -1128,7 +1145,8 @@ class NodeConstruction {
         ClusterService clusterService,
         TransportService transportService,
         FeatureService featureService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        TelemetryProvider telemetryProvider
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1152,7 +1170,13 @@ class NodeConstruction {
             Stream.concat(serverHealthIndicatorServices, pluginHealthIndicatorServices).toList(),
             threadPool
         );
-        HealthPeriodicLogger healthPeriodicLogger = HealthPeriodicLogger.create(settings, clusterService, client, healthService);
+        HealthPeriodicLogger healthPeriodicLogger = HealthPeriodicLogger.create(
+            settings,
+            clusterService,
+            client,
+            healthService,
+            telemetryProvider
+        );
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
             settings,

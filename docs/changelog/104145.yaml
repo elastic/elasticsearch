@@ -2,4 +2,5 @@ pr: 104145
 summary: Fix _alias/<alias> returning non-matching data streams
 area: Data streams
 type: bug
-issues: []
+issues:
+ - 96589

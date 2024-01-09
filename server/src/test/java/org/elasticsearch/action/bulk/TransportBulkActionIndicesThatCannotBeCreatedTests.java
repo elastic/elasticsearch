@@ -155,6 +155,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                 Map<String, IndexNotFoundException> indicesThatCannotBeCreated
             ) {
                 assertEquals(expected, indicesThatCannotBeCreated.keySet());
+                listener.onResponse(null);
             }
 
             @Override

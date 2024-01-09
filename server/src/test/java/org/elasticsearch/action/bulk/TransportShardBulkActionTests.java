@@ -1179,8 +1179,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
-            new UpdateHelper.Result(
+        when(updateHelper.prepare(any(), eq(shard), any())).thenAnswer(
+            invocation -> new UpdateHelper.Result(
                 new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
                 Collections.singletonMap("field", "value"),
@@ -1188,9 +1188,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             )
         );
 
+        UpdateRequest updateRequest = new UpdateRequest("index", "id");
         BulkItemRequest[] items = new BulkItemRequest[] {
-            new BulkItemRequest(0, new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")) };
+            new BulkItemRequest(0, updateRequest.doc(Requests.INDEX_CONTENT_TYPE, "field", "value")) };
+        updateRequest.decRef();
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        for (BulkItemRequest item : items) {
+            item.decRef();
+        }
         try {
             AssertionError error = expectThrows(
                 AssertionError.class,
@@ -1253,8 +1258,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(mapperService.mappingVersion()).thenReturn(0L, 1L);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
-            new UpdateHelper.Result(
+        when(updateHelper.prepare(any(), eq(shard), any())).thenAnswer(
+            invocation -> new UpdateHelper.Result(
                 new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
                 Collections.singletonMap("field", "value"),
@@ -1262,9 +1267,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             )
         );
 
+        UpdateRequest updateRequest = new UpdateRequest("index", "id");
         BulkItemRequest[] items = new BulkItemRequest[] {
-            new BulkItemRequest(0, new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")) };
+            new BulkItemRequest(0, updateRequest.doc(Requests.INDEX_CONTENT_TYPE, "field", "value")) };
+        updateRequest.decRef();
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        for (BulkItemRequest item : items) {
+            item.decRef();
+        }
 
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(

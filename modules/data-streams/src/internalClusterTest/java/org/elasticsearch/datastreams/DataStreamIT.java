@@ -51,6 +51,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.DataStr
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -76,6 +77,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -249,9 +251,8 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         try (
-            BulkRequest bulkRequest = new BulkRequest().add(
-                new IndexRequest(dataStreamName).source("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON)
-            )
+            IndexRequest indexRequest = new IndexRequest(dataStreamName);
+            BulkRequest bulkRequest = new BulkRequest().add(indexRequest.source("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON))
         ) {
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(1));
@@ -268,11 +269,10 @@ public class DataStreamIT extends ESIntegTestCase {
                 containsString("only write ops with an op_type of create are allowed in data streams")
             );
         }
-        try (
-            BulkRequest bulkRequest = new BulkRequest().add(
-                new UpdateRequest(dataStreamName, "_id").doc("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON)
-            )
-        ) {
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            UpdateRequest updateRequest = new UpdateRequest(dataStreamName, "_id");
+            bulkRequest.add(updateRequest.doc("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON));
+            updateRequest.decRef();
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(1));
             assertThat(
@@ -282,13 +282,21 @@ public class DataStreamIT extends ESIntegTestCase {
         }
         {
             IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON);
-            Exception e = expectThrows(IllegalArgumentException.class, client().index(indexRequest));
-            assertThat(e.getMessage(), equalTo("only write ops with an op_type of create are allowed in data streams"));
+            try {
+                Exception e = expectThrows(IllegalArgumentException.class, client().index(indexRequest));
+                assertThat(e.getMessage(), equalTo("only write ops with an op_type of create are allowed in data streams"));
+            } finally {
+                indexRequest.decRef();
+            }
         }
         {
             UpdateRequest updateRequest = new UpdateRequest(dataStreamName, "_id").doc("{}", XContentType.JSON);
-            Exception e = expectThrows(IllegalArgumentException.class, client().update(updateRequest));
-            assertThat(e.getMessage(), equalTo("only write ops with an op_type of create are allowed in data streams"));
+            try {
+                Exception e = expectThrows(IllegalArgumentException.class, client().update(updateRequest));
+                assertThat(e.getMessage(), equalTo("only write ops with an op_type of create are allowed in data streams"));
+            } finally {
+                updateRequest.decRef();
+            }
         }
         {
             DeleteRequest deleteRequest = new DeleteRequest(dataStreamName, "_id");
@@ -299,14 +307,18 @@ public class DataStreamIT extends ESIntegTestCase {
             IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                 .opType(DocWriteRequest.OpType.CREATE);
             DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStreamName, 1));
         }
-        try (
-            BulkRequest bulkRequest = new BulkRequest().add(
-                new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
-                    .opType(DocWriteRequest.OpType.CREATE)
-            )
-        ) {
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            IndexRequest indexRequest = new IndexRequest(dataStreamName);
+            try {
+                bulkRequest.add(
+                    indexRequest.source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE)
+                );
+            } finally {
+                indexRequest.decRef();
+            }
             BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
             assertThat(bulkItemResponses.getItems()[0].getIndex(), backingIndexEqualTo(dataStreamName, 1));
         }
@@ -340,6 +352,11 @@ public class DataStreamIT extends ESIntegTestCase {
                     .setIfSeqNo(1)
                     .setIfPrimaryTerm(1)
             );
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(11));
             {
@@ -547,12 +564,17 @@ public class DataStreamIT extends ESIntegTestCase {
         aliasesRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).alias(aliasToDataStream).index("logs-foobar"));
         assertAcked(indicesAdmin().aliases(aliasesRequest).actionGet());
 
-        verifyResolvability(
-            dataStreamName,
-            prepareIndex(dataStreamName).setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
-                .setOpType(DocWriteRequest.OpType.CREATE),
-            false
-        );
+        IndexRequestBuilder indexRequestBuilder1 = prepareIndex(dataStreamName);
+        try {
+            verifyResolvability(
+                dataStreamName,
+                indexRequestBuilder1.setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+                    .setOpType(DocWriteRequest.OpType.CREATE),
+                false
+            );
+        } finally {
+            indexRequestBuilder1.request().decRef();
+        }
         verifyResolvability(dataStreamName, indicesAdmin().prepareRefresh(dataStreamName), false);
         verifyResolvability(dataStreamName, prepareSearch(dataStreamName), false, 1);
         verifyResolvability(
@@ -590,12 +612,17 @@ public class DataStreamIT extends ESIntegTestCase {
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
         client().execute(CreateDataStreamAction.INSTANCE, request).actionGet();
-        verifyResolvability(
-            "logs-barbaz",
-            prepareIndex("logs-barbaz").setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
-                .setOpType(DocWriteRequest.OpType.CREATE),
-            false
-        );
+        IndexRequestBuilder indexRequestBuilder2 = prepareIndex("logs-barbaz");
+        try {
+            verifyResolvability(
+                "logs-barbaz",
+                indexRequestBuilder2.setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+                    .setOpType(DocWriteRequest.OpType.CREATE),
+                false
+            );
+        } finally {
+            indexRequestBuilder2.request().decRef();
+        }
 
         String wildcardExpression = "logs*";
         verifyResolvability(wildcardExpression, indicesAdmin().prepareRefresh(wildcardExpression), false);
@@ -708,14 +735,20 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testDataSteamAliasWithFilter() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         String dataStreamName = "logs-foobar";
-        prepareIndex(dataStreamName).setId("1")
-            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .get();
-        prepareIndex(dataStreamName).setId("2")
-            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .get();
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(dataStreamName).setId("1")
+                .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+        }
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(dataStreamName).setId("2")
+                .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+        }
         refresh(dataStreamName);
 
         AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName)
@@ -781,14 +814,20 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testSearchFilteredAndUnfilteredAlias() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         String dataStreamName = "logs-foobar";
-        prepareIndex(dataStreamName).setId("1")
-            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .get();
-        prepareIndex(dataStreamName).setId("2")
-            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .get();
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(dataStreamName).setId("1")
+                .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+        }
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(dataStreamName).setId("2")
+                .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+        }
         refresh(dataStreamName);
 
         AliasActions addFilteredAliasAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName)
@@ -1153,34 +1192,41 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testIndexDocsWithCustomRoutingTargetingDataStreamIsNotAllowed() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-foo*"));
 
-        // Index doc that triggers creation of a data stream
         String dataStream = "logs-foobar";
-        IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
-            .opType(DocWriteRequest.OpType.CREATE);
-        DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
-        assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStream, 1));
+        {
+            // Index doc that triggers creation of a data stream
+            IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+                .opType(DocWriteRequest.OpType.CREATE);
+            DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
+            assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStream, 1));
+        }
 
         // Index doc with custom routing that targets the data stream
         IndexRequest indexRequestWithRouting = new IndexRequest(dataStream).source("@timestamp", System.currentTimeMillis())
             .opType(DocWriteRequest.OpType.CREATE)
             .routing("custom");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, client().index(indexRequestWithRouting));
-        assertThat(
-            exception.getMessage(),
-            is(
-                "index request targeting data stream [logs-foobar] specifies a custom routing "
-                    + "but the [allow_custom_routing] setting was not enabled in the data stream's template."
-            )
-        );
+        try {
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, client().index(indexRequestWithRouting));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "index request targeting data stream [logs-foobar] specifies a custom routing "
+                        + "but the [allow_custom_routing] setting was not enabled in the data stream's template."
+                )
+            );
+        } finally {
+            indexRequestWithRouting.decRef();
+        }
 
         // Bulk indexing with custom routing targeting the data stream is also prohibited
         try (BulkRequest bulkRequest = new BulkRequest()) {
             for (int i = 0; i < 10; i++) {
+                IndexRequest indexRequest = new IndexRequest(dataStream);
                 bulkRequest.add(
-                    new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                        .routing("bulk-request-routing")
-                        .source("{}", XContentType.JSON)
+                    indexRequest.opType(DocWriteRequest.OpType.CREATE).routing("bulk-request-routing").source("{}", XContentType.JSON)
                 );
+                indexRequest.decRef();
             }
 
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
@@ -1210,24 +1256,30 @@ public class DataStreamIT extends ESIntegTestCase {
         ).actionGet();
         // Index doc that triggers creation of a data stream
         String dataStream = "logs-foobar";
-        IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
-            .opType(DocWriteRequest.OpType.CREATE)
-            .routing("custom");
-        DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
-        assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStream, 1));
+        {
+            IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+                .opType(DocWriteRequest.OpType.CREATE)
+                .routing("custom");
+            DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
+            assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStream, 1));
+        }
         // Index doc with custom routing that targets the data stream
         IndexRequest indexRequestWithRouting = new IndexRequest(dataStream).source("@timestamp", System.currentTimeMillis())
             .opType(DocWriteRequest.OpType.CREATE)
             .routing("custom");
         client().index(indexRequestWithRouting).actionGet();
+        indexRequestWithRouting.decRef();
         // Bulk indexing with custom routing targeting the data stream
         try (BulkRequest bulkRequest = new BulkRequest()) {
             for (int i = 0; i < 10; i++) {
+                IndexRequest indexRequest = new IndexRequest(dataStream);
                 bulkRequest.add(
-                    new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    indexRequest.opType(DocWriteRequest.OpType.CREATE)
                         .source("@timestamp", System.currentTimeMillis())
                         .routing("bulk-request-routing")
                 );
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             for (BulkItemResponse responseItem : bulkResponse.getItems()) {
@@ -1243,6 +1295,7 @@ public class DataStreamIT extends ESIntegTestCase {
         IndexRequest indexRequest = new IndexRequest("logs-foobar").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
             .opType(DocWriteRequest.OpType.CREATE);
         DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         assertThat(indexResponse.getIndex(), backingIndexEqualTo("logs-foobar", 1));
         String backingIndex = indexResponse.getIndex();
 
@@ -1254,6 +1307,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .setIfPrimaryTerm(indexResponse.getPrimaryTerm())
             .setIfSeqNo(indexResponse.getSeqNo());
         DocWriteResponse response = client().index(indexRequestWithRouting).actionGet();
+        indexRequestWithRouting.decRef();
         assertThat(response.getIndex(), equalTo(backingIndex));
     }
 
@@ -1323,8 +1377,12 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create").source("{}", XContentType.JSON);
-        Exception e = expectThrows(Exception.class, client().index(indexRequest));
-        assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
+        try {
+            Exception e = expectThrows(Exception.class, client().index(indexRequest));
+            assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
+        } finally {
+            indexRequest.decRef();
+        }
     }
 
     public void testMultipleTimestampValuesInDocument() throws Exception {
@@ -1335,8 +1393,12 @@ public class DataStreamIT extends ESIntegTestCase {
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create")
             .source("{\"@timestamp\": [\"2020-12-12\",\"2022-12-12\"]}", XContentType.JSON);
-        Exception e = expectThrows(Exception.class, client().index(indexRequest));
-        assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
+        try {
+            Exception e = expectThrows(Exception.class, client().index(indexRequest));
+            assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
+        } finally {
+            indexRequest.decRef();
+        }
     }
 
     public void testMixedAutoCreate() throws Exception {
@@ -1357,6 +1419,11 @@ public class DataStreamIT extends ESIntegTestCase {
             bulkRequest.add(new IndexRequest("logs-foobaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
             bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
             bulkRequest.add(new IndexRequest("logs-barfoo").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
         }
@@ -1366,6 +1433,11 @@ public class DataStreamIT extends ESIntegTestCase {
             bulkRequest.add(new IndexRequest("logs-foobaz2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
             bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
             bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
         }
@@ -1377,6 +1449,11 @@ public class DataStreamIT extends ESIntegTestCase {
             bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
             bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
             bulkRequest.add(new IndexRequest("logs-barfoo3").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
         }
@@ -1415,7 +1492,9 @@ public class DataStreamIT extends ESIntegTestCase {
         indicesAdmin().putTemplate(v1Request).actionGet();
 
         try (BulkRequest bulkRequest = new BulkRequest()) {
-            bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
+            IndexRequest indexRequest = new IndexRequest("logs-foobar");
+            bulkRequest.add(indexRequest.opType(CREATE).source("{}", XContentType.JSON));
+            indexRequest.decRef();
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
         }
@@ -1887,10 +1966,15 @@ public class DataStreamIT extends ESIntegTestCase {
         try (BulkRequest bulkRequest = new BulkRequest()) {
             for (int i = 0; i < numDocs; i++) {
                 String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-                bulkRequest.add(
-                    new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                        .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
-                );
+                IndexRequest indexRequest = new IndexRequest(dataStream);
+                try {
+                    bulkRequest.add(
+                        indexRequest.opType(DocWriteRequest.OpType.CREATE)
+                            .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+                    );
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(numDocs));

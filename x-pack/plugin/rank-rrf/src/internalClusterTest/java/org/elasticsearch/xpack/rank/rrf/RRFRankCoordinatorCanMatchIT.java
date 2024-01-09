@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexSettings;
@@ -114,10 +115,14 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         ensureGreen("time_index");
 
         for (int i = 0; i < 500; i++) {
-            prepareIndex("time_index").setSource("@timestamp", i).setRouting("a").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("time_index").setSource("@timestamp", i).setRouting("a");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         for (int i = 500; i < 1000; i++) {
-            prepareIndex("time_index").setSource("@timestamp", i).setRouting("b").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("time_index").setSource("@timestamp", i).setRouting("b");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         client().admin().indices().prepareRefresh("time_index").get();

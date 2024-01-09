@@ -25,7 +25,9 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
             int indexSize = randomIntBetween(100, 300);
             logger.info("Indexing {} records", indexSize);
             for (int i = 0; i < indexSize; i++) {
-                bulkRequestBuilder.add(new IndexRequest("test").id("id" + i).source("data", "bar", "count", i));
+                IndexRequest indexRequest = new IndexRequest("test");
+                bulkRequestBuilder.add(indexRequest.id("id" + i).source("data", "bar", "count", i));
+                indexRequest.decRef();
             }
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         }
@@ -54,7 +56,9 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
             int indexSize = randomIntBetween(100, 300);
             logger.info("Indexing {} records", indexSize);
             for (int i = 0; i < indexSize; i++) {
-                bulkRequestBuilder.add(new IndexRequest("test").id("id" + i).source("data", "bar", "count", i));
+                IndexRequest indexRequest = new IndexRequest("test");
+                bulkRequestBuilder.add(indexRequest.id("id" + i).source("data", "bar", "count", i));
+                indexRequest.decRef();
             }
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             ensureYellow("test");

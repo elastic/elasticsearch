@@ -71,16 +71,16 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         for (int i = 0; i < numRelevantDocs; i++) {
             if (i % 2 == 0) {
                 // add lower-scoring text
-                prepareIndex("test").setId(Integer.toString(i)).setSource("field1", "the quick brown fox").get();
+                indexDoc("test", Integer.toString(i), "field1", "the quick brown fox");
             } else {
                 // add higher-scoring text
-                prepareIndex("test").setId(Integer.toString(i)).setSource("field1", "red fox").get();
+                indexDoc("test", Integer.toString(i), "field1", "red fox");
             }
         }
         // Add docs with no relevance
         int numIrrelevantDocs = randomIntBetween(1, 10);
         for (int i = numRelevantDocs; i <= numRelevantDocs + numIrrelevantDocs; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field1", "irrelevant").get();
+            indexDoc("test", Integer.toString(i), "field1", "irrelevant");
         }
         refresh();
 
@@ -177,8 +177,8 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
         );
 
-        prepareIndex("test").setId("1").setSource("field1", "foo").get();
-        prepareIndex("test").setId("2").setSource("field1", "foo", "field2", "foo").get();
+        indexDoc("test", "1", "field1", "foo");
+        indexDoc("test", "2", "field1", "foo", "field2", "foo");
 
         refresh();
 
@@ -210,10 +210,10 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
-        prepareIndex("test").setId("2").setSource("field1", "pinned").get();
-        prepareIndex("test").setId("3").setSource("field1", "irrelevant").get();
-        prepareIndex("test").setId("4").setSource("field1", "slow brown cat").get();
+        indexDoc("test", "1", "field1", "the quick brown fox");
+        indexDoc("test", "2", "field1", "pinned");
+        indexDoc("test", "3", "field1", "irrelevant");
+        indexDoc("test", "4", "field1", "slow brown cat");
         refresh();
 
         QueryBuilder organicQuery = QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR);
@@ -254,7 +254,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
+        indexDoc("test", "1", "field1", "the quick brown fox");
         refresh();
 
         QueryBuilder organicQuery = QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR);
@@ -309,12 +309,12 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5)))
         );
 
-        prepareIndex("test1").setId("a").setSource("field1", "1a bar").get();
-        prepareIndex("test1").setId("b").setSource("field1", "1b bar").get();
-        prepareIndex("test1").setId("c").setSource("field1", "1c bar").get();
-        prepareIndex("test2").setId("a").setSource("field1", "2a bar").get();
-        prepareIndex("test2").setId("b").setSource("field1", "2b bar").get();
-        prepareIndex("test2").setId("c").setSource("field1", "2c foo").get();
+        indexDoc("test1", "a", "field1", "1a bar");
+        indexDoc("test1", "b", "field1", "1b bar");
+        indexDoc("test1", "c", "field1", "1c bar");
+        indexDoc("test2", "a", "field1", "2a bar");
+        indexDoc("test2", "b", "field1", "2b bar");
+        indexDoc("test2", "c", "field1", "2c foo");
 
         refresh();
 
@@ -352,9 +352,9 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
                 .addAlias(new Alias("test-alias"))
         );
 
-        prepareIndex("test").setId("a").setSource("field1", "document a").get();
-        prepareIndex("test").setId("b").setSource("field1", "document b").get();
-        prepareIndex("test").setId("c").setSource("field1", "document c").get();
+        indexDoc("test", "a", "field1", "document a");
+        indexDoc("test", "b", "field1", "document b");
+        indexDoc("test", "c", "field1", "document c");
 
         refresh();
 
@@ -406,11 +406,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))).addAlias(alias)
         );
 
-        prepareIndex("test1").setId("a").setSource("field1", "document a").get();
-        prepareIndex("test1").setId("b").setSource("field1", "document b").get();
-        prepareIndex("test1").setId("c").setSource("field1", "document c").get();
+        indexDoc("test1", "a", "field1", "document a");
+        indexDoc("test1", "b", "field1", "document b");
+        indexDoc("test1", "c", "field1", "document c");
 
-        prepareIndex("test2").setId("a").setSource("field1", "document a").get();
+        indexDoc("test2", "a", "field1", "document a");
 
         refresh();
 

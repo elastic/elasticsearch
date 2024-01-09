@@ -324,11 +324,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
-        IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE);
+        IndexRequestBuilder indexRequestBuilder1 = prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE);
         try {
-            indexRequestBuilder.get();
+            indexRequestBuilder1.get();
         } finally {
-            indexRequestBuilder.request().decRef();
+            indexRequestBuilder1.request().decRef();
         }
 
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -377,9 +377,19 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             throw e;
                         }
                     }
-                    prepareIndex("index").setSource("field", "value")
-                        .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()))
-                        .execute(ActionListener.running(semaphore::release));
+                    IndexRequestBuilder indexRequestBuilder2 = prepareIndex("index");
+                    try {
+                        indexRequestBuilder2.setSource("field", "value").setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+                        indexRequestBuilder2.execute(
+                            ActionListener.runAfter(
+                                ActionListener.running(semaphore::release),
+                                () -> indexRequestBuilder2.request().decRef()
+                            )
+                        );
+                    } catch (Exception e) {
+                        indexRequestBuilder2.request().decRef();
+                        throw e;
+                    }
                 }
             }
         };

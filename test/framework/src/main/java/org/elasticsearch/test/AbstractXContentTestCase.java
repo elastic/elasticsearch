@@ -127,11 +127,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
         };
         private boolean assertToXContentEquivalence = true;
-        private Consumer<T> dispose = t -> {
-            if (t instanceof RefCounted refCounted) {
-                refCounted.decRef();
-            }
-        };
+        private Consumer<T> dispose = t -> {};
 
         private XContentTester(
             CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
@@ -174,9 +170,15 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
                         }
                     } finally {
                         dispose.accept(parsed);
+                        if (parsed instanceof RefCounted refCounted) {
+                            refCounted.decRef();
+                        }
                     }
                 } finally {
                     dispose.accept(testInstance);
+                    if (testInstance instanceof RefCounted refCounted) {
+                        refCounted.decRef();
+                    }
                 }
             }
         }

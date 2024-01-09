@@ -238,13 +238,18 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         try (BulkRequest bulkRequest = new BulkRequest()) {
             for (int i = 0; i < numDocs; i++) {
                 String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-                bulkRequest.add(
-                    new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE)
-                        .source(
-                            String.format(Locale.ROOT, "{\"%s\":\"%s\"}", fieldPrefix + DEFAULT_TIMESTAMP_FIELD, value),
-                            XContentType.JSON
-                        )
-                );
+                IndexRequest indexRequest = new IndexRequest(index);
+                try {
+                    bulkRequest.add(
+                        indexRequest.opType(DocWriteRequest.OpType.CREATE)
+                            .source(
+                                String.format(Locale.ROOT, "{\"%s\":\"%s\"}", fieldPrefix + DEFAULT_TIMESTAMP_FIELD, value),
+                                XContentType.JSON
+                            )
+                    );
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(numDocs));

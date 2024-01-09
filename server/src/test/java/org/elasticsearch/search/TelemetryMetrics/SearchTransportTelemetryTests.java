@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.TelemetryMetrics;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -56,7 +57,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
     public void testSearchTransportMetricsDfsQueryThenFetch() throws InterruptedException {
         var indexName = "test1";
         createIndex(indexName);
-        indexRandom(true, false, prepareIndex(indexName).setId("1").setSource("body", "foo"));
+        indexRandomAndDecRefRequests(true, false, prepareIndex(indexName).setId("1").setSource("body", "foo"));
 
         assertSearchHitsWithoutFailures(
             prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("foo")),
@@ -71,7 +72,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
     public void testSearchTransportMetricsQueryThenFetch() throws InterruptedException {
         var indexName = "test2";
         createIndex(indexName);
-        indexRandom(true, false, prepareIndex(indexName).setId("1").setSource("body", "foo"));
+        indexRandomAndDecRefRequests(true, false, prepareIndex(indexName).setId("1").setSource("body", "foo"));
 
         assertSearchHitsWithoutFailures(
             prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("foo")),
@@ -86,7 +87,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
     public void testSearchTransportMetricsScroll() throws InterruptedException {
         var indexName = "test3";
         createIndex(indexName);
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             false,
             prepareIndex(indexName).setId("1").setSource("body", "foo"),
@@ -133,5 +134,16 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
                 m -> m.attributes().get(org.elasticsearch.action.search.SearchTransportAPMMetrics.ACTION_ATTRIBUTE_NAME) == attributeValue
             )
             .count();
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders)
+        throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, dummyDocuments, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

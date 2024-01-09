@@ -102,6 +102,7 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
         indexRequest.setPipeline("geoip");
         indexRequest.source(Collections.singletonMap("ip", "1.1.1.1"));
         final DocWriteResponse indexResponse = client(ingestNode).index(indexRequest).actionGet();
+        indexRequest.decRef();
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         // now the geo-IP database should be loaded on the ingest node
         assertDatabaseLoadStatus(ingestNode, true);

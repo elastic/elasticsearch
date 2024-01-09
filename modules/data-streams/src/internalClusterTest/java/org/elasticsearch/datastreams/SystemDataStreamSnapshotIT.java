@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -64,10 +65,12 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         // Index a doc so that a concrete backing index will be created
-        DocWriteResponse indexRepsonse = prepareIndex(SYSTEM_DATA_STREAM_NAME).setId("42")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(SYSTEM_DATA_STREAM_NAME);
+        DocWriteResponse indexRepsonse = indexRequestBuilder.setId("42")
             .setSource("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
+        indexRequestBuilder.request().decRef();
         assertThat(indexRepsonse.status().getStatus(), oneOf(200, 201));
 
         {
@@ -160,19 +163,27 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertTrue(response.isAcknowledged());
         }
 
-        // Index a doc so that a concrete backing index will be created
-        DocWriteResponse indexToDataStreamResponse = prepareIndex(SYSTEM_DATA_STREAM_NAME).setId("42")
-            .setSource("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }", XContentType.JSON)
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .get();
-        assertThat(indexToDataStreamResponse.status().getStatus(), oneOf(200, 201));
+        {
+            // Index a doc so that a concrete backing index will be created
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(SYSTEM_DATA_STREAM_NAME).setId("42");
+            DocWriteResponse indexToDataStreamResponse = indexRequestBuilder.setSource(
+                "{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }",
+                XContentType.JSON
+            ).setOpType(DocWriteRequest.OpType.CREATE).get();
+            indexRequestBuilder.request().decRef();
+            assertThat(indexToDataStreamResponse.status().getStatus(), oneOf(200, 201));
+        }
 
-        // Index a doc so that a concrete backing index will be created
-        DocWriteResponse indexResponse = prepareIndex("my-index").setId("42")
-            .setSource("{ \"name\": \"my-name\" }", XContentType.JSON)
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .get();
-        assertThat(indexResponse.status().getStatus(), oneOf(200, 201));
+        {
+            // Index a doc so that a concrete backing index will be created
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("my-index");
+            DocWriteResponse indexResponse = indexRequestBuilder.setId("42")
+                .setSource("{ \"name\": \"my-name\" }", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE)
+                .get();
+            indexRequestBuilder.request().decRef();
+            assertThat(indexResponse.status().getStatus(), oneOf(200, 201));
+        }
 
         {
             GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });

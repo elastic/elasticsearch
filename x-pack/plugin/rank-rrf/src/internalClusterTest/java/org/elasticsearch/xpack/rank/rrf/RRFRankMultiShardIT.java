@@ -77,9 +77,9 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         assertAcked(prepareCreate("tiny_index").setMapping(builder));
         ensureGreen("tiny_index");
 
-        prepareIndex("tiny_index").setSource("vector", new float[] { 0.0f }, "text", "term term").get();
-        prepareIndex("tiny_index").setSource("vector", new float[] { 1.0f }, "text", "other").get();
-        prepareIndex("tiny_index").setSource("vector", new float[] { 2.0f }, "text", "term").get();
+        indexDoc("tiny_index", null, "vector", new float[] { 0.0f }, "text", "term term");
+        indexDoc("tiny_index", null, "vector", new float[] { 1.0f }, "text", "other");
+        indexDoc("tiny_index", null, "vector", new float[] { 2.0f }, "text", "term");
 
         indicesAdmin().prepareRefresh("tiny_index").get();
 
@@ -117,7 +117,9 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
         ensureGreen(TimeValue.timeValueSeconds(120), "nrd_index");
 
         for (int doc = 0; doc < 1001; ++doc) {
-            prepareIndex("nrd_index").setSource(
+            indexDoc(
+                "nrd_index",
+                null,
                 "vector_asc",
                 new float[] { doc },
                 "vector_desc",
@@ -128,7 +130,7 @@ public class RRFRankMultiShardIT extends ESIntegTestCase {
                 "term " + doc,
                 "text1",
                 "term " + (1000 - doc)
-            ).get();
+            );
         }
 
         indicesAdmin().prepareRefresh("nrd_index").get();

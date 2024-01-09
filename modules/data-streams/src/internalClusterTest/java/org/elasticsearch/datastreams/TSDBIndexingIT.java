@@ -147,6 +147,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             backingIndexName = indexResponse.getIndex();
         }
 
@@ -159,15 +160,20 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(DOC.replace("$time", formatInstant(endTime.minusSeconds(1))), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertThat(indexResponse.getIndex(), equalTo(backingIndexName));
         }
 
         // index doc beyond range and check failure
         {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
-            time = randomBoolean() ? endTime : endTime.plusSeconds(randomIntBetween(1, 99));
-            indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
-            expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            try {
+                time = randomBoolean() ? endTime : endTime.plusSeconds(randomIntBetween(1, 99));
+                indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+                expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            } finally {
+                indexRequest.decRef();
+            }
         }
 
         // Fetch UpdateTimeSeriesRangeService and increment time range of latest backing index:
@@ -181,6 +187,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertThat(indexResponse.getIndex(), equalTo(backingIndexName));
         }
 
@@ -200,6 +207,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertThat(indexResponse.getIndex(), equalTo(newBackingIndexName));
         }
         time = Instant.ofEpochMilli(randomLongBetween(newStartTime.toEpochMilli(), newEndTime.toEpochMilli() - 1));
@@ -207,6 +215,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertThat(indexResponse.getIndex(), equalTo(newBackingIndexName));
         }
         time = Instant.ofEpochMilli(newEndTime.toEpochMilli() - 1);
@@ -214,6 +223,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertThat(indexResponse.getIndex(), equalTo(newBackingIndexName));
         }
 
@@ -223,6 +233,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             var indexResponse = client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             assertThat(indexResponse.getIndex(), equalTo(backingIndexName));
         }
     }
@@ -379,6 +390,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("pattern-1").opType(DocWriteRequest.OpType.CREATE).setRefreshPolicy("true");
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             client().index(indexRequest).actionGet();
+            indexRequest.decRef();
         }
         {
             var request = new TransportPutComposableIndexTemplateAction.Request("id2");
@@ -393,6 +405,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("pattern-2").opType(DocWriteRequest.OpType.CREATE).setRefreshPolicy("true");
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
             client().index(indexRequest).actionGet();
+            indexRequest.decRef();
         }
         {
             var matchingRange = new SearchSourceBuilder().query(
@@ -461,6 +474,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                         var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
                         indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
                         bulkRequest.add(indexRequest);
+                        indexRequest.decRef();
                         time = time.plusMillis(1);
                     }
                     var bulkResponse = client().bulk(bulkRequest).actionGet();

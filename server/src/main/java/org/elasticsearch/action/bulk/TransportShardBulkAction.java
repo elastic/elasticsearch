@@ -382,7 +382,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-
             try {
                 Optional<CompressedXContent> mergedSource = Optional.ofNullable(
                     primary.mapperService()
@@ -396,6 +395,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     .map(DocumentMapper::mappingSource);
 
                 if (mergedSource.equals(previousSource)) {
+                    releaseRequest.run();
                     context.resetForNoopMappingUpdateRetry(primary.mapperService().mappingVersion());
                     return true;
                 }
@@ -405,7 +405,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult, releaseRequest);
                 return true;
             }
-
             mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(), new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {

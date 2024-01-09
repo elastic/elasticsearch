@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteCom
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -116,10 +117,9 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ds2BackingIndexName = dsBackingIndexName.replace("-ds-", "-ds2-");
         otherDs2BackingIndexName = otherDsBackingIndexName.replace("-other-ds-", "-other-ds2-");
 
-        DocWriteResponse indexResponse = client.prepareIndex("ds")
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .setSource(DOCUMENT_SOURCE)
-            .get();
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex("ds");
+        DocWriteResponse indexResponse = indexRequestBuilder.setOpType(DocWriteRequest.OpType.CREATE).setSource(DOCUMENT_SOURCE).get();
+        indexRequestBuilder.request().decRef();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         id = indexResponse.getId();
 
@@ -303,10 +303,9 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSnapshotAndRestoreAllIncludeSpecificDataStream() throws Exception {
-        DocWriteResponse indexResponse = client.prepareIndex("other-ds")
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .setSource(DOCUMENT_SOURCE)
-            .get();
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex("other-ds");
+        DocWriteResponse indexResponse = indexRequestBuilder.setOpType(DocWriteRequest.OpType.CREATE).setSource(DOCUMENT_SOURCE).get();
+        indexRequestBuilder.request().decRef();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         String id2 = indexResponse.getId();
 
@@ -857,11 +856,12 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client1.prepareIndex(dataStream)
-                .setOpType(DocWriteRequest.OpType.CREATE)
+            IndexRequestBuilder indexRequestBuilder = client1.prepareIndex(dataStream);
+            indexRequestBuilder.setOpType(DocWriteRequest.OpType.CREATE)
                 .setId(Integer.toString(i))
                 .setSource(Collections.singletonMap("@timestamp", "2020-12-12"))
                 .get();
+            indexRequestBuilder.request().decRef();
         }
         refresh();
         assertDocCount(dataStream, 100L);

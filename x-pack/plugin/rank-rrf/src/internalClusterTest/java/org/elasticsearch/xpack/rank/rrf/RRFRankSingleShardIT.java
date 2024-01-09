@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -63,9 +65,9 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
         createIndex("tiny_index", indexSettings, builder);
         ensureGreen("tiny_index");
 
-        prepareIndex("tiny_index").setSource("vector", new float[] { 0.0f }, "text", "term term").get();
-        prepareIndex("tiny_index").setSource("vector", new float[] { 1.0f }, "text", "other").get();
-        prepareIndex("tiny_index").setSource("vector", new float[] { 2.0f }, "text", "term").get();
+        indexDoc("tiny_index", null, "vector", new float[] { 0.0f }, "text", "term term");
+        indexDoc("tiny_index", null, "vector", new float[] { 1.0f }, "text", "other");
+        indexDoc("tiny_index", null, "vector", new float[] { 2.0f }, "text", "term");
 
         client().admin().indices().prepareRefresh("tiny_index").get();
 
@@ -103,7 +105,9 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
         ensureGreen(TimeValue.timeValueSeconds(120), "nrd_index");
 
         for (int doc = 0; doc < 1001; ++doc) {
-            prepareIndex("nrd_index").setSource(
+            indexDoc(
+                "nrd_index",
+                null,
                 "vector_asc",
                 new float[] { doc },
                 "vector_desc",
@@ -114,7 +118,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
                 "term " + doc,
                 "text1",
                 "term " + (1000 - doc)
-            ).get();
+            );
         }
 
         client().admin().indices().prepareRefresh("nrd_index").get();
@@ -972,5 +976,14 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
                 }
             }
         );
+    }
+
+    private DocWriteResponse indexDoc(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

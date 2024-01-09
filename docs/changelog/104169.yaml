@@ -1,0 +1,5 @@
+pr: 104169
+summary: "[7x] ingest attachment dependency version bumps"
+area: Ingest Node
+type: upgrade
+issues: []

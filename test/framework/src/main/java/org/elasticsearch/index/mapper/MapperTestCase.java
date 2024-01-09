@@ -1251,7 +1251,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         testBlockLoader(true, true);
     }
 
-    public final void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
+    // Removed 'final' to silence this test in GeoPointFieldMapperTests, which does not support synthetic source completely
+    public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
         testBlockLoader(true, false);
     }
 

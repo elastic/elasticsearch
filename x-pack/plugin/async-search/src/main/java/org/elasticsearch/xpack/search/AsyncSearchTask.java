@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -380,7 +381,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     @Override
     public void close() {
-        searchResponse.get().close();
+        Releasables.close(searchResponse.get());
     }
 
     class Listener extends SearchProgressActionListener {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -208,15 +209,14 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
                 }
             }
         }
-        SearchHit[] hits = new SearchHit[0];
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
-        EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
+        EvalQueryQuality result = dcg.evaluate("id", SearchHits.EMPTY, ratedDocs);
         assertEquals(0.0d, result.metricScore(), DELTA);
         assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
 
         // also check normalized
         dcg = new DiscountedCumulativeGain(true, null, 10);
-        result = dcg.evaluate("id", hits, ratedDocs);
+        result = dcg.evaluate("id", SearchHits.EMPTY, ratedDocs);
         assertEquals(0.0d, result.metricScore(), DELTA);
         assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
     }

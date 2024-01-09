@@ -29,12 +29,14 @@ import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.opensOf;
 import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.providesOf;
 import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.requiresOf;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 
 public class InMemoryModuleFinderTests extends ESTestCase {
@@ -45,7 +47,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
         ModuleDescriptor fooMd = ModuleDescriptor.newModule("foo").build();
         ModuleDescriptor barMd = ModuleDescriptor.newModule("bar").build();
         var finder = InMemoryModuleFinder.of(fooMd, barMd);
-        assertThat(finder.findAll().size(), is(2));
+        assertThat(finder.findAll(), hasSize(2));
         var fooMod = finder.find("foo");
         var barMod = finder.find("bar");
         assertThat(fooMod, isPresent());
@@ -79,7 +81,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
 
             // automatic module, and no filtering
             var finder = InMemoryModuleFinder.of(Set.of(), fooRoot);
-            assertThat(finder.findAll().size(), is(1));
+            assertThat(finder.findAll(), hasSize(1));
             var mod = finder.find("foo");
             assertThat(mod, isPresent());
             assertThat(mod.get().descriptor().isAutomatic(), is(true));
@@ -135,7 +137,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
         try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), InMemoryModuleFinderTests.class.getClassLoader())) {
             Path mRoot = fileSystem.getPath("/a/b/m.jar");
             var finder = InMemoryModuleFinder.of(Set.of(), mRoot);
-            assertThat(finder.findAll().size(), is(1));
+            assertThat(finder.findAll(), hasSize(1));
             var mref = finder.find("m");
             assertThat(mref, isPresent());
             assertThat(mref.get().descriptor().isAutomatic(), is(false));
@@ -161,7 +163,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
 
         // automatic module, and no filtering
         var finder = InMemoryModuleFinder.of(Set.of(), fooRoot);
-        assertThat(finder.findAll().size(), is(1));
+        assertThat(finder.findAll(), hasSize(1));
         var mod = finder.find("foo");
         assertThat(mod, isPresent());
         assertThat(mod.get().descriptor().isAutomatic(), is(true));
@@ -218,8 +220,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
         {   // filter the bar module
             var md = InMemoryModuleFinder.filterRequires(initialMd, Set.of("bar"));
             assertThat(md.name(), is("foo"));
-            assertThat(md.version(), isPresent());
-            assertThat(md.version().get(), is(Version.parse("1.0")));
+            assertThat(md.version(), isPresentWith(Version.parse("1.0")));
             assertThat(md.requires(), hasItem(requiresOf("baz")));
             assertThat(md.requires(), not(hasItem(requiresOf("bar"))));
             assertThat(md.exports(), containsInAnyOrder(exportsOf("p"), exportsOf("q", Set.of("baz"))));
@@ -240,8 +241,8 @@ public class InMemoryModuleFinderTests extends ESTestCase {
         assertThat(md.isOpen(), is(true));
         assertThat(md.name(), equalTo("openMod"));
         assertThat(md.requires(), not(hasItem(requiresOf("bar"))));
-        assertThat(md.exports(), iterableWithSize(0));
-        assertThat(md.opens(), iterableWithSize(0));
+        assertThat(md.exports(), empty());
+        assertThat(md.opens(), empty());
     }
 
     public void testFilterRequiresAutoModule() {

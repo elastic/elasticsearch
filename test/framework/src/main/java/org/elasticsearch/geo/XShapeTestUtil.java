@@ -15,11 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.lucene.geo;
+package org.elasticsearch.geo;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.BiasedNumbers;
 
+import org.apache.lucene.geo.XYCircle;
+import org.apache.lucene.geo.XYPolygon;
+import org.apache.lucene.geo.XYRectangle;
 import org.apache.lucene.tests.util.TestUtil;
 
 import java.util.ArrayList;

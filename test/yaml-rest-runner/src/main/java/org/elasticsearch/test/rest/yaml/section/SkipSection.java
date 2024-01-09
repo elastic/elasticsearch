@@ -9,6 +9,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.Features;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -121,7 +122,7 @@ public class SkipSection {
             if (xpackRequired == XPackRequired.MISMATCHED) {
                 throw new ParsingException(contentLocation, "either `xpack` or `no_xpack` can be present, not both");
             }
-            if (forbiddenClusterFeatures.stream().anyMatch(x -> requiredClusterFeatures.contains(x))) {
+            if (Sets.haveNonEmptyIntersection(forbiddenClusterFeatures, requiredClusterFeatures)) {
                 throw new ParsingException(
                     contentLocation,
                     "skip on a cluster feature can be when it is either present or missing, not both"

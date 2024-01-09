@@ -551,13 +551,6 @@ class DownsampleShardIndexer {
             }
             builder.field(timestampField.name(), timestampFormat.format(timestamp));
             builder.field(DocCountFieldMapper.NAME, docCount);
-            // TODO: should we make sure extracting dimension fields is backward compatible with older indices versions?
-            // Extract dimension values from _tsid field, so we avoid loading them from doc_values
-            // Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
-            // for (Map.Entry<?, ?> e : dimensions.entrySet()) {
-            // assert e.getValue() != null;
-            // builder.field((String) e.getKey(), e.getValue());
-            // }
 
             // Serialize fields
             for (DownsampleFieldSerializer fieldProducer : groupedProducers) {

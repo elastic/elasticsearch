@@ -59,6 +59,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -981,7 +982,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .get()
             .getHits()
             .getHits().length;
-
         assertDownsampleIndexer(indexService, shardNum, task, response2, dim2DocCount);
     }
 

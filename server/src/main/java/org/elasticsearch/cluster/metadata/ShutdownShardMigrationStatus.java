@@ -36,19 +36,14 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
     public static final String NODE_ALLOCATION_DECISION_KEY = "node_allocation_decision";
 
     private final SingleNodeShutdownMetadata.Status status;
+    private final long startedShards;
+    private final long relocatingShards;
+    private final long initializingShards;
     private final long shardsRemaining;
     @Nullable
     private final String explanation;
     @Nullable
     private final ShardAllocationDecision allocationDecision;
-
-    public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining) {
-        this(status, shardsRemaining, null, null);
-    }
-
-    public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining, @Nullable String explanation) {
-        this(status, shardsRemaining, explanation, null);
-    }
 
     public ShutdownShardMigrationStatus(
         SingleNodeShutdownMetadata.Status status,
@@ -56,7 +51,57 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
         @Nullable String explanation,
         @Nullable ShardAllocationDecision allocationDecision
     ) {
+        this(status, -1, -1, -1, shardsRemaining, explanation, null);
+    }
+
+    public ShutdownShardMigrationStatus(
+        SingleNodeShutdownMetadata.Status status,
+        long startedShards,
+        long relocatingShards,
+        long initializingShards
+    ) {
+        this(
+            status,
+            startedShards,
+            relocatingShards,
+            initializingShards,
+            startedShards + relocatingShards + initializingShards,
+            null,
+            null
+        );
+    }
+
+    public ShutdownShardMigrationStatus(
+        SingleNodeShutdownMetadata.Status status,
+        long startedShards,
+        long relocatingShards,
+        long initializingShards,
+        @Nullable String explanation
+    ) {
+        this(
+            status,
+            startedShards,
+            relocatingShards,
+            initializingShards,
+            startedShards + relocatingShards + initializingShards,
+            explanation,
+            null
+        );
+    }
+
+    private ShutdownShardMigrationStatus(
+        SingleNodeShutdownMetadata.Status status,
+        long startedShards,
+        long relocatingShards,
+        long initializingShards,
+        long shardsRemaining,
+        @Nullable String explanation,
+        @Nullable ShardAllocationDecision allocationDecision
+    ) {
         this.status = Objects.requireNonNull(status, "status must not be null");
+        this.startedShards = startedShards;
+        this.relocatingShards = relocatingShards;
+        this.initializingShards = initializingShards;
         this.shardsRemaining = shardsRemaining;
         this.explanation = explanation;
         this.allocationDecision = allocationDecision;
@@ -64,7 +109,17 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
 
     public ShutdownShardMigrationStatus(StreamInput in) throws IOException {
         this.status = in.readEnum(SingleNodeShutdownMetadata.Status.class);
-        this.shardsRemaining = in.readLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_MIGRATION_STATUS_INCLUDE_COUNTS)) {
+            this.startedShards = in.readZLong();
+            this.relocatingShards = in.readZLong();
+            this.initializingShards = in.readZLong();
+            this.shardsRemaining = in.readZLong();
+        } else {
+            this.startedShards = -1;
+            this.relocatingShards = -1;
+            this.initializingShards = -1;
+            this.shardsRemaining = in.readLong();
+        }
         this.explanation = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
             this.allocationDecision = in.readOptionalWriteable(ShardAllocationDecision::new);
@@ -99,6 +154,11 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
 
     private XContentBuilder buildHeader(XContentBuilder builder) throws IOException {
         builder.field("status", status);
+        if (startedShards != -1) {
+            builder.field("started_shards", startedShards);
+            builder.field("relocating_shards", relocatingShards);
+            builder.field("initializing_shards", initializingShards);
+        }
         builder.field("shard_migrations_remaining", shardsRemaining);
         if (Objects.nonNull(explanation)) {
             builder.field("explanation", explanation);
@@ -109,7 +169,14 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
-        out.writeLong(shardsRemaining);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_MIGRATION_STATUS_INCLUDE_COUNTS)) {
+            out.writeZLong(startedShards);
+            out.writeZLong(relocatingShards);
+            out.writeZLong(initializingShards);
+            out.writeZLong(shardsRemaining);
+        } else {
+            out.writeLong(shardsRemaining);
+        }
         out.writeOptionalString(explanation);
         if (out.getTransportVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
             out.writeOptionalWriteable(allocationDecision);
@@ -119,9 +186,12 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if ((o instanceof ShutdownShardMigrationStatus) == false) return false;
+        if (o == null || getClass() != o.getClass()) return false;
         ShutdownShardMigrationStatus that = (ShutdownShardMigrationStatus) o;
-        return shardsRemaining == that.shardsRemaining
+        return startedShards == that.startedShards
+            && relocatingShards == that.relocatingShards
+            && initializingShards == that.initializingShards
+            && shardsRemaining == that.shardsRemaining
             && status == that.status
             && Objects.equals(explanation, that.explanation)
             && Objects.equals(allocationDecision, that.allocationDecision);
@@ -129,7 +199,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
 
     @Override
     public int hashCode() {
-        return Objects.hash(status, shardsRemaining, explanation, allocationDecision);
+        return Objects.hash(status, startedShards, relocatingShards, initializingShards, shardsRemaining, explanation, allocationDecision);
     }
 
     @Override

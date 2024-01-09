@@ -8,14 +8,31 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.IpFieldScript;
+
+import java.io.IOException;
 
 /**
  * {@link BlockDocValuesReader} implementation for keyword scripts.
  */
 public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static BlockLoader blockLoader(IpFieldScript.LeafFactory factory) {
-        return context -> new IpScriptBlockDocValuesReader(factory.newInstance(context));
+    static class IpScriptBlockLoader extends DocValuesBlockLoader {
+        private final IpFieldScript.LeafFactory factory;
+
+        IpScriptBlockLoader(IpFieldScript.LeafFactory factory) {
+            this.factory = factory;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            return new IpScriptBlockDocValuesReader(factory.newInstance(context));
+        }
     }
 
     private final IpFieldScript script;
@@ -26,18 +43,14 @@ public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public int docID() {
+    public int docId() {
         return docId;
     }
 
     @Override
-    public BlockLoader.BytesRefBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
-        return factory.bytesRefs(expectedCount);  // Note that we don't pre-sort our output so we can't use bytesRefsFromDocValues
-    }
-
-    @Override
-    public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
-        try (BlockLoader.BytesRefBuilder builder = builder(factory, docs.count())) {
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
+        // Note that we don't pre-sort our output so we can't use bytesRefsFromDocValues
+        try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }
@@ -46,7 +59,7 @@ public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public void readValuesFromSingleDoc(int docId, BlockLoader.Builder builder) {
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
         this.docId = docId;
         read(docId, (BlockLoader.BytesRefBuilder) builder);
     }

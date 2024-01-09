@@ -57,6 +57,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -148,7 +149,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Map.of(
                 FAULTY_TYPE,
@@ -690,11 +692,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                             @Override
                             public String getProfileName() {
                                 return channel.getProfileName();
-                            }
-
-                            @Override
-                            public String getChannelType() {
-                                return channel.getChannelType();
                             }
 
                             @Override
@@ -1574,9 +1571,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[docCount];
         for (int i = 0; i < builders.length; i++) {
             int docId = i + docIdOffset;
-            builders[i] = client().prepareIndex(indexName)
-                .setId(Integer.toString(docId))
-                .setSource("field", docId, "field2", "Some text " + docId);
+            builders[i] = prepareIndex(indexName).setId(Integer.toString(docId)).setSource("field", docId, "field2", "Some text " + docId);
         }
         indexRandom(true, builders);
 

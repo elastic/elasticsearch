@@ -69,7 +69,7 @@ public enum ValueType implements Writeable {
         return valuesSourceType;
     }
 
-    private static Set<ValueType> numericValueTypes = Set.of(
+    private static final Set<ValueType> numericValueTypes = Set.of(
         ValueType.DOUBLE,
         ValueType.DATE,
         ValueType.LONG,
@@ -77,7 +77,7 @@ public enum ValueType implements Writeable {
         ValueType.NUMERIC,
         ValueType.BOOLEAN
     );
-    private static Set<ValueType> stringValueTypes = Set.of(ValueType.STRING, ValueType.IP);
+    private static final Set<ValueType> stringValueTypes = Set.of(ValueType.STRING, ValueType.IP);
 
     /**
      * This is a bit of a hack to mirror the old {@link ValueType} behavior, which would allow a rough compatibility between types.  This

@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
@@ -71,6 +72,37 @@ public final class LeakTracker {
         }
     }
 
+    public static Releasable wrap(Releasable releasable) {
+        if (Assertions.ENABLED == false) {
+            return releasable;
+        }
+        var leak = INSTANCE.track(releasable);
+        return new Releasable() {
+            @Override
+            public void close() {
+                try {
+                    releasable.close();
+                } finally {
+                    leak.close(releasable);
+                }
+            }
+
+            @Override
+            public int hashCode() {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to need the hashCode() of a leak-tracking Releasable");
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to compare a leak-tracking Releasable for equality");
+            }
+        };
+    }
+
     public static RefCounted wrap(RefCounted refCounted) {
         if (Assertions.ENABLED == false) {
             return refCounted;
@@ -102,6 +134,20 @@ public final class LeakTracker {
             @Override
             public boolean hasReferences() {
                 return refCounted.hasReferences();
+            }
+
+            @Override
+            public int hashCode() {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to need the hashCode() of a leak-tracking RefCounted");
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to compare a leak-tracking RefCounted for equality");
             }
         };
     }

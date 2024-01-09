@@ -73,7 +73,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             )
         );
 
-        assertThat(XContentFactory.xContentType(doc.source().toBytesRef().bytes), equalTo(XContentType.JSON));
+        assertThat(XContentHelper.xContentType(doc.source()), equalTo(XContentType.JSON));
 
         doc = documentMapper.parse(
             new SourceToParse(

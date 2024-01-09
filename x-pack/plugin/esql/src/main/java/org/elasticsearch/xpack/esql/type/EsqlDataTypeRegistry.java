@@ -16,7 +16,11 @@ import java.util.Collection;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrDatePeriod;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTimeDuration;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 
 public class EsqlDataTypeRegistry implements DataTypeRegistry {
@@ -61,14 +65,16 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public DataType commonType(DataType left, DataType right) {
-        if (isDateTime(left) && isTemporalAmount(right) || isTemporalAmount(left) && isDateTime(right)) {
-            return DataTypes.DATETIME;
-        }
-        if (left == TIME_DURATION && right == TIME_DURATION) {
-            return TIME_DURATION;
-        }
-        if (left == DATE_PERIOD && right == DATE_PERIOD) {
-            return DATE_PERIOD;
+        if (isDateTimeOrTemporal(left) || isDateTimeOrTemporal(right)) {
+            if ((isDateTime(left) && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && isDateTime(right))) {
+                return DATETIME;
+            }
+            if (isNullOrTimeDuration(left) && isNullOrTimeDuration(right)) {
+                return TIME_DURATION;
+            }
+            if (isNullOrDatePeriod(left) && isNullOrDatePeriod(right)) {
+                return DATE_PERIOD;
+            }
         }
         return EsqlDataTypeConverter.commonType(left, right);
     }

@@ -272,6 +272,17 @@ public class ClientYamlTestSuite {
                     """, section.getLocation().lineNumber()))
         );
 
+        errors = Stream.concat(
+            errors,
+            sections.stream()
+                .filter(section -> section instanceof IsAfterAssertion)
+                .filter(section -> false == hasSkipFeature("is_after", testSection, setupSection, teardownSection))
+                .map(section -> String.format(Locale.ROOT, """
+                    attempted to add an [is_after] assertion without a corresponding ["skip": "features": "is_after"] \
+                    so runners that do not support the [is_after] assertion can skip the test at line [%d]\
+                    """, section.getLocation().lineNumber()))
+        );
+
         return errors;
     }
 
@@ -287,7 +298,7 @@ public class ClientYamlTestSuite {
     }
 
     private static boolean hasSkipFeature(String feature, SkipSection skipSection) {
-        return skipSection != null && skipSection.getFeatures().contains(feature);
+        return skipSection != null && skipSection.yamlRunnerHasFeature(feature);
     }
 
     public List<ClientYamlTestSection> getTestSections() {

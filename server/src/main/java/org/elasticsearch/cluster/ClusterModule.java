@@ -77,6 +77,7 @@ import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -126,7 +127,8 @@ public class ClusterModule extends AbstractModule {
         SnapshotsInfoService snapshotsInfoService,
         ThreadPool threadPool,
         SystemIndices systemIndices,
-        WriteLoadForecaster writeLoadForecaster
+        WriteLoadForecaster writeLoadForecaster,
+        TelemetryProvider telemetryProvider
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -138,7 +140,8 @@ public class ClusterModule extends AbstractModule {
             clusterPlugins,
             clusterService,
             this::reconcile,
-            writeLoadForecaster
+            writeLoadForecaster,
+            telemetryProvider
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
@@ -381,7 +384,8 @@ public class ClusterModule extends AbstractModule {
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
-        WriteLoadForecaster writeLoadForecaster
+        WriteLoadForecaster writeLoadForecaster,
+        TelemetryProvider telemetryProvider
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(clusterSettings, writeLoadForecaster));
@@ -392,7 +396,8 @@ public class ClusterModule extends AbstractModule {
                 new BalancedShardsAllocator(clusterSettings, writeLoadForecaster),
                 threadPool,
                 clusterService,
-                reconciler
+                reconciler,
+                telemetryProvider
             )
         );
 

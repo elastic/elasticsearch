@@ -144,10 +144,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         private static String generateKey(double from, double to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder().append(Double.isInfinite(from) ? "*" : format.format(from))
-                .append("-")
-                .append(Double.isInfinite(to) ? "*" : format.format(to));
-            return builder.toString();
+            return (Double.isInfinite(from) ? "*" : format.format(from)) + "-" + (Double.isInfinite(to) ? "*" : format.format(to));
         }
 
         @Override

@@ -43,7 +43,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private final CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc;
     private final LongUnaryOperator rounding;
 
-    private BitArray bits;
+    private final BitArray bits;
     private LongArray values;
     private long currentValue;
     private boolean missingCurrentValue;

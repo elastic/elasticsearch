@@ -10,20 +10,20 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -50,6 +50,12 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class TopNBenchmark {
+    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;  // TODO real big arrays?
+    private static final BlockFactory blockFactory = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
+
     private static final int BLOCK_LENGTH = 8 * 1024;
 
     private static final String LONGS = "longs";
@@ -103,12 +109,13 @@ public class TopNBenchmark {
             default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
         };
         CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
             List.of(),
             ClusterSettings.createBuiltInClusterSettings()
         );
         return new TopNOperator(
-            BlockFactory.getNonBreakingInstance(),
+            blockFactory,
             breakerService.getBreaker(CircuitBreaker.REQUEST),
             topCount,
             elementTypes,
@@ -135,35 +142,35 @@ public class TopNBenchmark {
     private static Block block(String data) {
         return switch (data) {
             case LONGS -> {
-                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i);
                 }
                 yield builder.build();
             }
             case INTS -> {
-                var builder = IntBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendInt(i);
                 }
                 yield builder.build();
             }
             case DOUBLES -> {
-                var builder = DoubleBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendDouble(i);
                 }
                 yield builder.build();
             }
             case BOOLEANS -> {
-                BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(BLOCK_LENGTH);
+                BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendBoolean(i % 2 == 1);
                 }
                 yield builder.build();
             }
             case BYTES_REFS -> {
-                BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(BLOCK_LENGTH);
+                BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendBytesRef(new BytesRef(Integer.toString(i)));
                 }

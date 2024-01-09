@@ -70,6 +70,7 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
             this.tile2DVisitor = new Tile2DVisitor();
         }
 
+        @SuppressWarnings("this-escape")
         public GeoShapeValue(StreamInput in) throws IOException {
             this();
             reset(in);

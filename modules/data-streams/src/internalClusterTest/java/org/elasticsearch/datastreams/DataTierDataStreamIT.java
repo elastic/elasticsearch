@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
@@ -39,12 +39,11 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
 
-        var dsIndexName = client().prepareIndex(index)
-            .setCreate(true)
+        var dsIndexName = prepareIndex(index).setCreate(true)
             .setId("1")
             .setSource("@timestamp", "2020-09-09")
             .setWaitForActiveShards(0)

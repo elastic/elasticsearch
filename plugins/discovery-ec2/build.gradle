@@ -72,7 +72,10 @@ tasks.register("writeTestJavaPolicy") {
           "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportSecretKey\";",
           "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportPrivateKey\";",
           "permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
-          "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
+          "permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
+          "permission java.security.SecurityPermission \"getProperty.jdk.tls.disabledAlgorithms\";",
+          "permission java.security.SecurityPermission \"getProperty.jdk.certpath.disabledAlgorithms\";",
+          "permission java.security.SecurityPermission \"getProperty.keystore.type.compat\";",
           "};"
         ].join("\n")
       )

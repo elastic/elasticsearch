@@ -25,12 +25,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -39,7 +39,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -298,9 +297,11 @@ public class NativePrivilegeStore {
             // EMPTY is safe here because we never use namedObject
 
             try (
-                StreamInput input = source.streamInput();
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    source,
+                    XContentType.JSON
+                )
             ) {
                 final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, null, null, true);
                 assert privilege.getApplication().equals(name.v1())
@@ -370,7 +371,7 @@ public class NativePrivilegeStore {
     public void putPrivileges(
         Collection<ApplicationPrivilegeDescriptor> privileges,
         WriteRequest.RefreshPolicy refreshPolicy,
-        ActionListener<Map<String, List<String>>> listener
+        ActionListener<Map<String, Map<String, DocWriteResponse.Result>>> listener
     ) {
         if (privileges.isEmpty()) {
             listener.onResponse(Map.of());
@@ -416,9 +417,9 @@ public class NativePrivilegeStore {
         }
     }
 
-    private void handleBulkResponse(BulkResponse bulkResponse, ActionListener<Map<String, List<String>>> listener) {
+    private void handleBulkResponse(BulkResponse bulkResponse, ActionListener<Map<String, Map<String, DocWriteResponse.Result>>> listener) {
         ElasticsearchException failure = null;
-        final Map<String, List<String>> createdPrivilegesByAppName = new HashMap<>();
+        final Map<String, Map<String, DocWriteResponse.Result>> privilegeResultByAppName = new HashMap<>();
         for (var item : bulkResponse.getItems()) {
             if (item.isFailed()) {
                 if (failure == null) {
@@ -427,24 +428,22 @@ public class NativePrivilegeStore {
                     failure.addSuppressed(item.getFailure().getCause());
                 }
             } else {
-                if (item.getResponse().getResult() == DocWriteResponse.Result.CREATED) {
-                    final Tuple<String, String> name = nameFromDocId(item.getId());
-                    final String appName = name.v1();
-                    final String privilegeName = name.v2();
+                final Tuple<String, String> name = nameFromDocId(item.getId());
+                final String appName = name.v1();
+                final String privilegeName = name.v2();
 
-                    List<String> createdPrivileges = createdPrivilegesByAppName.get(appName);
-                    if (createdPrivileges == null) {
-                        createdPrivileges = new ArrayList<>();
-                        createdPrivilegesByAppName.put(appName, createdPrivileges);
-                    }
-                    createdPrivileges.add(privilegeName);
+                var privileges = privilegeResultByAppName.get(appName);
+                if (privileges == null) {
+                    privileges = new HashMap<>();
+                    privilegeResultByAppName.put(appName, privileges);
                 }
+                privileges.put(privilegeName, item.getResponse().getResult());
             }
         }
         if (failure != null) {
             listener.onFailure(failure);
         } else {
-            clearCaches(listener, createdPrivilegesByAppName.keySet(), createdPrivilegesByAppName);
+            clearCaches(listener, privilegeResultByAppName.keySet(), privilegeResultByAppName);
         }
     }
 

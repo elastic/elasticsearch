@@ -157,9 +157,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
     private static void indexDocs(BulkProcessor processor, int numDocs) {
         for (int i = 1; i <= numDocs; i++) {
             processor.add(
-                client().prepareIndex()
-                    .setIndex(INDEX_NAME)
-                    .setId(Integer.toString(i))
+                prepareIndex(INDEX_NAME).setId(Integer.toString(i))
                     .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
                     .request()
             );

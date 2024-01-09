@@ -34,11 +34,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
@@ -117,7 +118,10 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         var senderFactory = new HttpRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var sender = senderFactory.createSender("test_service")) {
-            sender.setMaxRequestTimeout(TimeValue.timeValueNanos(1));
+            assertThat(sender, instanceOf(HttpRequestSenderFactory.HttpRequestSender.class));
+            // hack to get around the sender interface so we can set the timeout directly
+            var httpSender = (HttpRequestSenderFactory.HttpRequestSender) sender;
+            httpSender.setMaxRequestTimeout(TimeValue.timeValueNanos(1));
             sender.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();

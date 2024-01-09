@@ -20,7 +20,13 @@ import java.util.Objects;
 
 public enum TaskType implements Writeable {
     TEXT_EMBEDDING,
-    SPARSE_EMBEDDING;
+    SPARSE_EMBEDDING,
+    ANY {
+        @Override
+        public boolean isAnyOrSame(TaskType other) {
+            return true;
+        }
+    };
 
     public static String NAME = "task_type";
 
@@ -35,6 +41,16 @@ public enum TaskType implements Writeable {
         } catch (IllegalArgumentException e) {
             throw new ElasticsearchStatusException("Unknown task_type [{}]", RestStatus.BAD_REQUEST, name);
         }
+    }
+
+    /**
+     * Return true if the {@code other} is the {@link #ANY} type
+     * or the same as this.
+     * @param other The other
+     * @return True if same or any.
+     */
+    public boolean isAnyOrSame(TaskType other) {
+        return other == TaskType.ANY || other == this;
     }
 
     @Override

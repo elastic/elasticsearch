@@ -29,8 +29,8 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -170,7 +170,8 @@ public class ApiKeyService {
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.interval",
         TimeValue.timeValueHours(24L),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Dynamic
     );
     public static final Setting<TimeValue> DELETE_RETENTION_PERIOD = Setting.positiveTimeSetting(
         "xpack.security.authc.api_key.delete.retention_period",
@@ -209,13 +210,10 @@ public class ApiKeyService {
     private final boolean enabled;
     private final Settings settings;
     private final InactiveApiKeysRemover inactiveApiKeysRemover;
-    private final TimeValue deleteInterval;
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
     private final ApiKeyDocCache apiKeyDocCache;
-
-    private volatile long lastExpirationRunMs;
 
     // The API key secret is a Base64 encoded v4 UUID without padding. The UUID is 128 bits, i.e. 16 byte,
     // which requires 22 digits of Base64 characters for encoding without padding.
@@ -244,7 +242,6 @@ public class ApiKeyService {
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
         this.settings = settings;
-        this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client, clusterService);
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
@@ -413,7 +410,7 @@ public class ApiKeyService {
         ActionListener<CreateApiKeyResponse> listener
     ) {
         final Instant created = clock.instant();
-        final Instant expiration = getApiKeyExpiration(created, request);
+        final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length();
         final Version version = clusterService.state().nodes().getMinNodeVersion();
@@ -746,7 +743,8 @@ public class ApiKeyService {
         final Version targetDocVersion,
         final Authentication authentication,
         final BaseUpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoleDescriptors
+        final Set<RoleDescriptor> userRoleDescriptors,
+        final Clock clock
     ) throws IOException {
         assert currentApiKeyDoc.type == request.getType();
         if (isNoop(apiKeyId, currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
@@ -758,8 +756,13 @@ public class ApiKeyService {
             .field("doc_type", "api_key")
             .field("type", currentApiKeyDoc.type.value())
             .field("creation_time", currentApiKeyDoc.creationTime)
-            .field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime)
             .field("api_key_invalidated", false);
+
+        if (request.getExpiration() != null) {
+            builder.field("expiration_time", getApiKeyExpiration(clock.instant(), request.getExpiration()).toEpochMilli());
+        } else {
+            builder.field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime);
+        }
 
         addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
 
@@ -806,8 +809,13 @@ public class ApiKeyService {
         final Authentication authentication,
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
-    ) {
+    ) throws IOException {
         if (apiKeyDoc.version != targetDocVersion.id) {
+            return false;
+        }
+
+        if (request.getExpiration() != null) {
+            // Since expiration is relative current time, it's not likely that it matches the stored value to the ms, so assume update
             return false;
         }
 
@@ -827,12 +835,11 @@ public class ApiKeyService {
                 return false;
             }
             @SuppressWarnings("unchecked")
-            final var currentRealmDomain = RealmDomain.fromXContent(
-                XContentHelper.mapToXContentParser(
-                    XContentParserConfiguration.EMPTY,
-                    (Map<String, Object>) currentCreator.get("realm_domain")
-                )
-            );
+            var m = (Map<String, Object>) currentCreator.get("realm_domain");
+            final RealmDomain currentRealmDomain;
+            try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, m)) {
+                currentRealmDomain = RealmDomain.fromXContent(parser);
+            }
             if (sourceRealm.getDomain().equals(currentRealmDomain) == false) {
                 return false;
             }
@@ -972,13 +979,13 @@ public class ApiKeyService {
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                 builder.map(rdMap);
                 try (
-                    XContentParser parser = XContentType.JSON.xContent()
-                        .createParser(
-                            XContentParserConfiguration.EMPTY.withDeprecationHandler(
-                                new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
-                            ),
-                            BytesReference.bytes(builder).streamInput()
-                        )
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY.withDeprecationHandler(
+                            new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
+                        ),
+                        BytesReference.bytes(builder),
+                        XContentType.JSON
+                    )
                 ) {
                     return RoleDescriptor.parse(name, parser, false);
                 }
@@ -1284,9 +1291,9 @@ public class ApiKeyService {
         }));
     }
 
-    private static Instant getApiKeyExpiration(Instant now, AbstractCreateApiKeyRequest request) {
-        if (request.getExpiration() != null) {
-            return now.plusSeconds(request.getExpiration().getSeconds());
+    private static Instant getApiKeyExpiration(Instant now, @Nullable TimeValue expiration) {
+        if (expiration != null) {
+            return now.plusSeconds(expiration.getSeconds());
         } else {
             return null;
         }
@@ -1476,7 +1483,8 @@ public class ApiKeyService {
             targetDocVersion,
             authentication,
             request,
-            userRoleDescriptors
+            userRoleDescriptors,
+            clock
         );
         final boolean isNoop = builder == null;
         return isNoop
@@ -1873,15 +1881,12 @@ public class ApiKeyService {
 
     // pkg scoped for testing
     long lastTimeWhenApiKeysRemoverWasTriggered() {
-        return lastExpirationRunMs;
+        return inactiveApiKeysRemover.getLastRunTimestamp();
     }
 
     private void maybeStartApiKeyRemover() {
         if (securityIndex.isAvailable(PRIMARY_SHARDS)) {
-            if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
-                inactiveApiKeysRemover.submit(client.threadPool());
-                lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
-            }
+            inactiveApiKeysRemover.maybeSubmit(client.threadPool());
         }
     }
 
@@ -1945,7 +1950,7 @@ public class ApiKeyService {
                 () -> executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
-                    SearchAction.INSTANCE,
+                    TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
                         final long total = searchResponse.getHits().getTotalHits().value;
@@ -1996,6 +2001,7 @@ public class ApiKeyService {
             Instant.ofEpochMilli(apiKeyDoc.creationTime),
             apiKeyDoc.expirationTime != -1 ? Instant.ofEpochMilli(apiKeyDoc.expirationTime) : null,
             apiKeyDoc.invalidated,
+            apiKeyDoc.invalidation != -1 ? Instant.ofEpochMilli(apiKeyDoc.invalidation) : null,
             (String) apiKeyDoc.creator.get("principal"),
             (String) apiKeyDoc.creator.get("realm"),
             metadata,
@@ -2183,6 +2189,7 @@ public class ApiKeyService {
             builder.declareLong(constructorArg(), new ParseField("creation_time"));
             builder.declareLongOrNull(constructorArg(), -1, new ParseField("expiration_time"));
             builder.declareBoolean(constructorArg(), new ParseField("api_key_invalidated"));
+            builder.declareLong(optionalConstructorArg(), new ParseField("invalidation_time"));
             builder.declareString(constructorArg(), new ParseField("api_key_hash"));
             builder.declareStringOrNull(optionalConstructorArg(), new ParseField("name"));
             builder.declareInt(constructorArg(), new ParseField("version"));
@@ -2198,6 +2205,7 @@ public class ApiKeyService {
         final long creationTime;
         final long expirationTime;
         final Boolean invalidated;
+        final long invalidation;
         final String hash;
         @Nullable
         final String name;
@@ -2214,6 +2222,7 @@ public class ApiKeyService {
             long creationTime,
             long expirationTime,
             Boolean invalidated,
+            @Nullable Long invalidation,
             String hash,
             @Nullable String name,
             int version,
@@ -2232,6 +2241,7 @@ public class ApiKeyService {
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
             this.invalidated = invalidated;
+            this.invalidation = (invalidation == null) ? -1 : invalidation;
             this.hash = hash;
             this.name = name;
             this.version = version;
@@ -2253,6 +2263,7 @@ public class ApiKeyService {
                 creationTime,
                 expirationTime,
                 invalidated,
+                invalidation,
                 hash,
                 name,
                 version,
@@ -2278,6 +2289,7 @@ public class ApiKeyService {
         final long creationTime;
         final long expirationTime;
         final Boolean invalidated;
+        final long invalidation;
         final String hash;
         final String name;
         final int version;
@@ -2292,6 +2304,7 @@ public class ApiKeyService {
             long creationTime,
             long expirationTime,
             Boolean invalidated,
+            long invalidation,
             String hash,
             String name,
             int version,
@@ -2304,6 +2317,7 @@ public class ApiKeyService {
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
             this.invalidated = invalidated;
+            this.invalidation = invalidation;
             this.hash = hash;
             this.name = name;
             this.version = version;
@@ -2320,6 +2334,7 @@ public class ApiKeyService {
                 creationTime,
                 expirationTime,
                 invalidated,
+                invalidation,
                 hash,
                 name,
                 version,

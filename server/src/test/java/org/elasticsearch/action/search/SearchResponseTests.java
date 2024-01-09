@@ -25,9 +25,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchHitsTests;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.AggregationsTests;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
@@ -107,42 +107,44 @@ public class SearchResponseTests extends ESTestCase {
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, totalShards);
-        InternalSearchResponse internalSearchResponse;
-        if (minimal == false) {
-            SearchHits hits = SearchHitsTests.createTestItem(true, true);
-            InternalAggregations aggregations = aggregationsTests.createTestInstance();
-            Suggest suggest = SuggestTests.createTestItem();
-            SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
-            internalSearchResponse = new InternalSearchResponse(
-                hits,
-                aggregations,
-                suggest,
-                profileResults,
-                timedOut,
-                terminatedEarly,
-                numReducePhases
-            );
-        } else {
-            internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-        }
-
         SearchResponse.Clusters clusters;
         if (minimal) {
             clusters = randomSimpleClusters();
         } else {
             clusters = randomClusters();
         }
-
-        return new SearchResponse(
-            internalSearchResponse,
-            null,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            shardSearchFailures,
-            clusters
-        );
+        if (minimal == false) {
+            SearchHits hits = SearchHitsTests.createTestItem(true, true);
+            InternalAggregations aggregations = aggregationsTests.createTestInstance();
+            Suggest suggest = SuggestTests.createTestItem();
+            SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
+            return new SearchResponse(
+                hits,
+                aggregations,
+                suggest,
+                timedOut,
+                terminatedEarly,
+                profileResults,
+                numReducePhases,
+                null,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                shardSearchFailures,
+                clusters
+            );
+        } else {
+            return SearchResponseUtils.emptyWithTotalHits(
+                null,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                shardSearchFailures,
+                clusters
+            );
+        }
     }
 
     /**
@@ -271,7 +273,12 @@ public class SearchResponseTests extends ESTestCase {
      * compare xContent, so we omit it here
      */
     public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(createTestItem(), false);
+        var response = createTestItem();
+        try {
+            doFromXContentTestWithRandomFields(response, false);
+        } finally {
+            response.decRef();
+        }
     }
 
     /**
@@ -281,7 +288,12 @@ public class SearchResponseTests extends ESTestCase {
      * fields to SearchHits, Aggregations etc... is tested in their own tests
      */
     public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(createMinimalTestItem(), true);
+        var response = createMinimalTestItem();
+        try {
+            doFromXContentTestWithRandomFields(response, true);
+        } finally {
+            response.decRef();
+        }
     }
 
     private void doFromXContentTestWithRandomFields(SearchResponse response, boolean addRandomFields) throws IOException {
@@ -328,15 +340,15 @@ public class SearchResponseTests extends ESTestCase {
         for (int i = 0; i < failures.length; i++) {
             failures[i] = ShardSearchFailureTests.createTestItem(IndexMetadata.INDEX_UUID_NA_VALUE);
         }
+        BytesReference originalBytes;
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());
-        final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
-        BytesReference originalBytes = toShuffledXContent(
-            ChunkedToXContent.wrapAsToXContent(response),
-            xcontentType,
-            params,
-            randomBoolean()
-        );
+        try {
+            final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+            originalBytes = toShuffledXContent(ChunkedToXContent.wrapAsToXContent(response), xcontentType, params, randomBoolean());
+        } finally {
+            response.decRef();
+        }
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
             try {
@@ -371,15 +383,13 @@ public class SearchResponseTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[] { hit };
         {
             SearchResponse response = new SearchResponse(
-                new InternalSearchResponse(
-                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
-                    null,
-                    null,
-                    null,
-                    false,
-                    null,
-                    1
-                ),
+                new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
                 null,
                 0,
                 0,
@@ -388,38 +398,40 @@ public class SearchResponseTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
-            String expectedString = XContentHelper.stripWhitespace("""
-                {
-                  "took": 0,
-                  "timed_out": false,
-                  "_shards": {
-                    "total": 0,
-                    "successful": 0,
-                    "skipped": 0,
-                    "failed": 0
-                  },
-                  "hits": {
-                    "total": {
-                      "value": 100,
-                      "relation": "eq"
-                    },
-                    "max_score": 1.5,
-                    "hits": [ { "_id": "id1", "_score": 2.0 } ]
-                  }
-                }""");
-            assertEquals(expectedString, Strings.toString(response));
+            try {
+                String expectedString = XContentHelper.stripWhitespace("""
+                    {
+                      "took": 0,
+                      "timed_out": false,
+                      "_shards": {
+                        "total": 0,
+                        "successful": 0,
+                        "skipped": 0,
+                        "failed": 0
+                      },
+                      "hits": {
+                        "total": {
+                          "value": 100,
+                          "relation": "eq"
+                        },
+                        "max_score": 1.5,
+                        "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                      }
+                    }""");
+                assertEquals(expectedString, Strings.toString(response));
+            } finally {
+                response.decRef();
+            }
         }
         {
             SearchResponse response = new SearchResponse(
-                new InternalSearchResponse(
-                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
-                    null,
-                    null,
-                    null,
-                    false,
-                    null,
-                    1
-                ),
+                new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
                 null,
                 0,
                 0,
@@ -428,46 +440,48 @@ public class SearchResponseTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 new SearchResponse.Clusters(5, 3, 2)
             );
-            String expectedString = XContentHelper.stripWhitespace("""
-                {
-                  "took": 0,
-                  "timed_out": false,
-                  "_shards": {
-                    "total": 0,
-                    "successful": 0,
-                    "skipped": 0,
-                    "failed": 0
-                  },
-                  "_clusters": {
-                    "total": 5,
-                    "successful": 3,
-                    "skipped": 2,
-                    "running":0,
-                    "partial": 0,
-                    "failed": 0
-                  },
-                  "hits": {
-                    "total": {
-                      "value": 100,
-                      "relation": "eq"
-                    },
-                    "max_score": 1.5,
-                    "hits": [ { "_id": "id1", "_score": 2.0 } ]
-                  }
-                }""");
-            assertEquals(expectedString, Strings.toString(response));
+            try {
+                String expectedString = XContentHelper.stripWhitespace("""
+                    {
+                      "took": 0,
+                      "timed_out": false,
+                      "_shards": {
+                        "total": 0,
+                        "successful": 0,
+                        "skipped": 0,
+                        "failed": 0
+                      },
+                      "_clusters": {
+                        "total": 5,
+                        "successful": 3,
+                        "skipped": 2,
+                        "running":0,
+                        "partial": 0,
+                        "failed": 0
+                      },
+                      "hits": {
+                        "total": {
+                          "value": 100,
+                          "relation": "eq"
+                        },
+                        "max_score": 1.5,
+                        "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                      }
+                    }""");
+                assertEquals(expectedString, Strings.toString(response));
+            } finally {
+                response.decRef();
+            }
         }
         {
             SearchResponse response = new SearchResponse(
-                new InternalSearchResponse(
-                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
-                    null,
-                    null,
-                    null,
-                    false,
-                    null,
-                    1
-                ),
+                new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
                 null,
                 20,
                 9,
@@ -485,147 +499,158 @@ public class SearchResponseTests extends ESTestCase {
                     new ShardSearchFailure[] { new ShardSearchFailure(new IllegalStateException("corrupt index")) }
                 )
             );
-            String expectedString = XContentHelper.stripWhitespace("""
-                {
-                  "took": 0,
-                  "timed_out": false,
-                  "_shards": {
-                    "total": 20,
-                    "successful": 9,
-                    "skipped": 2,
-                    "failed": 0
-                  },
-                  "_clusters": {
-                    "total": 4,
-                    "successful": 1,
-                    "skipped": 1,
-                    "running":0,
-                    "partial": 1,
-                    "failed": 1,
-                    "details": {
-                      "(local)": {
-                        "status": "successful",
-                        "indices": "foo,bar*",
-                        "took": 1000,
-                        "timed_out": false,
-                        "_shards": {
-                          "total": 5,
-                          "successful": 5,
-                          "skipped": 1,
-                          "failed": 0
+            try {
+                String expectedString = XContentHelper.stripWhitespace("""
+                    {
+                      "took": 0,
+                      "timed_out": false,
+                      "_shards": {
+                        "total": 20,
+                        "successful": 9,
+                        "skipped": 2,
+                        "failed": 0
+                      },
+                      "_clusters": {
+                        "total": 4,
+                        "successful": 1,
+                        "skipped": 1,
+                        "running":0,
+                        "partial": 1,
+                        "failed": 1,
+                        "details": {
+                          "(local)": {
+                            "status": "successful",
+                            "indices": "foo,bar*",
+                            "took": 1000,
+                            "timed_out": false,
+                            "_shards": {
+                              "total": 5,
+                              "successful": 5,
+                              "skipped": 1,
+                              "failed": 0
+                            }
+                          },
+                          "cluster_1": {
+                            "status": "skipped",
+                            "indices": "foo,bar*",
+                            "took": 1000,
+                            "timed_out": false,
+                            "_shards": {
+                              "total": 5,
+                              "successful": 0,
+                              "skipped": 0,
+                              "failed": 5
+                            },
+                            "failures": [
+                              {
+                                "shard": -1,
+                                "index": null,
+                                "reason": {
+                                  "type": "illegal_state_exception",
+                                  "reason": "corrupt index"
+                                }
+                              }
+                            ]
+                          },
+                          "cluster_2": {
+                            "status": "failed",
+                            "indices": "foo,bar*",
+                            "took": 1000,
+                            "timed_out": false,
+                            "_shards": {
+                              "total": 5,
+                              "successful": 0,
+                              "skipped": 0,
+                              "failed": 5
+                            },
+                            "failures": [
+                              {
+                                "shard": -1,
+                                "index": null,
+                                "reason": {
+                                  "type": "illegal_state_exception",
+                                  "reason": "corrupt index"
+                                }
+                              }
+                            ]
+                          },
+                          "cluster_0": {
+                            "status": "partial",
+                            "indices": "foo,bar*",
+                            "took": 1000,
+                            "timed_out": false,
+                            "_shards": {
+                              "total": 5,
+                              "successful": 4,
+                              "skipped": 1,
+                              "failed": 1
+                            },
+                            "failures": [
+                              {
+                                "shard": -1,
+                                "index": null,
+                                "reason": {
+                                  "type": "illegal_state_exception",
+                                  "reason": "corrupt index"
+                                }
+                              }
+                            ]
+                          }
                         }
                       },
-                      "cluster_1": {
-                        "status": "skipped",
-                        "indices": "foo,bar*",
-                        "took": 1000,
-                        "timed_out": false,
-                        "_shards": {
-                          "total": 5,
-                          "successful": 0,
-                          "skipped": 0,
-                          "failed": 5
+                      "hits": {
+                        "total": {
+                          "value": 100,
+                          "relation": "eq"
                         },
-                        "failures": [
+                        "max_score": 1.5,
+                        "hits": [
                           {
-                            "shard": -1,
-                            "index": null,
-                            "reason": {
-                              "type": "illegal_state_exception",
-                              "reason": "corrupt index"
-                            }
-                          }
-                        ]
-                      },
-                      "cluster_2": {
-                        "status": "failed",
-                        "indices": "foo,bar*",
-                        "took": 1000,
-                        "timed_out": false,
-                        "_shards": {
-                          "total": 5,
-                          "successful": 0,
-                          "skipped": 0,
-                          "failed": 5
-                        },
-                        "failures": [
-                          {
-                            "shard": -1,
-                            "index": null,
-                            "reason": {
-                              "type": "illegal_state_exception",
-                              "reason": "corrupt index"
-                            }
-                          }
-                        ]
-                      },
-                      "cluster_0": {
-                        "status": "partial",
-                        "indices": "foo,bar*",
-                        "took": 1000,
-                        "timed_out": false,
-                        "_shards": {
-                          "total": 5,
-                          "successful": 4,
-                          "skipped": 1,
-                          "failed": 1
-                        },
-                        "failures": [
-                          {
-                            "shard": -1,
-                            "index": null,
-                            "reason": {
-                              "type": "illegal_state_exception",
-                              "reason": "corrupt index"
-                            }
+                            "_id": "id1",
+                            "_score": 2.0
                           }
                         ]
                       }
-                    }
-                  },
-                  "hits": {
-                    "total": {
-                      "value": 100,
-                      "relation": "eq"
-                    },
-                    "max_score": 1.5,
-                    "hits": [
-                      {
-                        "_id": "id1",
-                        "_score": 2.0
-                      }
-                    ]
-                  }
-                }""");
-            assertEquals(expectedString, Strings.toString(response));
+                    }""");
+                assertEquals(expectedString, Strings.toString(response));
+            } finally {
+                response.decRef();
+            }
         }
     }
 
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
-        SearchResponse deserialized = copyWriteable(
-            searchResponse,
-            namedWriteableRegistry,
-            SearchResponse::new,
-            TransportVersion.current()
-        );
-        if (searchResponse.getHits().getTotalHits() == null) {
-            assertNull(deserialized.getHits().getTotalHits());
-        } else {
-            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+        try {
+            SearchResponse deserialized = copyWriteable(
+                searchResponse,
+                namedWriteableRegistry,
+                SearchResponse::new,
+                TransportVersion.current()
+            );
+            try {
+                if (searchResponse.getHits().getTotalHits() == null) {
+                    assertNull(deserialized.getHits().getTotalHits());
+                } else {
+                    assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
+                    assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+                }
+                assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
+                assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
+                assertEquals(searchResponse.getFailedShards(), deserialized.getFailedShards());
+                assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
+                assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
+                assertEquals(searchResponse.getClusters(), deserialized.getClusters());
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            searchResponse.decRef();
         }
-        assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
-        assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
-        assertEquals(searchResponse.getFailedShards(), deserialized.getFailedShards());
-        assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
-        assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
-        assertEquals(searchResponse.getClusters(), deserialized.getClusters());
     }
 
     public void testToXContentEmptyClusters() throws IOException {
-        SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             null,
             1,
             1,
@@ -634,15 +659,23 @@ public class SearchResponseTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        SearchResponse deserialized = copyWriteable(
-            searchResponse,
-            namedWriteableRegistry,
-            SearchResponse::new,
-            TransportVersion.current()
-        );
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
-        deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(0, Strings.toString(builder).length());
+        try {
+            SearchResponse deserialized = copyWriteable(
+                searchResponse,
+                namedWriteableRegistry,
+                SearchResponse::new,
+                TransportVersion.current()
+            );
+            try {
+                XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+                deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                assertEquals(0, Strings.toString(builder).length());
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testClustersHasRemoteCluster() {

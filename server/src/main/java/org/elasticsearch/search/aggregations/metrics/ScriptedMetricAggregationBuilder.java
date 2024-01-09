@@ -94,7 +94,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         combineScript = in.readOptionalWriteable(Script::new);
         reduceScript = in.readOptionalWriteable(Script::new);
         if (in.readBoolean()) {
-            params = in.readMap();
+            params = in.readGenericMap();
         }
     }
 
@@ -283,10 +283,5 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             && Objects.equals(combineScript, other.combineScript)
             && Objects.equals(reduceScript, other.reduceScript)
             && Objects.equals(params, other.params);
-    }
-
-    @Override
-    public boolean supportsParallelCollection() {
-        return false;
     }
 }

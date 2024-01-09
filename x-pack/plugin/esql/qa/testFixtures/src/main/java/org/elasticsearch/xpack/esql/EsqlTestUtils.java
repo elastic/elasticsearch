@@ -86,6 +86,11 @@ public final class EsqlTestUtils {
         public boolean isSingleValue(String field) {
             return false;
         }
+
+        @Override
+        public boolean isIndexed(String field) {
+            return exists(field);
+        }
     }
 
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();
@@ -105,7 +110,8 @@ public final class EsqlTestUtils {
             pragmas,
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            query
+            query,
+            false
         );
     }
 

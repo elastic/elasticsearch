@@ -83,7 +83,7 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
             // that scripts return the same internal representation as regular fields, so boolean
             // values in scripts need to be converted to a number, and the value formatter will
             // make sure of using true/false in the key_as_string field
-            return ((Boolean) o).booleanValue() ? 1L : 0L;
+            return (Boolean) o ? 1L : 0L;
         } else {
             throw AggregationErrors.unsupportedScriptValue(o == null ? "null" : o.toString());
         }

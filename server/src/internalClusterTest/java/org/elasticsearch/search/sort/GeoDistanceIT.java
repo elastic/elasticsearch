@@ -56,8 +56,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("names", "New York")
@@ -69,8 +68,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("names", "New York 2")
@@ -82,8 +80,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test")
-            .setId("3")
+        prepareIndex("test").setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Times Square", "Tribeca")
@@ -103,8 +100,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test")
-            .setId("4")
+        prepareIndex("test").setId("4")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Wall Street", "Soho")
@@ -124,8 +120,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test")
-            .setId("5")
+        prepareIndex("test").setId("5")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Greenwich Village", "Brooklyn")
@@ -253,8 +248,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Times Square", "Tribeca")
@@ -274,10 +268,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test")
-            .setId("2")
-            .setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject())
-            .get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject()).get();
 
         refresh();
 
@@ -331,8 +322,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("companies")
-                .setId("1")
+            prepareIndex("companies").setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "company 1")
@@ -347,8 +337,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .endArray()
                         .endObject()
                 ),
-            client().prepareIndex("companies")
-                .setId("2")
+            prepareIndex("companies").setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "company 2")
@@ -372,8 +361,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .endArray()
                         .endObject()
                 ),
-            client().prepareIndex("companies")
-                .setId("3")
+            prepareIndex("companies").setId("3")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "company 3")
@@ -396,8 +384,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .endArray()
                         .endObject()
                 ),
-            client().prepareIndex("companies")
-                .setId("4")
+            prepareIndex("companies").setId("4")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "company 4")
@@ -579,7 +566,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         XContentBuilder source = JsonXContent.contentBuilder().startObject().field("pin", Geohash.stringEncode(lon, lat)).endObject();
 
         assertAcked(prepareCreate("locations").setSettings(settings).setMapping(mapping));
-        client().prepareIndex("locations").setId("1").setCreate(true).setSource(source).get();
+        prepareIndex("locations").setId("1").setCreate(true).setSource(source).get();
         refresh();
         client().prepareGet("locations", "1").get();
 
@@ -602,8 +589,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2"));
         ensureGreen();
 
-        client().prepareIndex("test1")
-            .setId("1")
+        prepareIndex("test1").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .array("names", "Times Square", "Tribeca")
@@ -623,10 +609,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test2")
-            .setId("2")
-            .setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject())
-            .get();
+        prepareIndex("test2").setId("2").setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject()).get();
 
         refresh();
 

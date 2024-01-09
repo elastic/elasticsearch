@@ -112,7 +112,7 @@ public class TransformTaskTests extends ESTestCase {
             transformsConfigManager,
             transformsCheckpointService,
             auditor,
-            new TransformScheduler(clock, threadPool, Settings.EMPTY)
+            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO)
         );
 
         TransformState transformState = new TransformState(
@@ -134,7 +134,7 @@ public class TransformTaskTests extends ESTestCase {
             TaskId.EMPTY_TASK_ID,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            new TransformScheduler(clock, threadPool, Settings.EMPTY),
+            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
             Collections.emptyMap()
@@ -212,7 +212,7 @@ public class TransformTaskTests extends ESTestCase {
             TaskId.EMPTY_TASK_ID,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY),
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
             Collections.emptyMap()
@@ -222,7 +222,7 @@ public class TransformTaskTests extends ESTestCase {
 
         transformTask.init(mock(PersistentTasksService.class), taskManager, "task-id", 42);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        transformTask.fail("because", ActionTestUtils.assertNoFailureListener(r -> { listenerCalled.compareAndSet(false, true); }));
+        transformTask.fail(null, "because", ActionTestUtils.assertNoFailureListener(r -> { listenerCalled.compareAndSet(false, true); }));
 
         TransformState state = transformTask.getState();
         assertEquals(TransformTaskState.FAILED, state.getTaskState());
@@ -431,7 +431,7 @@ public class TransformTaskTests extends ESTestCase {
             TaskId.EMPTY_TASK_ID,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY),
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
             Collections.emptyMap()

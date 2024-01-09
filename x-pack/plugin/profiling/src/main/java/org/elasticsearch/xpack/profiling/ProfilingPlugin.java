@@ -91,7 +91,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             indexManager.get().initialize();
             dataStreamManager.get().initialize();
         }
-        return Collections.singletonList(createLicenseChecker());
+        return List.of(createLicenseChecker());
     }
 
     protected ProfilingLicenseChecker createLicenseChecker() {

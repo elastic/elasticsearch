@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -182,15 +183,19 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     private SearchHit[] getSearchHits(String asyncId, String user) throws IOException {
         final Response resp = getAsyncSearch(asyncId, user);
         assertOK(resp);
-        AsyncSearchResponse searchResponse = AsyncSearchResponse.fromXContent(
+        SearchResponse searchResponse = AsyncSearchResponse.fromXContent(
             XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
                 new BytesArray(EntityUtils.toByteArray(resp.getEntity())),
                 XContentType.JSON
             )
-        );
-        return searchResponse.getSearchResponse().getHits().getHits();
+        ).getSearchResponse();
+        try {
+            return searchResponse.getHits().getHits();
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testAuthorizationOfPointInTime() throws Exception {
@@ -229,7 +234,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         try {
             final Request request = new Request("POST", "/_async_search");
             setRunAsHeader(request, authorizedUser);
-            request.addParameter("wait_for_completion_timeout", "true");
+            request.addParameter("wait_for_completion_timeout", "1s");
             request.addParameter("keep_on_completion", "true");
             if (randomBoolean()) {
                 request.addParameter("index", "index-" + authorizedUser);

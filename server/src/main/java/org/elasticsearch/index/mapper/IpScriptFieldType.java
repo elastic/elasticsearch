@@ -211,6 +211,6 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return IpScriptBlockDocValuesReader.blockLoader(leafFactory(blContext.lookup()));
+        return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()));
     }
 }

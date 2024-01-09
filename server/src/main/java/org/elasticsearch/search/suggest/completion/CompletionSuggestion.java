@@ -271,9 +271,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             public Option(StreamInput in) throws IOException {
                 super(in);
                 this.doc = Lucene.readScoreDoc(in);
-                if (in.readBoolean()) {
-                    this.hit = new SearchHit(in);
-                }
+                this.hit = in.readOptionalWriteable(SearchHit::readFrom);
                 int contextSize = in.readInt();
                 this.contexts = Maps.newLinkedHashMapWithExpectedSize(contextSize);
                 for (int i = 0; i < contextSize; i++) {

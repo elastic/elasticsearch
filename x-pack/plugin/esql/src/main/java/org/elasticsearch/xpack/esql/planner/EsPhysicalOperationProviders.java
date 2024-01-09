@@ -19,7 +19,7 @@ import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -37,12 +37,12 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
@@ -61,34 +61,30 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+        // TODO: see if we can get the FieldExtractExec to know if spatial types need to be read from source or doc values, and capture
+        // that information in the BlockReaderFactories.loaders method so it is passed in the BlockLoaderContext
+        // to GeoPointFieldMapper.blockLoader
         Layout.Builder layout = source.layout.builder();
-
         var sourceAttr = fieldExtractExec.sourceAttribute();
-
-        PhysicalOperation op = source;
+        List<ValuesSourceReaderOperator.ShardContext> readers = searchContexts.stream()
+            .map(s -> new ValuesSourceReaderOperator.ShardContext(s.searcher().getIndexReader(), s::newSourceLoader))
+            .toList();
+        List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
+        int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            if (attr instanceof FieldAttribute fa && fa.getExactInfo().hasExact()) {
-                attr = fa.exactAttribute();
-            }
             layout.append(attr);
-            Layout previousLayout = op.layout;
-
             DataType dataType = attr.dataType();
+            ElementType elementType = PlannerUtils.toElementType(dataType);
             String fieldName = attr.name();
-            List<BlockDocValuesReader.Factory> factories = BlockReaderFactories.factories(
-                searchContexts,
+            boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
+            IntFunction<BlockLoader> loader = s -> BlockReaderFactories.loader(
+                searchContexts.get(s).getSearchExecutionContext(),
                 fieldName,
-                EsqlDataTypes.isUnsupported(dataType)
+                isSupported
             );
-
-            int docChannel = previousLayout.get(sourceAttr.id()).channel();
-
-            op = op.with(
-                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(factories, docChannel, fieldName),
-                layout.build()
-            );
+            fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
-        return op;
+        return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
     }
 
     public static Function<SearchContext, Query> querySupplier(QueryBuilder queryBuilder) {
@@ -170,16 +166,24 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         var sourceAttribute = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
         int docChannel = source.layout.get(sourceAttribute.id()).channel();
+        List<ValuesSourceReaderOperator.ShardContext> shardContexts = searchContexts.stream()
+            .map(s -> new ValuesSourceReaderOperator.ShardContext(s.searcher().getIndexReader(), s::newSourceLoader))
+            .toList();
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
+        boolean isUnsupported = EsqlDataTypes.isUnsupported(attrSource.dataType());
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            BlockReaderFactories.factories(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType())),
+            shardIdx -> BlockReaderFactories.loader(
+                searchContexts.get(shardIdx).getSearchExecutionContext(),
+                attrSource.name(),
+                isUnsupported
+            ),
+            shardContexts,
             groupElementType,
             docChannel,
             attrSource.name(),
             aggregatorFactories,
-            context.pageSize(aggregateExec.estimatedRowSize()),
-            context.bigArrays()
+            context.pageSize(aggregateExec.estimatedRowSize())
         );
     }
 }

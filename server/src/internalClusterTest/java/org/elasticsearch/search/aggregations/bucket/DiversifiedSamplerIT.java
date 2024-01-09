@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ESIntegTestCase.SuiteScopeTestCase
 public class DiversifiedSamplerIT extends ESIntegTestCase {
 
-    public static final int NUM_SHARDS = 2;
+    private static final int NUM_SHARDS = 1;
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SamplerAggregator.ExecutionMode.values()).toString();
@@ -77,16 +77,15 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
 
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split(",");
-            client().prepareIndex("test")
-                .setId("" + i)
+            prepareIndex("test").setId("" + i)
                 .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
                 .get();
-            client().prepareIndex("idx_unmapped_author")
-                .setId("" + i)
+            prepareIndex("idx_unmapped_author").setId("" + i)
                 .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
                 .get();
+            // frequent refresh makes it more likely that more segments are created, hence we may parallelize the search across slices
+            indicesAdmin().refresh(new RefreshRequest()).get();
         }
-        indicesAdmin().refresh(new RefreshRequest("test")).get();
     }
 
     public void testIssue10719() throws Exception {

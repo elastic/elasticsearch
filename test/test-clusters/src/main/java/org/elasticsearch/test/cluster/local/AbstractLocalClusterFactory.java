@@ -443,6 +443,21 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             });
         }
 
+        public void updateStoredSecureSettings() {
+            if (usesSecureSecretsFile) {
+                throw new UnsupportedOperationException("updating stored secure settings is not supported in serverless test clusters");
+            }
+            final Path keystoreFile = workingDir.resolve("config").resolve("elasticsearch.keystore");
+            try {
+                Files.deleteIfExists(keystoreFile);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            createKeystore();
+            addKeystoreSettings();
+            addKeystoreFiles();
+        }
+
         private void createKeystore() {
             if (spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()) {
                 runToolScript("elasticsearch-keystore", null, "-v", "create");
@@ -715,9 +730,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String systemProperties = "";
-            if (spec.getSystemProperties().isEmpty() == false) {
-                systemProperties = spec.getSystemProperties()
-                    .entrySet()
+            Map<String, String> resolvedSystemProperties = new HashMap<>(spec.resolveSystemProperties());
+            if (resolvedSystemProperties.isEmpty() == false) {
+                systemProperties = resolvedSystemProperties.entrySet()
                     .stream()
                     .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
                     .map(p -> p.replace("${ES_PATH_CONF}", configDir.toString()))

@@ -24,7 +24,7 @@ public class TransformContext {
 
         void failureCountChanged();
 
-        void fail(String failureMessage, ActionListener<Void> listener);
+        void fail(Throwable exception, String failureMessage, ActionListener<Void> listener);
     }
 
     private final AtomicReference<TransformTaskState> taskState;
@@ -218,8 +218,8 @@ public class TransformContext {
         taskListener.shutdown();
     }
 
-    void markAsFailed(String failureMessage) {
-        taskListener.fail(failureMessage, ActionListener.wrap(r -> {
+    void markAsFailed(Throwable exception, String failureMessage) {
+        taskListener.fail(exception, failureMessage, ActionListener.wrap(r -> {
             // Successfully marked as failed, reset counter so that task can be restarted
             failureCount.set(0);
         }, e -> {}));

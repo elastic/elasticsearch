@@ -16,7 +16,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -36,10 +35,10 @@ import static org.mockito.Mockito.when;
 public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testExecuteWithAggs() {
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:00").get();
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:10").get();
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:20").get();
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:30").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:00").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:10").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:20").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:30").get();
         refresh();
 
         CompareCondition condition = new CompareCondition(
@@ -72,7 +71,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
             }
         );
 
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:40").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:40").get();
         refresh();
 
         assertResponse(
@@ -105,17 +104,14 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+        SearchResponse response = new SearchResponse(
             new SearchHits(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),
             null,
             null,
+            false,
+            false,
             null,
-            false,
-            false,
-            1
-        );
-        SearchResponse response = new SearchResponse(
-            internalSearchResponse,
+            1,
             "",
             3,
             3,

@@ -207,6 +207,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 stored.get(),
                 hasDocValues.get(),
                 geoParser,
+                nullValue.get(),
                 scriptValues(),
                 meta.get(),
                 metric.get(),
@@ -356,7 +357,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         return CONTENT_TYPE;
     }
 
-    public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
+    public static class GeoPointFieldType extends AbstractPointFieldType<GeoPoint> implements GeoShapeQueryable {
         private final TimeSeriesParams.MetricType metricType;
 
         public static final GeoFormatterFactory<GeoPoint> GEO_FORMATTER_FACTORY = new GeoFormatterFactory<>(
@@ -372,12 +373,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             boolean stored,
             boolean hasDocValues,
             Parser<GeoPoint> parser,
+            GeoPoint nullValue,
             FieldValues<GeoPoint> scriptValues,
             Map<String, String> meta,
             TimeSeriesParams.MetricType metricType,
             IndexMode indexMode
         ) {
-            super(name, indexed, stored, hasDocValues, parser, meta);
+            super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
             this.scriptValues = scriptValues;
             this.metricType = metricType;
             this.indexMode = indexMode;
@@ -385,7 +387,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         // only used in test
         public GeoPointFieldType(String name, TimeSeriesParams.MetricType metricType, IndexMode indexMode) {
-            this(name, true, false, true, null, null, Collections.emptyMap(), metricType, indexMode);
+            this(name, true, false, true, null, null, null, Collections.emptyMap(), metricType, indexMode);
         }
 
         // only used in test

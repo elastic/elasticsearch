@@ -28,7 +28,7 @@ public class Atan extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
-        return new AtanEvaluator.Factory(field);
+        return new AtanEvaluator.Factory(source(), field);
     }
 
     @Override

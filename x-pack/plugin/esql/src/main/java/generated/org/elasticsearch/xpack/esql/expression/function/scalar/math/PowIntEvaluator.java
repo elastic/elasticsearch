@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -61,11 +62,25 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public IntBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (baseBlock.isNull(p) || baseBlock.getValueCount(p) != 1) {
+        if (baseBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (exponentBlock.isNull(p) || exponentBlock.getValueCount(p) != 1) {
+        if (baseBlock.getValueCount(p) != 1) {
+          if (baseBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (exponentBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (exponentBlock.getValueCount(p) != 1) {
+          if (exponentBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

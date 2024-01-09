@@ -34,7 +34,6 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
 
     protected DocValueFormat format;
     protected List<B> buckets;
-    protected Map<String, B> bucketMap;
 
     final SetBackedScalingCuckooFilter filter;
 

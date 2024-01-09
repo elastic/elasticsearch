@@ -10,15 +10,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.AdminClient;
@@ -95,10 +93,10 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         indicesAdminClient = mock(IndicesAdminClient.class);
         when(indicesAdminClient.prepareCreate(FIRST_CONCRETE_INDEX)).thenReturn(
-            new CreateIndexRequestBuilder(client, CreateIndexAction.INSTANCE, FIRST_CONCRETE_INDEX)
+            new CreateIndexRequestBuilder(client, FIRST_CONCRETE_INDEX)
         );
         doAnswer(withResponse(new CreateIndexResponse(true, true, FIRST_CONCRETE_INDEX))).when(indicesAdminClient).create(any(), any());
-        when(indicesAdminClient.prepareAliases()).thenReturn(new IndicesAliasesRequestBuilder(client, IndicesAliasesAction.INSTANCE));
+        when(indicesAdminClient.prepareAliases()).thenReturn(new IndicesAliasesRequestBuilder(client));
         doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).aliases(any(), any());
         doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).putTemplate(any(), any());
 
@@ -123,12 +121,13 @@ public class MlIndexAndAliasTests extends ESTestCase {
             return null;
         }).when(client)
             .execute(
-                any(PutComposableIndexTemplateAction.class),
-                any(PutComposableIndexTemplateAction.Request.class),
+                same(TransportPutComposableIndexTemplateAction.TYPE),
+                any(TransportPutComposableIndexTemplateAction.Request.class),
                 any(ActionListener.class)
             );
 
         listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
 
         createRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         aliasesRequestCaptor = ArgumentCaptor.forClass(IndicesAliasesRequest.class);
@@ -173,7 +172,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
             listener
         );
         InOrder inOrder = inOrder(client, listener);
-        inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        inOrder.verify(listener).delegateFailureAndWrap(any());
+        inOrder.verify(client).execute(same(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
         inOrder.verify(listener).onResponse(true);
     }
 
@@ -238,7 +238,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
             listener
         );
         InOrder inOrder = inOrder(client, listener);
-        inOrder.verify(client).execute(same(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        inOrder.verify(listener).delegateFailureAndWrap(any());
+        inOrder.verify(client).execute(same(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
         inOrder.verify(listener).onResponse(true);
     }
 

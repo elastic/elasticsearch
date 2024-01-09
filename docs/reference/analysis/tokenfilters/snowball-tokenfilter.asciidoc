@@ -9,7 +9,7 @@ A filter that stems words using a Snowball-generated stemmer. The
 values: `Arabic`, `Armenian`, `Basque`, `Catalan`, `Danish`, `Dutch`, `English`,
 `Estonian`, `Finnish`, `French`, `German`, `German2`, `Hungarian`, `Italian`, `Irish`, `Kp`,
 `Lithuanian`, `Lovins`, `Norwegian`, `Porter`, `Portuguese`, `Romanian`,
-`Russian`, `Spanish`, `Swedish`, `Turkish`.
+`Russian`, `Serbian`, `Spanish`, `Swedish`, `Turkish`.
 
 For example:
 

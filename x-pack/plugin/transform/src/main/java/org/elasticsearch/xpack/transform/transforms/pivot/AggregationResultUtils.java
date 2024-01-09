@@ -49,6 +49,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt;
+import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.isDateType;
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.isNumericType;
 
 public final class AggregationResultUtils {
@@ -70,16 +71,9 @@ public final class AggregationResultUtils {
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
-    private static final Map<String, BucketKeyExtractor> BUCKET_KEY_EXTRACTOR_MAP;
     private static final BucketKeyExtractor DEFAULT_BUCKET_KEY_EXTRACTOR = new DefaultBucketKeyExtractor();
     private static final BucketKeyExtractor DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR = new DatesAsEpochBucketKeyExtractor();
-
-    static {
-        Map<String, BucketKeyExtractor> tempMap = new HashMap<>();
-        tempMap.put(GeoTileGroupSource.class.getName(), new GeoTileBucketKeyExtractor());
-
-        BUCKET_KEY_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
-    }
+    private static final BucketKeyExtractor GEO_TILE_BUCKET_KEY_EXTRACTOR = new GeoTileBucketKeyExtractor();
 
     private static final String FIELD_TYPE = "type";
     private static final String FIELD_COORDINATES = "coordinates";
@@ -150,10 +144,13 @@ public final class AggregationResultUtils {
     }
 
     static BucketKeyExtractor getBucketKeyExtractor(SingleGroupSource groupSource, boolean datesAsEpoch) {
-        return BUCKET_KEY_EXTRACTOR_MAP.getOrDefault(
-            groupSource.getClass().getName(),
-            datesAsEpoch ? DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR : DEFAULT_BUCKET_KEY_EXTRACTOR
-        );
+        if (groupSource instanceof GeoTileGroupSource) {
+            return GEO_TILE_BUCKET_KEY_EXTRACTOR;
+        } else if (datesAsEpoch) {
+            return DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR;
+        } else {
+            return DEFAULT_BUCKET_KEY_EXTRACTOR;
+        }
     }
 
     static AggValueExtractor getExtractor(Aggregation aggregation) {
@@ -514,7 +511,6 @@ public final class AggregationResultUtils {
             );
             return geoShape;
         }
-
     }
 
     static class DefaultBucketKeyExtractor implements BucketKeyExtractor {
@@ -523,16 +519,14 @@ public final class AggregationResultUtils {
         public Object value(Object key, String type) {
             if (isNumericType(type) && key instanceof Double) {
                 return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
-            } else if ((DateFieldMapper.CONTENT_TYPE.equals(type) || DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(type))
-                && key instanceof Long) {
-                    // date_histogram return bucket keys with milliseconds since epoch precision, therefore we don't need a
-                    // nanosecond formatter, for the parser on indexing side, time is optional (only the date part is mandatory)
-                    return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
-                }
-
-            return key;
+            } else if (isDateType(type) && key instanceof Long) {
+                // date_histogram return bucket keys with milliseconds since epoch precision, therefore we don't need a
+                // nanosecond formatter, for the parser on indexing side, time is optional (only the date part is mandatory)
+                return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
+            } else {
+                return key;
+            }
         }
-
     }
 
     static class DatesAsEpochBucketKeyExtractor implements BucketKeyExtractor {
@@ -541,9 +535,9 @@ public final class AggregationResultUtils {
         public Object value(Object key, String type) {
             if (isNumericType(type) && key instanceof Double) {
                 return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
+            } else {
+                return key;
             }
-            return key;
         }
-
     }
 }

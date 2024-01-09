@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -72,6 +72,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.metadata.ClusterChangedEventUtils.indicesCreated;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
@@ -151,11 +152,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(firstRoundDownsamplingIndex)
+            if (indicesCreated(event).contains(firstRoundDownsamplingIndex)
                 || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(firstRoundDownsamplingIndex))) {
                 witnessedDownsamplingIndices.add(firstRoundDownsamplingIndex);
             }
-            if (event.indicesCreated().contains(secondRoundDownsamplingIndex)) {
+            if (indicesCreated(event).contains(secondRoundDownsamplingIndex)) {
                 witnessedDownsamplingIndices.add(secondRoundDownsamplingIndex);
             }
         });
@@ -203,7 +204,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(secondRoundDownsamplingIndex)) {
+            if (indicesCreated(event).contains(secondRoundDownsamplingIndex)) {
                 witnessedDownsamplingIndices.add(secondRoundDownsamplingIndex);
             }
         });
@@ -244,7 +245,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         Map<String, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            List<String> allIndices = errorStore.getAllIndices();
+            Set<String> allIndices = errorStore.getAllIndices();
             for (var index : allIndices) {
                 ErrorEntry error = errorStore.getError(index);
                 if (error != null) {
@@ -334,7 +335,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle lifecycle
     ) {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
@@ -343,7 +344,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client.execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client.execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     private void indexDocuments(Client client, String dataStreamName, int docCount, long startTime) {

@@ -135,7 +135,7 @@ class S3Service implements Closeable {
                 return existing;
             }
             final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings));
-            clientReference.incRef();
+            clientReference.mustIncRef();
             clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
             return clientReference;
         }
@@ -221,6 +221,7 @@ class S3Service implements Closeable {
             // TODO: remove this leniency, these settings should exist together and be validated
             clientConfiguration.setProxyHost(clientSettings.proxyHost);
             clientConfiguration.setProxyPort(clientSettings.proxyPort);
+            clientConfiguration.setProxyProtocol(clientSettings.proxyScheme);
             clientConfiguration.setProxyUsername(clientSettings.proxyUsername);
             clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
         }
@@ -370,7 +371,7 @@ class S3Service implements Closeable {
                 // https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
                 stsRegion = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
                 if (stsRegion != null) {
-                    stsClientBuilder.withRegion(stsRegion);
+                    SocketAccess.doPrivilegedVoid(() -> stsClientBuilder.withRegion(stsRegion));
                 } else {
                     LOGGER.warn("Unable to use regional STS endpoints because the AWS_REGION environment variable is not set");
                 }

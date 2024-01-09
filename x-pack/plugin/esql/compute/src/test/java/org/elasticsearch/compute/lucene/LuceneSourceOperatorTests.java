@@ -17,7 +17,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
@@ -71,11 +71,11 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneSourceOperator.Factory simple(BigArrays bigArrays) {
-        return simple(bigArrays, randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
+    protected LuceneSourceOperator.Factory simple() {
+        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 
-    private LuceneSourceOperator.Factory simple(BigArrays bigArrays, DataPartitioning dataPartitioning, int numDocs, int limit) {
+    private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit) {
         int commitEvery = Math.max(1, numDocs / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -108,7 +108,8 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         when(ctx.getSearchExecutionContext().getForField(any(), any())).thenAnswer(inv -> {
             MappedFieldType ft = inv.getArgument(0);
             IndexFieldData.Builder builder = ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"));
-            return builder.build(new IndexFieldDataCache.None(), bigArrays.breakerService());
+            // This breaker is for fielddata from text fields. We don't test it so it won't break not test not to use a breaker here.
+            return builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         when(ctx.getSearchExecutionContext().nestedScope()).thenReturn(new NestedScope());
         when(ctx.getSearchExecutionContext().nestedLookup()).thenReturn(NestedLookup.EMPTY);
@@ -176,7 +177,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     private void testSimple(DriverContext ctx, int size, int limit) {
-        LuceneSourceOperator.Factory factory = simple(ctx.bigArrays(), DataPartitioning.SHARD, size, limit);
+        LuceneSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();

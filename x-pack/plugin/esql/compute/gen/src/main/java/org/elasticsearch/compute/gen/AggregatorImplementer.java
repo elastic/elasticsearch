@@ -25,7 +25,6 @@ import java.util.Locale;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
@@ -33,6 +32,7 @@ import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
+import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
@@ -76,6 +76,7 @@ public class AggregatorImplementer {
     private final boolean stateTypeHasSeen;
     private final boolean valuesIsBytesRef;
     private final List<IntermediateStateDesc> intermediateState;
+    private final List<Parameter> createParameters;
 
     public AggregatorImplementer(Elements elements, TypeElement declarationType, IntermediateState[] interStateAnno) {
         this.declarationType = declarationType;
@@ -96,6 +97,11 @@ public class AggregatorImplementer {
         this.combineValueCount = findMethod(declarationType, "combineValueCount");
         this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
+        this.createParameters = init.getParameters()
+            .stream()
+            .map(Parameter::from)
+            .filter(f -> false == f.type().equals(BIG_ARRAYS))
+            .toList();
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -112,7 +118,7 @@ public class AggregatorImplementer {
     }
 
     List<Parameter> createParameters() {
-        return init.getParameters().stream().map(Parameter::from).toList();
+        return createParameters;
     }
 
     private TypeName choseStateType() {
@@ -196,8 +202,8 @@ public class AggregatorImplementer {
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
+        for (Parameter p : createParameters) {
+            builder.addField(p.type(), p.name(), Modifier.PRIVATE, Modifier.FINAL);
         }
 
         builder.addMethod(create());
@@ -220,27 +226,32 @@ public class AggregatorImplementer {
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
-        for (VariableElement p : init.getParameters()) {
-            builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
+        for (Parameter p : createParameters) {
+            builder.addParameter(p.type(), p.name());
         }
         if (init.getParameters().isEmpty()) {
             builder.addStatement("return new $T(driverContext, channels, $L)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(driverContext, channels, $L, $L)", implementation, callInit(), initParameters());
+            builder.addStatement(
+                "return new $T(driverContext, channels, $L, $L)",
+                implementation,
+                callInit(),
+                createParameters.stream().map(p -> p.name()).collect(joining(", "))
+            );
         }
         return builder.build();
     }
 
-    private String initParameters() {
-        return init.getParameters().stream().map(p -> p.getSimpleName().toString()).collect(joining(", "));
-    }
-
     private CodeBlock callInit() {
+        String initParametersCall = init.getParameters()
+            .stream()
+            .map(p -> TypeName.get(p.asType()).equals(BIG_ARRAYS) ? "driverContext.bigArrays()" : p.getSimpleName().toString())
+            .collect(joining(", "));
         CodeBlock.Builder builder = CodeBlock.builder();
         if (init.getReturnType().toString().equals(stateType.toString())) {
-            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParameters());
+            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParametersCall);
         } else {
-            builder.add("new $T($T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
+            builder.add("new $T($T.$L($L))", stateType, declarationType, init.getSimpleName(), initParametersCall);
         }
         return builder.build();
     }
@@ -267,9 +278,9 @@ public class AggregatorImplementer {
         builder.addStatement("this.channels = channels");
         builder.addStatement("this.state = state");
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
-            builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
+        for (Parameter p : createParameters()) {
+            builder.addParameter(p.type(), p.name());
+            builder.addStatement("this.$N = $N", p.name(), p.name());
         }
         return builder.build();
     }

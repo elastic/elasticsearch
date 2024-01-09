@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -66,6 +66,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -227,7 +228,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
             } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -295,7 +296,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
             } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -379,11 +380,12 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         } else if (action == ILMActions.PUT) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             calledTimes.incrementAndGet();
-            assertThat(action, instanceOf(PutComposableIndexTemplateAction.class));
-            assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-            final PutComposableIndexTemplateAction.Request putRequest = (PutComposableIndexTemplateAction.Request) request;
+            assertThat(action, sameInstance(TransportPutComposableIndexTemplateAction.TYPE));
+            assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+            final TransportPutComposableIndexTemplateAction.Request putRequest =
+                (TransportPutComposableIndexTemplateAction.Request) request;
             assertThat(putRequest.indexTemplate().version(), equalTo((long) ConnectorTemplateRegistry.REGISTRY_VERSION));
             final List<String> indexPatterns = putRequest.indexTemplate().indexPatterns();
             assertThat(indexPatterns, hasSize(1));
@@ -419,7 +421,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         } else if (action == ILMActions.PUT) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {

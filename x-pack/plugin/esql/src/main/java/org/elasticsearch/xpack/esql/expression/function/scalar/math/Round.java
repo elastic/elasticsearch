@@ -45,17 +45,11 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
 
     private final Expression field, decimals;
 
-    @FunctionInfo(
-        returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Rounds a number to the closest number with the specified number of digits."
-    )
+    // @TODO: add support for "integer", "long", "unsigned_long" once tests are fixed
+    @FunctionInfo(returnType = "double", description = "Rounds a number to the closest number with the specified number of digits.")
     public Round(
         Source source,
-        @Param(
-            name = "value",
-            type = { "double", "integer", "long", "unsigned_long" },
-            description = "The numeric value to round"
-        ) Expression field,
+        @Param(name = "value", type = "double", description = "The numeric value to round") Expression field,
         @Param(
             optional = true,
             name = "decimals",

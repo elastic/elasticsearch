@@ -49,15 +49,16 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
     @FunctionInfo(
         returnType = {
             "boolean",
-            "date",
-            "keyword",
-            "text",
-            "double",
-            "long",
-            "unsigned_long",
-            "integer",
-            "geo_point",
             "cartesian_point",
+            "date",
+            "double",
+            "geo_point",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "text",
+            "unsigned_long",
             "version" },
         description = """
             Accepts pairs of conditions and values.
@@ -70,15 +71,16 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
             name = "rest",
             type = {
                 "boolean",
-                "date",
-                "keyword",
-                "text",
-                "double",
-                "long",
-                "unsigned_long",
-                "integer",
-                "geo_point",
                 "cartesian_point",
+                "date",
+                "double",
+                "geo_point",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
                 "version" }
         ) List<Expression> rest
     ) {

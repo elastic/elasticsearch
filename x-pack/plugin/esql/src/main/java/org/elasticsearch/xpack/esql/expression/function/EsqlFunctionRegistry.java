@@ -210,7 +210,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
 
     public record ArgSignature(String name, String[] type, String description, boolean optional) {}
 
-    public record FunctionDescription(String name, List<ArgSignature> args, String[] returnType, String description, boolean variadic) {
+    public record FunctionDescription(String name, List<ArgSignature> args, String[] returnType, String description, boolean variadic, boolean isAggregation) {
         public String fullSignature() {
             StringBuilder builder = new StringBuilder();
             builder.append(ShowFunctions.withPipes(returnType));
@@ -249,12 +249,13 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         }
         Constructor<?> constructor = constructors[0];
         FunctionInfo functionInfo = constructor.getAnnotation(FunctionInfo.class);
-        String functionDescription = functionInfo == null ? "" : functionInfo.description();
+        String functionDescription = functionInfo == null ? "" : functionInfo.description().replaceAll(System.lineSeparator(), " ");
         String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
         var params = constructor.getParameters(); // no multiple c'tors supported
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
+        boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                 Param paramInfo = params[i].getAnnotation(Param.class);
@@ -267,7 +268,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional));
             }
         }
-        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic);
+        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
     }
 
 }

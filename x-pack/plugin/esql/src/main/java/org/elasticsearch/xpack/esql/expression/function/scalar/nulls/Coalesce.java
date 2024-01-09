@@ -77,7 +77,6 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
             description = "Expression to evaluate"
         ) Expression first,
         @Param(
-            optional = true,
             name = "expressionX",
             type = {
                 "boolean",

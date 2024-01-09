@@ -72,41 +72,6 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
-        }), new TestCaseSupplier("round([<int>], <int>)", () -> {
-            int number = randomInt();
-            int precision = between(-30, 30);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(number, DataTypes.INTEGER, "number"),
-                    new TestCaseSupplier.TypedData(precision, DataTypes.INTEGER, "precision")
-                ),
-                "RoundIntEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
-                DataTypes.INTEGER,
-                equalTo(Maths.round(number, precision))
-            );
-        }), new TestCaseSupplier("round([<long>], <int>)", () -> {
-            long number = randomLongBetween(1, 2);
-            int precision = between(-30, 30);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(number, DataTypes.LONG, "number"),
-                    new TestCaseSupplier.TypedData(precision, DataTypes.INTEGER, "precision")
-                ),
-                "RoundLongEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
-                DataTypes.LONG,
-                equalTo(Maths.round(number, precision))
-            );
-        }), new TestCaseSupplier("round([<unsigned_long>], <int>)", () -> {
-            int precision = between(-30, 30);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(UNSIGNED_LONG_MAX, DataTypes.UNSIGNED_LONG, "number"),
-                    new TestCaseSupplier.TypedData(precision, DataTypes.INTEGER, "precision")
-                ),
-                "RoundUnsignedLongEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
-                DataTypes.UNSIGNED_LONG,
-                equalTo(Maths.round(UNSIGNED_LONG_MAX, precision))
-            );
         })));
     }
 

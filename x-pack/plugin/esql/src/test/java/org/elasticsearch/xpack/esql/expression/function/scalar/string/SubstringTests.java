@@ -61,7 +61,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
                 ),
                 "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
-                DataTypes.TEXT,
+                DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
             );
         })));

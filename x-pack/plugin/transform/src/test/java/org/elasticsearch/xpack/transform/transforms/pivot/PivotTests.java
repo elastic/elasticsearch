@@ -353,7 +353,8 @@ public class PivotTests extends ESTestCase {
                         searchFailures.add(new ShardSearchFailure(new RuntimeException("shard failed")));
                     }
                 }
-                listener.onResponse(
+                ActionListener.respondAndRelease(
+                    listener,
                     (Response) new SearchResponse(
                         SearchHits.EMPTY_WITH_TOTAL_HITS,
                         null,

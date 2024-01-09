@@ -56,7 +56,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     public static List<ElementType> supportedTypes() {
         List<ElementType> supported = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC)) {
                 continue;
             }
             supported.add(elementType);
@@ -64,11 +64,20 @@ public class MultivalueDedupeTests extends ESTestCase {
         return supported;
     }
 
+    private static boolean oneOf(ElementType elementType, ElementType... others) {
+        for (ElementType other : others) {
+            if (elementType == other) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : supportedTypes()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC)) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
@@ -181,6 +190,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                 assertBooleanHash(previousValues, b);
             }
             case BYTES_REF -> {
+                // TODO: Also test spatial WKB
                 int prevSize = between(1, 10000);
                 Set<BytesRef> previousValues = new HashSet<>(prevSize);
                 while (previousValues.size() < prevSize) {
@@ -347,7 +357,7 @@ public class MultivalueDedupeTests extends ESTestCase {
             for (int i = start; i < end; i++) {
                 actualValues.add(lookup.apply(hashes.getInt(i) - 1));
             }
-            assertThat(actualValues, containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray()));
+            assertThat(new HashSet<>(actualValues), containsInAnyOrder(new HashSet<>(v).toArray()));
             allValues.addAll(v);
         }
 

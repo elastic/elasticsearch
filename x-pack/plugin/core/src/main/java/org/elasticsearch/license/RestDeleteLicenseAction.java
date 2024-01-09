@@ -41,6 +41,6 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
 
         return channel -> client.admin()
             .cluster()
-            .execute(DeleteLicenseAction.INSTANCE, deleteLicenseRequest, new RestToXContentListener<>(channel));
+            .execute(TransportDeleteLicenseAction.TYPE, deleteLicenseRequest, new RestToXContentListener<>(channel));
     }
 }

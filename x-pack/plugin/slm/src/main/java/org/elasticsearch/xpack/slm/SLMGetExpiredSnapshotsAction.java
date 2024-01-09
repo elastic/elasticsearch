@@ -75,8 +75,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
         public LocalAction(TransportService transportService, RepositoriesService repositoriesService, ActionFilters actionFilters) {
             super(INSTANCE.name(), actionFilters, transportService.getTaskManager());
             this.repositoriesService = repositoriesService;
-            final var threadPool = transportService.getThreadPool();
-            this.retentionExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+            this.retentionExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         }
 
         private static class ResultsBuilder {

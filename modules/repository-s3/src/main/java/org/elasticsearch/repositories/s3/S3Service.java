@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -69,6 +70,12 @@ class S3Service implements Closeable {
         Setting.Property.NodeScope
     );
 
+    static final Setting<TimeValue> WEB_IDENTITY_TOKEN_REFRESH_CREDENTIALS_SETTING = Setting.timeSetting(
+        "repository_s3.web_identity_token_refresh_credentials_interval",
+        TimeValue.timeValueHours(1),
+        Setting.Property.NodeScope
+    );
+
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
     /**
@@ -90,12 +97,14 @@ class S3Service implements Closeable {
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
 
-    S3Service(Environment environment, Settings nodeSettings) {
+    S3Service(Environment environment, Settings nodeSettings, ThreadPool threadPool) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
             System::getProperty,
-            Clock.systemUTC()
+            Clock.systemUTC(),
+            threadPool,
+            WEB_IDENTITY_TOKEN_REFRESH_CREDENTIALS_SETTING.get(nodeSettings)
         );
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
@@ -328,7 +337,9 @@ class S3Service implements Closeable {
             Environment environment,
             SystemEnvironment systemEnvironment,
             JvmEnvironment jvmEnvironment,
-            Clock clock
+            Clock clock,
+            ThreadPool threadPool,
+            TimeValue credentialsRefreshInterval
         ) {
             // Check whether the original environment variable exists. If it doesn't,
             // the system doesn't support AWS web identity tokens
@@ -390,6 +401,11 @@ class S3Service implements Closeable {
                     roleSessionName,
                     webIdentityTokenFileSymlink.toString()
                 ).withStsClient(stsClient).build();
+                threadPool.scheduleWithFixedDelay(
+                    credentialsProvider::refresh,
+                    credentialsRefreshInterval,
+                    threadPool.executor(ThreadPool.Names.SNAPSHOT)
+                );
             } catch (Exception e) {
                 stsClient.shutdown();
                 throw e;

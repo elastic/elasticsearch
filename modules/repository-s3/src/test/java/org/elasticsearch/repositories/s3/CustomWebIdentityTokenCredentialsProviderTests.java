@@ -15,10 +15,13 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
 import org.junit.Assert;
 import org.mockito.Mockito;
 
@@ -42,6 +45,13 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
 
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     private static final String ROLE_NAME = "aws-sdk-java-1651084775908";
+    private final TestThreadPool threadPool = new TestThreadPool("test");
+    private final TimeValue credentialsRefreshInterval = TimeValue.timeValueHours(1);
+
+    @After
+    public void shutdown() throws Exception {
+        threadPool.shutdown();
+    }
 
     private static Environment getEnvironment() throws IOException {
         Path configDirectory = createTempDir("web-identity-token-test");
@@ -115,7 +125,9 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             environment,
             environmentVariables::get,
             systemProperties::getOrDefault,
-            Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC)
+            Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC),
+            threadPool,
+            credentialsRefreshInterval
         );
         try {
             AWSCredentials credentials = S3Service.buildCredentials(
@@ -149,7 +161,9 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             getEnvironment(),
             environmentVariables::get,
             systemProperties::getOrDefault,
-            Clock.systemUTC()
+            Clock.systemUTC(),
+            threadPool,
+            credentialsRefreshInterval
         );
         // We can't verify that webIdentityTokenCredentialsProvider's STS client uses the "https://sts.us-west-2.amazonaws.com"
         // endpoint in a unit test. The client depends on hardcoded RegionalEndpointsOptionResolver that in turn depends

@@ -450,7 +450,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             endingSnapshots.add(targetSnapshot);
             initializingClones.remove(targetSnapshot);
             logger.info(() -> "Failed to start snapshot clone [" + cloneEntry + "]", e);
-            removeFailedSnapshotFromClusterState(targetSnapshot, e, null);
+            removeFailedSnapshotFromClusterState(targetSnapshot, e, null, ShardGenerations.EMPTY);
         };
 
         // 1. step, load SnapshotInfo to make sure that source snapshot was successful for the indices we want to clone
@@ -1312,7 +1312,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         if (entry.isClone() && entry.state() == State.FAILED) {
             logger.debug("Removing failed snapshot clone [{}] from cluster state", entry);
             if (newFinalization) {
-                removeFailedSnapshotFromClusterState(snapshot, new SnapshotException(snapshot, entry.failure()), null);
+                removeFailedSnapshotFromClusterState(
+                    snapshot,
+                    new SnapshotException(snapshot, entry.failure()),
+                    null,
+                    ShardGenerations.EMPTY
+                );
             }
             return;
         }
@@ -1496,7 +1501,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             // a fatal like e.g. this node stopped being the master node
                             snapshotListeners.onResponse(endAndGetListenersToResolve(snapshot));
                             runNextQueuedOperation(updatedRepositoryData, repository, true);
-                        }, e -> handleFinalizationFailure(e, snapshot, repositoryData)),
+                        }, e -> handleFinalizationFailure(e, snapshot, repositoryData, shardGenerations)),
                         snInfo -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
@@ -1512,11 +1517,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         })
                     )
                 );
-            }, e -> handleFinalizationFailure(e, snapshot, repositoryData)));
+            }, e -> handleFinalizationFailure(e, snapshot, repositoryData, shardGenerations)));
         } catch (Exception e) {
             logger.error(Strings.format("unexpected failure finalizing %s", snapshot), e);
             assert false : new AssertionError("unexpected failure finalizing " + snapshot, e);
-            handleFinalizationFailure(e, snapshot, repositoryData);
+            handleFinalizationFailure(e, snapshot, repositoryData, ShardGenerations.EMPTY);
         }
     }
 
@@ -1568,7 +1573,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param snapshot       snapshot that failed to finalize
      * @param repositoryData current repository data for the snapshot's repository
      */
-    private void handleFinalizationFailure(Exception e, Snapshot snapshot, RepositoryData repositoryData) {
+    private void handleFinalizationFailure(
+        Exception e,
+        Snapshot snapshot,
+        RepositoryData repositoryData,
+        ShardGenerations shardGenerations
+    ) {
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
             // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
             // will try ending this snapshot again
@@ -1581,7 +1591,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             failAllListenersOnMasterFailOver(e);
         } else {
             logger.warn(() -> "[" + snapshot + "] failed to finalize snapshot", e);
-            removeFailedSnapshotFromClusterState(snapshot, e, repositoryData);
+            removeFailedSnapshotFromClusterState(snapshot, e, repositoryData, shardGenerations);
         }
     }
 
@@ -1701,7 +1711,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param snapshot snapshot for which to remove the snapshot operation
      * @return updated cluster state
      */
-    public static ClusterState stateWithoutSnapshot(ClusterState state, Snapshot snapshot) {
+    public static ClusterState stateWithoutSnapshot(ClusterState state, Snapshot snapshot, ShardGenerations shardGenerations) {
         final SnapshotsInProgress snapshots = SnapshotsInProgress.get(state);
         ClusterState result = state;
         int indexOfEntry = -1;
@@ -1763,7 +1773,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             final RepositoryShardId repositoryShardId = finishedShardEntry.getKey();
                             if (shardState.state() != ShardState.SUCCESS
                                 || previousEntry.shardsByRepoShardId().containsKey(repositoryShardId) == false
-                                || indexExists(removedEntry, state.metadata(), finishedShardEntry.getKey().indexName()) == false) {
+                                || shardGenerations.hasShardGen(finishedShardEntry.getKey()) == false) {
                                 continue;
                             }
                             updatedShardAssignments = maybeAddUpdatedAssignment(
@@ -1781,7 +1791,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             final ShardSnapshotStatus shardState = finishedShardEntry.getValue();
                             if (shardState.state() == ShardState.SUCCESS
                                 && previousEntry.shardsByRepoShardId().containsKey(finishedShardEntry.getKey())
-                                && indexExists(removedEntry, state.metadata(), finishedShardEntry.getKey().indexName())) {
+                                && shardGenerations.hasShardGen(finishedShardEntry.getKey())) {
                                 updatedShardAssignments = maybeAddUpdatedAssignment(
                                     updatedShardAssignments,
                                     shardState,
@@ -1802,11 +1812,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 .build();
         }
         return readyDeletions(result).v1();
-    }
-
-    private static boolean indexExists(SnapshotsInProgress.Entry snapshotsInProgressEntry, Metadata metadata, String indexName) {
-        final var index = snapshotsInProgressEntry.indexByName(indexName);
-        return index != null && metadata.index(index) != null;
     }
 
     private static void addSnapshotEntry(
@@ -1869,13 +1874,18 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param repositoryData repository data if the next finalization operation on the repository should be attempted or {@code null} if
      *                       no further actions should be executed
      */
-    private void removeFailedSnapshotFromClusterState(Snapshot snapshot, Exception failure, @Nullable RepositoryData repositoryData) {
+    private void removeFailedSnapshotFromClusterState(
+        Snapshot snapshot,
+        Exception failure,
+        @Nullable RepositoryData repositoryData,
+        ShardGenerations shardGenerations
+    ) {
         assert failure != null : "Failure must be supplied";
         submitUnbatchedTask(REMOVE_SNAPSHOT_METADATA_TASK_SOURCE, new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final ClusterState updatedState = stateWithoutSnapshot(currentState, snapshot);
+                final ClusterState updatedState = stateWithoutSnapshot(currentState, snapshot, shardGenerations);
                 assert updatedState == currentState || endingSnapshots.contains(snapshot)
                     : "did not track [" + snapshot + "] in ending snapshots while removing it from the cluster state";
                 // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them

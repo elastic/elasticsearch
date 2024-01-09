@@ -1,6 +1,0 @@
-pr: 99796
-summary: Support runtime fields in synthetic source
-area: Aggregations
-type: bug
-issues:
- - 98287

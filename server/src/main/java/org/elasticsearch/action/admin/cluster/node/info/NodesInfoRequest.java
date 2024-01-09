@@ -20,7 +20,7 @@ import java.util.TreeSet;
 /**
  * A request to get node (cluster) level information.
  */
-public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
+public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
     private final NodesInfoMetrics nodesInfoMetrics;
 
@@ -39,7 +39,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Get information from nodes based on the nodes ids specified. If none are passed, information
      * for all nodes will be returned.
      */
-    @SuppressWarnings("this-escape")
     public NodesInfoRequest(String... nodesIds) {
         super(nodesIds);
         nodesInfoMetrics = new NodesInfoMetrics();

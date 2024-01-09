@@ -7,35 +7,43 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
-import java.util.Collection;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.elasticsearch.core.Strings.format;
 
 public class Utils {
-    public static ClusterService mockClusterServiceEmpty() {
-        return mockClusterService(Settings.EMPTY);
+
+    public static String getUrl(MockWebServer webServer) {
+        return format("http://%s:%s", webServer.getHostName(), webServer.getPort());
     }
 
-    public static ClusterService mockClusterService(Settings settings) {
-        var clusterService = mock(ClusterService.class);
+    public static Map<String, Object> entityAsMap(String body) throws IOException {
+        InputStream bodyStream = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8));
 
-        var registeredSettings = Stream.of(
-            HttpSettings.getSettings(),
-            HttpClientManager.getSettings(),
-            HttpRequestSenderFactory.HttpRequestSender.getSettings()
-        ).flatMap(Collection::stream).collect(Collectors.toSet());
+        return entityAsMap(bodyStream);
+    }
 
-        var cSettings = new ClusterSettings(settings, registeredSettings);
-        when(clusterService.getClusterSettings()).thenReturn(cSettings);
-
-        return clusterService;
+    public static Map<String, Object> entityAsMap(InputStream body) throws IOException {
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
+                        .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
+                    body
+                )
+        ) {
+            return parser.map();
+        }
     }
 }

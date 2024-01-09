@@ -277,7 +277,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         );
 
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
-        PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = PlainActionFuture.newFuture();
+        PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = new PlainActionFuture<>();
         testExecutor.coordinatePolicyExecution(
             new ExecuteEnrichPolicyAction.Request(testPolicyName).setWaitForCompletion(false),
             firstTaskResult

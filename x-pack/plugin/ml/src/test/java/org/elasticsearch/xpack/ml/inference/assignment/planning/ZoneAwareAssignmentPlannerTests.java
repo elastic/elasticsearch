@@ -36,7 +36,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
 
     public void testGivenOneModel_OneNode_OneZone_DoesNotFit() {
         Node node = new Node("n_1", 100, 1);
-        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 1, 2, Map.of(), 0);
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 1, 2, Map.of(), 0, 0, 0);
 
         AssignmentPlan plan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node)), List.of(deployment)).computePlan();
 
@@ -44,8 +44,17 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenOneModel_OneNode_OneZone_FullyFits() {
-        Node node = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 2, 2, Map.of(), 0);
+        Node node = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 4);
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            2,
+            2,
+            Map.of(),
+            0,
+            0,
+            0
+        );
 
         AssignmentPlan plan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node)), List.of(deployment)).computePlan();
 
@@ -53,8 +62,17 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenOneModel_OneNode_OneZone_PartiallyFits() {
-        Node node = new Node("n_1", 100, 5);
-        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of(), 0);
+        Node node = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 5);
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            3,
+            2,
+            Map.of(),
+            0,
+            0,
+            0
+        );
 
         AssignmentPlan plan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node)), List.of(deployment)).computePlan();
 
@@ -64,9 +82,18 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenOneModelWithSingleAllocation_OneNode_TwoZones() {
-        Node node1 = new Node("n_1", 100, 4);
-        Node node2 = new Node("n_2", 100, 4);
-        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 1, 2, Map.of(), 0);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 4);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(440).getBytes(), 4);
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            1,
+            2,
+            Map.of(),
+            0,
+            0,
+            0
+        );
 
         AssignmentPlan plan = new ZoneAwareAssignmentPlanner(
             Map.of(List.of("z1"), List.of(node1), List.of("z2"), List.of(node2)),
@@ -82,9 +109,18 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenOneModel_OneNodePerZone_TwoZones_FullyFits() {
-        Node node1 = new Node("n_1", 100, 4);
-        Node node2 = new Node("n_2", 100, 4);
-        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 2, 2, Map.of(), 0);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 4);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(440).getBytes(), 4);
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            2,
+            2,
+            Map.of(),
+            0,
+            0,
+            0
+        );
 
         AssignmentPlan plan = new ZoneAwareAssignmentPlanner(
             Map.of(List.of("z_1"), List.of(node1), List.of("z_2"), List.of(node2)),
@@ -99,9 +135,18 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenOneModel_OneNodePerZone_TwoZones_PartiallyFits() {
-        Node node1 = new Node("n_1", 100, 4);
-        Node node2 = new Node("n_2", 100, 4);
-        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 3, 3, Map.of(), 0);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 4);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(440).getBytes(), 4);
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            3,
+            3,
+            Map.of(),
+            0,
+            0,
+            0
+        );
 
         AssignmentPlan plan = new ZoneAwareAssignmentPlanner(
             Map.of(List.of("z_1"), List.of(node1), List.of("z_2"), List.of(node2)),
@@ -117,15 +162,15 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenThreeModels_TwoNodesPerZone_ThreeZones_FullyFit() {
-        Node node1 = new Node("n_1", 100, 4);
-        Node node2 = new Node("n_2", 100, 4);
-        Node node3 = new Node("n_3", 100, 4);
-        Node node4 = new Node("n_4", 100, 4);
-        Node node5 = new Node("n_5", 100, 4);
-        Node node6 = new Node("n_6", 100, 4);
-        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 25, 4, 1, Map.of(), 0);
-        Deployment deployment2 = new AssignmentPlan.Deployment("m_2", 25, 6, 2, Map.of(), 0);
-        AssignmentPlan.Deployment deployment3 = new AssignmentPlan.Deployment("m_3", 25, 2, 3, Map.of(), 0);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Node node3 = new Node("n_3", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Node node4 = new Node("n_4", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Node node5 = new Node("n_5", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Node node6 = new Node("n_6", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 4, 1, Map.of(), 0, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 6, 2, Map.of(), 0, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(30).getBytes(), 2, 3, Map.of(), 0, 0, 0);
 
         Map<List<String>, List<Node>> nodesByZone = Map.of(
             List.of("z_1"),
@@ -168,11 +213,11 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenTwoModelsWithSingleAllocation_OneNode_ThreeZones() {
-        Node node1 = new Node("n_1", 100, 4);
-        Node node2 = new Node("n_2", 100, 4);
-        Node node3 = new Node("n_3", 100, 4);
-        AssignmentPlan.Deployment deployment1 = new Deployment("m_1", 25, 1, 1, Map.of(), 0);
-        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", 25, 1, 1, Map.of(), 0);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Node node3 = new Node("n_3", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 1, 1, Map.of(), 0, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 1, 1, Map.of(), 0, 0, 0);
 
         AssignmentPlan plan = new ZoneAwareAssignmentPlanner(
             Map.of(List.of("z1"), List.of(node1), List.of("z2"), List.of(node2), List.of("z3"), List.of(node3)),
@@ -203,7 +248,16 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
                 .stream()
                 .collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue));
             previousModelsPlusNew.add(
-                new AssignmentPlan.Deployment(m.id(), m.memoryBytes(), m.allocations(), m.threadsPerAllocation(), previousAssignments, 0)
+                new AssignmentPlan.Deployment(
+                    m.id(),
+                    m.memoryBytes(),
+                    m.allocations(),
+                    m.threadsPerAllocation(),
+                    previousAssignments,
+                    0,
+                    0,
+                    0
+                )
             );
         }
         previousModelsPlusNew.add(randomModel("new"));
@@ -214,11 +268,11 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenClusterResize_GivenOneZone_ShouldAllocateEachModelAtLeastOnce() {
-        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
-        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);
-        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0);
-        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0);
-        AssignmentPlan.Deployment deployment3 = new AssignmentPlan.Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(2580).getBytes(), 2);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(2580).getBytes(), 2);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, 0, 0);
 
         // First only start m_1
         AssignmentPlan assignmentPlan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node1, node2)), List.of(deployment1))
@@ -252,8 +306,8 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         assertThat(indexedBasedPlan.get("m_3"), equalTo(Map.of("n_2", 1)));
 
         // Now the cluster starts getting resized.
-        Node node3 = new Node("n_3", ByteSizeValue.ofMb(2400).getBytes(), 2);
-        Node node4 = new Node("n_4", ByteSizeValue.ofMb(2400).getBytes(), 2);
+        Node node3 = new Node("n_3", ByteSizeValue.ofMb(5160).getBytes(), 2);
+        Node node4 = new Node("n_4", ByteSizeValue.ofMb(5160).getBytes(), 2);
 
         // First, one node goes away.
         assignmentPlan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node1)), createModelsFromPlan(assignmentPlan))

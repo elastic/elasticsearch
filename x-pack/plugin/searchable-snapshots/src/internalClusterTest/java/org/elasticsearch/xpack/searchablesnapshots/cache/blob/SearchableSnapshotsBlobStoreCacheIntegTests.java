@@ -37,6 +37,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -132,7 +133,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         for (int i = numberOfDocs; i > 0; i--) {
             XContentBuilder builder = XContentFactory.smileBuilder();
             builder.startObject().field("text", randomRealisticUnicodeOfCodepointLengthBetween(5, 50)).field("num", i).endObject();
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource(builder));
+            indexRequestBuilders.add(prepareIndex(indexName).setSource(builder));
         }
         indexRandom(true, true, true, indexRequestBuilders);
 
@@ -207,11 +208,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
         refreshSystemIndex();
 
-        final long numberOfCachedBlobs = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-            .get()
-            .getHits()
-            .getTotalHits().value;
+        final long numberOfCachedBlobs = SearchResponseUtils.getTotalHitsValue(
+            systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+        );
 
         IndexingStats indexingStats = systemClient().admin()
             .indices()
@@ -225,7 +224,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         final long numberOfCacheWrites = indexingStats != null ? indexingStats.getTotal().getIndexCount() : 0L;
 
         logger.info("--> verifying number of documents in index [{}]", restoredIndex);
-        assertHitCount(client().prepareSearch(restoredIndex).setSize(0).setTrackTotalHits(true), numberOfDocs);
+        assertHitCount(prepareSearch(restoredIndex).setSize(0).setTrackTotalHits(true), numberOfDocs);
 
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
             for (IndexService indexService : indicesService) {
@@ -266,7 +265,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         checkNoBlobStoreAccess();
 
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
-        assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true), numberOfDocs);
+        assertHitCount(prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true), numberOfDocs);
 
         logger.info("--> verifying that no extra cached blobs were indexed [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         refreshSystemIndex();
@@ -322,7 +321,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         assertThat(indexingStats != null ? indexingStats.getTotal().getIndexCount() : 0L, equalTo(0L));
 
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
-        assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true), numberOfDocs);
+        assertHitCount(prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true), numberOfDocs);
 
         logger.info("--> deleting indices, maintenance service should clean up [{}] docs in system index", numberOfCachedBlobs);
         assertAcked(indicesAdmin().prepareDelete("restored-*"));
@@ -360,7 +359,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
             assertThat(refreshResponse.getSuccessfulShards(), greaterThan(0));
             assertThat(refreshResponse.getFailedShards(), equalTo(0));
         } catch (IndexNotFoundException indexNotFoundException) {
-            throw new AssertionError("unexpected", indexNotFoundException);
+            fail(indexNotFoundException);
         }
     }
 

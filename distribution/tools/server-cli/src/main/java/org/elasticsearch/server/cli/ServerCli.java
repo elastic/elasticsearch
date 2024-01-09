@@ -107,6 +107,14 @@ class ServerCli extends EnvironmentAwareCommand {
 
         // we are running in the foreground, so wait for the server to exit
         int exitCode = server.waitFor();
+        onExit(exitCode);
+    }
+
+    /**
+     * A post-exit hook to perform additional processing before the command terminates
+     * @param exitCode the server process exit code
+     */
+    protected void onExit(int exitCode) throws UserException {
         if (exitCode != ExitCodes.OK) {
             throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
         }
@@ -219,7 +227,7 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile());
+        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile(), env.logsFile());
     }
 
     @Override
@@ -235,8 +243,15 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
-        return ServerProcess.start(terminal, processInfo, args);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
+        var tempDir = ServerProcessUtils.setupTempDir(processInfo);
+        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir);
+        var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
+            .withProcessInfo(processInfo)
+            .withServerArgs(args)
+            .withTempDir(tempDir)
+            .withJvmOptions(jvmOptions);
+        return serverProcessBuilder.start();
     }
 
     // protected to allow tests to override

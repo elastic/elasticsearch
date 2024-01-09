@@ -1,0 +1,6 @@
+pr: 101826
+summary: Support keyed histograms
+area: Aggregations
+type: enhancement
+issues:
+ - 100242

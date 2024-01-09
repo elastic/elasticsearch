@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -51,11 +52,16 @@ public class Driver implements Releasable, Describable {
     private final DriverContext driverContext;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
+    private final List<DriverStatus.OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
     private final AtomicReference<SubscribableListener<Void>> blocked = new AtomicReference<>();
+
+    private final AtomicBoolean started = new AtomicBoolean();
+    private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
+
     /**
      * Status reported to the tasks API. We write the status at most once every
      * {@link #statusNanos}, as soon as loop has finished and after {@link #statusNanos}
@@ -92,7 +98,9 @@ public class Driver implements Releasable, Describable {
         this.activeOperators.add(sink);
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
-        this.status = new AtomicReference<>(new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of()));
+        this.status = new AtomicReference<>(
+            new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of(), List.of())
+        );
     }
 
     /**
@@ -149,7 +157,7 @@ public class Driver implements Releasable, Describable {
         if (isFinished()) {
             status.set(updateStatus(DriverStatus.Status.DONE));
             driverContext.finish();
-            releasable.close();
+            Releasables.close(releasable, driverContext.getSnapshot());
         } else {
             status.set(updateStatus(DriverStatus.Status.WAITING));
         }
@@ -159,13 +167,26 @@ public class Driver implements Releasable, Describable {
     /**
      * Whether the driver has run the chain of operators to completion.
      */
-    public boolean isFinished() {
+    private boolean isFinished() {
         return activeOperators.isEmpty();
     }
 
     @Override
     public void close() {
         drainAndCloseOperators(null);
+    }
+
+    /**
+     * Abort the driver and wait for it to finish
+     */
+    public void abort(Exception reason, ActionListener<Void> listener) {
+        completionListener.addListener(listener);
+        if (started.compareAndSet(false, true)) {
+            drainAndCloseOperators(reason);
+            completionListener.onFailure(reason);
+        } else {
+            cancel(reason.getMessage());
+        }
     }
 
     private SubscribableListener<Void> runSingleLoopIteration() {
@@ -211,7 +232,9 @@ public class Driver implements Releasable, Describable {
                 List<Operator> finishedOperators = this.activeOperators.subList(0, index + 1);
                 Iterator<Operator> itr = finishedOperators.iterator();
                 while (itr.hasNext()) {
-                    itr.next().close();
+                    Operator op = itr.next();
+                    statusOfCompletedOperators.add(new DriverStatus.OperatorStatus(op.toString(), op.status()));
+                    op.close();
                     itr.remove();
                 }
 
@@ -261,8 +284,11 @@ public class Driver implements Releasable, Describable {
         int maxIterations,
         ActionListener<Void> listener
     ) {
-        driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
-        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, listener);
+        driver.completionListener.addListener(listener);
+        if (driver.started.compareAndSet(false, true)) {
+            driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
+            schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
+        }
     }
 
     // Drains all active operators and closes them.
@@ -279,7 +305,7 @@ public class Driver implements Releasable, Describable {
             itr.remove();
         }
         driverContext.finish();
-        Releasables.closeWhileHandlingException(releasable);
+        Releasables.closeWhileHandlingException(releasable, driverContext.getSnapshot());
     }
 
     private static void schedule(
@@ -295,7 +321,7 @@ public class Driver implements Releasable, Describable {
             @Override
             protected void doRun() {
                 if (driver.isFinished()) {
-                    listener.onResponse(null);
+                    onComplete(listener);
                     return;
                 }
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
@@ -318,7 +344,11 @@ public class Driver implements Releasable, Describable {
             @Override
             public void onFailure(Exception e) {
                 driver.drainAndCloseOperators(e);
-                listener.onFailure(e);
+                onComplete(ActionListener.running(() -> listener.onFailure(e)));
+            }
+
+            void onComplete(ActionListener<Void> listener) {
+                driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
             }
         });
     }
@@ -369,7 +399,8 @@ public class Driver implements Releasable, Describable {
             sessionId,
             System.currentTimeMillis(),
             status,
-            activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
+            statusOfCompletedOperators,
+            activeOperators.stream().map(op -> new DriverStatus.OperatorStatus(op.toString(), op.status())).toList()
         );
     }
 }

@@ -11,21 +11,18 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockBuilder;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -36,6 +33,7 @@ import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -71,6 +69,7 @@ import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
+import static org.elasticsearch.compute.operator.topn.TopNEncoderTests.randomPointAsWKB;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -124,7 +123,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     );
 
     @Override
-    protected TopNOperator.TopNOperatorFactory simple(BigArrays bigArrays) {
+    protected TopNOperator.TopNOperatorFactory simple() {
         return new TopNOperator.TopNOperatorFactory(
             4,
             List.of(LONG),
@@ -178,15 +177,6 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
     }
 
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        /*
-         * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker. So 775 is the max on this range.
-         */
-        return ByteSizeValue.ofBytes(between(1, 775));
-    }
-
     public void testRamBytesUsed() {
         RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
             @Override
@@ -234,13 +224,27 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testRandomTopN() {
         for (boolean asc : List.of(true, false)) {
-            int limit = randomIntBetween(1, 20);
-            List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
-            Comparator<Long> comparator = asc ? naturalOrder() : reverseOrder();
-            List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
-            List<Long> outputValues = topNLong(inputValues, limit, asc, false);
-            assertThat(outputValues, equalTo(expectedValues));
+            testRandomTopN(asc, driverContext());
         }
+    }
+
+    public void testRandomTopNCranky() {
+        try {
+            testRandomTopN(randomBoolean(), crankyDriverContext());
+            logger.info("cranky didn't break us");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testRandomTopN(boolean asc, DriverContext context) {
+        int limit = randomIntBetween(1, 20);
+        List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
+        Comparator<Long> comparator = asc ? naturalOrder() : reverseOrder();
+        List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
+        List<Long> outputValues = topNLong(context, inputValues, limit, asc, false);
+        assertThat(outputValues, equalTo(expectedValues));
     }
 
     public void testBasicTopN() {
@@ -267,8 +271,15 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat(topNLong(values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
     }
 
-    private List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+    private List<Long> topNLong(
+        DriverContext driverContext,
+        List<Long> inputValues,
+        int limit,
+        boolean ascendingOrder,
+        boolean nullsFirst
+    ) {
         return topNTwoColumns(
+            driverContext,
             inputValues.stream().map(v -> tuple(v, 0L)).toList(),
             limit,
             List.of(LONG, LONG),
@@ -277,15 +288,19 @@ public class TopNOperatorTests extends OperatorTestCase {
         ).stream().map(Tuple::v1).toList();
     }
 
+    private List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+        return topNLong(driverContext(), inputValues, limit, ascendingOrder, nullsFirst);
+    }
+
     public void testCompareInts() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
             new Page(
-                new Block[] {
-                    IntBlock.newBlockBuilder(2).appendInt(Integer.MIN_VALUE).appendInt(randomIntBetween(-1000, -1)).build(),
-                    IntBlock.newBlockBuilder(2).appendInt(randomIntBetween(-1000, -1)).appendInt(0).build(),
-                    IntBlock.newBlockBuilder(2).appendInt(0).appendInt(randomIntBetween(1, 1000)).build(),
-                    IntBlock.newBlockBuilder(2).appendInt(randomIntBetween(1, 1000)).appendInt(Integer.MAX_VALUE).build(),
-                    IntBlock.newBlockBuilder(2).appendInt(0).appendInt(Integer.MAX_VALUE).build() }
+                blockFactory.newIntBlockBuilder(2).appendInt(Integer.MIN_VALUE).appendInt(randomIntBetween(-1000, -1)).build(),
+                blockFactory.newIntBlockBuilder(2).appendInt(randomIntBetween(-1000, -1)).appendInt(0).build(),
+                blockFactory.newIntBlockBuilder(2).appendInt(0).appendInt(randomIntBetween(1, 1000)).build(),
+                blockFactory.newIntBlockBuilder(2).appendInt(randomIntBetween(1, 1000)).appendInt(Integer.MAX_VALUE).build(),
+                blockFactory.newIntBlockBuilder(2).appendInt(0).appendInt(Integer.MAX_VALUE).build()
             ),
             INT,
             DEFAULT_SORTABLE
@@ -293,14 +308,14 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareLongs() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
             new Page(
-                new Block[] {
-                    LongBlock.newBlockBuilder(2).appendLong(Long.MIN_VALUE).appendLong(randomLongBetween(-1000, -1)).build(),
-                    LongBlock.newBlockBuilder(2).appendLong(randomLongBetween(-1000, -1)).appendLong(0).build(),
-                    LongBlock.newBlockBuilder(2).appendLong(0).appendLong(randomLongBetween(1, 1000)).build(),
-                    LongBlock.newBlockBuilder(2).appendLong(randomLongBetween(1, 1000)).appendLong(Long.MAX_VALUE).build(),
-                    LongBlock.newBlockBuilder(2).appendLong(0).appendLong(Long.MAX_VALUE).build() }
+                blockFactory.newLongBlockBuilder(2).appendLong(Long.MIN_VALUE).appendLong(randomLongBetween(-1000, -1)).build(),
+                blockFactory.newLongBlockBuilder(2).appendLong(randomLongBetween(-1000, -1)).appendLong(0).build(),
+                blockFactory.newLongBlockBuilder(2).appendLong(0).appendLong(randomLongBetween(1, 1000)).build(),
+                blockFactory.newLongBlockBuilder(2).appendLong(randomLongBetween(1, 1000)).appendLong(Long.MAX_VALUE).build(),
+                blockFactory.newLongBlockBuilder(2).appendLong(0).appendLong(Long.MAX_VALUE).build()
             ),
             LONG,
             DEFAULT_SORTABLE
@@ -308,17 +323,17 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareDoubles() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
             new Page(
-                new Block[] {
-                    DoubleBlock.newBlockBuilder(2)
-                        .appendDouble(-Double.MAX_VALUE)
-                        .appendDouble(randomDoubleBetween(-1000, -1, true))
-                        .build(),
-                    DoubleBlock.newBlockBuilder(2).appendDouble(randomDoubleBetween(-1000, -1, true)).appendDouble(0.0).build(),
-                    DoubleBlock.newBlockBuilder(2).appendDouble(0).appendDouble(randomDoubleBetween(1, 1000, true)).build(),
-                    DoubleBlock.newBlockBuilder(2).appendDouble(randomLongBetween(1, 1000)).appendDouble(Double.MAX_VALUE).build(),
-                    DoubleBlock.newBlockBuilder(2).appendDouble(0.0).appendDouble(Double.MAX_VALUE).build() }
+                blockFactory.newDoubleBlockBuilder(2)
+                    .appendDouble(-Double.MAX_VALUE)
+                    .appendDouble(randomDoubleBetween(-1000, -1, true))
+                    .build(),
+                blockFactory.newDoubleBlockBuilder(2).appendDouble(randomDoubleBetween(-1000, -1, true)).appendDouble(0.0).build(),
+                blockFactory.newDoubleBlockBuilder(2).appendDouble(0).appendDouble(randomDoubleBetween(1, 1000, true)).build(),
+                blockFactory.newDoubleBlockBuilder(2).appendDouble(randomLongBetween(1, 1000)).appendDouble(Double.MAX_VALUE).build(),
+                blockFactory.newDoubleBlockBuilder(2).appendDouble(0.0).appendDouble(Double.MAX_VALUE).build()
             ),
             DOUBLE,
             DEFAULT_SORTABLE
@@ -326,10 +341,10 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareUtf8() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
             new Page(
-                new Block[] {
-                    BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("bye")).appendBytesRef(new BytesRef("hello")).build() }
+                blockFactory.newBytesRefBlockBuilder(2).appendBytesRef(new BytesRef("bye")).appendBytesRef(new BytesRef("hello")).build()
             ),
             BYTES_REF,
             UTF8
@@ -337,15 +352,16 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareBooleans() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
-            new Page(new Block[] { BooleanBlock.newBlockBuilder(2).appendBoolean(false).appendBoolean(true).build() }),
+            new Page(blockFactory.newBooleanBlockBuilder(2).appendBoolean(false).appendBoolean(true).build()),
             BOOLEAN,
             DEFAULT_SORTABLE
         );
     }
 
     private void testCompare(Page page, ElementType elementType, TopNEncoder encoder) {
-        Block nullBlock = Block.constantNullBlock(1);
+        Block nullBlock = TestBlockFactory.getNonBreakingInstance().newConstantNullBlock(1);
         Page nullPage = new Page(new Block[] { nullBlock, nullBlock, nullBlock, nullBlock, nullBlock });
 
         for (int b = 0; b < page.getBlockCount(); b++) {
@@ -396,6 +412,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 assertThat(TopNOperator.compareRows(r2, r1), greaterThan(0));
             }
         }
+        page.releaseBlocks();
     }
 
     private TopNOperator.Row row(
@@ -407,13 +424,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         Page page,
         int position
     ) {
+        final var sortOrders = List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst));
         TopNOperator.RowFiller rf = new TopNOperator.RowFiller(
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> elementType).toList(),
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> encoder).toList(),
-            List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst)),
+            sortOrders,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"));
+        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders);
         rf.row(position, row);
         return row;
     }
@@ -422,6 +440,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<Tuple<Long, Long>> values = Arrays.asList(tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L), tuple(1L, null));
         assertThat(
             topNTwoColumns(
+                driverContext(),
                 values,
                 5,
                 List.of(LONG, LONG),
@@ -432,6 +451,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
         assertThat(
             topNTwoColumns(
+                driverContext(),
                 values,
                 5,
                 List.of(LONG, LONG),
@@ -442,6 +462,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
         assertThat(
             topNTwoColumns(
+                driverContext(),
                 values,
                 5,
                 List.of(LONG, LONG),
@@ -613,13 +634,13 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     private List<Tuple<Long, Long>> topNTwoColumns(
+        DriverContext driverContext,
         List<Tuple<Long, Long>> inputValues,
         int limit,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders
     ) {
-        DriverContext driverContext = driverContext();
         List<Tuple<Long, Long>> outputValues = new ArrayList<>();
         try (
             Driver driver = new Driver(
@@ -943,17 +964,26 @@ public class TopNOperatorTests extends OperatorTestCase {
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
                 if (e == BYTES_REF) {
                     if (rarely()) {
-                        if (randomBoolean()) {
-                            // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
-                            randomValueSupplier = (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-                            // use the right BytesRef encoder (don't touch the bytes)
-                            encoders.add(TopNEncoder.IP);
-                        } else {
-                            // create a valid Version
-                            randomValueSupplier = (blockType) -> randomVersion().toBytesRef();
-                            // use the right BytesRef encoder (don't touch the bytes)
-                            encoders.add(TopNEncoder.VERSION);
-                        }
+                        randomValueSupplier = switch (randomInt(2)) {
+                            case 0 -> {
+                                // use the right BytesRef encoder (don't touch the bytes)
+                                encoders.add(TopNEncoder.IP);
+                                // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
+                                yield (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            }
+                            case 1 -> {
+                                // use the right BytesRef encoder (don't touch the bytes)
+                                encoders.add(TopNEncoder.VERSION);
+                                // create a valid Version
+                                yield (blockType) -> randomVersion().toBytesRef();
+                            }
+                            default -> {
+                                // use the right BytesRef encoder (don't touch the bytes)
+                                encoders.add(DEFAULT_UNSORTABLE);
+                                // create a valid geo_point
+                                yield (blockType) -> randomPointAsWKB();
+                            }
+                        };
                     } else {
                         encoders.add(UTF8);
                     }
@@ -1355,13 +1385,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 randomPageSize()
             )
         ) {
-            op.addInput(new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock()));
+            op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
         }
-    }
-
-    @Override
-    protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
-        return breakingDriverContext();
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

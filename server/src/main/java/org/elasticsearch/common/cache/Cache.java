@@ -102,8 +102,8 @@ public class Cache<K, V> {
         this.entriesExpireAfterAccess = true;
     }
 
-    // pkg-private for testing
-    long getExpireAfterAccessNanos() {
+    // public for testing
+    public long getExpireAfterAccessNanos() {
         return this.expireAfterAccessNanos;
     }
 

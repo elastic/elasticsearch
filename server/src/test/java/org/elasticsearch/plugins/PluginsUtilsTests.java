@@ -382,6 +382,18 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
+    public void testInternalNonSemanticVersions() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(randomAlphaOfLengthBetween(6, 32), "1.8", false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("Plugin [my_plugin] was built for Elasticsearch version"));
+    }
+
+    public void testStableNonSemanticVersions() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(randomAlphaOfLengthBetween(6, 32), "1.8", true);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("Expected semantic version for plugin [my_plugin] but was"));
+    }
+
     public void testStableEarlierElasticsearchVersion() throws Exception {
         PluginDescriptor info = getPluginDescriptorForVersion(Version.fromId(Version.CURRENT.id + 1).toString(), "1.8", true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));

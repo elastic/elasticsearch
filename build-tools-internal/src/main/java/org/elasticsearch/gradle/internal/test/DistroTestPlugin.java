@@ -16,16 +16,10 @@ import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.internal.Jdk;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
-import org.elasticsearch.gradle.internal.conventions.GUtils;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.vagrant.VagrantBasePlugin;
-import org.elasticsearch.gradle.internal.vagrant.VagrantExtension;
-import org.elasticsearch.gradle.internal.vagrant.VagrantMachine;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
@@ -36,27 +30,19 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
-import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
-import org.gradle.initialization.layout.BuildLayout;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
-
-import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes.ARCHIVE;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.ALL_INTERNAL;
@@ -67,31 +53,17 @@ import static org.elasticsearch.gradle.internal.distribution.InternalElasticsear
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_IRONBANK;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_UBI;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.RPM;
-import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertLinuxPath;
-import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWindowsPath;
 
 /**
  * This class defines gradle tasks for testing our various distribution artifacts.
  */
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "17.0.2+8";
-    private static final String SYSTEM_JDK_VENDOR = "adoptium";
-    private static final String GRADLE_JDK_VERSION = "16.0.2+7";
-    private static final String GRADLE_JDK_VENDOR = "adoptium";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String EXAMPLE_PLUGIN_CONFIGURATION = "examplePlugin";
-    private static final String IN_VM_SYSPROP = "tests.inVM";
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
     private static final String BWC_DISTRIBUTION_SYSPROP = "tests.bwc-distribution";
     private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
-
-    private final File rootDir;
-
-    @Inject
-    public DistroTestPlugin(BuildLayout buildLayout) {
-        this.rootDir = buildLayout.getRootDirectory();
-    }
 
     @Override
     public void apply(Project project) {
@@ -118,16 +90,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         List<TaskProvider<Test>> windowsTestTasks = new ArrayList<>();
         Map<ElasticsearchDistributionType, List<TaskProvider<Test>>> linuxTestTasks = new HashMap<>();
-        Map<String, List<TaskProvider<Test>>> upgradeTestTasks = new HashMap<>();
-        Map<String, TaskProvider<?>> depsTasks = new HashMap<>();
 
         for (ElasticsearchDistribution distribution : testDistributions) {
             String taskname = destructiveDistroTestTaskName(distribution);
-            TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
-            // explicitly depend on the archive not on the implicit extracted distribution
-            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies()));
-            depsTask.configure(t -> t.dependsOn(examplePlugin.getDependencies()));
-            depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(
                     "Docker is not available",
@@ -136,7 +101,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
-            }, depsTask);
+            }, distribution, examplePlugin.getDependencies());
 
             if (distribution.getPlatform() == Platform.WINDOWS) {
                 windowsTestTasks.add(destructiveTask);
@@ -164,82 +129,15 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                     }
                     String upgradeTaskname = destructiveDistroUpgradeTestTaskName(distribution, version.toString());
-                    TaskProvider<?> upgradeDepsTask = project.getTasks().register(upgradeTaskname + "#deps");
-                    upgradeDepsTask.configure(t -> t.dependsOn(distribution, bwcDistro));
-                    depsTasks.put(upgradeTaskname, upgradeDepsTask);
                     TaskProvider<Test> upgradeTest = configureTestTask(project, upgradeTaskname, distribution, t -> {
                         addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                         addDistributionSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::getFilepath);
                         t.include("**/PackageUpgradeTests.class");
-                    }, upgradeDepsTask);
+                    }, distribution, bwcDistro);
                     versionTasks.get(version.toString()).configure(t -> t.dependsOn(upgradeTest));
-                    upgradeTestTasks.computeIfAbsent(version.toString(), k -> new ArrayList<>()).add(upgradeTest);
                 }
             }
         }
-
-        // setup jdks used by no-jdk tests, and by gradle executing
-        TaskProvider<Copy> linuxGradleJdk = createJdk(project, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, "linux", "x64");
-        TaskProvider<Copy> linuxSystemJdk = createJdk(project, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, "linux", "x64");
-        TaskProvider<Copy> windowsGradleJdk = createJdk(project, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, "windows", "x64");
-        TaskProvider<Copy> windowsSystemJdk = createJdk(project, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, "windows", "x64");
-
-        project.subprojects(vmProject -> {
-            vmProject.getPluginManager().apply(VagrantBasePlugin.class);
-            TaskProvider<Copy> gradleJdk = isWindows(vmProject) ? windowsGradleJdk : linuxGradleJdk;
-            TaskProvider<Copy> systemJdk = isWindows(vmProject) ? windowsSystemJdk : linuxSystemJdk;
-            configureVM(vmProject, rootDir, gradleJdk, systemJdk);
-            List<Object> vmDependencies = Arrays.asList(
-                gradleJdk,
-                systemJdk,
-                project.getConfigurations().getByName("testRuntimeClasspath")
-            );
-
-            Map<ElasticsearchDistributionType, TaskProvider<?>> vmLifecyleTasks = lifecycleTasks(vmProject, "distroTest");
-            Map<String, TaskProvider<?>> vmVersionTasks = versionTasks(vmProject, "distroUpgradeTest");
-            TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
-
-            // windows boxes get windows distributions, and linux boxes get linux distributions
-            if (isWindows(vmProject)) {
-                configureVMWrapperTasks(vmProject, windowsTestTasks, depsTasks, wrapperTask -> {
-                    vmLifecyleTasks.get(ARCHIVE).configure(t -> t.dependsOn(wrapperTask));
-                }, vmDependencies);
-            } else {
-                for (var entry : linuxTestTasks.entrySet()) {
-                    ElasticsearchDistributionType type = entry.getKey();
-                    TaskProvider<?> vmLifecycleTask = vmLifecyleTasks.get(type);
-                    configureVMWrapperTasks(vmProject, entry.getValue(), depsTasks, wrapperTask -> {
-                        vmLifecycleTask.configure(t -> t.dependsOn(wrapperTask));
-
-                        // Only VM sub-projects that are specifically opted-in to testing Docker should
-                        // have the Docker task added as a dependency. Although we control whether Docker
-                        // is installed in the VM via `Vagrantfile` and we could auto-detect its presence
-                        // in the VM, the test tasks e.g. `destructiveDistroTest.default-docker` are defined
-                        // on the host during Gradle's configuration phase and not in the VM, so
-                        // auto-detection doesn't work.
-                        //
-                        // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
-                        boolean shouldExecute = (type.isDocker()) || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
-
-                        if (shouldExecute) {
-                            distroTest.configure(t -> t.dependsOn(wrapperTask));
-                        }
-                    }, vmDependencies);
-                }
-
-                for (var entry : upgradeTestTasks.entrySet()) {
-                    String version = entry.getKey();
-                    TaskProvider<?> vmVersionTask = vmVersionTasks.get(version);
-                    configureVMWrapperTasks(
-                        vmProject,
-                        entry.getValue(),
-                        depsTasks,
-                        wrapperTask -> { vmVersionTask.configure(t -> t.dependsOn(wrapperTask)); },
-                        vmDependencies
-                    );
-                }
-            }
-        });
     }
 
     private static Map<ElasticsearchDistributionType, TaskProvider<?>> lifecycleTasks(Project project, String taskPrefix) {
@@ -252,7 +150,6 @@ public class DistroTestPlugin implements Plugin<Project> {
         lifecyleTasks.put(ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
         lifecyleTasks.put(DEB, project.getTasks().register(taskPrefix + ".packages"));
         lifecyleTasks.put(RPM, lifecyleTasks.get(DEB));
-
         return lifecyleTasks;
     }
 
@@ -266,99 +163,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         return versionTasks;
     }
 
-    private static TaskProvider<Copy> createJdk(
-        Project project,
-        String purpose,
-        String vendor,
-        String version,
-        String platform,
-        String architecture
-    ) {
-        Jdk jdk = JdkDownloadPlugin.getContainer(project).create(platform + "-" + purpose);
-        jdk.setVendor(vendor);
-        jdk.setVersion(version);
-        jdk.setPlatform(platform);
-        jdk.setArchitecture(architecture);
-
-        String taskname = "copy" + GUtils.capitalize(platform) + GUtils.capitalize(purpose) + "Jdk";
-        TaskProvider<Copy> copyTask = project.getTasks().register(taskname, Copy.class);
-        copyTask.configure(t -> {
-            t.from(jdk);
-            t.into(new File(project.getBuildDir(), "jdks/" + platform + "-" + architecture + "-" + vendor + "-" + version));
-        });
-        return copyTask;
-    }
-
-    private static void configureVM(
-        Project project,
-        File rootDir,
-        TaskProvider<Copy> gradleJdkProvider,
-        TaskProvider<Copy> systemJdkProvider
-    ) {
-        String box = project.getName();
-
-        // setup VM used by these tests
-        VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
-        vagrant.setBox(box);
-
-        vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(rootDir, vagrant, systemJdkProvider, "", ""));
-        // set java home for gradle to use. package tests will overwrite/remove this for each test case
-        vagrant.vmEnv("JAVA_HOME", convertPath(rootDir, vagrant, gradleJdkProvider, "", ""));
-        if (System.getenv("JENKINS_URL") != null) {
-            Stream.of("JOB_NAME", "JENKINS_URL", "BUILD_NUMBER", "BUILD_URL").forEach(name -> vagrant.vmEnv(name, System.getenv(name)));
-        }
-        vagrant.setIsWindowsVM(isWindows(project));
-    }
-
-    private static Object convertPath(
-        File rootDirectory,
-        VagrantExtension vagrant,
-        TaskProvider<Copy> jdkProvider,
-        String additionaLinux,
-        String additionalWindows
-    ) {
-        return Util.toStringable(() -> {
-            String hostPath = jdkProvider.get().getDestinationDir().toString();
-            if (vagrant.isWindowsVM()) {
-                return convertWindowsPath(rootDirectory, hostPath) + additionalWindows;
-            } else {
-                return convertLinuxPath(rootDirectory, hostPath) + additionaLinux;
-            }
-        });
-    }
-
     private static Configuration configureExamplePlugin(Project project) {
         Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
         examplePlugin.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
         DependencyHandler deps = project.getDependencies();
         deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(Map.of("path", ":plugins:analysis-icu", "configuration", "zip")));
         return examplePlugin;
-    }
-
-    private static void configureVMWrapperTasks(
-        Project project,
-        List<TaskProvider<Test>> destructiveTasks,
-        Map<String, TaskProvider<?>> depsTasks,
-        Action<TaskProvider<GradleDistroTestTask>> configure,
-        Object... additionalDeps
-    ) {
-        for (TaskProvider<? extends Task> destructiveTask : destructiveTasks) {
-            String destructiveTaskName = destructiveTask.getName();
-            String taskname = destructiveTaskName.substring("destructive".length());
-            taskname = taskname.substring(0, 1).toLowerCase(Locale.ROOT) + taskname.substring(1);
-            TaskProvider<GradleDistroTestTask> vmTask = project.getTasks().register(taskname, GradleDistroTestTask.class, t -> {
-                t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-                t.setDescription("Runs " + destructiveTaskName.split("\\.", 2)[1] + " tests within vagrant");
-                t.setTaskName(destructiveTaskName);
-                t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                t.dependsOn(depsTasks.get(destructiveTaskName));
-                t.dependsOn(additionalDeps);
-                t.setLogLevel(project.getGradle().getStartParameter().getLogLevel().toString());
-                t.setExtension(project.getExtensions().findByType(VagrantExtension.class));
-                t.setService(project.getExtensions().getByType(VagrantMachine.class));
-            });
-            configure.execute(vmTask);
-        }
     }
 
     private static TaskProvider<Test> configureTestTask(
@@ -377,9 +187,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.setClasspath(testSourceSet.getRuntimeClasspath());
             t.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             t.setWorkingDir(project.getProjectDir());
-            if (System.getProperty(IN_VM_SYSPROP) == null) {
-                t.dependsOn(deps);
-            }
+            t.dependsOn(deps);
             configure.execute(t);
         });
     }
@@ -427,6 +235,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 d.setBundledJdk(bundledJdk);
             }
             d.setVersion(version);
+            d.setPreferArchive(true);
         });
 
         // Allow us to gracefully omit building Docker distributions if Docker is not available on the system.
@@ -436,11 +245,6 @@ public class DistroTestPlugin implements Plugin<Project> {
         }
 
         return distro;
-    }
-
-    // return true if the project is for a windows VM, false otherwise
-    private static boolean isWindows(Project project) {
-        return project.getName().contains("windows");
     }
 
     private static String distroId(ElasticsearchDistributionType type, Platform platform, boolean bundledJdk, Architecture architecture) {

@@ -94,13 +94,14 @@ public class QueryPhase {
             if (searchTimedOut) {
                 break;
             }
-            RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankQuery, rankShardContext.windowSize());
-            QueryPhase.addCollectorsAndSearch(rankSearchContext);
-            QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
-            rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
-            serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
-            nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
-            searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+            try (RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankQuery, rankShardContext.windowSize())) {
+                QueryPhase.addCollectorsAndSearch(rankSearchContext);
+                QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
+                rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
+                serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
+                nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
+                searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+            }
         }
 
         querySearchResult.setRankShardResult(rankShardContext.combine(rrfRankResults));

@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -56,15 +56,8 @@ public class LifecyclePolicyClientTests extends ESTestCase {
 
         SearchRequest request = new SearchRequest("foo");
 
-        try (
-            LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
-                client,
-                ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-                Collections.emptyMap()
-            )
-        ) {
-            policyClient.execute(SearchAction.INSTANCE, request, listener);
-        }
+        final var policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, Collections.emptyMap());
+        policyClient.execute(TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -95,15 +88,8 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         headers.put("foo", "foo");
         headers.put("bar", "bar");
 
-        try (
-            LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
-                client,
-                ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-                headers
-            )
-        ) {
-            policyClient.execute(SearchAction.INSTANCE, request, listener);
-        }
+        final var policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, headers);
+        policyClient.execute(TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -136,15 +122,8 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
 
-        try (
-            LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
-                client,
-                ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-                headers
-            )
-        ) {
-            policyClient.execute(SearchAction.INSTANCE, request, listener);
-        }
+        final var policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, headers);
+        policyClient.execute(TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }

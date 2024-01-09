@@ -1,5 +1,5 @@
 [[esql-math-functions]]
-=== {esql} mathematical functions
+==== {esql} mathematical functions
 
 ++++
 <titleabbrev>Mathematical functions</titleabbrev>
@@ -7,7 +7,7 @@
 
 {esql} supports these mathematical functions:
 
-// tag::list[]
+// tag::math_list[]
 * <<esql-abs>>
 * <<esql-acos>>
 * <<esql-asin>>
@@ -28,7 +28,7 @@
 * <<esql-tan>>
 * <<esql-tanh>>
 * <<esql-tau>>
-// end::list[]
+// end::math_list[]
 
 include::abs.asciidoc[]
 include::acos.asciidoc[]

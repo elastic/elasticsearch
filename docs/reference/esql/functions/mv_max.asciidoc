@@ -1,6 +1,9 @@
 [discrete]
 [[esql-mv_max]]
 === `MV_MAX`
+[.text-center]
+image::esql/functions/signature/mv_max.svg[Embedded,opts=inline]
+
 Converts a multivalued field into a single valued field containing the maximum value. For example:
 
 [source.merge.styled,esql]
@@ -23,3 +26,7 @@ include::{esql-specs}/string.csv-spec[tag=mv_max]
 |===
 include::{esql-specs}/string.csv-spec[tag=mv_max-result]
 |===
+
+Supported types:
+
+include::types/mv_max.asciidoc[]

@@ -16,7 +16,7 @@ import org.elasticsearch.test.cluster.util.Version;
  */
 public enum FeatureFlag {
     TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null),
-    INFERENCE_RESCORER("es.inference_rescorer_feature_flag_enabled=true", Version.fromString("8.10.0"), null);
+    FAILURE_STORE_ENABLED("es.failure_store_feature_flag_enabled=true", Version.fromString("8.12.0"), null);
 
     public final String systemProperty;
     public final Version from;

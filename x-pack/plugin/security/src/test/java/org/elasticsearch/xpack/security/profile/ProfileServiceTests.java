@@ -10,29 +10,27 @@ package org.elasticsearch.xpack.security.profile;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -49,6 +47,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -56,7 +55,6 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -64,7 +62,6 @@ import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.profile.ProfileDocument.ProfileDocumentUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -177,7 +175,7 @@ public class ProfileServiceTests extends ESTestCase {
     private Client client;
     private SecurityIndexManager profileIndex;
     private ProfileService profileService;
-    private Version minNodeVersion;
+    private boolean useProfileOrigin;
 
     @Before
     public void prepare() {
@@ -196,25 +194,26 @@ public class ProfileServiceTests extends ESTestCase {
         );
         this.client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        when(client.prepareSearch(SECURITY_PROFILE_ALIAS)).thenReturn(
-            new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(SECURITY_PROFILE_ALIAS)
-        );
+        when(client.prepareSearch(SECURITY_PROFILE_ALIAS)).thenReturn(new SearchRequestBuilder(client).setIndices(SECURITY_PROFILE_ALIAS));
         this.profileIndex = SecurityMocks.mockSecurityIndexManager(SECURITY_PROFILE_ALIAS);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        minNodeVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_17_0, Version.CURRENT);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(minNodeVersion);
+        useProfileOrigin = randomBoolean();
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE))).thenReturn(
+            useProfileOrigin
+        );
         this.profileService = new ProfileService(
             Settings.EMPTY,
             Clock.systemUTC(),
             client,
             profileIndex,
             clusterService,
-            name -> new DomainConfig(name, Set.of(), false, null),
-            threadPool
+            featureService,
+            name -> new DomainConfig(name, Set.of(), false, null)
         );
     }
 
@@ -318,7 +317,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
             List<MultiGetItemResponse> responses = new ArrayList<>();
@@ -355,7 +354,7 @@ public class ProfileServiceTests extends ESTestCase {
             final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
             listener.onResponse(new MultiGetResponse(responses.toArray(MultiGetItemResponse[]::new)));
             return null;
-        }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportMultiGetAction.TYPE), any(MultiGetRequest.class), anyActionListener());
 
         final PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future = new PlainActionFuture<>();
         profileService.getProfileSubjects(allProfileUids, future);
@@ -384,12 +383,12 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
             listener.onFailure(mGetException);
             return null;
-        }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportMultiGetAction.TYPE), any(MultiGetRequest.class), anyActionListener());
         final PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future);
         ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
@@ -400,7 +399,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
             List<MultiGetItemResponse> responses = new ArrayList<>();
@@ -422,7 +421,7 @@ public class ProfileServiceTests extends ESTestCase {
             final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
             listener.onResponse(new MultiGetResponse(responses.toArray(MultiGetItemResponse[]::new)));
             return null;
-        }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportMultiGetAction.TYPE), any(MultiGetRequest.class), anyActionListener());
 
         final PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future2 = new PlainActionFuture<>();
         profileService.getProfileSubjects(allProfileUids, future2);
@@ -493,8 +492,8 @@ public class ProfileServiceTests extends ESTestCase {
             client,
             profileIndex,
             mock(ClusterService.class),
-            domainName -> new DomainConfig(domainName, Set.of(), true, "suffix"),
-            threadPool
+            mock(FeatureService.class),
+            domainName -> new DomainConfig(domainName, Set.of(), true, "suffix")
         );
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
         service.maybeIncrementDifferentiatorAndCreateNewProfile(
@@ -578,29 +577,30 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             @SuppressWarnings("unchecked")
             final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(
-                new MultiSearchResponse(
-                    new MultiSearchResponse.Item[] {
-                        new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
-                    1L
-                )
+            var resp = new MultiSearchResponse(
+                new MultiSearchResponse.Item[] {
+                    new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
+                1L
             );
+            try {
+                listener.onResponse(resp);
+            } finally {
+                resp.decRef();
+            }
             return null;
-        }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
 
-        when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenReturn(
-            new IndexRequestBuilder(client, IndexAction.INSTANCE, SECURITY_PROFILE_ALIAS)
-        );
+        when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenReturn(new IndexRequestBuilder(client, SECURITY_PROFILE_ALIAS));
 
         final RuntimeException expectedException = new RuntimeException("expected");
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
@@ -616,12 +616,12 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
             return null;
-        }).when(client).execute(eq(UpdateAction.INSTANCE), any(UpdateRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportUpdateAction.TYPE), any(UpdateRequest.class), anyActionListener());
         final PlainActionFuture<UpdateResponse> future2 = new PlainActionFuture<>();
         profileService.doUpdate(mock(UpdateRequest.class), future2);
         final RuntimeException e2 = expectThrows(RuntimeException.class, future2::actionGet);
@@ -631,12 +631,12 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(SearchRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
         final PlainActionFuture<SuggestProfilesResponse> future3 = new PlainActionFuture<>();
         profileService.suggestProfile(
             new SuggestProfilesRequest(Set.of(), "", 1, null),
@@ -649,13 +649,21 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testActivateProfileWithDifferentUidFormats() throws IOException {
         final ProfileService service = spy(
-            new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, mock(ClusterService.class), domainName -> {
-                if (domainName.startsWith("hash")) {
-                    return new DomainConfig(domainName, Set.of(), false, null);
-                } else {
-                    return new DomainConfig(domainName, Set.of(), true, "suffix");
+            new ProfileService(
+                Settings.EMPTY,
+                Clock.systemUTC(),
+                client,
+                profileIndex,
+                mock(ClusterService.class),
+                mock(FeatureService.class),
+                domainName -> {
+                    if (domainName.startsWith("hash")) {
+                        return new DomainConfig(domainName, Set.of(), false, null);
+                    } else {
+                        return new DomainConfig(domainName, Set.of(), true, "suffix");
+                    }
                 }
-            }, threadPool)
+            )
         );
 
         doAnswer(invocation -> {
@@ -881,14 +889,8 @@ public class ProfileServiceTests extends ESTestCase {
     public void testActivateWhenShouldSkipUpdateForActivateReturnsTrue() throws IOException {
         final ProfileService service = spy(profileService);
 
-        doAnswer(
-            invocation -> new UpdateRequestBuilder(
-                client,
-                UpdateAction.INSTANCE,
-                SECURITY_PROFILE_ALIAS,
-                (String) invocation.getArguments()[1]
-            )
-        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+        doAnswer(invocation -> new UpdateRequestBuilder(client, SECURITY_PROFILE_ALIAS, (String) invocation.getArguments()[1])).when(client)
+            .prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
 
         final UpdateResponse updateResponse = mock(UpdateResponse.class);
         when(updateResponse.getPrimaryTerm()).thenReturn(randomNonNegativeLong());
@@ -917,14 +919,8 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testActivateWhenShouldSkipUpdateForActivateReturnsFalseFirst() throws IOException {
         final ProfileService service = spy(profileService);
-        doAnswer(
-            invocation -> new UpdateRequestBuilder(
-                client,
-                UpdateAction.INSTANCE,
-                SECURITY_PROFILE_ALIAS,
-                (String) invocation.getArguments()[1]
-            )
-        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+        doAnswer(invocation -> new UpdateRequestBuilder(client, SECURITY_PROFILE_ALIAS, (String) invocation.getArguments()[1])).when(client)
+            .prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
 
         // Throw version conflict on update to force GET document
         final Exception updateException;
@@ -959,7 +955,7 @@ public class ProfileServiceTests extends ESTestCase {
             final var listener = (ActionListener<GetResponse>) invocation.getArguments()[2];
             client.get(getRequest, listener);
             return null;
-        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportGetAction.TYPE), any(GetRequest.class), anyActionListener());
 
         // First check returns false, second check return true or false randomly
         final boolean secondCheckResult = randomBoolean();
@@ -979,14 +975,8 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testActivateWhenGetRequestErrors() throws IOException {
         final ProfileService service = spy(profileService);
-        doAnswer(
-            invocation -> new UpdateRequestBuilder(
-                client,
-                UpdateAction.INSTANCE,
-                SECURITY_PROFILE_ALIAS,
-                (String) invocation.getArguments()[1]
-            )
-        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+        doAnswer(invocation -> new UpdateRequestBuilder(client, SECURITY_PROFILE_ALIAS, (String) invocation.getArguments()[1])).when(client)
+            .prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
 
         // Throw version conflict on update to force GET document
         final var versionConflictEngineException = new VersionConflictEngineException(mock(ShardId.class), "", "");
@@ -1008,7 +998,7 @@ public class ProfileServiceTests extends ESTestCase {
             final var listener = (ActionListener<GetResponse>) invocation.getArguments()[2];
             client.get(getRequest, listener);
             return null;
-        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportGetAction.TYPE), any(GetRequest.class), anyActionListener());
 
         // First check returns false
         doAnswer(invocation -> false).when(service).shouldSkipUpdateForActivate(any(), any());
@@ -1040,25 +1030,28 @@ public class ProfileServiceTests extends ESTestCase {
             } else {
                 final var searchResponse = mock(SearchResponse.class);
                 when(searchResponse.getHits()).thenReturn(
-                    new SearchHits(new SearchHit[0], new TotalHits(metrics.get(name), TotalHits.Relation.EQUAL_TO), 1)
+                    SearchHits.empty(new TotalHits(metrics.get(name), TotalHits.Relation.EQUAL_TO), 1)
                 );
                 return new MultiSearchResponse.Item(searchResponse, null);
             }
         }).toArray(MultiSearchResponse.Item[]::new);
 
         final MultiSearchResponse multiSearchResponse = new MultiSearchResponse(items, randomNonNegativeLong());
+        try {
+            doAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(multiSearchResponse);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
 
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
-            listener.onResponse(multiSearchResponse);
-            return null;
-        }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
-
-        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, MultiSearchAction.INSTANCE));
-        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
-        profileService.usageStats(future);
-        assertThat(future.actionGet(), equalTo(metrics));
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+            final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+            profileService.usageStats(future);
+            assertThat(future.actionGet(), equalTo(metrics));
+        } finally {
+            multiSearchResponse.decRef();
+        }
     }
 
     public void testUsageStatsWhenNoIndex() {
@@ -1078,14 +1071,14 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
             final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
             client.multiGet(multiGetRequest, listener);
             return null;
-        }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportMultiGetAction.TYPE), any(MultiGetRequest.class), anyActionListener());
 
         final Map<String, String> results = sampleDocumentParameters.stream()
             .collect(

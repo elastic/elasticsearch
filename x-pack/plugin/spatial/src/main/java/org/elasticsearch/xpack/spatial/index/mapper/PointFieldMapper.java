@@ -117,6 +117,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 stored.get(),
                 hasDocValues.get(),
                 parser,
+                nullValue.get(),
                 meta.get()
             );
             return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
@@ -179,7 +180,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 
-    public static class PointFieldType extends AbstractGeometryFieldType<CartesianPoint> implements ShapeQueryable {
+    public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {
 
         private final ShapeQueryPointProcessor queryProcessor;
 
@@ -189,15 +190,16 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             boolean stored,
             boolean hasDocValues,
             CartesianPointParser parser,
+            CartesianPoint nullValue,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, parser, meta);
+            super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
             this.queryProcessor = new ShapeQueryPointProcessor();
         }
 
         // only used in test
         public PointFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap());
+            this(name, true, false, true, null, null, Collections.emptyMap());
         }
 
         @Override

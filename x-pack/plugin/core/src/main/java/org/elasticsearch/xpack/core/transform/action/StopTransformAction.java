@@ -46,7 +46,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         super(NAME, StopTransformAction.Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
         private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
@@ -54,7 +54,6 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         private final boolean waitForCheckpoint;
         private Set<String> expandedIds;
 
-        @SuppressWarnings("this-escape")
         public Request(
             String id,
             boolean waitForCompletion,

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -174,15 +175,15 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
             .map(si -> new SeenSnapshotInfo(si.snapshotId(), RepositoryData.SnapshotDetails.fromSnapshotInfo(si).getSlmPolicy()))
             .collect(Collectors.toSet());
 
-        SubscribableListener
+        final var testListener = SubscribableListener
 
-            .newForked(repository::getRepositoryData)
+            .<RepositoryData>newForked(l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
 
             .<SLMGetExpiredSnapshotsAction.SnapshotDetailsByPolicy>andThen(
-                (l, rd) -> SLMGetExpiredSnapshotsAction.getSnapshotDetailsByPolicy(repository, rd, l)
+                (l, rd) -> SLMGetExpiredSnapshotsAction.getSnapshotDetailsByPolicy(EsExecutors.DIRECT_EXECUTOR_SERVICE, repository, rd, l)
             )
 
-            .andThen((l, snapshotDetailsByPolicy) -> {
+            .andThenAccept(snapshotDetailsByPolicy -> {
                 snapshotDetailsByPolicy.flatMap((policyId, snapshotsMap) -> snapshotsMap.entrySet().stream().map(entry -> {
                     assertThat(policyId, oneOf(policyNames));
                     assertEquals(policyId, entry.getValue().getSlmPolicy());
@@ -191,6 +192,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
             });
 
         deterministicTaskQueue.runAllTasks();
+        assertTrue(testListener.isDone());
         assertThat(seenSnapshotInfos, empty());
     }
 
@@ -257,7 +259,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
     private static Repository createMockRepository(ThreadPool threadPool, List<SnapshotInfo> snapshotInfos) {
         final var repository = mock(Repository.class);
         doAnswer(invocation -> {
-            final ActionListener<RepositoryData> listener = invocation.getArgument(0);
+            final ActionListener<RepositoryData> listener = invocation.getArgument(1);
             threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
                 var repositoryData = RepositoryData.EMPTY;
                 for (SnapshotInfo snapshotInfo : snapshotInfos) {
@@ -282,7 +284,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
                 return repositoryData;
             }));
             return null;
-        }).when(repository).getRepositoryData(any());
+        }).when(repository).getRepositoryData(any(), any());
 
         doAnswer(invocation -> {
             final GetSnapshotInfoContext getSnapshotInfoContext = invocation.getArgument(0);

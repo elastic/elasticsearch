@@ -1013,6 +1013,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103782")
     public void testStopClosesChannelAfterRequest() throws Exception {
         var grace = LONG_GRACE_PERIOD_MS;
         try (var noTimeout = LogExpectation.unexpectedTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
@@ -1153,6 +1154,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
+            null,
             List.of(),
             RestExtension.allowAll()
         );

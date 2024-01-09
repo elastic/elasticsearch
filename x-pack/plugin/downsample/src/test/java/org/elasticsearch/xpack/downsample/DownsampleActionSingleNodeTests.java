@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -59,6 +59,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -558,7 +559,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         final Instant now = Instant.now();
         SourceSupplier sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 60).toEpochMilli());
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
             return XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)
@@ -683,7 +684,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indicesAdmin().preparePutTemplate(downsampleIndex)
                 .setPatterns(List.of(downsampleIndex))
                 .setSettings(Settings.builder().put("index.blocks.write", "true").build())
-                .get()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, indexer::execute);
@@ -952,12 +952,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
 
         final DownsampleIndexerAction.ShardDownsampleResponse response2 = indexer.execute();
-        int dim2DocCount = client().prepareSearch(sourceIndex)
-            .setQuery(new TermQueryBuilder(FIELD_DIMENSION_1, "dim2"))
-            .setSize(10_000)
-            .get()
-            .getHits()
-            .getHits().length;
+        long dim2DocCount = SearchResponseUtils.getTotalHitsValue(
+            client().prepareSearch(sourceIndex).setQuery(new TermQueryBuilder(FIELD_DIMENSION_1, "dim2")).setSize(10_000)
+        );
 
         assertDownsampleIndexer(indexService, shardNum, task, response2, dim2DocCount);
     }
@@ -1047,14 +1044,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertAcked(
             indicesAdmin().prepareUpdateSettings(sourceIndex)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), blockWrite).build())
-                .get()
         );
     }
 
     private void downsample(String sourceIndex, String downsampleIndex, DownsampleConfig config) {
         assertAcked(
             client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
-                .actionGet()
         );
     }
 
@@ -1065,7 +1060,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private Aggregations aggregate(final String index, AggregationBuilder aggregationBuilder) {
-        return client().prepareSearch(index).addAggregation(aggregationBuilder).get().getAggregations();
+        var resp = client().prepareSearch(index).addAggregation(aggregationBuilder).get();
+        try {
+            return resp.getAggregations();
+        } finally {
+            resp.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -1437,19 +1437,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             null
         );
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
-            indexTemplate,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false),
-            null
-        );
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
-            .indexTemplate(template);
-        assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet());
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(indexTemplate)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+            .build();
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
+            dataStreamName + "_template"
+        ).indexTemplate(template);
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet());
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get());
         return dataStreamName;
     }

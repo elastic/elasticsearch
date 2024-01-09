@@ -49,7 +49,7 @@ public class FlushIT extends ESIntegTestCase {
         final int numIters = scaledRandomIntBetween(10, 30);
         for (int i = 0; i < numIters; i++) {
             for (int j = 0; j < 10; j++) {
-                client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                prepareIndex("test").setSource("{}", XContentType.JSON).get();
             }
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
@@ -87,13 +87,10 @@ public class FlushIT extends ESIntegTestCase {
         createIndex("test");
         int numDocs = randomIntBetween(0, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
         assertThat(
-            expectThrows(
-                ValidationException.class,
-                () -> indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()
-            ).getMessage(),
+            expectThrows(ValidationException.class, indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(false))).getMessage(),
             containsString("wait_if_ongoing must be true for a force flush")
         );
         assertThat(indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(), emptyArray());
@@ -124,7 +121,7 @@ public class FlushIT extends ESIntegTestCase {
         ensureGreen(indexName);
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex(indexName).setSource("f", "v").get();
+            prepareIndex(indexName).setSource("f", "v").get();
         }
         if (randomBoolean()) {
             internalCluster().restartNode(randomFrom(dataNodes));

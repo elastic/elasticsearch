@@ -1,22 +1,35 @@
 [[esql-query-api]]
-== {esql} query API
+=== {esql} query API
 ++++
 <titleabbrev>{esql} query API</titleabbrev>
 ++++
 
 Returns search results for an <<esql,ES|QL ({es} query language)>> query.
 
-include::index.asciidoc[tag=esql-query-api-example]
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_TRUNC(1 YEARS, release_date)
+    | STATS MAX(page_count) BY year
+    | SORT year
+    | LIMIT 5
+  """
+}
+----
+// TEST[setup:library]
 
 [discrete]
 [[esql-query-api-request]]
-=== {api-request-title}
+==== {api-request-title}
 
 `POST _query`
 
 [discrete]
 [[esql-query-api-prereqs]]
-=== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the data stream, index,
@@ -24,7 +37,7 @@ or alias you search.
 
 [discrete]
 [[esql-query-api-query-params]]
-=== {api-query-parms-title}
+==== {api-query-parms-title}
 
 `delimiter`::
 (Optional, string) Separator for CSV results. Defaults to `,`. The API only
@@ -41,7 +54,7 @@ precedence.
 [discrete]
 [role="child_attributes"]
 [[esql-query-api-request-body]]
-=== {api-request-body-title}
+==== {api-request-body-title}
 
 `columnar`::
 (Optional, Boolean) If `true`, returns results in a columnar format. Defaults to
@@ -55,15 +68,10 @@ responses. See <<esql-rest-columnar>>.
 `query`::
 (Required, object) {esql} query to run. For syntax, refer to <<esql-syntax>>.
 
-[[esql-search-api-time-zone]]
-`time_zone`::
-(Optional, string) ISO-8601 time zone ID for the search. Several {esql}
-date/time functions use this time zone. Defaults to `Z` (UTC).
-
 [discrete]
 [role="child_attributes"]
 [[esql-query-api-response-body]]
-=== {api-response-body-title}
+==== {api-response-body-title}
 
 `columns`::
 (array of objects)
@@ -71,13 +79,13 @@ Column headings for the search results. Each object is a column.
 +
 .Properties of `columns` objects
 [%collapsible%open]
-====
+=====
 `name`::
 (string) Name of the column.
 
 `type`::
 (string) Data type for the column.
-====
+=====
 
 `rows`::
 (array of arrays)

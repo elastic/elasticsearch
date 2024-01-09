@@ -422,30 +422,14 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return new InternalAutoDateHistogram.Bucket(buckets.get(0).key, docCount, format, aggs);
     }
 
-    private static class BucketReduceResult {
-        final List<Bucket> buckets;
-        final int roundingIdx;
-        final long innerInterval;
-        final Rounding.Prepared preparedRounding;
-        final long min;
-        final long max;
-
-        BucketReduceResult(
-            List<Bucket> buckets,
-            int roundingIdx,
-            long innerInterval,
-            Rounding.Prepared preparedRounding,
-            long min,
-            long max
-        ) {
-            this.buckets = buckets;
-            this.roundingIdx = roundingIdx;
-            this.innerInterval = innerInterval;
-            this.preparedRounding = preparedRounding;
-            this.min = min;
-            this.max = max;
-        }
-    }
+    private record BucketReduceResult(
+        List<Bucket> buckets,
+        int roundingIdx,
+        long innerInterval,
+        Rounding.Prepared preparedRounding,
+        long min,
+        long max
+    ) {}
 
     private BucketReduceResult addEmptyBuckets(BucketReduceResult current, AggregationReduceContext reduceContext) {
         List<Bucket> list = current.buckets;

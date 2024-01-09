@@ -10,16 +10,18 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.io.IOException;
@@ -37,7 +39,7 @@ public enum GlobalOrdinalsBuilder {
     public static IndexOrdinalsFieldData build(
         final IndexReader indexReader,
         IndexOrdinalsFieldData indexFieldData,
-        CircuitBreakerService breakerService,
+        CircuitBreaker breaker,
         Logger logger,
         ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) throws IOException {
@@ -50,9 +52,26 @@ public enum GlobalOrdinalsBuilder {
             atomicFD[i] = indexFieldData.load(indexReader.leaves().get(i));
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
-        final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
+        final TermsEnum[] termsEnums = new TermsEnum[subs.length];
+        final long[] weights = new long[subs.length];
+        // we assume that TermsEnum are visited sequentially, so we can share the counter between them
+        final long[] counter = new long[1];
+        for (int i = 0; i < subs.length; ++i) {
+            termsEnums[i] = new FilterLeafReader.FilterTermsEnum(subs[i].termsEnum()) {
+                @Override
+                public BytesRef next() throws IOException {
+                    // check parent circuit breaker every 65536 calls
+                    if ((counter[0]++ & 0xFFFF) == 0) {
+                        breaker.addEstimateBytesAndMaybeBreak(0L, "Global Ordinals");
+                    }
+                    return in.next();
+                }
+            };
+            weights[i] = subs[i].getValueCount();
+        }
+        final OrdinalMap ordinalMap = OrdinalMap.build(null, termsEnums, weights, PackedInts.DEFAULT);
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
-        breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(memorySizeInBytes);
+        breaker.addWithoutBreaking(memorySizeInBytes);
 
         TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
         if (logger.isDebugEnabled()) {
@@ -108,5 +127,4 @@ public enum GlobalOrdinalsBuilder {
             took
         );
     }
-
 }

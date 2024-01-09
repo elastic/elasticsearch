@@ -215,7 +215,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void updateTaskState() {
-        PlainActionFuture<PersistentTask<?>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<PersistentTask<?>> future = new PlainActionFuture<>();
         updatePersistentTaskState(state, future);
         state = ((GeoIpTaskState) future.actionGet().getState());
     }

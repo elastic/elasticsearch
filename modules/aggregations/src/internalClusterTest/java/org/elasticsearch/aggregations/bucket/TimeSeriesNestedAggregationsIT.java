@@ -12,7 +12,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
@@ -42,6 +41,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+
 public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
     private static int numberOfDimensions;
     private static int numberOfDocuments;
@@ -66,7 +67,7 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         final BulkRequestBuilder bulkIndexRequest = client().prepareBulk();
         for (int docId = 0; docId < numberOfDocuments; docId++) {
             final XContentBuilder document = timeSeriesDocument(FOO_DIM_VALUE, BAR_DIM_VALUE, BAZ_DIM_VALUE, docId, timestamps::next);
-            bulkIndexRequest.add(client().prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
+            bulkIndexRequest.add(prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
         }
 
         final BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
@@ -155,48 +156,56 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
 
     public void testTimeSeriesAggregation() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts");
-        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
+        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
+            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
+            assertTimeSeriesAggregation(ts);
+        });
     }
 
     public void testSumByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
             new SumAggregationBuilder("sum").field("gauge_metric")
         );
-        final SearchResponse searchResponse = client().prepareSearch("index").setQuery(new MatchAllQueryBuilder()).get();
-        assertNotEquals(numberOfDocuments, searchResponse.getHits().getHits().length);
-        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
+        assertResponse(
+            prepareSearch("index").setQuery(new MatchAllQueryBuilder()),
+            response -> assertNotEquals(numberOfDocuments, response.getHits().getHits().length)
+        );
+
+        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
+            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
+            assertTimeSeriesAggregation(ts);
+        });
     }
 
     public void testTermsByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
             new TermsAggregationBuilder("terms").field("dim_0")
         );
-        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
+        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
+            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
+            assertTimeSeriesAggregation(ts);
+        });
     }
 
     public void testDateHistogramByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
             new DateHistogramAggregationBuilder("date_histogram").field("@timestamp").calendarInterval(DateHistogramInterval.HOUR)
         );
-        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
+        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
+            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
+            assertTimeSeriesAggregation(ts);
+        });
     }
 
     public void testCardinalityByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
             new CardinalityAggregationBuilder("dim_n_cardinality").field(formatDim(numberOfDimensions - 1))
         );
-        final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
-        ts.getBuckets().forEach(bucket -> { assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 1); });
+        assertResponse(prepareSearch("index").addAggregation(timeSeries).setSize(0), response -> {
+            final InternalTimeSeries ts = (InternalTimeSeries) response.getAggregations().asList().get(0);
+            assertTimeSeriesAggregation(ts);
+            ts.getBuckets().forEach(bucket -> { assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 1); });
+        });
     }
 
     private static void assertTimeSeriesAggregation(final InternalTimeSeries timeSeriesAggregation) {

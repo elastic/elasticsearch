@@ -17,8 +17,8 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.not;
 
 public class DesiredNodesSettingsValidatorTests extends ESTestCase {
     public void testNodeVersionValidation() {
@@ -26,10 +26,10 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
 
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator();
 
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.accept(desiredNodes));
         assertThat(exception.getMessage(), containsString("Nodes with ids"));
         assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed(), not(emptyArray()));
         assertThat(exception.getSuppressed()[0].getMessage(), containsString("Illegal node version"));
     }
 }

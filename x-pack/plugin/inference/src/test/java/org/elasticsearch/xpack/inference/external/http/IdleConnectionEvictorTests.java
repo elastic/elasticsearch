@@ -20,7 +20,7 @@ import org.junit.Before;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
@@ -36,7 +36,7 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
     @Before
     public void init() {
-        threadPool = createThreadPool(getTestName());
+        threadPool = createThreadPool(inferenceUtilityPool());
     }
 
     @After
@@ -49,16 +49,18 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
         when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
 
-        var evictor = new IdleConnectionEvictor(
-            mockThreadPool,
-            createConnectionManager(),
-            new TimeValue(1, TimeUnit.NANOSECONDS),
-            new TimeValue(1, TimeUnit.NANOSECONDS)
-        );
+        try (
+            var evictor = new IdleConnectionEvictor(
+                mockThreadPool,
+                createConnectionManager(),
+                new TimeValue(1, TimeUnit.NANOSECONDS),
+                new TimeValue(1, TimeUnit.NANOSECONDS)
+            )
+        ) {
+            evictor.start();
 
-        evictor.start();
-
-        verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), any(), any());
+            verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), any(), any());
+        }
     }
 
     public void testStart_OnlyCallsSubmitOnce() throws IOReactorException {
@@ -66,17 +68,19 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
         when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
 
-        var evictor = new IdleConnectionEvictor(
-            mockThreadPool,
-            createConnectionManager(),
-            new TimeValue(1, TimeUnit.NANOSECONDS),
-            new TimeValue(1, TimeUnit.NANOSECONDS)
-        );
+        try (
+            var evictor = new IdleConnectionEvictor(
+                mockThreadPool,
+                createConnectionManager(),
+                new TimeValue(1, TimeUnit.NANOSECONDS),
+                new TimeValue(1, TimeUnit.NANOSECONDS)
+            )
+        ) {
+            evictor.start();
+            evictor.start();
 
-        evictor.start();
-        evictor.start();
-
-        verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), any(), any());
+            verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), any(), any());
+        }
     }
 
     public void testCloseExpiredConnections_IsCalled() throws InterruptedException {

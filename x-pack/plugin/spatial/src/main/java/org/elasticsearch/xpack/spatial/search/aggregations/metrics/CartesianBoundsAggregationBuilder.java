@@ -100,11 +100,6 @@ public class CartesianBoundsAggregationBuilder extends ValuesSourceAggregationBu
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_6_0;
     }

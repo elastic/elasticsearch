@@ -37,16 +37,16 @@ public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
         var fieldType = field().dataType();
 
         if (fieldType == DataTypes.DOUBLE) {
-            return dvrCtx -> new Log10DoubleEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new Log10DoubleEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return dvrCtx -> new Log10IntEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new Log10IntEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.LONG) {
-            return dvrCtx -> new Log10LongEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new Log10LongEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return dvrCtx -> new Log10UnsignedLongEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new Log10UnsignedLongEvaluator.Factory(source(), field);
         }
 
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);

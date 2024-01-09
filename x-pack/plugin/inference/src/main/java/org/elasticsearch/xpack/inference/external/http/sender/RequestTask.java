@@ -131,17 +131,22 @@ class RequestTask extends HttpTask {
         };
     }
 
-    private record Command(HttpClient httpClient, HttpUriRequest request, HttpClientContext context, ActionListener<HttpResult> listener)
-        implements
-            Runnable {
+    private record Command(
+        HttpClient httpClient,
+        HttpUriRequest requestToSend,
+        HttpClientContext context,
+        ActionListener<HttpResult> resultListener
+    ) implements Runnable {
 
         @Override
         public void run() {
             try {
-                httpClient.send(request, context, listener);
+                httpClient.send(requestToSend, context, resultListener);
             } catch (Exception e) {
-                logger.warn(format("Failed to send request [%s] via the http client", request.getRequestLine()), e);
-                listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
+                logger.warn(format("Failed to send request [%s] via the http client", requestToSend.getRequestLine()), e);
+                resultListener.onFailure(
+                    new ElasticsearchException(format("Failed to send request [%s]", requestToSend.getRequestLine()), e)
+                );
             }
         }
     }

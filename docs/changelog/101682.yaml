@@ -1,0 +1,5 @@
+pr: 101682
+summary: "Add manage_enrich cluster privilege to kibana_system role"
+area: Authentication
+type: enhancement
+issues: []

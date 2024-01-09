@@ -121,10 +121,11 @@ public class ActionModuleTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
+            null,
             List.of(),
             RestExtension.allowAll()
         );
-        actionModule.initRestHandlers(null);
+        actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -181,10 +182,11 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );
-            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
         } finally {
             threadPool.shutdown();
@@ -234,10 +236,11 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );
-            actionModule.initRestHandlers(null);
+            actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(
                 IllegalArgumentException.class,
@@ -282,6 +285,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     null,
                     mock(ClusterService.class),
+                    null,
                     List.of(),
                     RestExtension.allowAll()
                 )
@@ -314,13 +318,14 @@ public class ActionModuleTests extends ESTestCase {
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
                     threadPool,
-                    Arrays.asList(secPlugin),
+                    List.of(secPlugin),
                     null,
                     null,
                     usageService,
                     null,
                     null,
                     mock(ClusterService.class),
+                    null,
                     List.of(),
                     RestExtension.allowAll()
                 )

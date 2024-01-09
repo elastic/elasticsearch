@@ -1720,11 +1720,6 @@ See <<rollup-apis>>.
 
 See <<configuring-stack-security>>.
 
-[role="exclude",id="getting-started"]
-=== Quick start
-
-See {estc-welcome}/getting-started-general-purpose.html[Set up a general purpose Elastic deployment].
-
 [role="exclude",id="getting-started-index"]
 === Index some documents
 
@@ -1932,24 +1927,3 @@ Refer to <<remote-clusters>>.
 === Configure roles and users for remote clusters
 
 Refer to <<remote-clusters>>.
-
-[role="exclude",id="ingest-pipeline-search"]
-=== Ingest pipelines for Search indices
-
-coming::[8.11.0]
-
-[role="exclude",id="ingest-pipeline-search-inference"]
-=== Inference processing for Search indices
-
-coming::[8.11.0]
-
-[id="ingest-pipeline-search-inference-update-mapping"]
-==== Update mapping
-
-coming::[8.11.0]
-
-[role="exclude",id="nlp-example"]
-=== Tutorial: Natural language processing (NLP)
-
-coming::[8.11.0]
-

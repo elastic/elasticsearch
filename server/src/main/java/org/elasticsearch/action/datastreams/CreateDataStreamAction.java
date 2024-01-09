@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -66,20 +65,14 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-                this.startTime = in.readVLong();
-            } else {
-                this.startTime = System.currentTimeMillis();
-            }
+            this.startTime = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-                out.writeVLong(startTime);
-            }
+            out.writeVLong(startTime);
         }
 
         @Override

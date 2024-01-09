@@ -29,7 +29,7 @@ import static org.elasticsearch.core.Types.forciblyCast;
  */
 final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> implements Releasable {
     private class Slot {
-        int value;
+        final int value;
 
         Slot(int initial) {
             this.value = initial;
@@ -83,7 +83,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         // tracking the highest competitive value.
         if (arrays[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
             if (shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(sources, size, indexReader)) {
-                competitiveBoundsChangedListener = topSlot -> globalOrdinalValuesSource.updateHighestCompetitiveValue(topSlot);
+                competitiveBoundsChangedListener = globalOrdinalValuesSource::updateHighestCompetitiveValue;
             } else {
                 competitiveBoundsChangedListener = null;
             }
@@ -207,8 +207,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * Copies the current value in <code>slot</code>.
      */
     private void copyCurrent(int slot, long value) {
-        for (int i = 0; i < arrays.length; i++) {
-            arrays[i].copyCurrent(slot);
+        for (SingleDimensionValuesSource<?> array : arrays) {
+            array.copyCurrent(slot);
         }
         docCounts = bigArrays.grow(docCounts, slot + 1);
         docCounts.set(slot, value);
@@ -238,12 +238,12 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      */
     boolean equals(int slot1, int slot2) {
         assert slot2 != CANDIDATE_SLOT;
-        for (int i = 0; i < arrays.length; i++) {
+        for (SingleDimensionValuesSource<?> array : arrays) {
             final int cmp;
             if (slot1 == CANDIDATE_SLOT) {
-                cmp = arrays[i].compareCurrent(slot2);
+                cmp = array.compareCurrent(slot2);
             } else {
-                cmp = arrays[i].compare(slot1, slot2);
+                cmp = array.compare(slot1, slot2);
             }
             if (cmp != 0) {
                 return false;
@@ -257,8 +257,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      */
     int hashCode(int slot) {
         int result = 1;
-        for (int i = 0; i < arrays.length; i++) {
-            result = 31 * result + (slot == CANDIDATE_SLOT ? arrays[i].hashCodeCurrent() : arrays[i].hashCode(slot));
+        for (SingleDimensionValuesSource<?> array : arrays) {
+            result = 31 * result + (slot == CANDIDATE_SLOT ? array.hashCodeCurrent() : array.hashCode(slot));
         }
         return result;
     }

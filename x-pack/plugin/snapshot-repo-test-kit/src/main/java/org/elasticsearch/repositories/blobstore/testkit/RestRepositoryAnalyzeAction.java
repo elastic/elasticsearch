@@ -40,6 +40,9 @@ public class RestRepositoryAnalyzeAction extends BaseRestHandler {
 
         analyzeRepositoryRequest.blobCount(request.paramAsInt("blob_count", analyzeRepositoryRequest.getBlobCount()));
         analyzeRepositoryRequest.concurrency(request.paramAsInt("concurrency", analyzeRepositoryRequest.getConcurrency()));
+        analyzeRepositoryRequest.registerOperationCount(
+            request.paramAsInt("register_operation_count", analyzeRepositoryRequest.getRegisterOperationCount())
+        );
         analyzeRepositoryRequest.readNodeCount(request.paramAsInt("read_node_count", analyzeRepositoryRequest.getReadNodeCount()));
         analyzeRepositoryRequest.earlyReadNodeCount(
             request.paramAsInt("early_read_node_count", analyzeRepositoryRequest.getEarlyReadNodeCount())

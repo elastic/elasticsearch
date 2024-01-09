@@ -16,10 +16,11 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.math.BigInteger;
 import java.util.Collections;
@@ -96,13 +97,15 @@ public class SchemaUtilTests extends ESTestCase {
     }
 
     public void testGetSourceFieldMappings() throws InterruptedException {
-        try (Client client = new FieldCapsMockClient(getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool);
             // fields is null
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
                     emptyMap(),
                     new String[] { "index-1", "index-2" },
+                    QueryBuilders.matchAllQuery(),
                     null,
                     emptyMap(),
                     listener
@@ -119,6 +122,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new String[] { "index-1", "index-2" },
+                    QueryBuilders.matchAllQuery(),
                     new String[] {},
                     emptyMap(),
                     listener
@@ -135,6 +139,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     null,
+                    QueryBuilders.matchAllQuery(),
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
                     listener
@@ -151,6 +156,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new String[] {},
+                    QueryBuilders.matchAllQuery(),
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
                     listener
@@ -167,6 +173,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new String[] { "index-1", "index-2" },
+                    QueryBuilders.matchAllQuery(),
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
                     listener
@@ -188,12 +195,14 @@ public class SchemaUtilTests extends ESTestCase {
                 put("field-3", singletonMap("type", "boolean"));
             }
         };
-        try (Client client = new FieldCapsMockClient(getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool);
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
                     emptyMap(),
                     new String[] { "index-1", "index-2" },
+                    QueryBuilders.matchAllQuery(),
                     new String[] { "field-1", "field-2" },
                     runtimeMappings,
                     listener
@@ -209,9 +218,31 @@ public class SchemaUtilTests extends ESTestCase {
         }
     }
 
+    public void testIsNumericType() {
+        assertFalse(SchemaUtil.isNumericType(null));
+        assertFalse(SchemaUtil.isNumericType("non-existing"));
+        assertTrue(SchemaUtil.isNumericType("double"));
+        assertTrue(SchemaUtil.isNumericType("integer"));
+        assertTrue(SchemaUtil.isNumericType("long"));
+        assertFalse(SchemaUtil.isNumericType("date"));
+        assertFalse(SchemaUtil.isNumericType("date_nanos"));
+        assertFalse(SchemaUtil.isNumericType("keyword"));
+    }
+
+    public void testIsDateType() {
+        assertFalse(SchemaUtil.isDateType(null));
+        assertFalse(SchemaUtil.isDateType("non-existing"));
+        assertFalse(SchemaUtil.isDateType("double"));
+        assertFalse(SchemaUtil.isDateType("integer"));
+        assertFalse(SchemaUtil.isDateType("long"));
+        assertTrue(SchemaUtil.isDateType("date"));
+        assertTrue(SchemaUtil.isDateType("date_nanos"));
+        assertFalse(SchemaUtil.isDateType("keyword"));
+    }
+
     private static class FieldCapsMockClient extends NoOpClient {
-        FieldCapsMockClient(String testName) {
-            super(testName);
+        FieldCapsMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")

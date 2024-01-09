@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.BinaryDenseVectorScriptDocValuesTests;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.KnnDenseVectorScriptDocValuesTests;
@@ -42,11 +43,11 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.V_7_4_0),
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersions.V_7_4_0),
                 "test",
                 ElementType.FLOAT,
                 dims,
-                IndexVersion.V_7_4_0
+                IndexVersions.V_7_4_0
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
@@ -210,11 +211,11 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.V_7_4_0),
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersions.V_7_4_0),
                 "field0",
                 ElementType.FLOAT,
                 dims,
-                IndexVersion.V_7_4_0
+                IndexVersions.V_7_4_0
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),

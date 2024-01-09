@@ -38,12 +38,19 @@ Use `synonyms_set` configuration option to provide a synonym set created via Syn
 ----
   "filter": {
     "synonyms_filter": {
-      "type": "synonym",
+      "type": "synonym_graph",
       "synonyms_set": "my-synonym-set",
       "updateable": true
     }
   }
 ----
+
+[WARNING]
+======
+Synonyms sets must exist before they can be added to indices.
+If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state.
+The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
+======
 
 Use `synonyms_path` to provide a synonym file :
 
@@ -51,7 +58,7 @@ Use `synonyms_path` to provide a synonym file :
 ----
   "filter": {
     "synonyms_filter": {
-      "type": "synonym",
+      "type": "synonym_graph",
       "synonyms_path": "analysis/synonym-set.txt"
     }
   }
@@ -66,7 +73,7 @@ Use `synonyms` to define inline synonyms:
 ----
   "filter": {
     "synonyms_filter": {
-      "type": "synonym",
+      "type": "synonym_graph",
       "synonyms": ["pc => personal computer", "computer, pc, laptop"]
     }
   }

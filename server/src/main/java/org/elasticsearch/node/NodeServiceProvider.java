@@ -49,8 +49,9 @@ import java.util.function.LongSupplier;
  */
 class NodeServiceProvider {
 
-    Function<Settings, PluginsService> pluginsServiceCtor(Environment initialEnvironment) {
-        return PluginsService.getPluginsServiceCtor(initialEnvironment);
+    PluginsService newPluginService(Environment environment, Settings settings) {
+        // this creates a PluginsService with an empty list of classpath plugins
+        return new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
     }
 
     ScriptService newScriptService(

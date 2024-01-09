@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -112,18 +111,35 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         });
         Aggregations aggs = new Aggregations(Collections.singletonList(composite));
 
-        SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
-        SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-
-        collector.processSearchResponse(response);
-
-        QueryBuilder queryBuilder = collector.buildFilterQuery(
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L),
-            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L)
+        SearchResponse response = new SearchResponse(
+            null,
+            aggs,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
         );
-        assertNotNull(queryBuilder);
-        assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
-        assertThat(((TermsQueryBuilder) queryBuilder).values(), containsInAnyOrder("id1", "id2", "id3"));
+        try {
+            collector.processSearchResponse(response);
+
+            QueryBuilder queryBuilder = collector.buildFilterQuery(
+                new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L),
+                new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L)
+            );
+            assertNotNull(queryBuilder);
+            assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
+            assertThat(((TermsQueryBuilder) queryBuilder).values(), containsInAnyOrder("id1", "id2", "id3"));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testNoTermsFieldCollectorForScripts() throws IOException {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
@@ -46,8 +47,9 @@ public record Build(
 
         // finds the pluggable current build, or uses the local build as a fallback
         private static Build findCurrent() {
-            var buildExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class), () -> Build::findLocalBuild);
-            return buildExtension.getCurrentBuild();
+            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
+                .map(BuildExtension::getCurrentBuild)
+                .orElseGet(Build::findLocalBuild);
         }
     }
 
@@ -127,14 +129,14 @@ public record Build(
 
         final String flavor = "default";
         String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
-        String minIndexCompat = minimumCompatString(IndexVersion.MINIMUM_COMPATIBLE);
+        String minIndexCompat = minimumCompatString(IndexVersions.MINIMUM_COMPATIBLE);
         String displayString = defaultDisplayString(type, hash, date, qualifiedVersionString(version, qualifier, isSnapshot));
 
         return new Build(flavor, type, hash, date, version, qualifier, isSnapshot, minWireCompat, minIndexCompat, displayString);
     }
 
     public static String minimumCompatString(IndexVersion minimumCompatible) {
-        if (minimumCompatible.before(IndexVersion.FIRST_DETACHED_INDEX_VERSION)) {
+        if (minimumCompatible.before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
             // use Version for compatibility
             return Version.fromId(minimumCompatible.id()).toString();
         } else {
@@ -203,7 +205,7 @@ public record Build(
     public static Build readBuild(StreamInput in) throws IOException {
         final String flavor;
         if (in.getTransportVersion().before(TransportVersions.V_8_3_0)
-            || in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
+            || in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
             flavor = in.readString();
         } else {
             flavor = "default";
@@ -233,7 +235,7 @@ public record Build(
             version = versionMatcher.group(1);
             qualifier = versionMatcher.group(2);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_041)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
             minWireVersion = in.readString();
             minIndexVersion = in.readString();
             displayString = in.readString();
@@ -250,7 +252,7 @@ public record Build(
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.V_8_3_0)
-            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
+            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
             out.writeString(build.flavor());
         }
         out.writeString(build.type().displayName());
@@ -264,7 +266,7 @@ public record Build(
             out.writeBoolean(build.isSnapshot());
             out.writeString(build.qualifiedVersion());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_041)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
             out.writeString(build.minWireCompatVersion());
             out.writeString(build.minIndexCompatVersion());
             out.writeString(build.displayString());

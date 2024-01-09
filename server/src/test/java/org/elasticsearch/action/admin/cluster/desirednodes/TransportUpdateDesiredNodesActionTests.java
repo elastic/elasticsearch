@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
@@ -23,8 +22,10 @@ import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,21 +45,18 @@ import static org.mockito.Mockito.mock;
 
 public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase {
 
-    public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator() {
-        @Override
-        public void validate(List<DesiredNode> desiredNodes) {}
-    };
-
     public void testWriteBlocks() {
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
             transportService,
             mock(ClusterService.class),
+            mock(RerouteService.class),
+            mock(FeatureService.class),
             threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR,
+            l -> {},
             mock(AllocationService.class)
         );
 
@@ -82,10 +80,12 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
             transportService,
             mock(ClusterService.class),
+            mock(RerouteService.class),
+            mock(FeatureService.class),
             threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR,
+            l -> {},
             mock(AllocationService.class)
         );
 

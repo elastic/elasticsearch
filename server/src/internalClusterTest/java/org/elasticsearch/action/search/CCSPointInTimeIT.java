@@ -29,7 +29,8 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -95,31 +96,32 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
                 remoteClient.prepareIndex("remote_test").setId("remote_new").setSource().get();
                 remoteClient.admin().indices().prepareRefresh().get();
             }
-            SearchResponse resp = localClient.prepareSearch()
-                .setPreference(null)
-                .setQuery(new MatchAllQueryBuilder())
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .setSize(1000)
-                .get();
-            assertNoFailures(resp);
-            assertHitCount(resp, (includeLocalIndex ? localNumDocs : 0) + remoteNumDocs);
+            assertNoFailuresAndResponse(
+                localClient.prepareSearch()
+                    .setPreference(null)
+                    .setQuery(new MatchAllQueryBuilder())
+                    .setPointInTime(new PointInTimeBuilder(pitId))
+                    .setSize(1000),
+                resp -> {
+                    assertHitCount(resp, (includeLocalIndex ? localNumDocs : 0) + remoteNumDocs);
 
-            SearchResponse.Clusters clusters = resp.getClusters();
-            int expectedNumClusters = 1 + (includeLocalIndex ? 1 : 0);
-            assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
-            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(expectedNumClusters));
-            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                    SearchResponse.Clusters clusters = resp.getClusters();
+                    int expectedNumClusters = 1 + (includeLocalIndex ? 1 : 0);
+                    assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
+                    assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(expectedNumClusters));
+                    assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
 
-            if (includeLocalIndex) {
-                SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                assertNotNull(localCluster);
-                assertOneSuccessfulShard(localCluster);
-            }
+                    if (includeLocalIndex) {
+                        SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertNotNull(localCluster);
+                        assertOneSuccessfulShard(localCluster);
+                    }
 
-            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
-            assertNotNull(remoteCluster);
-            assertOneSuccessfulShard(remoteCluster);
-
+                    SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+                    assertNotNull(remoteCluster);
+                    assertOneSuccessfulShard(remoteCluster);
+                }
+            );
         } finally {
             closePointInTime(pitId);
         }
@@ -157,24 +159,22 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10).pointInTimeBuilder(new PointInTimeBuilder(pitId)));
-            SearchResponse searchResponse = client(LOCAL_CLUSTER).search(searchRequest).get();
-
-            SearchResponse.Clusters clusters = searchResponse.getClusters();
-            int expectedNumClusters = 1 + (includeLocalIndex ? 1 : 0);
-            assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
-            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
-            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
-            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(expectedNumClusters));
-
-            if (includeLocalIndex) {
-                SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                assertNotNull(localCluster);
-                assertOneFailedShard(localCluster, numShards);
-            }
-            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
-            assertNotNull(remoteCluster);
-            assertOneFailedShard(remoteCluster, numShards);
-
+            assertResponse(client(LOCAL_CLUSTER).search(searchRequest), searchResponse -> {
+                SearchResponse.Clusters clusters = searchResponse.getClusters();
+                int expectedNumClusters = 1 + (includeLocalIndex ? 1 : 0);
+                assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(expectedNumClusters));
+                if (includeLocalIndex) {
+                    SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                    assertNotNull(localCluster);
+                    assertOneFailedShard(localCluster, numShards);
+                }
+                SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+                assertNotNull(remoteCluster);
+                assertOneFailedShard(remoteCluster, numShards);
+            });
         } finally {
             closePointInTime(pitId);
         }
@@ -202,11 +202,11 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
 
     private String openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
-        final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
     }
 
     private void closePointInTime(String readerId) {
-        client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(readerId)).actionGet();
+        client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
@@ -2604,12 +2605,32 @@ public class IngestServiceTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        return new IngestService(mock(ClusterService.class), threadPool, null, null, null, List.of(new IngestPlugin() {
-            @Override
-            public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
-                return processors;
-            }
-        }), client, null, documentParsingObserverSupplier);
+        IngestService ingestService = new IngestService(
+            mock(ClusterService.class),
+            threadPool,
+            null,
+            null,
+            null,
+            List.of(new IngestPlugin() {
+                @Override
+                public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
+                    return processors;
+                }
+            }),
+            client,
+            null,
+            documentParsingObserverSupplier
+        );
+        if (randomBoolean()) {
+            /*
+             * Testing the copy constructor directly is difficult because there is no equals() method in IngestService, but there is a lot
+             * of private internal state. Here we use the copy constructor half the time in all of the unit tests, with the assumption that
+             * if none of our tests observe any difference then the copy constructor is working as expected.
+             */
+            return new IngestService(ingestService);
+        } else {
+            return ingestService;
+        }
     }
 
     private CompoundProcessor mockCompoundProcessor() {
@@ -2627,10 +2648,6 @@ public class IngestServiceTests extends ESTestCase {
     private class IngestDocumentMatcher implements ArgumentMatcher<IngestDocument> {
 
         private final IngestDocument ingestDocument;
-
-        IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, id, 1, null, null, source);
-        }
 
         IngestDocumentMatcher(String index, String type, String id, long version, VersionType versionType, Map<String, Object> source) {
             this.ingestDocument = new IngestDocument(index, id, version, null, versionType, source);
@@ -2664,7 +2681,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(DeletePipelineRequest request) {
-        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(ActionListener.running(() -> fail("not called")), request));
+        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(ActionTestUtils.assertNoFailureListener(t -> {}), request));
     }
 
     private static ClusterState executeDelete(DeletePipelineRequest request, ClusterState clusterState) {
@@ -2680,7 +2697,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(PutPipelineRequest request) {
-        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionListener.running(() -> fail("not called")), request));
+        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionTestUtils.assertNoFailureListener(t -> {}), request));
     }
 
     private static ClusterState executePut(PutPipelineRequest request, ClusterState clusterState) {

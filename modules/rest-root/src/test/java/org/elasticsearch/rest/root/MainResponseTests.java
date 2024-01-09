@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -67,7 +68,7 @@ public class MainResponseTests extends ESTestCase {
                     build.isSnapshot(),
                     indexVersion.luceneVersion().toString(),
                     build.minWireCompatVersion(),
-                    Build.minimumCompatString(IndexVersion.MINIMUM_COMPATIBLE)
+                    Build.minimumCompatString(IndexVersions.MINIMUM_COMPATIBLE)
                 )
             ),
             Strings.toString(builder)

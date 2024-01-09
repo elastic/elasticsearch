@@ -8,20 +8,22 @@
 package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceExtension;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
@@ -30,8 +32,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class ElserMlNodeService implements InferenceService {
 
@@ -50,7 +52,7 @@ public class ElserMlNodeService implements InferenceService {
 
     private final OriginSettingClient client;
 
-    public ElserMlNodeService(InferenceServicePlugin.InferenceServiceFactoryContext context) {
+    public ElserMlNodeService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
     }
 
@@ -98,12 +100,17 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public ElserMlNodeModel parsePersistedConfig(
+    public ElserMlNodeModel parsePersistedConfigWithSecrets(
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
+        return parsePersistedConfig(modelId, taskType, config);
+    }
+
+    @Override
+    public ElserMlNodeModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
 
@@ -150,15 +157,15 @@ public class ElserMlNodeService implements InferenceService {
         client.execute(
             StartTrainedModelDeploymentAction.INSTANCE,
             startRequest,
-            ActionListener.wrap(r -> listener.onResponse(Boolean.TRUE), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Boolean.TRUE))
         );
     }
 
     @Override
-    public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
+    public void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener) {
         // No task settings to override with requestTaskSettings
 
-        if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
+        if (TaskType.SPARSE_EMBEDDING.isAnyOrSame(model.getConfigurations().getTaskType()) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME),
@@ -171,13 +178,14 @@ public class ElserMlNodeService implements InferenceService {
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getModelId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
-            List.of(input),
+            input,
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request
         );
-        client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, ActionListener.wrap(inferenceResult -> {
-            var textExpansionResult = (TextExpansionResults) inferenceResult.getResults().get(0);
-            listener.onResponse(textExpansionResult);
-        }, listener::onFailure));
+        client.execute(
+            InferTrainedModelDeploymentAction.INSTANCE,
+            request,
+            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getResults())))
+        );
     }
 
     private static ElserMlNodeTaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {
@@ -196,4 +204,9 @@ public class ElserMlNodeService implements InferenceService {
 
     @Override
     public void close() throws IOException {}
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED;
+    }
 }

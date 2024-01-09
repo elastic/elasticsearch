@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -16,60 +17,71 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StartsWith}.
  * This class is generated. Do not edit it.
  */
 public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator prefix;
 
   private final DriverContext driverContext;
 
-  public StartsWithEvaluator(EvalOperator.ExpressionEvaluator str,
+  public StartsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator prefix, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.prefix = prefix;
     this.driverContext = driverContext;
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref prefixRef = prefix.eval(page)) {
-        if (prefixRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        BytesRefBlock prefixBlock = (BytesRefBlock) prefixRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (BytesRefBlock prefixBlock = (BytesRefBlock) prefix.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, prefixBlock));
+          return eval(page.getPositionCount(), strBlock, prefixBlock);
         }
         BytesRefVector prefixVector = prefixBlock.asVector();
         if (prefixVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, prefixBlock));
+          return eval(page.getPositionCount(), strBlock, prefixBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, prefixVector).asBlock());
+        return eval(page.getPositionCount(), strVector, prefixVector).asBlock();
       }
     }
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock prefixBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        if (strBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (prefixBlock.isNull(p) || prefixBlock.getValueCount(p) != 1) {
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (prefixBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (prefixBlock.getValueCount(p) != 1) {
+          if (prefixBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -81,7 +93,7 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector prefixVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -99,5 +111,30 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, prefix);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory prefix;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory prefix) {
+      this.source = source;
+      this.str = str;
+      this.prefix = prefix;
+    }
+
+    @Override
+    public StartsWithEvaluator get(DriverContext context) {
+      return new StartsWithEvaluator(source, str.get(context), prefix.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "StartsWithEvaluator[" + "str=" + str + ", prefix=" + prefix + "]";
+    }
   }
 }

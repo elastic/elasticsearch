@@ -180,7 +180,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * listener when the task is finished or when the provided <code>waitForCompletion</code>
      * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
      */
-    public void addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    public boolean addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
         boolean executeImmediately = false;
         long startTime = threadPool.relativeTimeInMillis();
         synchronized (this) {
@@ -201,8 +201,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
         }
+        return true; // unused
     }
 
     /**
@@ -238,7 +239,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            listener.onResponse(getResponseWithHeaders());
+                            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
                         }
                     }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
@@ -255,7 +256,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
         }
     }
 

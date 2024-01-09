@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -36,9 +37,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createConnectionManager;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
-import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.emptyHttpSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -62,7 +63,7 @@ public class RequestTaskTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(getTestName());
+        threadPool = createThreadPool(inferenceUtilityPool());
     }
 
     @After
@@ -80,7 +81,7 @@ public class RequestTaskTests extends ESTestCase {
         String paramValue = randomAlphaOfLength(3);
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager())) {
+        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mock(ThrottlerManager.class))) {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();

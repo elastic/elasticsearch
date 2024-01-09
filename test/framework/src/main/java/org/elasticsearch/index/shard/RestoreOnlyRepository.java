@@ -32,6 +32,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.Executor;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
@@ -75,7 +76,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
         final IndexId indexId = new IndexId(indexName, "blah");
         listener.onResponse(
             new RepositoryData(
@@ -133,7 +134,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void snapshotShard(SnapshotShardContext context) {}
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return null;
     }
 

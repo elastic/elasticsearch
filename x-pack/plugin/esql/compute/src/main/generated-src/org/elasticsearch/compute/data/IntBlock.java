@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -17,7 +18,7 @@ import java.io.IOException;
  * Block that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock {
+public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock {
 
     /**
      * Retrieves the int value stored at the given value index.
@@ -165,31 +166,14 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         return result;
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newIntBlockBuilder(estimatedSize);
-    }
-
-    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    static IntBlock newConstantBlockWith(int value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    static IntBlock newConstantBlockWith(int value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantIntBlockWith(value, positions);
-    }
-
-    sealed interface Builder extends Block.Builder permits IntBlockBuilder {
-
+    /**
+     * Builder for {@link IntBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.IntBuilder permits IntBlockBuilder {
         /**
          * Appends a int to the current entry.
          */
+        @Override
         Builder appendInt(int value);
 
         /**
@@ -213,12 +197,11 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

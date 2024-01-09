@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -31,12 +30,9 @@ public class HashAggregationOperator implements Operator {
 
     public record GroupSpec(int channel, ElementType elementType) {}
 
-    public record HashAggregationOperatorFactory(
-        List<GroupSpec> groups,
-        List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize,
-        BigArrays bigArrays
-    ) implements OperatorFactory {
+    public record HashAggregationOperatorFactory(List<GroupSpec> groups, List<GroupingAggregator.Factory> aggregators, int maxPageSize)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new HashAggregationOperator(
@@ -161,7 +157,7 @@ public class HashAggregationOperator implements Operator {
         } finally {
             // selected should always be closed
             if (selected != null) {
-                Releasables.closeExpectNoException(selected.asBlock()); // we always close blocks, not vectors
+                selected.close();
             }
             if (success == false && blocks != null) {
                 Releasables.closeExpectNoException(blocks);

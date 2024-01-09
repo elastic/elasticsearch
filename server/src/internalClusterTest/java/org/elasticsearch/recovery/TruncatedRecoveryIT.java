@@ -88,12 +88,12 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builder = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            builder.add(client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i), "the_id", id));
+            builder.add(prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i), "the_id", id));
         }
         indexRandom(true, builder);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)), 1);
+            assertHitCount(prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)), 1);
         }
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
@@ -104,24 +104,21 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
         for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                dataNode.getNode().getName()
-            ));
-            mockTransportService.addSendBehavior(
-                internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
-                (connection, requestId, action, request, options) -> {
-                    if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        logger.info("file chunk [{}] lastChunk: {}", req, req.lastChunk());
-                        if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
-                            latch.countDown();
-                            throw new RuntimeException("Caused some truncated files for fun and profit");
+            MockTransportService.getInstance(dataNode.getNode().getName())
+                .addSendBehavior(
+                    internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
+                    (connection, requestId, action, request, options) -> {
+                        if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                            RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                            logger.info("file chunk [{}] lastChunk: {}", req, req.lastChunk());
+                            if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
+                                latch.countDown();
+                                throw new RuntimeException("Caused some truncated files for fun and profit");
+                            }
                         }
+                        connection.sendRequest(requestId, action, request, options);
                     }
-                    connection.sendRequest(requestId, action, request, options);
-                }
-            );
+                );
         }
 
         logger.info("--> bumping replicas to 1"); //
@@ -143,7 +140,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         ensureGreen("test");
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)), 1);
+            assertHitCount(prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)), 1);
         }
     }
 }

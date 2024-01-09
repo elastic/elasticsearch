@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -27,16 +25,14 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
-        ExpressionEvaluator apply(
-            Source source,
-            ExpressionEvaluator expressionEvaluator,
-            TemporalAmount temporalAmount,
-            DriverContext driverContext
-        );
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);
     }
 
     private final DatetimeArithmeticEvaluator datetimes;
@@ -63,16 +59,16 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
         // Date math is only possible if either
         // - one argument is a DATETIME and the other a (foldable) TemporalValue, or
-        // - both arguments are TemporalValues (so we can fold them).
+        // - both arguments are TemporalValues (so we can fold them), or
+        // - one argument is NULL and the other one a DATETIME.
         if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
-            if ((leftType == DataTypes.DATETIME && isTemporalAmount(rightType))
-                || (rightType == DataTypes.DATETIME && isTemporalAmount(leftType))) {
+            if (isNull(leftType) || isNull(rightType)) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if (leftType == TIME_DURATION && rightType == TIME_DURATION) {
+            if ((isDateTime(leftType) && isTemporalAmount(rightType)) || (isTemporalAmount(leftType) && isDateTime(rightType))) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if (leftType == DATE_PERIOD && rightType == DATE_PERIOD) {
+            if (isTemporalAmount(leftType) && isTemporalAmount(rightType) && leftType == rightType) {
                 return TypeResolution.TYPE_RESOLVED;
             }
 
@@ -132,16 +128,19 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 throw ExceptionUtils.math(source(), e);
             }
         }
+        if (isNull(leftDataType) || isNull(rightDataType)) {
+            return null;
+        }
         return super.fold();
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        if (dataType() == DataTypes.DATETIME) {
+        if (dataType() == DATETIME) {
             // One of the arguments has to be a datetime and the other a temporal amount.
             Expression datetimeArgument;
             Expression temporalAmountArgument;
-            if (left().dataType() == DataTypes.DATETIME) {
+            if (left().dataType() == DATETIME) {
                 datetimeArgument = left();
                 temporalAmountArgument = right();
             } else {
@@ -149,12 +148,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 temporalAmountArgument = left();
             }
 
-            return dvrCtx -> datetimes.apply(
-                source(),
-                toEvaluator.apply(datetimeArgument).get(dvrCtx),
-                (TemporalAmount) temporalAmountArgument.fold(),
-                dvrCtx
-            );
+            return datetimes.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
         } else {
             return super.toEvaluator(toEvaluator);
         }

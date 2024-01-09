@@ -93,7 +93,7 @@ public class MultiBucketConsumerService {
      * {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
      */
     public static class MultiBucketConsumer implements IntConsumer {
-        private final Logger logger = LogManager.getLogger(MultiBucketConsumer.class);
+        private static final Logger logger = LogManager.getLogger(MultiBucketConsumer.class);
         private final int limit;
         private final CircuitBreaker breaker;
 

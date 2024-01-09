@@ -224,7 +224,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         }
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private static final Set<String> VALID_FIELDS = Set.of("order", "mappings", "settings", "index_patterns", "aliases", "version");
 
@@ -248,7 +248,6 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
             aliases = new HashMap<>();
         }
 
-        @SuppressWarnings("this-escape")
         public Builder(IndexTemplateMetadata indexTemplateMetadata) {
             this.name = indexTemplateMetadata.name();
             order(indexTemplateMetadata.order());

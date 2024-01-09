@@ -10,11 +10,10 @@ package org.elasticsearch.compute.data;
 /**
  * A dense Vector of single values.
  */
-abstract class AbstractVector implements Vector {
+abstract class AbstractVector extends AbstractNonThreadSafeRefCounted implements Vector {
 
     private final int positionCount;
-    protected final BlockFactory blockFactory;
-    protected boolean released;
+    private BlockFactory blockFactory;
 
     protected AbstractVector(int positionCount, BlockFactory blockFactory) {
         this.positionCount = positionCount;
@@ -36,16 +35,17 @@ abstract class AbstractVector implements Vector {
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+    public void allowPassingToDifferentDriver() {
+        blockFactory = blockFactory.parent();
+    }
+
+    @Override
+    protected void closeInternal() {
+        blockFactory.adjustBreaker(-ramBytesUsed());
     }
 
     @Override
     public final boolean isReleased() {
-        return released;
+        return hasReferences() == false;
     }
 }

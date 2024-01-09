@@ -47,6 +47,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
             );
         }
         if (cardinality != CardinalityUpperBound.ONE) {
+            // Hitting this exception is a programmer error. Hopefully never seen in production.
             throw new AggregationExecutionException("Aggregation [" + name() + "] must have cardinality 1 but was [" + cardinality + "]");
         }
         return new GlobalAggregator(name, factories, context, metadata);

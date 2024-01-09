@@ -151,7 +151,8 @@ a separate single-node cluster then you must start again:
 folder>>.
 
 . Configure `discovery.seed_hosts` or `discovery.seed_providers` and other
-relevant discovery settings.
+relevant discovery settings. Ensure `cluster.initial_master_nodes` is not set
+on any node.
 
 . Restart the node and verify that it joins the existing cluster rather than
 forming its own one-node cluster.
@@ -170,5 +171,7 @@ folders>>.
 relevant discovery settings.
 
 . Restart all the nodes and verify that they have formed a single cluster.
+
+. Remove `cluster.initial_master_nodes` from every node's configuration.
 
 ****

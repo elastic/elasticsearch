@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -36,21 +37,22 @@ public final class ToLongFromUnsignedLongEvaluator extends AbstractConvertFuncti
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
+      } catch (InvalidArgumentException  e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        builder.appendLong(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendLong(evalValue(vector, p));
+        } catch (InvalidArgumentException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static long evalValue(LongVector container, int index) {
@@ -62,7 +64,7 @@ public final class ToLongFromUnsignedLongEvaluator extends AbstractConvertFuncti
   public Block evalBlock(Block b) {
     LongBlock block = (LongBlock) b;
     int positionCount = block.getPositionCount();
-    try (LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -78,7 +80,7 @@ public final class ToLongFromUnsignedLongEvaluator extends AbstractConvertFuncti
             }
             builder.appendLong(value);
             valuesAppended = true;
-          } catch (Exception e) {
+          } catch (InvalidArgumentException  e) {
             registerException(e);
           }
         }
@@ -95,5 +97,26 @@ public final class ToLongFromUnsignedLongEvaluator extends AbstractConvertFuncti
   private static long evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
     return ToLong.fromUnsignedLong(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToLongFromUnsignedLongEvaluator get(DriverContext context) {
+      return new ToLongFromUnsignedLongEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToLongFromUnsignedLongEvaluator[field=" + field + "]";
+    }
   }
 }

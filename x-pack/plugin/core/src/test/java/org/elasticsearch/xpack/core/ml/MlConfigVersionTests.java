@@ -167,7 +167,7 @@ public class MlConfigVersionTests extends ESTestCase {
             .version(VersionInformation.inferVersions(Version.fromString("8.7.0")))
             .build();
         MlConfigVersion mlConfigVersion1 = MlConfigVersion.getMlConfigVersionForNode(node1);
-        assertEquals(MlConfigVersion.fromVersion(Version.V_8_5_0), mlConfigVersion1);
+        assertEquals(MlConfigVersion.V_8_5_0, mlConfigVersion1);
     }
 
     public void testDefinedConstants() throws IllegalAccessException {
@@ -232,19 +232,6 @@ public class MlConfigVersionTests extends ESTestCase {
         );
     }
 
-    public void testFromVersion() {
-        Version version_V_7_7_0 = Version.V_7_0_0;
-        MlConfigVersion mlConfigVersion_V_7_7_0 = MlConfigVersion.fromVersion(version_V_7_7_0);
-        assertEquals(version_V_7_7_0.id, mlConfigVersion_V_7_7_0.id());
-
-        // Version 8.10.0 is treated as if it is MlConfigVersion V_10.
-        assertEquals(MlConfigVersion.V_10.id(), MlConfigVersion.fromVersion(Version.V_8_10_0).id());
-
-        // There's no mapping between Version and MlConfigVersion values after Version.V_8_10_0.
-        Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromVersion(Version.fromId(8_11_00_99)));
-        assertEquals("Cannot convert " + Version.fromId(8_11_00_99) + ". Incompatible version", e.getMessage());
-    }
-
     public void testVersionConstantPresent() {
         Set<MlConfigVersion> ignore = Set.of(MlConfigVersion.ZERO, MlConfigVersion.CURRENT, MlConfigVersion.FIRST_ML_VERSION);
         assertThat(MlConfigVersion.CURRENT, sameInstance(MlConfigVersion.fromId(MlConfigVersion.CURRENT.id())));
@@ -298,13 +285,9 @@ public class MlConfigVersionTests extends ESTestCase {
         assertEquals(false, KnownMlConfigVersions.ALL_VERSIONS.contains(unknownVersion));
         assertEquals(MlConfigVersion.CURRENT.id() + 1, unknownVersion.id());
 
-        for (String version : new String[] { "10.2", "7.17.2.99" }) {
+        for (String version : new String[] { "10.2", "7.17.2.99", "9" }) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromString(version));
-            assertEquals("the version needs to contain major, minor, and revision, and optionally the build: " + version, e.getMessage());
+            assertEquals("ML config version [" + version + "] not valid", e.getMessage());
         }
-
-        String version = "9";
-        Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromString(version));
-        assertEquals("the version needs to contain major, minor, and revision, and optionally the build: " + version, e.getMessage());
     }
 }

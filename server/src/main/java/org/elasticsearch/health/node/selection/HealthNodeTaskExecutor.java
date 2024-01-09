@@ -11,7 +11,6 @@ package org.elasticsearch.health.node.selection;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,6 +21,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -57,15 +58,22 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
+    private final FeatureService featureService;
     private final AtomicReference<HealthNode> currentTask = new AtomicReference<>();
     private final ClusterStateListener taskStarter;
     private final ClusterStateListener shutdownListener;
     private volatile boolean enabled;
 
-    private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
+    private HealthNodeTaskExecutor(
+        ClusterService clusterService,
+        PersistentTasksService persistentTasksService,
+        FeatureService featureService,
+        Settings settings
+    ) {
         super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
+        this.featureService = featureService;
         this.taskStarter = this::startTask;
         this.shutdownListener = this::shuttingDown;
         this.enabled = ENABLED_SETTING.get(settings);
@@ -74,10 +82,16 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     public static HealthNodeTaskExecutor create(
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
+        FeatureService featureService,
         Settings settings,
         ClusterSettings clusterSettings
     ) {
-        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings);
+        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            featureService,
+            settings
+        );
         healthNodeTaskExecutor.registerListeners(clusterSettings);
         return healthNodeTaskExecutor;
     }
@@ -141,8 +155,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void startTask(ClusterChangedEvent event) {
-        // Wait until every node in the cluster is upgraded to 8.5.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
+        // Wait until every node in the cluster supports health checks
+        if (event.state().clusterRecovered() && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)) {
             boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
             boolean isElectedMaster = event.localNodeMaster();
             if (isElectedMaster || healthNodeTaskExists) {

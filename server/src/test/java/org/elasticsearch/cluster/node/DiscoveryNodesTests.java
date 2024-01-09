@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -403,7 +404,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertEquals(Version.CURRENT, DiscoveryNodes.EMPTY_NODES.getMaxNodeVersion());
         assertEquals(Version.CURRENT.minimumCompatibilityVersion(), DiscoveryNodes.EMPTY_NODES.getMinNodeVersion());
         assertEquals(IndexVersion.current(), DiscoveryNodes.EMPTY_NODES.getMaxDataNodeCompatibleIndexVersion());
-        assertEquals(IndexVersion.MINIMUM_COMPATIBLE, DiscoveryNodes.EMPTY_NODES.getMinSupportedIndexVersion());
+        assertEquals(IndexVersions.MINIMUM_COMPATIBLE, DiscoveryNodes.EMPTY_NODES.getMinSupportedIndexVersion());
 
         // use a mix of versions with major, minor, and patch numbers
         List<VersionInformation> dataVersions = List.of(
@@ -463,7 +464,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                             TransportVersion.current()
                         );
                     } catch (IOException e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 }
                 assertEquals(expectedGeneration, discoveryNodes.getNodeLeftGeneration());
@@ -481,7 +482,7 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         final var node0 = nodeVersionFactory.apply(
             0,
-            new VersionInformation(VersionUtils.randomVersion(random()), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+            new VersionInformation(VersionUtils.randomVersion(random()), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
         );
         testHarness.accept(builder -> builder.add(node0), 0L);
 

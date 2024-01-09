@@ -556,7 +556,7 @@ public class PeerFinderTests extends ESTestCase {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    throw new AssertionError("unexpected", exp);
+                    fail(exp);
                 }
             }
         );

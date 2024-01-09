@@ -228,12 +228,6 @@ public class MasterServiceTests extends ESTestCase {
             public void onTaskRegistered(Task task) {
                 registeredActions.add(task.getAction());
             }
-
-            @Override
-            public void onTaskUnregistered(Task task) {}
-
-            @Override
-            public void waitForTaskCompletion(Task task) {}
         });
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -2302,7 +2296,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             }
 
@@ -2397,7 +2391,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             }
 
@@ -2474,7 +2468,7 @@ public class MasterServiceTests extends ESTestCase {
 
                     @Override
                     public void onFailure(Exception e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 });
             }

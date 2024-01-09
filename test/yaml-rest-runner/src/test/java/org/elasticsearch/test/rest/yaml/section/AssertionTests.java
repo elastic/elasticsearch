@@ -69,6 +69,17 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat((Integer) lengthAssertion.getExpectedValue(), equalTo(22));
     }
 
+    public void testParseIsAfter() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 2021-05-25T12:30:00.000Z}");
+
+        IsAfterAssertion isAfterAssertion = IsAfterAssertion.parse(parser);
+
+        assertThat(isAfterAssertion, notNullValue());
+        assertThat(isAfterAssertion.getField(), equalTo("field"));
+        assertThat(isAfterAssertion.getExpectedValue(), instanceOf(String.class));
+        assertThat(isAfterAssertion.getExpectedValue(), equalTo("2021-05-25T12:30:00.000Z"));
+    }
+
     public void testParseMatchSimpleIntegerValue() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "{ field: 10 }");
 
@@ -184,5 +195,25 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         AssertionError e = expectThrows(AssertionError.class, () -> existsAssertion.doAssert(null, existsAssertion.getExpectedValue()));
         assertThat(e.getMessage(), containsString("field [get.fields._timestamp] does not exist"));
+    }
+
+    public void testDoesNotExist() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, "get.fields._timestamp");
+
+        NotExistsAssertion existnotExistsAssertion = NotExistsAssertion.parse(parser);
+
+        assertThat(existnotExistsAssertion, notNullValue());
+        assertThat(existnotExistsAssertion.getField(), equalTo("get.fields._timestamp"));
+
+        existnotExistsAssertion.doAssert(null, existnotExistsAssertion.getExpectedValue());
+
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> existnotExistsAssertion.doAssert(
+                randomFrom(1, "", "non-empty", List.of(), Map.of(), 0, false),
+                existnotExistsAssertion.getExpectedValue()
+            )
+        );
+        assertThat(e.getMessage(), containsString("field [get.fields._timestamp] exists, but should not"));
     }
 }

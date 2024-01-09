@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,11 +29,9 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -44,17 +41,13 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
@@ -177,44 +170,29 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     @SuppressWarnings("HiddenField")
-    public Collection<Object> createComponents(
-        final Client client,
-        final ClusterService clusterService,
-        final ThreadPool threadPool,
-        final ResourceWatcherService resourceWatcherService,
-        final ScriptService scriptService,
-        final NamedXContentRegistry xContentRegistry,
-        final Environment environment,
-        final NodeEnvironment nodeEnvironment,
-        final NamedWriteableRegistry namedWriteableRegistry,
-        final IndexNameExpressionResolver expressionResolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
-        this.client = client;
+    public Collection<?> createComponents(PluginServices services) {
+        this.client = services.client();
         if (enabled == false) {
             return emptyList();
         }
 
-        CcrSettings ccrSettings = new CcrSettings(settings, clusterService.getClusterSettings());
+        CcrSettings ccrSettings = new CcrSettings(settings, services.clusterService().getClusterSettings());
         this.ccrSettings.set(ccrSettings);
-        CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);
+        CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(services.threadPool(), ccrSettings);
         this.restoreSourceService.set(restoreSourceService);
-        return Arrays.asList(
+        return List.of(
             ccrLicenseChecker,
             restoreSourceService,
-            new CcrRepositoryManager(settings, clusterService, client),
-            new ShardFollowTaskCleaner(clusterService, threadPool, client),
+            new CcrRepositoryManager(settings, services.clusterService(), client),
+            new ShardFollowTaskCleaner(services.clusterService(), services.threadPool(), client),
             new AutoFollowCoordinator(
                 settings,
                 client,
-                clusterService,
+                services.clusterService(),
                 ccrLicenseChecker,
-                threadPool::relativeTimeInMillis,
-                threadPool::absoluteTimeInMillis,
-                threadPool.executor(Ccr.CCR_THREAD_POOL_NAME)
+                services.threadPool()::relativeTimeInMillis,
+                services.threadPool()::absoluteTimeInMillis,
+                services.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
             )
         );
     }

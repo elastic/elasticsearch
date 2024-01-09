@@ -17,11 +17,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -29,13 +31,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
-import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
-import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
@@ -48,20 +52,20 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
-    private Thread thread;
+    private final AtomicReference<Thread> threadRef = new AtomicReference<>();
 
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(getTestName());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty());
-        thread = null;
+        threadPool = createThreadPool(inferenceUtilityPool());
+        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        threadRef.set(null);
     }
 
     @After
     public void shutdown() throws IOException, InterruptedException {
-        if (thread != null) {
-            thread.join(TIMEOUT.millis());
+        if (threadRef.get() != null) {
+            threadRef.get().join(TIMEOUT.millis());
         }
 
         clientManager.close();
@@ -70,20 +74,7 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
     }
 
     public void testCreateSender_SendsRequestAndReceivesResponse() throws Exception {
-        var mockExecutorService = mock(ExecutorService.class);
-        doAnswer(invocation -> {
-            Runnable runnable = (Runnable) invocation.getArguments()[0];
-            thread = new Thread(runnable);
-            thread.start();
-
-            return Void.TYPE;
-        }).when(mockExecutorService).execute(any(Runnable.class));
-
-        var mockThreadPool = mock(ThreadPool.class);
-        when(mockThreadPool.executor(anyString())).thenReturn(mockExecutorService);
-        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-
-        var senderFactory = new HttpRequestSenderFactory(mockThreadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = createSenderFactory(clientManager, threadRef);
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -127,7 +118,10 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         var senderFactory = new HttpRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var sender = senderFactory.createSender("test_service")) {
-            sender.setMaxRequestTimeout(TimeValue.timeValueNanos(1));
+            assertThat(sender, instanceOf(HttpRequestSenderFactory.HttpRequestSender.class));
+            // hack to get around the sender interface so we can set the timeout directly
+            var httpSender = (HttpRequestSenderFactory.HttpRequestSender) sender;
+            httpSender.setMaxRequestTimeout(TimeValue.timeValueNanos(1));
             sender.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -161,5 +155,23 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
                 is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueNanos(1)))
             );
         }
+    }
+
+    private static HttpRequestSenderFactory createSenderFactory(HttpClientManager clientManager, AtomicReference<Thread> threadRef) {
+        var mockExecutorService = mock(ExecutorService.class);
+        doAnswer(invocation -> {
+            Runnable runnable = (Runnable) invocation.getArguments()[0];
+            threadRef.set(new Thread(runnable));
+            threadRef.get().start();
+
+            return Void.TYPE;
+        }).when(mockExecutorService).execute(any(Runnable.class));
+
+        var mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.executor(anyString())).thenReturn(mockExecutorService);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(mockThreadPool.schedule(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
+
+        return new HttpRequestSenderFactory(mockThreadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
     }
 }

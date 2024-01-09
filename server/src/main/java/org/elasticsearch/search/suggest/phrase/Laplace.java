@@ -42,7 +42,7 @@ public final class Laplace extends SmoothingModel {
      */
     public static final double DEFAULT_LAPLACE_ALPHA = 0.5;
 
-    private double alpha = DEFAULT_LAPLACE_ALPHA;
+    private final double alpha;
 
     /**
      * Creates a Laplace smoothing model.

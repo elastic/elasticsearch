@@ -38,15 +38,14 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 
-class RealmsAuthenticator implements Authenticator {
+public class RealmsAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 
     private final AtomicLong numInvalidation;
     private final Cache<String, Realm> lastSuccessfulAuthCache;
-    private boolean authenticationTokenExtracted = false;
 
-    RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
+    public RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
         this.numInvalidation = numInvalidation;
         this.lastSuccessfulAuthCache = lastSuccessfulAuthCache;
     }
@@ -60,15 +59,13 @@ class RealmsAuthenticator implements Authenticator {
     public AuthenticationToken extractCredentials(Context context) {
         final AuthenticationToken authenticationToken = extractToken(context);
         if (authenticationToken != null) {
-            authenticationTokenExtracted = true;
+            // Once a token is extracted by realms, from the thread context,
+            // authentication must not handle the null-token case (in case no realm can verify the extracted token).
+            // In other words, the handle null-token case (i.e. authenticate as the anonymous user) runs only when no realm can extract
+            // a token from the thread context (i.e. from the request).
+            context.setHandleNullToken(false);
         }
         return authenticationToken;
-    }
-
-    @Override
-    public boolean canBeFollowedByNullTokenHandler() {
-        // TODO: once a token is extracted by realms, we should no longer handle null token if no realm can authenticate the token
-        return false == authenticationTokenExtracted;
     }
 
     @Override

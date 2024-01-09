@@ -784,10 +784,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         };
         PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
-        expectThrows(IndexShardRelocatedException.class, () -> {
-            handler.recoverToTarget(future);
-            future.actionGet();
-        });
+        handler.recoverToTarget(future);
+        expectThrows(IndexShardRelocatedException.class, future);
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
@@ -1175,7 +1173,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                     super.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, stopWatch, listener);
                 }
             };
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> phase1Listener = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> phase1Listener = new PlainActionFuture<>();
             IndexCommit indexCommit = DirectoryReader.listCommits(dir).get(0);
             handler.phase1(indexCommit, 0, () -> 0, phase1Listener);
             phase1Listener.get();
@@ -1271,7 +1269,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
             future.actionGet();
 
@@ -1339,7 +1337,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             assertBusy(() -> {
@@ -1431,7 +1429,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             downloadSnapshotFileReceived.await();
@@ -1502,7 +1500,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             downloadSnapshotFileReceived.await();
@@ -1657,7 +1655,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             downloadSnapshotFileReceived.await();

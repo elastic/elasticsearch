@@ -94,7 +94,7 @@ class CliToolLauncher {
                 e.printStackTrace(terminal.getErrorWriter());
             }
             terminal.flush(); // make sure to flush whatever the close or error might have written
-        });
+        }, "elasticsearch-cli-shutdown");
 
     }
 

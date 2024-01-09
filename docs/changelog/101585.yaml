@@ -1,0 +1,6 @@
+pr: 101585
+summary: Reroute on shard snapshot completion
+area: Snapshot/Restore
+type: bug
+issues:
+ - 101514

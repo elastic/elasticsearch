@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -713,7 +714,7 @@ public final class RepositoryData {
             // Likewise if we simply encode the numeric IndexVersion as a string then versions from 8.11.0 onwards will report the exact
             // string in this message, which is not especially helpful to users. Slightly more helpful than the opaque parse error reported
             // by earlier versions, but still not great. TODO rethink this if and when adding a new snapshot repository format version.
-            if (minVersion.before(IndexVersion.V_8_10_0)) {
+            if (minVersion.before(IndexVersions.V_8_10_0)) {
                 // write as a string
                 builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
             } else {
@@ -783,7 +784,7 @@ public final class RepositoryData {
                     numericIndexVersionMarkerPlaceholdersUsed += 1;
                     lastSnapshotWithNumericIndexVersionPlaceholder = snapshot;
                     builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
-                } else if (version.onOrAfter(IndexVersion.FIRST_DETACHED_INDEX_VERSION)) {
+                } else if (version.onOrAfter(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
                     builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
                     builder.field(INDEX_VERSION, version.id());
                 } else {
@@ -883,9 +884,9 @@ public final class RepositoryData {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
                     final var versionString = parser.text();
                     final var version = switch (versionString) {
-                        case "7.12.0" -> IndexVersion.V_7_12_0;
-                        case "7.9.0" -> IndexVersion.V_7_9_0;
-                        case "7.6.0" -> IndexVersion.V_7_6_0;
+                        case "7.12.0" -> IndexVersions.V_7_12_0;
+                        case "7.9.0" -> IndexVersions.V_7_9_0;
+                        case "7.6.0" -> IndexVersions.V_7_6_0;
                         default ->
                             // All (known) versions only ever emit one of the above strings for the format version, so if we see something
                             // else it must be a newer version or else something wholly invalid. Report the raw string rather than trying
@@ -1226,6 +1227,22 @@ public final class RepositoryData {
         @Override
         public int hashCode() {
             return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis, slmPolicy);
+        }
+
+        @Override
+        public String toString() {
+            return "SnapshotDetails{"
+                + "snapshotState="
+                + snapshotState
+                + ", version="
+                + version
+                + ", startTimeMillis="
+                + startTimeMillis
+                + ", endTimeMillis="
+                + endTimeMillis
+                + ", slmPolicy='"
+                + slmPolicy
+                + "'}";
         }
 
         public static SnapshotDetails fromSnapshotInfo(SnapshotInfo snapshotInfo) {

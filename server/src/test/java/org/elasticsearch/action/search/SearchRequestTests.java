@@ -457,6 +457,42 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[rank] requires [explain] is [false]", validationErrors.validationErrors().get(0));
         }
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(""))
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals(
+                "[indices] cannot be used with point in time. Do not specify any index with point in time.",
+                validationErrors.validationErrors().get(0)
+            );
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[indicesOptions] cannot be used with point in time", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().routing("route1")
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[routing] cannot be used with point in time", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().preference("pref1")
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("")));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[preference] cannot be used with point in time", validationErrors.validationErrors().get(0));
+        }
     }
 
     public void testCopyConstructor() throws IOException {
@@ -528,7 +564,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     private String toDescription(SearchRequest request) {
-        return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
+        return request.createTask(0, "test", TransportSearchAction.TYPE.name(), TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
     }
 
     public void testForceSyntheticUnsupported() {

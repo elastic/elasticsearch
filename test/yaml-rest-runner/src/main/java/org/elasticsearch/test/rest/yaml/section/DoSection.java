@@ -10,15 +10,20 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -36,8 +41,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -184,10 +191,16 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, body);
-                                // multiple bodies are supported e.g. in case of bulk provided as a whole string
-                                while (bodyParser.nextToken() != null) {
-                                    apiCallSection.addBody(bodyParser.mapOrdered());
+                                try (
+                                    XContentParser bodyParser = JsonXContent.jsonXContent.createParser(
+                                        XContentParserConfiguration.EMPTY,
+                                        body
+                                    )
+                                ) {
+                                    // multiple bodies are supported e.g. in case of bulk provided as a whole string
+                                    while (bodyParser.nextToken() != null) {
+                                        apiCallSection.addBody(bodyParser.mapOrdered());
+                                    }
                                 }
                             } else {
                                 apiCallSection.addParam(paramName, parser.text());
@@ -361,8 +374,22 @@ public class DoSection implements ExecutableSection {
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
-            if (executionContext.esVersion().major == Version.V_7_17_0.major && executionContext.esVersion().after(Version.V_7_17_1)) {
-                // #84038 and #84089 mean that this assertion fails when running against a small number of 7.17.x released versions
+
+            // #84038 and #84089 mean that this assertion fails when running against < 7.17.2 and 8.0.0 released versions
+            // This is really difficult to express just with features, so I will break it down into 2 parts: version check for v7,
+            // and feature check for v8. This way the version check can be removed once we move to v9
+            @UpdateForV9
+            var fixedInV7 = executionContext.nodesVersions()
+                .stream()
+                .map(ESRestTestCase::parseLegacyVersion)
+                .flatMap(Optional::stream)
+                .min(VersionId::compareTo)
+                .map(v -> v.major == Version.V_7_17_0.major && v.onOrAfter(Version.V_7_17_2))
+                .orElse(false);
+
+            var fixedProductionHeader = fixedInV7
+                || executionContext.clusterHasFeature(RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id());
+            if (fixedProductionHeader) {
                 checkElasticProductHeader(response.getHeaders("X-elastic-product"));
             }
             checkWarningHeaders(response.getWarningHeaders(), testPath);
@@ -626,24 +653,45 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
+    private static boolean matchWithRange(String nodeVersionString, List<VersionRange> acceptedVersionRanges, XContentLocation location) {
+        try {
+            Version version = Version.fromString(nodeVersionString);
+            return acceptedVersionRanges.stream().anyMatch(v -> v.contains(version));
+        } catch (IllegalArgumentException e) {
+            throw new XContentParseException(
+                location,
+                "[version] range node selector expects a semantic version format (x.y.z), but found " + nodeVersionString,
+                e
+            );
+        }
+    }
+
     private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-        List<VersionRange> skipVersionRanges = parser.text().equals("current")
-            ? List.of(new VersionRange(Version.CURRENT, Version.CURRENT))
-            : SkipSection.parseVersionRanges(parser.text());
+
+        final Predicate<String> nodeMatcher;
+        final String versionSelectorString;
+        if (parser.text().equals("current")) {
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
+            versionSelectorString = "version is " + Build.current().version() + " (current)";
+        } else {
+            var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
+            nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
+            versionSelectorString = "version ranges " + acceptedVersionRange;
+        }
+
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {
                 for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                     Node node = itr.next();
-                    if (node.getVersion() == null) {
+                    String versionString = node.getVersion();
+                    if (versionString == null) {
                         throw new IllegalStateException("expected [version] metadata to be set but got " + node);
                     }
-                    Version version = Version.fromString(node.getVersion());
-                    boolean skip = skipVersionRanges.stream().anyMatch(v -> v.contains(version));
-                    if (false == skip) {
+                    if (nodeMatcher.test(versionString) == false) {
                         itr.remove();
                     }
                 }
@@ -651,7 +699,7 @@ public class DoSection implements ExecutableSection {
 
             @Override
             public String toString() {
-                return "version ranges " + skipVersionRanges;
+                return versionSelectorString;
             }
         };
     }

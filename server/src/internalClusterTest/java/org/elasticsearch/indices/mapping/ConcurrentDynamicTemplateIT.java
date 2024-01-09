@@ -58,27 +58,24 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
             for (int j = 0; j < numDocs; j++) {
                 Map<String, Object> source = new HashMap<>();
                 source.put(fieldName, "test-user");
-                client().prepareIndex("test")
-                    .setId(Integer.toString(currentID++))
-                    .setSource(source)
-                    .execute(new ActionListener<DocWriteResponse>() {
-                        @Override
-                        public void onResponse(DocWriteResponse response) {
-                            latch.countDown();
-                        }
+                prepareIndex("test").setId(Integer.toString(currentID++)).setSource(source).execute(new ActionListener<DocWriteResponse>() {
+                    @Override
+                    public void onResponse(DocWriteResponse response) {
+                        latch.countDown();
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            throwable.add(e);
-                            latch.countDown();
-                        }
-                    });
+                    @Override
+                    public void onFailure(Exception e) {
+                        throwable.add(e);
+                        latch.countDown();
+                    }
+                });
             }
             latch.await();
             assertThat(throwable, emptyIterable());
             refresh();
-            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test-user")), numDocs);
-            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")), 0);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test-user")), numDocs);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")), 0);
 
         }
     }

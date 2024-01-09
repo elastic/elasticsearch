@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,21 +19,16 @@ import java.util.Objects;
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends AbstractBlock {
+final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, IntBlock, LongBlock, DoubleBlock, BytesRefBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
-
-    // Eventually, this should use the GLOBAL breaking instance
-    ConstantNullBlock(int positionCount) {
-        this(positionCount, BlockFactory.getNonBreakingInstance());
-    }
 
     ConstantNullBlock(int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
     }
 
     @Override
-    public Vector asVector() {
+    public ConstantNullVector asVector() {
         return null;
     }
 
@@ -67,8 +63,8 @@ public final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
-    public Block filter(int... positions) {
-        return blockFactory.newConstantNullBlock(positions.length);
+    public ConstantNullBlock filter(int... positions) {
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -82,8 +78,9 @@ public final class ConstantNullBlock extends AbstractBlock {
         return "ConstantNullBlock";
     }
 
-    static ConstantNullBlock of(StreamInput in) throws IOException {
-        return new ConstantNullBlock(in.readVInt());
+    static Block of(StreamInput in) throws IOException {
+        BlockFactory blockFactory = ((BlockStreamInput) in).blockFactory();
+        return blockFactory.newConstantNullBlock(in.readVInt());
     }
 
     @Override
@@ -98,6 +95,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public Block expand() {
+        incRef();
         return this;
     }
 
@@ -125,12 +123,8 @@ public final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
-    public void close() {
-        if (isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+    public void closeInternal() {
+        blockFactory().adjustBreaker(-ramBytesUsed());
     }
 
     static class Builder implements Block.Builder {
@@ -182,7 +176,12 @@ public final class ConstantNullBlock extends AbstractBlock {
 
         @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
-            throw new UnsupportedOperationException();
+            /*
+             * This is called when copying but otherwise doesn't do
+             * anything because there aren't multivalue fields in a
+             * block containing only nulls.
+             */
+            return this;
         }
 
         @Override
@@ -198,5 +197,35 @@ public final class ConstantNullBlock extends AbstractBlock {
         public void close() {
             closed = true;
         }
+    }
+
+    @Override
+    public boolean getBoolean(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public double getDouble(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public int getInt(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public long getLong(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
     }
 }

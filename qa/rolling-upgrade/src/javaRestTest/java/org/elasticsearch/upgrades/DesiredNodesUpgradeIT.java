@@ -16,10 +16,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
+import org.elasticsearch.cluster.metadata.MetadataFeatures;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -50,9 +50,11 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     public void testUpgradeDesiredNodes() throws Exception {
         assumeTrue("Desired nodes was introduced in 8.1", getOldClusterVersion().onOrAfter(Version.V_8_1_0));
 
-        if (getOldClusterVersion().onOrAfter(Processors.DOUBLE_PROCESSORS_SUPPORT_VERSION)) {
+        var featureVersions = new MetadataFeatures().getHistoricalFeatures();
+
+        if (getOldClusterVersion().onOrAfter(featureVersions.get(DesiredNode.DOUBLE_PROCESSORS_SUPPORTED))) {
             assertUpgradedNodesCanReadDesiredNodes();
-        } else if (getOldClusterVersion().onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+        } else if (getOldClusterVersion().onOrAfter(featureVersions.get(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED))) {
             assertDesiredNodesUpdatedWithRoundedUpFloatsAreIdempotent();
         } else {
             assertDesiredNodesWithFloatProcessorsAreRejectedInOlderVersions();

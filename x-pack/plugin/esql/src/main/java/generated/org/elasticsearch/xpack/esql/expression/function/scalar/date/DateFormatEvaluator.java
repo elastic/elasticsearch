@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Locale;
@@ -17,12 +18,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
  * This class is generated. Do not edit it.
  */
 public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator val;
 
   private final EvalOperator.ExpressionEvaluator formatter;
@@ -31,8 +36,9 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final DriverContext driverContext;
 
-  public DateFormatEvaluator(EvalOperator.ExpressionEvaluator val,
+  public DateFormatEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator formatter, Locale locale, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.val = val;
     this.formatter = formatter;
     this.locale = locale;
@@ -40,39 +46,45 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      LongBlock valBlock = (LongBlock) valRef.block();
-      try (Block.Ref formatterRef = formatter.eval(page)) {
-        if (formatterRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valBlock = (LongBlock) val.eval(page)) {
+      try (BytesRefBlock formatterBlock = (BytesRefBlock) formatter.eval(page)) {
         LongVector valVector = valBlock.asVector();
         if (valVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+          return eval(page.getPositionCount(), valBlock, formatterBlock);
         }
         BytesRefVector formatterVector = formatterBlock.asVector();
         if (formatterVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+          return eval(page.getPositionCount(), valBlock, formatterBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valVector, formatterVector).asBlock());
+        return eval(page.getPositionCount(), valVector, formatterVector).asBlock();
       }
     }
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock, BytesRefBlock formatterBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        if (valBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (formatterBlock.isNull(p) || formatterBlock.getValueCount(p) != 1) {
+        if (valBlock.getValueCount(p) != 1) {
+          if (valBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (formatterBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (formatterBlock.getValueCount(p) != 1) {
+          if (formatterBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -84,7 +96,7 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   public BytesRefVector eval(int positionCount, LongVector valVector,
       BytesRefVector formatterVector) {
-    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), locale));
@@ -101,5 +113,33 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(val, formatter);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final EvalOperator.ExpressionEvaluator.Factory formatter;
+
+    private final Locale locale;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
+        EvalOperator.ExpressionEvaluator.Factory formatter, Locale locale) {
+      this.source = source;
+      this.val = val;
+      this.formatter = formatter;
+      this.locale = locale;
+    }
+
+    @Override
+    public DateFormatEvaluator get(DriverContext context) {
+      return new DateFormatEvaluator(source, val.get(context), formatter.get(context), locale, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateFormatEvaluator[" + "val=" + val + ", formatter=" + formatter + ", locale=" + locale + "]";
+    }
   }
 }

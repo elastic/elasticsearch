@@ -273,3 +273,49 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10086          | Somnath            | Foote
 10088          | Jungsoon           | Syrzycki
 ;
+
+
+likeWithPath
+row x = "C:\\foo\\bar.exe" | mv_expand x | where x LIKE "C:\\\\*";
+
+x:keyword
+C:\foo\bar.exe
+;
+
+likeWithPathNoMatch
+row x = "C:\\foo\\bar.exe" | mv_expand x | where x LIKE "C:\\\\\\\\*";
+
+x:keyword
+;
+
+docsGettingStartedLike
+// tag::gs-like[]
+FROM sample_data
+| WHERE message LIKE "Connected*"
+// end::gs-like[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
+multiValueLike#[skip:-8.12.99]
+from employees | where job_positions like "Account*" | keep emp_no, job_positions;
+
+warning:Line 1:24: evaluation of [job_positions like \"Account*\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword 
+10025          | Accountant 
+;
+
+
+multiValueRLike#[skip:-8.12.99]
+from employees | where job_positions rlike "Account.*" | keep emp_no, job_positions;
+
+warning:Line 1:24: evaluation of [job_positions rlike \"Account.*\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword 
+10025          | Accountant 
+;

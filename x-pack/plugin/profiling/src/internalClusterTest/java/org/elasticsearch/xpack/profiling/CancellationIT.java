@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.profiling;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -48,6 +49,7 @@ import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestRespons
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103809")
 public class CancellationIT extends ProfilingTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -56,17 +58,12 @@ public class CancellationIT extends ProfilingTestCase {
         return plugins;
     }
 
-    @Override
-    protected boolean useOnlyAllEvents() {
-        // we assume that all indices have been created to simplify the testing logic.
-        return false;
-    }
-
     public void testAutomaticCancellation() throws Exception {
         Request restRequest = new Request("POST", "/_profiling/stacktraces");
         restRequest.setEntity(new StringEntity("""
                 {
                   "sample_size": 10000,
+                  "requested_duration": 33,
                   "query": {
                     "bool": {
                       "filter": [
@@ -91,7 +88,7 @@ public class CancellationIT extends ProfilingTestCase {
         Map<String, String> nodeIdToName = readNodesInfo();
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
 
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
@@ -158,7 +155,7 @@ public class CancellationIT extends ProfilingTestCase {
     private static List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getDataNodeInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
+            pluginsService.filterPlugins(ScriptedBlockPlugin.class).forEach(plugins::add);
         }
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.reset();

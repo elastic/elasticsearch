@@ -9,11 +9,11 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$else$
 $endif$
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -21,7 +21,7 @@ import java.io.IOException;
  * Block that stores $type$ values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock {
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock$if(BytesRef)$$else$, $Type$BigArrayBlock$endif$ {
 
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();
@@ -103,11 +103,11 @@ $endif$
                     final int valueCount = getValueCount(pos);
                     out.writeVInt(valueCount);
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-    $if(BytesRef)$
+$if(BytesRef)$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-    $else$
+$else$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
-    $endif$
+$endif$
                     }
                 }
             }
@@ -202,31 +202,14 @@ $endif$
         return result;
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.new$Type$BlockBuilder(estimatedSize);
-    }
-
-    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    static $Type$Block newConstantBlockWith($type$ value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    static $Type$Block newConstantBlockWith($type$ value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstant$Type$BlockWith(value, positions);
-    }
-
-    sealed interface Builder extends Block.Builder permits $Type$BlockBuilder {
-
+    /**
+     * Builder for {@link $Type$Block}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.$Type$Builder permits $Type$BlockBuilder {
         /**
          * Appends a $type$ to the current entry.
          */
+        @Override
         Builder append$Type$($type$ value);
 
         /**
@@ -250,12 +233,11 @@ $endif$
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

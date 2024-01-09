@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -16,60 +17,71 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link EndsWith}.
  * This class is generated. Do not edit it.
  */
 public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator suffix;
 
   private final DriverContext driverContext;
 
-  public EndsWithEvaluator(EvalOperator.ExpressionEvaluator str,
+  public EndsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator suffix, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.suffix = suffix;
     this.driverContext = driverContext;
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref suffixRef = suffix.eval(page)) {
-        if (suffixRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        BytesRefBlock suffixBlock = (BytesRefBlock) suffixRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (BytesRefBlock suffixBlock = (BytesRefBlock) suffix.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, suffixBlock));
+          return eval(page.getPositionCount(), strBlock, suffixBlock);
         }
         BytesRefVector suffixVector = suffixBlock.asVector();
         if (suffixVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, suffixBlock));
+          return eval(page.getPositionCount(), strBlock, suffixBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, suffixVector).asBlock());
+        return eval(page.getPositionCount(), strVector, suffixVector).asBlock();
       }
     }
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock suffixBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        if (strBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (suffixBlock.isNull(p) || suffixBlock.getValueCount(p) != 1) {
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (suffixBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (suffixBlock.getValueCount(p) != 1) {
+          if (suffixBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -81,7 +93,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector suffixVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -99,5 +111,30 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, suffix);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory suffix;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory suffix) {
+      this.source = source;
+      this.str = str;
+      this.suffix = suffix;
+    }
+
+    @Override
+    public EndsWithEvaluator get(DriverContext context) {
+      return new EndsWithEvaluator(source, str.get(context), suffix.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "EndsWithEvaluator[" + "str=" + str + ", suffix=" + suffix + "]";
+    }
   }
 }

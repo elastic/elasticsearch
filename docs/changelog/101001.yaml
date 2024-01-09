@@ -1,6 +1,0 @@
-pr: 101001
-summary: "ESQL: Support date and time intervals as input params"
-area: ES|QL
-type: bug
-issues:
- - 99570

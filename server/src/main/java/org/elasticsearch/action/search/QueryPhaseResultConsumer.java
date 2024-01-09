@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
 import static org.elasticsearch.action.search.SearchPhaseController.setShardIndex;
@@ -52,7 +51,7 @@ import static org.elasticsearch.action.search.SearchPhaseController.setShardInde
  * needed to reduce the aggregations is estimated and a {@link CircuitBreakingException} is thrown if it
  * exceeds the maximum memory allowed in this breaker.
  */
-public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> implements Releasable {
+public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(QueryPhaseResultConsumer.class);
 
     private final Executor executor;
@@ -105,8 +104,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     @Override
-    public void close() {
-        Releasables.close(pendingMerges);
+    protected void doClose() {
+        try {
+            super.doClose();
+        } finally {
+            pendingMerges.close();
+        }
     }
 
     @Override
@@ -269,12 +272,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 assert circuitBreakerBytes >= 0;
             }
 
-            List<Releasable> toRelease = buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(toCollection(ArrayList::new));
-            toRelease.add(() -> {
-                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-                circuitBreakerBytes = 0;
-            });
-            Releasables.close(toRelease);
+            releaseBuffer();
+            circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+            circuitBreakerBytes = 0;
 
             if (hasPendingMerges()) {
                 // This is a theoretically unreachable exception.
@@ -300,11 +300,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
         }
 
-        synchronized long addWithoutBreaking(long size) {
+        synchronized void addWithoutBreaking(long size) {
             circuitBreaker.addWithoutBreaking(size);
             circuitBreakerBytes += size;
             maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);
-            return circuitBreakerBytes;
         }
 
         synchronized long addEstimateAndMaybeBreak(long estimatedSize) {
@@ -350,8 +349,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                             addEstimateAndMaybeBreak(aggsSize);
                         } catch (Exception exc) {
                             result.releaseAggs();
-                            buffer.forEach(QuerySearchResult::releaseAggs);
-                            buffer.clear();
+                            releaseBuffer();
                             onMergeFailure(exc);
                             next.run();
                             return;
@@ -377,6 +375,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (executeNextImmediately) {
                 next.run();
             }
+        }
+
+        private void releaseBuffer() {
+            buffer.forEach(QuerySearchResult::releaseAggs);
+            buffer.clear();
         }
 
         private synchronized void onMergeFailure(Exception exc) {
@@ -520,7 +523,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private static class MergeTask {
         private final List<SearchShard> emptyResults;
         private QuerySearchResult[] buffer;
-        private long aggsBufferSize;
+        private final long aggsBufferSize;
         private Runnable next;
 
         private MergeTask(QuerySearchResult[] buffer, long aggsBufferSize, List<SearchShard> emptyResults, Runnable next) {

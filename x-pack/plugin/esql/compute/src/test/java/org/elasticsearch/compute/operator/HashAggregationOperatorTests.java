@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -31,12 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);
@@ -47,7 +39,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
         List<Integer> sumChannels, maxChannels;
         if (mode.isInputPartial()) {
             int sumChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();
@@ -61,11 +53,10 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(
-                new SumLongAggregatorFunctionSupplier(bigArrays, sumChannels).groupingAggregatorFactory(mode),
-                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannels).groupingAggregatorFactory(mode)
+                new SumLongAggregatorFunctionSupplier(sumChannels).groupingAggregatorFactory(mode),
+                new MaxLongAggregatorFunctionSupplier(maxChannels).groupingAggregatorFactory(mode)
             ),
-            randomPageSize(),
-            bigArrays
+            randomPageSize()
         );
     }
 
@@ -99,10 +90,4 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             max.assertSimpleGroup(input, maxs, i, group);
         }
     }
-
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 32));
-    }
-
 }

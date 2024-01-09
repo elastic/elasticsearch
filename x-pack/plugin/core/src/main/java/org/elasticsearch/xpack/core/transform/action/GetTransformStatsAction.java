@@ -49,7 +49,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         super(NAME, GetTransformStatsAction.Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
         private final String id;
         private PageParams pageParams = PageParams.defaultParams();
         private boolean allowNoMatch = true;
@@ -58,7 +58,6 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         // used internally to expand the queried id expression
         private List<String> expandedIds;
 
-        @SuppressWarnings("this-escape")
         public Request(String id, @Nullable TimeValue timeout) {
             setTimeout(timeout);
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
@@ -96,11 +95,11 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this.expandedIds = List.copyOf(expandedIds);
         }
 
-        public final void setPageParams(PageParams pageParams) {
+        public void setPageParams(PageParams pageParams) {
             this.pageParams = Objects.requireNonNull(pageParams);
         }
 
-        public final PageParams getPageParams() {
+        public PageParams getPageParams() {
             return pageParams;
         }
 

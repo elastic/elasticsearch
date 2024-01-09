@@ -1,0 +1,107 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test traces-apm-* flattened fields":
+  - do:
+      bulk:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          # http.request.body should be mapped as flattened, allowing
+          # differing types to be used in http.request.body.original.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.body": {"original": "text"}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.body": {"original": {"field": "value"}}}'
+
+          # span.stacktrace is a complex object whose structure may
+          # change over time, and which is always treated as an object.
+          # Moreover, stacktraces may contain dynamic "vars" whose
+          # types may change from one document to the next.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "span.stacktrace": [{"vars": {"a": 123}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "span.stacktrace": [{"vars": {"a": "b"}}]}'
+
+          # transaction.custom is a complex object of fields with
+          # arbitrary field types that may change from one document
+          # to the next.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "transaction.custom": {"a": {"b": 123}}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "transaction.custom": {"a": "b"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields: ["http.request.body", "span.stacktrace", "transaction.custom"]
+  - length: { hits.hits: 6 }
+  - match: { hits.hits.0.fields: {"http.request.body": [{"original": "text"}]} }
+  - match: { hits.hits.1.fields: {"http.request.body": [{"original": {"field": "value"}}]} }
+  - match: { hits.hits.2.fields: {"span.stacktrace": [{"vars": {"a": 123}}]} }
+  - match: { hits.hits.3.fields: {"span.stacktrace": [{"vars": {"a": "b"}}]} }
+  - match: { hits.hits.4.fields: {"transaction.custom": [{"a": {"b": 123}}]} }
+  - match: { hits.hits.5.fields: {"transaction.custom": [{"a": "b"}]} }
+
+---
+"Test logs-apm.error-* flattened fields":
+  - do:
+      bulk:
+        index: logs-apm.error-testing
+        refresh: true
+        body:
+          # http.request.body has the same requirements as http.request.body
+          # in traces-apm-* data streams.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.body": {"original": "text"}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.body": {"original": {"field": "value"}}}'
+
+          # error.{exception,log}.stacktrace have the same requirements as span.stacktrace.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.exception.stacktrace": [{"vars": {"a": 123}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.exception.stacktrace": [{"vars": {"a": "b"}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.log.stacktrace": [{"vars": {"a": 123}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.log.stacktrace": [{"vars": {"a": "b"}}]}'
+
+          # error.exception.attributes is a complex object with arbitrary field types
+          # that may change from one document to the next.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.exception": [{"attributes": {"a": 123}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.exception": [{"attributes": {"a": "b"}}]}'
+
+          # error.custom has the same requirements as transaction.custom.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.custom": {"a": {"b": 123}}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.custom": {"a": "b"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logs-apm.error-testing
+        body:
+          fields: ["http.request.body", "error.log.*", "error.exception.*", "error.custom"]
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0.fields: {"http.request.body": [{"original": "text"}]} }
+  - match: { hits.hits.1.fields: {"http.request.body": [{"original": {"field": "value"}}]} }
+  - match: { hits.hits.2.fields: {"error.exception.stacktrace": [{"vars": {"a": 123}}]} }
+  - match: { hits.hits.3.fields: {"error.exception.stacktrace": [{"vars": {"a": "b"}}]} }
+  - match: { hits.hits.4.fields: {"error.log.stacktrace": [{"vars": {"a": 123}}]} }
+  - match: { hits.hits.5.fields: {"error.log.stacktrace": [{"vars": {"a": "b"}}]} }
+  - match: { hits.hits.6.fields: {"error.exception.attributes": [{"a": 123}]} }
+  - match: { hits.hits.7.fields: {"error.exception.attributes": [{"a": "b"}]} }
+  - match: { hits.hits.8.fields: {"error.custom": [{"a": {"b": 123}}]} }
+  - match: { hits.hits.9.fields: {"error.custom": [{"a": "b"}]} }

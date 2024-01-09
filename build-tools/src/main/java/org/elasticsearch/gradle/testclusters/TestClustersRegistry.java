@@ -22,11 +22,16 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
+
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
 
     public void claimCluster(ElasticsearchCluster cluster) {
         cluster.freeze();
-        claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) + 1);
+        int claim = claimsInventory.getOrDefault(cluster, 0) + 1;
+        claimsInventory.put(cluster, claim);
+        if (claim > 1) {
+            cluster.setShared(true);
+        }
     }
 
     public void maybeStartCluster(ElasticsearchCluster cluster) {
@@ -63,7 +68,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         } else {
             int currentClaims = claimsInventory.getOrDefault(cluster, 0) - 1;
             claimsInventory.put(cluster, currentClaims);
-
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
                 cluster.stop(false);
                 runningClusters.remove(cluster);

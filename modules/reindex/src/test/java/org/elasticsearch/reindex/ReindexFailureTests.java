@@ -37,7 +37,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          * Create the destination index such that the copy will cause a mapping
          * conflict on every request.
          */
-        indexRandom(true, client().prepareIndex("dest").setId("test").setSource("test", 10) /* Its a string in the source! */);
+        indexRandom(true, prepareIndex("dest").setId("test").setSource("test", 10) /* Its a string in the source! */);
 
         indexDocs(100);
 
@@ -59,7 +59,7 @@ public class ReindexFailureTests extends ReindexTestCase {
 
     public void testAbortOnVersionConflict() throws Exception {
         // Just put something in the way of the copy.
-        indexRandom(true, client().prepareIndex("dest").setId("1").setSource("test", "test"));
+        indexRandom(true, prepareIndex("dest").setId("1").setSource("test", "test"));
 
         indexDocs(100);
 
@@ -123,12 +123,12 @@ public class ReindexFailureTests extends ReindexTestCase {
         String destIndexName = "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
         indexRandom(
             true,
-            client().prepareIndex(sourceIndexName).setId("1").setSource("foo", "a"),
-            client().prepareIndex(sourceIndexName).setId("2").setSource("foo", "a"),
-            client().prepareIndex(sourceIndexName).setId("3").setSource("foo", "b"),
-            client().prepareIndex(sourceIndexName).setId("4").setSource("foo", "c")
+            prepareIndex(sourceIndexName).setId("1").setSource("foo", "a"),
+            prepareIndex(sourceIndexName).setId("2").setSource("foo", "a"),
+            prepareIndex(sourceIndexName).setId("3").setSource("foo", "b"),
+            prepareIndex(sourceIndexName).setId("4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch(sourceIndexName).setSize(0), 4);
+        assertHitCount(prepareSearch(sourceIndexName).setSize(0), 4);
 
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
@@ -140,7 +140,7 @@ public class ReindexFailureTests extends ReindexTestCase {
     private void indexDocs(int count) throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("test", "words words"));
+            docs.add(prepareIndex("source").setId(Integer.toString(i)).setSource("test", "words words"));
         }
         indexRandom(true, docs);
     }

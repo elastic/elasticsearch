@@ -1,0 +1,5 @@
+pr: 101868
+summary: Read scores from downloaded vocabulary for XLM Roberta tokenizers
+area: Machine Learning
+type: enhancement
+issues: []

@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -55,8 +53,6 @@ public class QueryRule implements Writeable, ToXContentObject {
     private final QueryRuleType type;
     private final List<QueryRuleCriteria> criteria;
     private final Map<String, Object> actions;
-
-    private final Logger logger = LogManager.getLogger(QueryRule.class);
 
     public enum QueryRuleType {
         PINNED;
@@ -112,7 +108,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         this.id = in.readString();
         this.type = QueryRuleType.queryRuleType(in.readString());
         this.criteria = in.readCollectionAsList(QueryRuleCriteria::new);
-        this.actions = in.readMap();
+        this.actions = in.readGenericMap();
 
         validate();
     }
@@ -298,7 +294,7 @@ public class QueryRule implements Writeable, ToXContentObject {
                 final String criteriaMetadata = criterion.criteriaMetadata();
 
                 if (criteriaType == ALWAYS || (criteriaMetadata != null && criteriaMetadata.equals(match))) {
-                    boolean singleCriterionMatches = criterion.isMatch(matchValue, criteriaType);
+                    boolean singleCriterionMatches = criterion.isMatch(matchValue, criteriaType, false);
                     isRuleMatch = (isRuleMatch == null) ? singleCriterionMatches : isRuleMatch && singleCriterionMatches;
                 }
             }

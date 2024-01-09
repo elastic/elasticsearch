@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
@@ -36,7 +35,7 @@ import static org.elasticsearch.compute.gen.AggregatorImplementer.valueVectorTyp
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
-import static org.elasticsearch.compute.gen.Types.BLOCK;
+import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
@@ -92,7 +91,11 @@ public class GroupingAggregatorImplementer {
         this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.valuesIsBytesRef = BYTES_REF.equals(TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType()));
-        this.createParameters = init.getParameters().stream().map(Parameter::from).collect(Collectors.toList());
+        this.createParameters = init.getParameters()
+            .stream()
+            .map(Parameter::from)
+            .filter(f -> false == f.type().equals(BIG_ARRAYS))
+            .collect(Collectors.toList());
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -147,8 +150,8 @@ public class GroupingAggregatorImplementer {
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
+        for (Parameter p : createParameters) {
+            builder.addField(p.type(), p.name(), Modifier.PRIVATE, Modifier.FINAL);
         }
 
         builder.addMethod(create());
@@ -177,24 +180,35 @@ public class GroupingAggregatorImplementer {
         for (Parameter p : createParameters) {
             builder.addParameter(p.type(), p.name());
         }
-        if (init.getParameters().isEmpty()) {
+        if (createParameters.isEmpty()) {
             builder.addStatement("return new $T(channels, $L, driverContext)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(channels, $L, driverContext, $L)", implementation, callInit(), initParameters());
+            builder.addStatement(
+                "return new $T(channels, $L, driverContext, $L)",
+                implementation,
+                callInit(),
+                createParameters.stream().map(p -> p.name()).collect(joining(", "))
+            );
         }
         return builder.build();
     }
 
-    private String initParameters() {
-        return init.getParameters().stream().map(p -> p.getSimpleName().toString()).collect(Collectors.joining(", "));
-    }
-
     private CodeBlock callInit() {
+        String initParametersCall = init.getParameters()
+            .stream()
+            .map(p -> TypeName.get(p.asType()).equals(BIG_ARRAYS) ? "driverContext.bigArrays()" : p.getSimpleName().toString())
+            .collect(joining(", "));
         CodeBlock.Builder builder = CodeBlock.builder();
         if (init.getReturnType().toString().equals(stateType.toString())) {
-            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParameters());
+            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParametersCall);
         } else {
-            builder.add("new $T(driverContext.bigArrays(), $T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
+            builder.add(
+                "new $T(driverContext.bigArrays(), $T.$L($L))",
+                stateType,
+                declarationType,
+                init.getSimpleName(),
+                initParametersCall
+            );
         }
         return builder.build();
     }
@@ -221,9 +235,9 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("this.state = state");
         builder.addStatement("this.driverContext = driverContext");
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
-            builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
+        for (Parameter p : createParameters) {
+            builder.addParameter(p.type(), p.name());
+            builder.addStatement("this.$N = $N", p.name(), p.name());
         }
         return builder.build();
     }
@@ -250,16 +264,7 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
         builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds").addParameter(PAGE, "page");
 
-        builder.addStatement("$T uncastValuesBlock = page.getBlock(channels.get(0))", BLOCK);
-
-        builder.beginControlFlow("if (uncastValuesBlock.areAllValuesNull())");
-        {
-            builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
-            builder.addStatement("return $L", addInput(b -> {}));
-        }
-        builder.endControlFlow();
-
-        builder.addStatement("$T valuesBlock = ($T) uncastValuesBlock", valueBlockType(init, combine), valueBlockType(init, combine));
+        builder.addStatement("$T valuesBlock = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType(init, combine));
         builder.beginControlFlow("if (valuesVector == null)");
         {

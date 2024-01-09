@@ -592,7 +592,8 @@ stream's oldest backing index.
       "hidden": false,
       "system": false,
       "allow_custom_routing": false,
-      "replicated": false
+      "replicated": false,
+      "rollover_on_write": false
     }
   ]
 }
@@ -601,7 +602,7 @@ stream's oldest backing index.
 // TESTRESPONSE[s/"index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_indices":[],"failure_store":false/]
 
 <1> First item in the `indices` array for `my-data-stream`. This item contains
 information about the stream's oldest backing index,

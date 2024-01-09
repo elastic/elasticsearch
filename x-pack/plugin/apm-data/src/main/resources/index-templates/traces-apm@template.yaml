@@ -1,0 +1,34 @@
+---
+version: ${xpack.apmdata.template.version}
+index_patterns: ["traces-apm-*"]
+priority: 140
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: Index template for traces-apm-*
+  managed: true
+composed_of:
+- traces@mappings
+- apm@mappings
+- apm@settings
+- apm-10d@lifecycle
+- traces-apm@mappings
+- apm@custom
+- traces-apm@custom
+- ecs@mappings
+ignore_missing_component_templates:
+- traces-apm@custom
+- apm@custom
+template:
+  settings:
+    index:
+      default_pipeline: apm@default-pipeline
+      final_pipeline: traces-apm@pipeline
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: traces
+      data_stream.dataset:
+        type: constant_keyword
+        value: apm

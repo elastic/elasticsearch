@@ -11,8 +11,8 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,12 +29,6 @@ public class GetAliasesResponse extends ActionResponse {
         this.dataStreamAliases = dataStreamAliases;
     }
 
-    public GetAliasesResponse(StreamInput in) throws IOException {
-        super(in);
-        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readCollectionAsList(AliasMetadata::new));
-        dataStreamAliases = in.readMap(in1 -> in1.readCollectionAsList(DataStreamAlias::new));
-    }
-
     public Map<String, List<AliasMetadata>> getAliases() {
         return aliases;
     }
@@ -43,6 +37,11 @@ public class GetAliasesResponse extends ActionResponse {
         return dataStreamAliases;
     }
 
+    /**
+     * NB prior to 8.12 get-aliases was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until we no
+     * longer need to support calling this action remotely.
+     */
+    @UpdateForV9 // replace this implementation with TransportAction.localOnly()
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(aliases, StreamOutput::writeCollection);

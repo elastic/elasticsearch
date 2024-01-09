@@ -1,7 +1,0 @@
-pr: 99798
-summary: Chunk `SingleNodeShutdownStatus` and `ShutdownShardMigrationStatus` (and
-  related action) response
-area: Infra/Node Lifecycle
-type: enhancement
-issues:
- - 99678

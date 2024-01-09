@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DesiredNode;
@@ -26,9 +26,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.DataTiersFeatureSetUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.datatiers.DataTiersFeatureSetUsage;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -341,12 +341,10 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startContentOnlyNode();
 
         Template t = new Template(Settings.builder().putNull(DataTier.TIER_PREFERENCE).build(), null, null);
-        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
-            .template(t)
-            .build();
+        ComposableIndexTemplate ct = ComposableIndexTemplate.builder().indexPatterns(Collections.singletonList(index)).template(t).build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(ct)
         ).actionGet();
 
         indicesAdmin().prepareCreate(index).setWaitForActiveShards(0).get();
@@ -371,9 +369,9 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate(index + "2").setSettings(indexSettings(1, 1)).setWaitForActiveShards(0).get();
 
         ensureGreen();
-        client().prepareIndex(index).setSource("foo", "bar").get();
-        client().prepareIndex(index + "2").setSource("foo", "bar").get();
-        client().prepareIndex(index + "2").setSource("foo", "bar").get();
+        prepareIndex(index).setSource("foo", "bar").get();
+        prepareIndex(index + "2").setSource("foo", "bar").get();
+        prepareIndex(index + "2").setSource("foo", "bar").get();
         refresh(index, index + "2");
 
         DataTiersFeatureSetUsage usage = getUsage();
@@ -419,7 +417,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     private DataTiersFeatureSetUsage getUsage() {
-        XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).execute().actionGet();
+        XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).get();
         return usages.getUsages()
             .stream()
             .filter(u -> u instanceof DataTiersFeatureSetUsage)

@@ -6,7 +6,7 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the command line or {kib} 
+cat APIs are only intended for human consumption using the command line or {kib}
 console. They are _not_ intended for use by applications.
 ====
 
@@ -113,10 +113,10 @@ The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-shards disk.indices disk.used disk.avail disk.total disk.percent host      ip        node
-     1         260b    47.3gb     43.4gb    100.7gb           46 127.0.0.1 127.0.0.1 CSUXak2
+shards disk.indices disk.used disk.avail disk.total disk.percent host      ip        node    node.role
+     1         260b    47.3gb     43.4gb    100.7gb           46 127.0.0.1 127.0.0.1 CSUXak2 himrst
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/ s/46/\\d+/]
-// TESTRESPONSE[s/CSUXak2/.+/ non_json]
+// TESTRESPONSE[s/CSUXak2 himrst/.+/ non_json]
 
 This response shows a single shard is allocated to the one node available.

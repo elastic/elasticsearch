@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -117,11 +116,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return aggregations;
         }
 
-        @SuppressWarnings("unchecked")
-        protected Factory<? extends Bucket, ?> getFactory() {
-            return FACTORY;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             final String key = getKeyAsString();
@@ -150,10 +144,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         private static String generateKey(double from, double to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder().append(Double.isInfinite(from) ? "*" : format.format(from))
-                .append("-")
-                .append(Double.isInfinite(to) ? "*" : format.format(to));
-            return builder.toString();
+            return (Double.isInfinite(from) ? "*" : format.format(from)) + "-" + (Double.isInfinite(to) ? "*" : format.format(to));
         }
 
         @Override
@@ -204,10 +195,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
         public ValuesSourceType getValueSourceType() {
             return CoreValuesSourceType.NUMERIC;
-        }
-
-        public ValueType getValueType() {
-            return ValueType.NUMERIC;
         }
 
         @SuppressWarnings("unchecked")

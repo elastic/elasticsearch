@@ -13,7 +13,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -70,7 +70,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         BytesRefBlock.Builder builder,
         BytesRef str,
         @Fixed byte delim,
-        @Fixed(includeInToString = false) BytesRef scratch
+        @Fixed(includeInToString = false, build = true) BytesRef scratch
     ) {
         scratch.bytes = str.bytes;
         scratch.offset = str.offset;
@@ -96,10 +96,13 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Variable")
-    static void process(BytesRefBlock.Builder builder, BytesRef str, BytesRef delim, @Fixed(includeInToString = false) BytesRef scratch) {
-        if (delim.length != 1) {
-            throw new QlIllegalArgumentException("delimiter must be single byte for now");
-        }
+    static void process(
+        BytesRefBlock.Builder builder,
+        BytesRef str,
+        BytesRef delim,
+        @Fixed(includeInToString = false, build = true) BytesRef scratch
+    ) {
+        checkDelimiter(delim);
         process(builder, str, delim.bytes[delim.offset], scratch);
     }
 
@@ -117,13 +120,16 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var str = toEvaluator.apply(left());
         if (right().foldable() == false) {
-            var delim = toEvaluator.apply(right());
-            return dvrCtx -> new SplitVariableEvaluator(str.get(dvrCtx), delim.get(dvrCtx), new BytesRef(), dvrCtx);
+            return new SplitVariableEvaluator.Factory(source(), str, toEvaluator.apply(right()), context -> new BytesRef());
         }
         BytesRef delim = (BytesRef) right().fold();
+        checkDelimiter(delim);
+        return new SplitSingleByteEvaluator.Factory(source(), str, delim.bytes[delim.offset], context -> new BytesRef());
+    }
+
+    private static void checkDelimiter(BytesRef delim) {
         if (delim.length != 1) {
-            throw new QlIllegalArgumentException("for now delimiter must be a single byte");
+            throw new InvalidArgumentException("delimiter must be single byte for now");
         }
-        return dvrCtx -> new SplitSingleByteEvaluator(str.get(dvrCtx), delim.bytes[delim.offset], new BytesRef(), dvrCtx);
     }
 }

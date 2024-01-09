@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -36,21 +37,22 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
+      } catch (ArithmeticException  e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        builder.appendDouble(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendDouble(evalValue(vector, p));
+        } catch (ArithmeticException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static double evalValue(DoubleVector container, int index) {
@@ -62,7 +64,7 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
   public Block evalBlock(Block b) {
     DoubleBlock block = (DoubleBlock) b;
     int positionCount = block.getPositionCount();
-    try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -78,7 +80,7 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
             }
             builder.appendDouble(value);
             valuesAppended = true;
-          } catch (Exception e) {
+          } catch (ArithmeticException  e) {
             registerException(e);
           }
         }
@@ -95,5 +97,26 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
   private static double evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToDegrees.process(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToDegreesEvaluator get(DriverContext context) {
+      return new ToDegreesEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToDegreesEvaluator[field=" + field + "]";
+    }
   }
 }

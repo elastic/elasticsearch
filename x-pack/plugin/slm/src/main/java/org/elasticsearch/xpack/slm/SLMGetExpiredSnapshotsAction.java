@@ -18,13 +18,13 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -68,7 +68,6 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
     public static class LocalAction extends TransportAction<Request, Response> {
         private final RepositoriesService repositoriesService;
         private final Executor retentionExecutor;
-        private final ThreadContext threadContext;
 
         private static final Logger logger = SLMGetExpiredSnapshotsAction.logger;
 
@@ -76,9 +75,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
         public LocalAction(TransportService transportService, RepositoriesService repositoriesService, ActionFilters actionFilters) {
             super(INSTANCE.name(), actionFilters, transportService.getTaskManager());
             this.repositoriesService = repositoriesService;
-            final var threadPool = transportService.getThreadPool();
-            this.retentionExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
-            this.threadContext = threadPool.getThreadContext();
+            this.retentionExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         }
 
         private static class ResultsBuilder {
@@ -119,41 +116,36 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
                         continue;
                     }
 
-                    retentionExecutor.execute(
-                        ActionRunnable.wrap(
-                            refs.acquireListener(),
-                            perRepositoryListener -> SubscribableListener
+                    retentionExecutor.execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void unused) {}
 
-                                // Get repository data
-                                .newForked(repository::getRepositoryData)
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.debug(Strings.format("[%s]: could not compute expired snapshots", repositoryName), e);
+                        }
+                    }, refs.acquire()),
+                        perRepositoryListener -> SubscribableListener
 
-                                // Collect snapshot details by policy, and get any missing details by reading SnapshotInfo
-                                .<SnapshotDetailsByPolicy>andThen(
-                                    retentionExecutor,
-                                    threadContext,
-                                    (l, repositoryData) -> getSnapshotDetailsByPolicy(repository, repositoryData, l)
-                                )
+                            // Get repository data
+                            .<RepositoryData>newForked(l -> repository.getRepositoryData(retentionExecutor, l))
 
-                                // Compute snapshots to delete for each (relevant) policy
-                                .<Void>andThen(
-                                    retentionExecutor,
-                                    threadContext,
-                                    (l, snapshotDetailsByPolicy) -> ActionListener.completeWith(l, () -> {
-                                        resultsBuilder.addResult(
-                                            repositoryName,
-                                            getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)
-                                        );
-                                        return null;
-                                    })
-                                )
+                            // Collect snapshot details by policy, and get any missing details by reading SnapshotInfo
+                            .<SnapshotDetailsByPolicy>andThen(
+                                (l, repositoryData) -> getSnapshotDetailsByPolicy(retentionExecutor, repository, repositoryData, l)
+                            )
 
-                                // And notify this repository's listener on completion
-                                .addListener(perRepositoryListener.delegateResponse((l, e) -> {
-                                    logger.debug(Strings.format("[%s]: could not compute expired snapshots", repositoryName), e);
-                                    l.onResponse(null);
-                                }))
-                        )
-                    );
+                            // Compute snapshots to delete for each (relevant) policy
+                            .andThenAccept(snapshotDetailsByPolicy -> {
+                                resultsBuilder.addResult(
+                                    repositoryName,
+                                    getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)
+                                );
+                            })
+
+                            // And notify this repository's listener on completion
+                            .addListener(perRepositoryListener)
+                    ));
                 }
             }
         }
@@ -178,6 +170,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
 
     // Exposed for testing
     static void getSnapshotDetailsByPolicy(
+        Executor executor,
         Repository repository,
         RepositoryData repositoryData,
         ActionListener<SnapshotDetailsByPolicy> listener
@@ -212,7 +205,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
                         snapshotInfo.snapshotId(),
                         RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshotInfo)
                     ),
-                    listener.map(ignored -> snapshotDetailsByPolicy)
+                    new ThreadedActionListener<>(executor, listener.map(ignored -> snapshotDetailsByPolicy))
                 )
             );
         }

@@ -12,8 +12,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.BinaryDateTimeFunction.argumentTypesAreSwapped;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
@@ -50,18 +49,12 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
             ChronoField chrono = chronoField();
             if (chrono == null) {
                 BytesRef field = (BytesRef) children().get(0).fold();
-                throw new EsqlIllegalArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
+                throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
-            return dvrCtx -> new DateExtractConstantEvaluator(fieldEvaluator.get(dvrCtx), chrono, configuration().zoneId(), dvrCtx);
+            return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
         }
         var chronoEvaluator = toEvaluator.apply(children().get(0));
-        return dvrCtx -> new DateExtractEvaluator(
-            source(),
-            fieldEvaluator.get(dvrCtx),
-            chronoEvaluator.get(dvrCtx),
-            configuration().zoneId(),
-            dvrCtx
-        );
+        return new DateExtractEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
     }
 
     private ChronoField chronoField() {
@@ -115,25 +108,9 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        TypeResolution resolution = argumentTypesAreSwapped(
-            children().get(0).dataType(),
-            children().get(1).dataType(),
-            DataTypes::isString,
-            sourceText()
+        return isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST).and(
+            isDate(children().get(1), sourceText(), TypeResolutions.ParamOrdinal.SECOND)
         );
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        resolution = isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        resolution = isDate(children().get(1), sourceText(), TypeResolutions.ParamOrdinal.SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

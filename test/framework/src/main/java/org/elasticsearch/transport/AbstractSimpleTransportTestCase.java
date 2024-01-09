@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,6 +49,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -122,7 +124,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     protected static final VersionInformation version0 = new VersionInformation(
         Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0"),
-        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
     protected static final TransportVersion transportVersion0 = TransportVersion.current();
@@ -133,7 +135,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected static final VersionInformation version1 = new VersionInformation(
         Version.fromId(version0.nodeVersion().id + 1),
-        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
     protected static final TransportVersion transportVersion1 = TransportVersion.fromId(transportVersion0.id() + 1);
@@ -878,6 +880,31 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         final ExecutionException e = expectThrows(ExecutionException.class, res::get);
         assertThat(e.getCause().getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
+    }
+
+    public void testExceptionOnConnect() {
+        final var transportA = serviceA.getOriginalTransport();
+
+        final var nullProfileFuture = new PlainActionFuture<Transport.Connection>();
+        transportA.openConnection(nodeB, null, nullProfileFuture);
+        assertTrue(nullProfileFuture.isDone());
+        expectThrows(ExecutionException.class, NullPointerException.class, nullProfileFuture::get);
+
+        final var profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
+        final var nullNodeFuture = new PlainActionFuture<Transport.Connection>();
+        transportA.openConnection(null, profile, nullNodeFuture);
+        assertTrue(nullNodeFuture.isDone());
+        expectThrows(ExecutionException.class, ConnectTransportException.class, nullNodeFuture::get);
+
+        serviceA.stop();
+        assertEquals(Lifecycle.State.STOPPED, transportA.lifecycleState());
+        serviceA.close();
+        assertEquals(Lifecycle.State.CLOSED, transportA.lifecycleState());
+
+        final var closedTransportFuture = new PlainActionFuture<Transport.Connection>();
+        transportA.openConnection(nodeB, profile, closedTransportFuture);
+        assertTrue(closedTransportFuture.isDone());
+        expectThrows(ExecutionException.class, IllegalStateException.class, closedTransportFuture::get);
     }
 
     public void testDisconnectListener() throws Exception {
@@ -2322,7 +2349,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "TS_C",
                 new VersionInformation(
                     Version.CURRENT.minimumCompatibilityVersion(),
-                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current()
                 ),
                 transportVersion,
@@ -2361,7 +2388,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "TS_C",
                 new VersionInformation(
                     Version.CURRENT.minimumCompatibilityVersion(),
-                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current()
                 ),
                 transportVersion,
@@ -2398,7 +2425,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile).setPingInterval(TimeValue.timeValueMillis(50))
             .build();
         try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
-            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Transport.Connection> future = new PlainActionFuture<>();
             DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
                 .name("TS_TPC")
                 .address(service.boundAddress().publishAddress())
@@ -2424,7 +2451,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .roles(emptySet())
                 .version(version0)
                 .build();
-            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Transport.Connection> future = new PlainActionFuture<>();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
                 assertEquals(TransportVersion.current(), connection.getTransportVersion());
@@ -3526,7 +3553,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             handler.executor(transportService.threadPool)
         );
         responseListener.addListener(ActionListener.wrap(handler::handleResponse, e -> handler.handleException((TransportException) e)));
-        final PlainActionFuture<T> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<T> future = new PlainActionFuture<>();
         responseListener.addListener(future);
         transportService.sendRequest(node, action, request, options, futureHandler);
         return future;

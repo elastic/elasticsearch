@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -199,23 +198,11 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         CacheIndexInputStats(final StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.V_7_12_0)) {
-                // This API is currently only used internally for testing, so BWC breaking changes are OK.
-                // We just throw an exception here to get a better error message in case this would be called
-                // in a mixed version cluster
-                throw new IllegalArgumentException("BWC breaking change for internal API");
-            }
             this.fileExt = in.readString();
             this.numFiles = in.readVLong();
-            if (in.getTransportVersion().before(TransportVersions.V_7_13_0)) {
-                this.totalSize = ByteSizeValue.ofBytes(in.readVLong());
-                this.minSize = ByteSizeValue.ZERO;
-                this.maxSize = ByteSizeValue.ZERO;
-            } else {
-                this.totalSize = ByteSizeValue.readFrom(in);
-                this.minSize = ByteSizeValue.readFrom(in);
-                this.maxSize = ByteSizeValue.readFrom(in);
-            }
+            this.totalSize = ByteSizeValue.readFrom(in);
+            this.minSize = ByteSizeValue.readFrom(in);
+            this.maxSize = ByteSizeValue.readFrom(in);
             this.openCount = in.readVLong();
             this.closeCount = in.readVLong();
             this.forwardSmallSeeks = new Counter(in);
@@ -230,11 +217,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.directBytesRead = new TimedCounter(in);
             this.optimizedBytesRead = new TimedCounter(in);
             this.blobStoreBytesRequested = new Counter(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                this.luceneBytesRead = new Counter(in);
-            } else {
-                this.luceneBytesRead = new Counter(0, 0, 0, 0);
-            }
+            this.luceneBytesRead = new Counter(in);
             this.currentIndexCacheFills = in.readVLong();
         }
 
@@ -272,21 +255,11 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersions.V_7_12_0)) {
-                // This API is currently only used internally for testing, so BWC breaking changes are OK.
-                // We just throw an exception here to get a better error message in case this would be called
-                // in a mixed version cluster
-                throw new IllegalArgumentException("BWC breaking change for internal API");
-            }
             out.writeString(fileExt);
             out.writeVLong(numFiles);
-            if (out.getTransportVersion().before(TransportVersions.V_7_13_0)) {
-                out.writeVLong(totalSize.getBytes());
-            } else {
-                totalSize.writeTo(out);
-                minSize.writeTo(out);
-                maxSize.writeTo(out);
-            }
+            totalSize.writeTo(out);
+            minSize.writeTo(out);
+            maxSize.writeTo(out);
             out.writeVLong(openCount);
             out.writeVLong(closeCount);
 
@@ -302,9 +275,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             directBytesRead.writeTo(out);
             optimizedBytesRead.writeTo(out);
             blobStoreBytesRequested.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                luceneBytesRead.writeTo(out);
-            }
+            luceneBytesRead.writeTo(out);
             out.writeVLong(currentIndexCacheFills);
         }
 

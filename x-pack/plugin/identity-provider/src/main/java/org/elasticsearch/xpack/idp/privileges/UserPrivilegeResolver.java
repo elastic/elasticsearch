@@ -133,34 +133,38 @@ public class UserPrivilegeResolver {
         ServiceProviderPrivileges service,
         ActionListener<RoleDescriptor.ApplicationResourcePrivileges> listener
     ) {
+        var groupedListener = new GroupedActionListener<Set<String>>(2, listener.delegateFailureAndWrap((delegate, actionSets) -> {
+            final Set<String> actions = actionSets.stream().flatMap(Set::stream).collect(Collectors.toUnmodifiableSet());
+            if (actions == null || actions.isEmpty()) {
+                logger.warn("No application-privilege actions defined for application [{}]", service.getApplicationName());
+                delegate.onResponse(null);
+            } else {
+                logger.debug("Using actions [{}] for application [{}]", actions, service.getApplicationName());
+                final RoleDescriptor.ApplicationResourcePrivileges.Builder builder = RoleDescriptor.ApplicationResourcePrivileges.builder();
+                builder.application(service.getApplicationName());
+                builder.resources(service.getResource());
+                builder.privileges(actions);
+                delegate.onResponse(builder.build());
+            }
+        }));
+
         // We need to enumerate possible actions that might be authorized for the user. Here we combine actions that
         // have been granted to the user via roles and other actions that are registered privileges for the given
         // application. These actions will be checked by a has-privileges check above
         final GetUserPrivilegesRequest request = new GetUserPrivilegesRequestBuilder(client).username(securityContext.getUser().principal())
             .request();
-        client.execute(GetUserPrivilegesAction.INSTANCE, request, listener.delegateFailureAndWrap((delegate, userPrivileges) -> {
-            Set<String> actionsFromRoles = userPrivileges.getApplicationPrivileges()
-                .stream()
-                .filter(appPriv -> appPriv.getApplication().equals(service.getApplicationName()))
-                .map(appPriv -> appPriv.getPrivileges())
-                .flatMap(Arrays::stream)
-                .collect(Collectors.toUnmodifiableSet());
-            actionsResolver.getActions(service.getApplicationName(), delegate.delegateFailureAndWrap((delegate2, appDefinedActions) -> {
-                Set<String> actions = Stream.concat(actionsFromRoles.stream(), appDefinedActions.stream())
-                    .collect(Collectors.toUnmodifiableSet());
-                if (actions == null || actions.isEmpty()) {
-                    logger.warn("No application-privilege actions defined for application [{}]", service.getApplicationName());
-                    delegate.onResponse(null);
-                } else {
-                    logger.debug("Using actions [{}] for application [{}]", actions, service.getApplicationName());
-                    final RoleDescriptor.ApplicationResourcePrivileges.Builder builder = RoleDescriptor.ApplicationResourcePrivileges
-                        .builder();
-                    builder.application(service.getApplicationName());
-                    builder.resources(service.getResource());
-                    builder.privileges(actions);
-                    delegate.onResponse(builder.build());
-                }
-            }));
-        }));
+        client.execute(
+            GetUserPrivilegesAction.INSTANCE,
+            request,
+            groupedListener.map(
+                userPrivileges -> userPrivileges.getApplicationPrivileges()
+                    .stream()
+                    .filter(appPriv -> appPriv.getApplication().equals(service.getApplicationName()))
+                    .map(appPriv -> appPriv.getPrivileges())
+                    .flatMap(Arrays::stream)
+                    .collect(Collectors.toUnmodifiableSet())
+            )
+        );
+        actionsResolver.getActions(service.getApplicationName(), groupedListener);
     }
 }

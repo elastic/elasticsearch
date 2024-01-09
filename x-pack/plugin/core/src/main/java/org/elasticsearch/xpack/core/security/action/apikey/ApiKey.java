@@ -191,7 +191,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.username = in.readString();
         this.realm = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.metadata = in.readMap();
+            this.metadata = in.readGenericMap();
         } else {
             this.metadata = Map.of();
         }

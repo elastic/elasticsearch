@@ -12,30 +12,24 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed IntArray.
+ * Vector implementation that defers to an enclosed {@link IntArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class IntBigArrayVector extends AbstractVector implements IntVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntBigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final IntArray values;
-
-    private final IntBlock block;
-
-    public IntBigArrayVector(IntArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
 
     public IntBigArrayVector(IntArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new IntVectorBlock(this);
     }
 
     @Override
     public IntBlock asBlock() {
-        return block;
+        return new IntVectorBlock(this);
     }
 
     @Override
@@ -61,7 +55,7 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     @Override
     public IntVector filter(int... positions) {
         var blockFactory = blockFactory();
-        final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length, true);
+        final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
@@ -69,11 +63,9 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link IntArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

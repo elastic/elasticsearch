@@ -1,11 +1,30 @@
 [discrete]
 [[esql-concat]]
 === `CONCAT`
-Concatenates two or more strings.
+
+*Syntax*
 
 [source,esql]
 ----
-FROM employees
-| KEEP first_name, last_name, height
-| EVAL fullname = CONCAT(first_name, " ", last_name)
+CONCAT(string1, string2[, ..., stringN])
 ----
+
+*Parameters*
+
+`stringX`::
+Strings to concatenate.
+
+*Description*
+
+Concatenates two or more strings.
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=docsConcat]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/eval.csv-spec[tag=docsConcat-result]
+|===

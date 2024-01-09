@@ -32,11 +32,6 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public String getChannelType() {
-        return channel.getChannelType();
-    }
-
-    @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
             channel.sendResponse(response);

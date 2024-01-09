@@ -2,7 +2,24 @@
 [[esql-coalesce]]
 === `COALESCE`
 
-Returns the first non-null value.
+*Syntax*
+
+[source,esql]
+----
+COALESCE(expression1 [, ..., expressionN])
+----
+
+*Parameters*
+
+`expressionX`::
+Expression to evaluate.
+
+*Description*
+
+Returns the first of its arguments that is not null. If all arguments are null,
+it returns `null`.
+
+*Example*
 
 [source.merge.styled,esql]
 ----

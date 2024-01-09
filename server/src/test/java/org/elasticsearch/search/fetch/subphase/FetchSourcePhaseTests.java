@@ -170,13 +170,13 @@ public class FetchSourcePhaseTests extends ESTestCase {
         when(sec.isSourceEnabled()).thenReturn(sourceBuilder != null);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
 
+        final SearchHit searchHit = SearchHit.unpooled(1, null, nestedIdentity);
+
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
         Source source = sourceBuilder == null ? Source.empty(null) : Source.fromBytes(BytesReference.bytes(sourceBuilder));
-        final SearchHit searchHit = new SearchHit(1, null, nestedIdentity);
-        HitContext hitContext = new HitContext(searchHit.asUnpooled(), leafReaderContext, 1, Map.of(), source);
-        searchHit.decRef();
+        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, Map.of(), source);
 
         FetchSourcePhase phase = new FetchSourcePhase();
         FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);

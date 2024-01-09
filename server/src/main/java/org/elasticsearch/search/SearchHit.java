@@ -132,6 +132,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
     }
 
     public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
+        this(nestedTopDocId, id, nestedIdentity, null);
+    }
+
+    private SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity, @Nullable RefCounted refCounted) {
         this(
             nestedTopDocId,
             DEFAULT_SCORE,
@@ -153,7 +157,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
             null,
             new HashMap<>(),
             new HashMap<>(),
-            null
+            refCounted
         );
     }
 
@@ -307,21 +311,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
     }
 
     public static SearchHit unpooled(int docId, String id) {
-        final var res = new SearchHit(docId, id);
-        try {
-            return res.asUnpooled();
-        } finally {
-            res.decRef();
-        }
+        return unpooled(docId, id, null);
     }
 
     public static SearchHit unpooled(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
-        final var res = new SearchHit(nestedTopDocId, id, nestedIdentity);
-        try {
-            return res.asUnpooled();
-        } finally {
-            res.decRef();
-        }
+        return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED);
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
@@ -1096,7 +1090,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
             get(Fields.INNER_HITS, values, null),
             get(DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(METADATA_FIELDS, values, Collections.emptyMap()),
-            null
+            ALWAYS_REFERENCED // TODO: do we ever want pooling here?
         );
     }
 

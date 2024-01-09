@@ -120,16 +120,15 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         @Nullable String collapseField,
         @Nullable Object[] collapseValues
     ) {
-        final SearchHit[] unpooledHits;
-        if (hits.length == 0) {
-            unpooledHits = EMPTY;
-        } else {
-            unpooledHits = new SearchHit[hits.length];
-            for (int i = 0; i < hits.length; i++) {
-                unpooledHits[i] = hits[i].asUnpooled();
-            }
+        assert assertUnpooled(hits);
+        return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues, ALWAYS_REFERENCED);
+    }
+
+    private static boolean assertUnpooled(SearchHit[] searchHits) {
+        for (SearchHit searchHit : searchHits) {
+            assert searchHit.isPooled() == false : "hit was pooled [" + searchHit + "]";
         }
-        return new SearchHits(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues, ALWAYS_REFERENCED);
+        return true;
     }
 
     public static SearchHits readFrom(StreamInput in) throws IOException {
@@ -261,7 +260,11 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         if (isPooled() == false) {
             return this;
         }
-        return unpooled(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        final SearchHit[] unpooledHits = new SearchHit[hits.length];
+        for (int i = 0; i < hits.length; i++) {
+            unpooledHits[i] = hits[i].asUnpooled();
+        }
+        return unpooled(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues);
     }
 
     @Override
@@ -341,7 +344,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
                 }
             }
         }
-        return new SearchHits(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
+        return SearchHits.unpooled(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     @Override

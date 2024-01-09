@@ -114,8 +114,16 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         assertAliases(destIndex2, destAliasAll, destAliasLatest);
     }
 
-    public void testTransformDestIndexCreatedDuringUpdate() throws Exception {
-        String transformId = "test_dest_index_on_update";
+    public void testTransformDestIndexCreatedDuringUpdate_NoDeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(false);
+    }
+
+    public void testTransformDestIndexCreatedDuringUpdate_DeferValidation() throws Exception {
+        testTransformDestIndexCreatedDuringUpdate(true);
+    }
+
+    private void testTransformDestIndexCreatedDuringUpdate(boolean deferValidation) throws Exception {
+        String transformId = "test_dest_index_on_update" + (deferValidation ? "-defer" : "");
         String destIndex = transformId + "-dest";
 
         assertFalse(indexExists(destIndex));
@@ -139,7 +147,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         // Note that at this point the destination index could have already been created by the indexing process of the running transform
         // but the update code should cope with this situation.
         updateTransform(transformId, """
-            { "settings": { "max_page_search_size": 123 } }""");
+            { "settings": { "max_page_search_size": 123 } }""", deferValidation);
 
         // Verify that the destination index now exists
         assertTrue(indexExists(destIndex));

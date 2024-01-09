@@ -66,7 +66,7 @@ public final class CreateApiKeyRequest extends AbstractCreateApiKeyRequest {
         this.roleDescriptors = in.readCollectionAsImmutableList(RoleDescriptor::new);
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.metadata = in.readMap();
+            this.metadata = in.readGenericMap();
         } else {
             this.metadata = null;
         }

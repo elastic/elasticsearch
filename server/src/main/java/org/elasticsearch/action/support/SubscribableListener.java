@@ -39,20 +39,20 @@ import java.util.concurrent.Executor;
  * <p>
  * Often this will be used to chain together a sequence of async actions, similarly to {@link CompletionStage} (without the
  * {@code catch (Throwable t)}), such as in the following example:
- * <pre>
- * private void exampleAsyncMethod(String request, List&lt;Long> items, ActionListener&lt;Boolean> finalListener) {
+ * <pre>{@code
+ * private void exampleAsyncMethod(String request, List<Long> items, ActionListener<Boolean> finalListener) {
  *     SubscribableListener
  *
  *         // Start the chain and run the first step by creating a SubscribableListener using newForked():
- *         .&lt;String>newForked(l -> firstAsyncStep(request, l))
+ *         .<String>newForked(l -> firstAsyncStep(request, l))
  *
  *         // Run a second step when the first step completes using andThen(); if the first step fails then the exception falls through to
  *         // the end without executing the intervening steps.
- *         .&lt;Integer>andThen((l, firstStepResult) -> secondAsyncStep(request, firstStepResult, l))
+ *         .<Integer>andThen((l, firstStepResult) -> secondAsyncStep(request, firstStepResult, l))
  *
  *         // Run another step when the second step completes with another andThen() call; as above this only runs if the first two steps
  *         // succeed.
- *         .&lt;Boolean>andThen((l, secondStepResult) -> {
+ *         .<Boolean>andThen((l, secondStepResult) -> {
  *             if (condition) {
  *                 // Steps are exception-safe: an exception thrown here will be passed to the listener rather than escaping to the
  *                 // caller.
@@ -90,7 +90,7 @@ import java.util.concurrent.Executor;
  *         // successful, or the exception if any step failed.
  *         .addListener(finalListener);
  * }
- * </pre>
+ * }</pre>
  */
 public class SubscribableListener<T> implements ActionListener<T> {
 

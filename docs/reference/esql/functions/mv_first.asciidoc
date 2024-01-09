@@ -19,8 +19,8 @@ include::{esql-specs}/string.csv-spec[tag=mv_first-result]
 The order that <<esql-multivalued-fields, multivalued fields>> are read from underlying storage is not
 guaranteed. It is *frequently* ascending, but don't rely on that. If you need the minimum field value
 use <<esql-mv_min>> instead of `MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn't
-a performance benefit to `MV_FIRST`. `MV_FIRST` is really only useful with functions that create
-multivalued fields like `SPLIT`.
+a performance benefit to `MV_FIRST`. `MV_FIRST` is mostly useful with functions that create multivalued
+fields like `SPLIT`.
 
 Supported types:
 

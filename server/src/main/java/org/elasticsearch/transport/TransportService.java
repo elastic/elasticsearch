@@ -1456,6 +1456,10 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
+    public static boolean isDirectResponseChannel(TransportChannel transportChannel) {
+        return transportChannel instanceof DirectResponseChannel;
+    }
+
     static class DirectResponseChannel implements TransportChannel {
         final DiscoveryNode localNode;
         private final String action;
@@ -1572,11 +1576,6 @@ public class TransportService extends AbstractLifecycleComponent
             } catch (Exception e) {
                 logger.error(() -> format("failed to handle exception for action [%s], handler [%s]", action, handler), e);
             }
-        }
-
-        @Override
-        public String getChannelType() {
-            return "direct";
         }
 
         @Override

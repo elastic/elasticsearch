@@ -1653,7 +1653,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             lifecycle,
             failureStore,
-            failureIndices
+            failureIndices,
+            false
         );
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {

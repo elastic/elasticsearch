@@ -91,7 +91,7 @@ class OAuth2TokenAuthenticator implements Authenticator {
 
     private Map<String, Object> buildMetricAttributes(BearerToken token, String failureReason) {
         if (failureReason != null) {
-           return Map.of(ATTRIBUTE_AUTHC_FAILURE_REASON, failureReason);
+            return Map.of(ATTRIBUTE_AUTHC_FAILURE_REASON, failureReason);
         }
         return Map.of();
     }

@@ -13,14 +13,17 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Map;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -51,13 +54,15 @@ public class OAuth2TokenAuthenticatorTests extends AbstractAuthenticatorTests {
         final long executionTimeInNanos = randomLongBetween(0, 500);
         doAnswer(invocation -> {
             nanoTimeSupplier.advanceTime(executionTimeInNanos);
-            final ActionListener<Authentication> listener = invocation.getArgument(2);
-            Authentication authentication = Authentication.newServiceAccountAuthentication(
-                new User(bearerToken.principal()),
-                randomAlphaOfLengthBetween(3, 8),
-                Map.of()
-            );
-            listener.onResponse(authentication);
+            final ActionListener<UserToken> listener = invocation.getArgument(1);
+            final Authentication authentication = AuthenticationTestHelper.builder()
+                .user(AuthenticationTestHelper.randomUser())
+                .realmRef(AuthenticationTestHelper.randomRealmRef())
+                .build(false);
+            final int seconds = randomIntBetween(0, Math.toIntExact(TimeValue.timeValueMinutes(30L).getSeconds()));
+            final Instant expirationTime = Clock.systemUTC().instant().plusSeconds(seconds);
+            final UserToken userToken = new UserToken(authentication, expirationTime);
+            listener.onResponse(userToken);
             return Void.TYPE;
         }).when(tokenService).tryAuthenticateToken(any(SecureString.class), anyActionListener());
 
@@ -96,7 +101,7 @@ public class OAuth2TokenAuthenticatorTests extends AbstractAuthenticatorTests {
         final long executionTimeInNanos = randomLongBetween(0, 500);
         doAnswer(invocation -> {
             nanoTimeSupplier.advanceTime(executionTimeInNanos);
-            final ActionListener<Authentication> listener = invocation.getArgument(2);
+            final ActionListener<Authentication> listener = invocation.getArgument(1);
             listener.onFailure(failureError);
             return Void.TYPE;
         }).when(tokenService).tryAuthenticateToken(any(SecureString.class), anyActionListener());

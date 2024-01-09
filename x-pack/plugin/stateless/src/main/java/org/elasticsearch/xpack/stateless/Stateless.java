@@ -27,14 +27,11 @@ import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.PublishNodeIngestLoadAction;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.TransportPublishNodeIngestLoadMetric;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizePublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.PublishHeapMemoryMetricsAction;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.search.PublishShardSizesAction;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
@@ -293,9 +290,9 @@ public class Stateless extends Plugin
             new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
 
             // autoscaling
-            new ActionHandler<>(PublishNodeIngestLoadAction.INSTANCE, TransportPublishNodeIngestLoadMetric.class),
-            new ActionHandler<>(PublishShardSizesAction.INSTANCE, TransportPublishShardSizes.class),
-            new ActionHandler<>(PublishHeapMemoryMetricsAction.INSTANCE, TransportPublishHeapMemoryMetrics.class),
+            new ActionHandler<>(TransportPublishNodeIngestLoadMetric.INSTANCE, TransportPublishNodeIngestLoadMetric.class),
+            new ActionHandler<>(TransportPublishShardSizes.INSTANCE, TransportPublishShardSizes.class),
+            new ActionHandler<>(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
             new ActionHandler<>(GetAllShardSizesAction.INSTANCE, GetAllShardSizesAction.TransportGetAllShardSizes.class),
             new ActionHandler<>(GetShardSizeAction.INSTANCE, GetShardSizeAction.TransportGetShardSize.class),
 

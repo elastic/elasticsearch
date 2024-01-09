@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +35,9 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPublishShardSizes extends TransportMasterNodeAction<PublishShardSizesRequest, ActionResponse.Empty> {
 
+    public static final String NAME = "cluster:monitor/stateless/autoscaling/push_shard_sizes";
+    public static final ActionType<ActionResponse.Empty> INSTANCE = ActionType.localOnly(NAME);
+
     private final SearchMetricsService searchTierMetricsService;
 
     @Inject
@@ -46,7 +50,7 @@ public class TransportPublishShardSizes extends TransportMasterNodeAction<Publis
         SearchMetricsService searchTierMetricsService
     ) {
         super(
-            PublishShardSizesAction.NAME,
+            NAME,
             transportService,
             clusterService,
             threadPool,

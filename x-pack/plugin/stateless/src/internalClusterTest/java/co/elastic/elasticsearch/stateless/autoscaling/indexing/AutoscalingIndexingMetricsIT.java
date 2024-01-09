@@ -59,7 +59,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishNodeIngestLoadAction.NAME)) {
+                if (action.equals(TransportPublishNodeIngestLoadMetric.NAME)) {
                     ingestLoadPublishSent.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -118,7 +118,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishNodeIngestLoadAction.NAME)) {
+                if (action.equals(TransportPublishNodeIngestLoadMetric.NAME)) {
                     ingestLoadPublishSent.incrementAndGet();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -191,7 +191,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishNodeIngestLoadAction.NAME)) {
+                if (action.equals(TransportPublishNodeIngestLoadMetric.NAME)) {
                     longAwait(metricPublicationBarrier);
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -245,7 +245,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PublishNodeIngestLoadAction.NAME)) {
+                if (action.equals(TransportPublishNodeIngestLoadMetric.NAME)) {
                     longAwait(barrier);
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -356,7 +356,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getCurrentMasterNodeInstance(
             TransportService.class
         );
-        mockTransportService.addRequestHandlingBehavior(PublishNodeIngestLoadAction.NAME, (handler, request, channel, task) -> {
+        mockTransportService.addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
             if (request instanceof PublishNodeIngestLoadRequest publishRequest && publishRequest.getIngestionLoad() > 0) {
                 firstNonZeroPublishIndexLoadLatch.countDown();
             }

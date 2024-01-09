@@ -37,6 +37,6 @@ public class ShardSizesPublisher {
     public void publishSearchShardDiskUsage(String nodeId, Map<ShardId, ShardSize> shardSizes, ActionListener<Void> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         var request = new PublishShardSizesRequest(nodeId, shardSizes);
-        client.execute(PublishShardSizesAction.INSTANCE, request, listener.map(unused -> null));
+        client.execute(TransportPublishShardSizes.INSTANCE, request, listener.map(unused -> null));
     }
 }

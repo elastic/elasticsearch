@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +33,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportPublishNodeIngestLoadMetric extends TransportMasterNodeAction<PublishNodeIngestLoadRequest, ActionResponse.Empty> {
+
+    public static final String NAME = "cluster:monitor/stateless/autoscaling/push_node_ingest_load";
+    public static final ActionType<ActionResponse.Empty> INSTANCE = ActionType.localOnly(NAME);
+
     private final IngestMetricsService ingestMetricsService;
 
     @Inject
@@ -44,7 +49,7 @@ public class TransportPublishNodeIngestLoadMetric extends TransportMasterNodeAct
         IngestMetricsService ingestMetricsService
     ) {
         super(
-            PublishNodeIngestLoadAction.NAME,
+            NAME,
             transportService,
             clusterService,
             threadPool,

@@ -37,7 +37,7 @@ public class IngestLoadPublisher {
     public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
         threadPool.generic().execute(() -> {
             var request = new PublishNodeIngestLoadRequest(nodeId, seqNoSupplier.incrementAndGet(), ingestionLoad);
-            client.execute(PublishNodeIngestLoadAction.INSTANCE, request, listener.map(unused -> null));
+            client.execute(TransportPublishNodeIngestLoadMetric.INSTANCE, request, listener.map(unused -> null));
         });
     }
 }

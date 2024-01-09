@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -69,7 +68,7 @@ public final class TransportConsistentClusterStateReadAction extends TransportAc
     // visible for testing
     static final String MASTER_NODE_ACTION = NAME + "[m]";
 
-    public static final ActionType<Response> TYPE = new ActionType<>(NAME, Writeable.Reader.localOnly());
+    public static final ActionType<Response> TYPE = ActionType.localOnly(NAME);
 
     private final Logger logger = LogManager.getLogger(TransportConsistentClusterStateReadAction.class);
     private final ClusterService clusterService;

@@ -52,7 +52,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
 
     private static final Logger logger = LogManager.getLogger(TransportNewCommitNotificationAction.class);
     public static final String NAME = "internal:admin/" + Stateless.NAME + "/search/new/commit";
-    public static final ActionType<NewCommitNotificationResponse> TYPE = new ActionType<>(NAME, NewCommitNotificationResponse::new);
+    public static final ActionType<NewCommitNotificationResponse> TYPE = ActionType.localOnly(NAME);
 
     private final IndicesService indicesService;
     private final ShardSizeCollector shardSizeCollector;

@@ -26,9 +26,7 @@ import java.io.OutputStream;
  */
 public final class ReleasableBytesReference implements RefCounted, Releasable, BytesReference {
 
-    public static final Releasable NO_OP = () -> {};
-
-    private static final ReleasableBytesReference EMPTY = new ReleasableBytesReference(BytesArray.EMPTY, NO_OP);
+    private static final ReleasableBytesReference EMPTY = new ReleasableBytesReference(BytesArray.EMPTY, RefCounted.ALWAYS_REFERENCED);
 
     private final BytesReference delegate;
     private final RefCounted refCounted;
@@ -50,7 +48,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
         assert reference instanceof ReleasableBytesReference == false : "use #retain() instead of #wrap() on a " + reference.getClass();
-        return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, NO_OP);
+        return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, ALWAYS_REFERENCED);
     }
 
     @Override

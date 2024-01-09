@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
@@ -103,7 +102,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -172,10 +170,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @Before
     public void ensureTemplatesArePresent() throws Exception {
-        assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
-        }, 20, TimeUnit.SECONDS);
+        awaitClusterState(logger, MachineLearning::criticalTemplatesInstalled);
     }
 
     protected Job.Builder createJob(String id) {

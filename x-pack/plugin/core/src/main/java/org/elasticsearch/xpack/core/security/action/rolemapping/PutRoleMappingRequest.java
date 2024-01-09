@@ -51,7 +51,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
             this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
         }
         this.rules = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         this.refreshPolicy = RefreshPolicy.readFrom(in);
     }
 

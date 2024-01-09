@@ -121,12 +121,12 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testSkipTestFeatures() {
-        var section = new SkipSection.SkipSectionBuilder().skipIfYamlRunnerFeatureAbsent("boom").build();
+        var section = new SkipSection.PrerequisiteSectionBuilder().requireYamlRunnerFeature("boom").build();
         assertTrue(section.skip(mock(ClientYamlTestExecutionContext.class)));
     }
 
     public void testSkipTestFeaturesOverridesAnySkipCriteria() {
-        var section = new SkipSection.SkipSectionBuilder().skipOs("test-os").skipIfYamlRunnerFeatureAbsent("boom").build();
+        var section = new SkipSection.PrerequisiteSectionBuilder().skipIfOs("test-os").requireYamlRunnerFeature("boom").build();
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
         when(mockContext.os()).thenReturn("test-os");
@@ -136,7 +136,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testSkipOs() {
-        SkipSection section = new SkipSection.SkipSectionBuilder().skipOs("windows95").skipOs("debian-5").build();
+        SkipSection section = new SkipSection.PrerequisiteSectionBuilder().skipIfOs("windows95").skipIfOs("debian-5").build();
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
 
@@ -151,9 +151,9 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testSkipOsWithTestFeatures() {
-        SkipSection section = new SkipSection.SkipSectionBuilder().skipIfYamlRunnerFeatureAbsent("warnings")
-            .skipOs("windows95")
-            .skipOs("debian-5")
+        SkipSection section = new SkipSection.PrerequisiteSectionBuilder().requireYamlRunnerFeature("warnings")
+            .skipIfOs("windows95")
+            .skipIfOs("debian-5")
             .build();
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
@@ -186,7 +186,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             version:     " - %s"
             reason:      Delete ignores the parent param""", version));
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, not(emptyOrNullString()));
         assertThat(skipSectionBuilder.requiredYamlRunnerFeatures.size(), equalTo(0));
@@ -196,47 +197,51 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     public void testParseSkipSectionFeatureNoVersion() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "features:     regex");
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.requiredYamlRunnerFeatures, contains("regex"));
         assertThat(skipSectionBuilder.reason, nullValue());
-        assertThat(skipSectionBuilder.xpackRequired, is(SkipSection.SkipSectionBuilder.XPackRequired.NOT_SPECIFIED));
+        assertThat(skipSectionBuilder.xpackRequired, is(SkipSection.PrerequisiteSectionBuilder.XPackRequired.NOT_SPECIFIED));
     }
 
     public void testParseXPackFeature() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, "features:     xpack");
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.requiredYamlRunnerFeatures, empty());
         assertThat(skipSectionBuilder.reason, nullValue());
-        assertThat(skipSectionBuilder.xpackRequired, is(SkipSection.SkipSectionBuilder.XPackRequired.YES));
+        assertThat(skipSectionBuilder.xpackRequired, is(SkipSection.PrerequisiteSectionBuilder.XPackRequired.YES));
     }
 
     public void testParseNoXPackFeature() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, "features:     no_xpack");
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.requiredYamlRunnerFeatures, empty());
         assertThat(skipSectionBuilder.reason, nullValue());
-        assertThat(skipSectionBuilder.xpackRequired, is(SkipSection.SkipSectionBuilder.XPackRequired.NO));
+        assertThat(skipSectionBuilder.xpackRequired, is(SkipSection.PrerequisiteSectionBuilder.XPackRequired.NO));
     }
 
     public void testParseBothXPackFeatures() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, "features:     [xpack, no_xpack]");
 
-        var e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
+        var e = expectThrows(ParsingException.class, () -> SkipSection.parseSkipSection(parser, new SkipSection.PrerequisiteSectionBuilder()));
         assertThat(e.getMessage(), containsString("either `xpack` or `no_xpack` can be present, not both"));
     }
 
     public void testParseSkipSectionFeaturesNoVersion() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "features:     [regex1,regex2,regex3]");
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.requiredYamlRunnerFeatures, contains("regex1", "regex2", "regex3"));
@@ -249,7 +254,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             features:     regex
             reason:      Delete ignores the parent param""");
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder.version, not(emptyOrNullString()));
         assertThat(skipSectionBuilder.requiredYamlRunnerFeatures, contains("regex"));
         assertThat(skipSectionBuilder.reason, equalTo("Delete ignores the parent param"));
@@ -258,14 +264,14 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     public void testParseSkipSectionNoReason() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "version:     \" - 0.90.2\"\n");
 
-        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
+        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parseSkipSection(parser, new SkipSection.PrerequisiteSectionBuilder()));
         assertThat(e.getMessage(), is("reason is mandatory within skip version section"));
     }
 
     public void testParseSkipSectionNoVersionNorFeature() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "reason:      Delete ignores the parent param\n");
 
-        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
+        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parseSkipSection(parser, new SkipSection.PrerequisiteSectionBuilder()));
         assertThat(
             e.getMessage(),
             is("at least one criteria (version, cluster features, runner features, os) is mandatory within a skip section")
@@ -279,7 +285,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             reason:      memory accounting broken, see gh#xyz
             """);
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.requiredYamlRunnerFeatures, hasSize(2));
@@ -294,7 +301,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             reason:      see gh#xyz
             """);
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.requiredYamlRunnerFeatures, hasSize(1));
@@ -308,7 +316,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             reason:      memory accounting broken, see gh#xyz
             """);
 
-        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
+        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parseSkipSection(parser, new SkipSection.PrerequisiteSectionBuilder()));
         assertThat(e.getMessage(), is("if os is specified, feature skip_os must be set"));
     }
 
@@ -318,7 +326,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             reason:      test skipped when cluster lacks needed-feature
             """);
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.requiredClusterFeatures, contains("needed-feature"));
@@ -331,7 +340,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             reason:      test skipped when undesired-feature is present
             """);
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.forbiddenClusterFeatures, contains("undesired-feature"));
@@ -345,7 +355,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             reason:      test need needed-feature to run, but not when undesired-feature is present
             """);
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.forbiddenClusterFeatures, contains("undesired-feature"));
@@ -360,7 +371,8 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             reason:      test needs some to run, but not when others are present
             """);
 
-        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        var skipSectionBuilder = new SkipSection.PrerequisiteSectionBuilder();
+        SkipSection.parseSkipSection(parser, skipSectionBuilder);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.forbiddenClusterFeatures, containsInAnyOrder("undesired-feature-1", "undesired-feature-2"));
@@ -375,7 +387,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
             reason:      test needs some-feature to run, but not when some-feature is present
             """);
 
-        var e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
+        var e = expectThrows(ParsingException.class, () -> SkipSection.parseSkipSection(parser, new SkipSection.PrerequisiteSectionBuilder()));
         assertThat(e.getMessage(), is("skip on a cluster feature can be when it is either present or missing, not both"));
     }
 

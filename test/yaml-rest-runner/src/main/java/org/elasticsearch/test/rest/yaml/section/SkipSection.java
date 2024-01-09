@@ -30,7 +30,7 @@ import java.util.function.Predicate;
  */
 public class SkipSection {
 
-    static class SkipSectionBuilder {
+    static class PrerequisiteSectionBuilder {
         String version = null;
         String reason = null;
         List<String> requiredYamlRunnerFeatures = new ArrayList<>();
@@ -48,22 +48,22 @@ public class SkipSection {
 
         XPackRequired xpackRequired = XPackRequired.NOT_SPECIFIED;
 
-        public SkipSectionBuilder skipVersion(String version) {
+        public PrerequisiteSectionBuilder skipIfVersion(String version) {
             this.version = version;
             return this;
         }
 
-        public SkipSectionBuilder setReason(String reason) {
+        public PrerequisiteSectionBuilder setSkipReason(String reason) {
             this.reason = reason;
             return this;
         }
 
-        public SkipSectionBuilder skipIfYamlRunnerFeatureAbsent(String featureName) {
+        public PrerequisiteSectionBuilder requireYamlRunnerFeature(String featureName) {
             requiredYamlRunnerFeatures.add(featureName);
             return this;
         }
 
-        public SkipSectionBuilder skipIfXPackAbsent() {
+        public PrerequisiteSectionBuilder requireXPack() {
             if (xpackRequired == XPackRequired.NO) {
                 xpackRequired = XPackRequired.MISMATCHED;
             } else {
@@ -72,7 +72,7 @@ public class SkipSection {
             return this;
         }
 
-        public SkipSectionBuilder skipIfXPackPresent() {
+        public PrerequisiteSectionBuilder skipIfXPack() {
             if (xpackRequired == XPackRequired.YES) {
                 xpackRequired = XPackRequired.MISMATCHED;
             } else {
@@ -81,17 +81,17 @@ public class SkipSection {
             return this;
         }
 
-        public SkipSectionBuilder skipIfClusterFeaturesPresent(String featureName) {
+        public PrerequisiteSectionBuilder skipIfClusterFeature(String featureName) {
             forbiddenClusterFeatures.add(featureName);
             return this;
         }
 
-        public SkipSectionBuilder skipIfClusterFeaturesAbsent(String featureName) {
+        public PrerequisiteSectionBuilder requireClusterFeature(String featureName) {
             requiredClusterFeatures.add(featureName);
             return this;
         }
 
-        public SkipSectionBuilder skipOs(String osName) {
+        public PrerequisiteSectionBuilder skipIfOs(String osName) {
             this.operatingSystems.add(osName);
             return this;
         }
@@ -159,36 +159,39 @@ public class SkipSection {
      * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
      */
     public static SkipSection parseIfNext(XContentParser parser) throws IOException {
-        ParserUtils.advanceToFieldName(parser);
 
-        if ("skip".equals(parser.currentName())) {
-            SkipSection section = parse(parser);
-            parser.nextToken();
-            return section;
+        PrerequisiteSectionBuilder builder = new PrerequisiteSectionBuilder();
+        var insidePrerequisiteSection = true;
+        while (insidePrerequisiteSection) {
+            ParserUtils.advanceToFieldName(parser);
+            if ("skip".equals(parser.currentName())) {
+                parseSkipSection(parser, builder);
+                parser.nextToken();
+            } else if ("requires".equals(parser.currentName())) {
+                // parseRequireSection(parser, builder);
+            } else {
+                insidePrerequisiteSection = false;
+            }
         }
 
-        return EMPTY;
+        return builder.build();
     }
 
-    public static SkipSection parse(XContentParser parser) throws IOException {
-        return parseInternal(parser).build();
-    }
-
-    private static void parseFeature(String feature, SkipSectionBuilder builder) {
+    private static void parseFeatureField(String feature, PrerequisiteSectionBuilder builder) {
         // #31403 introduced YAML test "features" to indicate if the cluster being tested has xpack installed (`xpack`)
         // or if it does *not* have xpack installed (`no_xpack`). These are not test runner features, so now that we have
         // "modular" skip criteria let's separate them. Eventually, these should move to their own skip section.
         if (feature.equals("xpack")) {
-            builder.skipIfXPackAbsent();
+            builder.requireXPack();
         } else if (feature.equals("no_xpack")) {
-            builder.skipIfXPackPresent();
+            builder.skipIfXPack();
         } else {
-            builder.skipIfYamlRunnerFeatureAbsent(feature);
+            builder.requireYamlRunnerFeature(feature);
         }
     }
 
     // package private for tests
-    static SkipSectionBuilder parseInternal(XContentParser parser) throws IOException {
+    static void parseSkipSection(XContentParser parser, PrerequisiteSectionBuilder builder) throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException(
                 "Expected ["
@@ -201,24 +204,22 @@ public class SkipSection {
         String currentFieldName = null;
         XContentParser.Token token;
 
-        var builder = new SkipSectionBuilder();
-
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("version".equals(currentFieldName)) {
-                    builder.skipVersion(parser.text());
+                    builder.skipIfVersion(parser.text());
                 } else if ("reason".equals(currentFieldName)) {
-                    builder.setReason(parser.text());
+                    builder.setSkipReason(parser.text());
                 } else if ("features".equals(currentFieldName)) {
-                    parseFeature(parser.text(), builder);
+                    parseFeatureField(parser.text(), builder);
                 } else if ("os".equals(currentFieldName)) {
-                    builder.skipOs(parser.text());
+                    builder.skipIfOs(parser.text());
                 } else if ("cluster_features_present".equals(currentFieldName)) {
-                    builder.skipIfClusterFeaturesPresent(parser.text());
+                    builder.skipIfClusterFeature(parser.text());
                 } else if ("cluster_features_absent".equals(currentFieldName)) {
-                    builder.skipIfClusterFeaturesAbsent(parser.text());
+                    builder.requireClusterFeature(parser.text());
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -228,19 +229,19 @@ public class SkipSection {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("features".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        parseFeature(parser.text(), builder);
+                        parseFeatureField(parser.text(), builder);
                     }
                 } else if ("os".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        builder.skipOs(parser.text());
+                        builder.skipIfOs(parser.text());
                     }
                 } else if ("cluster_features_present".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        builder.skipIfClusterFeaturesPresent(parser.text());
+                        builder.skipIfClusterFeature(parser.text());
                     }
                 } else if ("cluster_features_absent".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        builder.skipIfClusterFeaturesAbsent(parser.text());
+                        builder.requireClusterFeature(parser.text());
                     }
                 }
             }
@@ -248,7 +249,6 @@ public class SkipSection {
 
         parser.nextToken();
         builder.validate(parser.getTokenLocation());
-        return builder;
     }
 
     public static final SkipSection EMPTY = new SkipSection();
@@ -286,7 +286,7 @@ public class SkipSection {
     }
 
     public boolean isEmpty() {
-        return EMPTY.equals(this);
+        return skipCriteriaList.isEmpty() && yamlRunnerFeatures.isEmpty();
     }
 
     public String getSkipMessage(String description) {

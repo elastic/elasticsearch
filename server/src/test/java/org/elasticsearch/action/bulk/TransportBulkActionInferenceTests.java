@@ -9,6 +9,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -43,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.verification.VerificationMode;
 
 import java.util.Collections;
 import java.util.List;
@@ -50,26 +52,32 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TransportBulkActionInferenceTests  extends ESTestCase {
+public class TransportBulkActionInferenceTests extends ESTestCase {
 
     public static final String INDEX_NAME = "index";
-    public static final String INFERENCE_FIELD = "inference_field";
-    public static final String MODEL_ID = "model_id";
+    public static final String INFERENCE_FIELD_1_MODEL_A = "inference_field_1_model_a";
+    public static final String MODEL_A_ID = "model_a_id";
+    private static final String INFERENCE_FIELD_2_MODEL_A = "inference_field_2_model_a";
+    public static final String MODEL_B_ID = "model_b_id";
+    private static final String INFERENCE_FIELD_MODEL_B = "inference_field_model_b";
     private TransportService transportService;
     private CapturingTransport capturingTransport;
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private NodeClient nodeClient;
     private TransportBulkAction transportBulkAction;
-
 
     @Before
     public void setup() {
@@ -87,11 +95,19 @@ public class TransportBulkActionInferenceTests  extends ESTestCase {
                     INDEX_NAME,
                     IndexMetadata.builder(INDEX_NAME)
                         .settings(settings(IndexVersion.current()))
-                        .fieldsForModels(Map.of(MODEL_ID, Set.of(INFERENCE_FIELD)))
+                        .fieldsForModels(
+                            Map.of(
+                                MODEL_A_ID,
+                                Set.of(INFERENCE_FIELD_1_MODEL_A, INFERENCE_FIELD_2_MODEL_A),
+                                MODEL_B_ID,
+                                Set.of(INFERENCE_FIELD_MODEL_B)
+                            )
+                        )
                         .numberOfShards(1)
                         .numberOfReplicas(1)
                         .build()
-            ))
+                )
+            )
             .build();
 
         DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
@@ -136,37 +152,78 @@ public class TransportBulkActionInferenceTests  extends ESTestCase {
         super.tearDown();
     }
 
+    public void testBulkRequestWithoutInference() {
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest = new IndexRequest(INDEX_NAME).id("id");
+        indexRequest.source("non_inference_field", "text", "another_non_inference_field", "other text");
+        bulkRequest.add(indexRequest);
+
+        expectTransportShardBulkActionRequest();
+
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ActionTestUtils.execute(transportBulkAction, null, bulkRequest, future);
+        BulkResponse response = future.actionGet();
+
+        assertEquals(1, response.getItems().length);
+        verifyInferenceExecuted(never());
+    }
 
     public void testBulkRequestWithInference() {
         BulkRequest bulkRequest = new BulkRequest();
         IndexRequest indexRequest = new IndexRequest(INDEX_NAME).id("id");
-        indexRequest.source(INFERENCE_FIELD, "some text");
+        String inferenceFieldText = "some text";
+        indexRequest.source(INFERENCE_FIELD_1_MODEL_A, inferenceFieldText, "non_inference_field", "other text");
         bulkRequest.add(indexRequest);
 
-        doAnswer(invocation -> {
+        expectInferenceRequest(Map.of(MODEL_A_ID, Set.of(inferenceFieldText)));
 
-            InferenceAction.Request request = (InferenceAction.Request) invocation.getArguments()[1];
-            assertThat(request.getModelId(), equalTo(MODEL_ID));
-            assertThat(request.getInput(), equalTo(List.of("some text")));
+        expectTransportShardBulkActionRequest();
 
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<InferenceAction.Response>) invocation.getArguments()[2];
-            listener.onResponse(
-            new InferenceAction.Response(
-                new SparseEmbeddingResults(
-                    List.of(
-                        new SparseEmbeddingResults.Embedding(
-                            List.of(
-                                new SparseEmbeddingResults.WeightedToken("some", 0.5f),
-                                new SparseEmbeddingResults.WeightedToken("text", 0.5f)
-                            ), false)
-                    )
-                )
-            ));
-            return Void.TYPE;
-        }
-        ).when(nodeClient).execute(eq(InferenceAction.INSTANCE), any(InferenceAction.Request.class), any());
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ActionTestUtils.execute(transportBulkAction, null, bulkRequest, future);
+        BulkResponse response = future.actionGet();
 
+        assertEquals(1, response.getItems().length);
+        verifyInferenceExecuted(times(1));
+    }
+
+    public void testBulkRequestWithMultipleFieldsInference() {
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest = new IndexRequest(INDEX_NAME).id("id");
+        String inferenceField1Text = "some text";
+        String inferenceField2Text = "some other text";
+        String inferenceField3Text = "more inference text";
+        indexRequest.source(
+            INFERENCE_FIELD_1_MODEL_A,
+            inferenceField1Text,
+            INFERENCE_FIELD_2_MODEL_A,
+            inferenceField2Text,
+            INFERENCE_FIELD_MODEL_B,
+            inferenceField3Text,
+            "non_inference_field",
+            "other text"
+        );
+        bulkRequest.add(indexRequest);
+
+        expectInferenceRequest(
+            Map.of(MODEL_A_ID, Set.of(inferenceField1Text, inferenceField2Text), MODEL_B_ID, Set.of(inferenceField3Text))
+        );
+
+        expectTransportShardBulkActionRequest();
+
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ActionTestUtils.execute(transportBulkAction, null, bulkRequest, future);
+        BulkResponse response = future.actionGet();
+
+        assertEquals(1, response.getItems().length);
+        verifyInferenceExecuted(times(2));
+    }
+
+    private void verifyInferenceExecuted(VerificationMode times) {
+        verify(nodeClient, times).execute(eq(InferenceAction.INSTANCE), any(InferenceAction.Request.class), any());
+    }
+
+    private void expectTransportShardBulkActionRequest() {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<BulkShardResponse>) invocation.getArguments()[2];
@@ -179,14 +236,36 @@ public class TransportBulkActionInferenceTests  extends ESTestCase {
             listener.onResponse(new BulkShardResponse(shardId, new BulkItemResponse[] { successResponse }));
             return null;
         }).when(nodeClient).executeLocally(eq(TransportShardBulkAction.TYPE), any(BulkShardRequest.class), any());
+    }
 
-        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        ActionTestUtils.execute(transportBulkAction, null, bulkRequest, future);
-        BulkResponse response = future.actionGet();
+    private void expectInferenceRequest(Map<String, Set<String>> modelsAndInferenceTextMap) {
+        doAnswer(invocation -> {
+            InferenceAction.Request request = (InferenceAction.Request) invocation.getArguments()[1];
+            Set<String> textsForModel = modelsAndInferenceTextMap.get(request.getModelId());
+            assertThat("model is not expected", textsForModel, notNullValue());
+            assertThat("unexpected inference field values", request.getInput(), containsInAnyOrder(textsForModel.toArray()));
 
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<InferenceAction.Response>) invocation.getArguments()[2];
+            listener.onResponse(
+                new InferenceAction.Response(
+                    new SparseEmbeddingResults(
+                        request.getInput().stream()
+                            .map(
+                                text -> new SparseEmbeddingResults.Embedding(
+                                    List.of(new SparseEmbeddingResults.WeightedToken(text.toString(), 1.0f)),
+                                    false
+                                )
+                            )
+                            .toList()
+                    )
+                )
+            );
+            return Void.TYPE;
+        }).when(nodeClient).execute(eq(InferenceAction.INSTANCE), argThat(r -> inferenceRequestMatches(r, modelsAndInferenceTextMap.keySet())), any());
+    }
 
-        assertEquals(1, response.getItems().length);
-        verify(nodeClient).execute(eq(InferenceAction.INSTANCE), any(InferenceAction.Request.class), any());
-
+    private boolean inferenceRequestMatches(ActionRequest request, Set<String> models) {
+        return request instanceof InferenceAction.Request && models.contains(((InferenceAction.Request) request).getModelId());
     }
 }

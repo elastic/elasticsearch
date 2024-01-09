@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.assignedShardsIn;
@@ -121,7 +122,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     public void beforeAllocation(RoutingAllocation allocation) {}
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
     @Override
     public void allocateUnassigned(

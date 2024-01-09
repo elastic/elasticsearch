@@ -200,7 +200,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 .put("status_interval", "0ms")
                 .build()
         );
-        return new EsqlQueryRequestBuilder(client()).query("from test | stats sum(pause_me)").pragmas(pragmas).execute();
+        return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
+            .query("from test | stats sum(pause_me)")
+            .pragmas(pragmas)
+            .execute();
     }
 
     private void cancelTask(TaskId taskId) {
@@ -279,7 +282,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     }
 
     private void assertCancelled(ActionFuture<EsqlQueryResponse> response) throws Exception {
-        Exception e = expectThrows(Exception.class, response::actionGet);
+        Exception e = expectThrows(Exception.class, response);
         Throwable cancelException = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
         assertNotNull(cancelException);
         /*

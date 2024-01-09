@@ -61,9 +61,11 @@ these functions:
 * <<esql-tanh>>
 * <<esql-tau>>
 * <<esql-to_boolean>>
+* <<esql-to_cartesianpoint>>
 * <<esql-to_datetime>>
 * <<esql-to_degrees>>
 * <<esql-to_double>>
+* <<esql-to_geopoint>>
 * <<esql-to_integer>>
 * <<esql-to_ip>>
 * <<esql-to_long>>

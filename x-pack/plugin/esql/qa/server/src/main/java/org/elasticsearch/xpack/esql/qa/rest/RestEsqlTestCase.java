@@ -71,6 +71,70 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static final List<String> NO_WARNINGS = List.of();
 
+    private static final String MAPPING_ALL_TYPES = """
+        {
+          "mappings": {
+            "properties" : {
+              "alias-integer": {
+                "type": "alias",
+                "path": "integer"
+              },
+              "boolean": {
+                "type": "boolean"
+              },
+              "byte" : {
+                "type" : "byte"
+              },
+              "constant_keyword-foo": {
+                "type": "constant_keyword",
+                "value": "foo"
+              },
+              "date": {
+                "type": "date"
+              },
+              "double": {
+                "type": "double"
+              },
+              "float": {
+                "type": "float"
+              },
+              "half_float": {
+                "type": "half_float"
+              },
+              "integer" : {
+                "type" : "integer"
+              },
+              "ip": {
+                "type": "ip"
+              },
+              "keyword" : {
+                "type" : "keyword"
+              },
+              "long": {
+                "type": "long"
+              },
+              "short": {
+                "type": "short"
+              },
+              "text" : {
+                "type" : "text"
+              },
+              "version": {
+                "type": "version"
+              },
+              "wildcard": {
+                "type": "wildcard"
+              }
+            }
+          }
+        }""";
+
+    private static final String DOCUMENT_TEMPLATE = """
+        {"index":{"_id":"%s"}}
+        {"boolean": %b, "byte": %s, "date": %s, "double": %f, "float": %f, "half_float": %f, "integer": %s, "ip": "127.0.0.%s",""" + """
+         "keyword": "keyword%s", "long": %s, "short": %s, "text": "text%s", "version": "1.2.%s", "wildcard": "wildcard%s"}
+        """;
+
     public static boolean shouldLog() {
         return false;
     }
@@ -307,6 +371,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Set<String> intLongDouble = Set.of("integer", "long", "double");
         Set<String> longDouble = Set.of("long", "double");
 
+        // TODO: Parametrize instead of using so much randomness
         String toIntLongOrDouble = "to_" + randomSubsetOf(1, intLongDouble).get(0);
         String toLongOrDouble = "to_" + randomSubsetOf(1, longDouble).get(0);
 
@@ -796,73 +861,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    private static final String MAPPING_ALL_TYPES = """
-        {
-          "mappings": {
-            "properties" : {
-              "alias-integer": {
-                "type": "alias",
-                "path": "integer"
-              },
-              "boolean": {
-                "type": "boolean"
-              },
-              "byte" : {
-                "type" : "byte"
-              },
-              "constant_keyword-foo": {
-                "type": "constant_keyword",
-                "value": "foo"
-              },
-              "date": {
-                "type": "date"
-              },
-              "double": {
-                "type": "double"
-              },
-              "float": {
-                "type": "float"
-              },
-              "half_float": {
-                "type": "half_float"
-              },
-              "integer" : {
-                "type" : "integer"
-              },
-              "ip": {
-                "type": "ip"
-              },
-              "keyword" : {
-                "type" : "keyword"
-              },
-              "long": {
-                "type": "long"
-              },
-              "short": {
-                "type": "short"
-              },
-              "text" : {
-                "type" : "text"
-              },
-              "version": {
-                "type": "version"
-              },
-              "wildcard": {
-                "type": "wildcard"
-              }
-            }
-          }
-        }""";
-
     private static String createDocument(int i) {
-        String docTemplate = """
-            {"index":{"_id":"%s"}}
-            {"boolean": %b, "byte": %s, "date": %s, "double": %f, "float": %f, "half_float": %f, "integer": %s, "ip": "127.0.0.%s",""" + """
-             "keyword": "keyword%s", "long": %s, "short": %s, "text": "text%s", "version": "1.2.%s", "wildcard": "wildcard%s"}
-            """;
-
         return org.elasticsearch.core.Strings.format(
-            docTemplate,
+            DOCUMENT_TEMPLATE,
             i,
             ((i & 1) == 0),
             (i % 256),

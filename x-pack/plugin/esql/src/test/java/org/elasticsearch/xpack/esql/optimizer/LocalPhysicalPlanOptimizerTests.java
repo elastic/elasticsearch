@@ -89,7 +89,6 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     private LogicalPlanOptimizer logicalOptimizer;
     private PhysicalPlanOptimizer physicalPlanOptimizer;
     private Mapper mapper;
-    private int allFieldRowSize;
 
     private final EsqlConfiguration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
@@ -179,6 +178,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         String op = randomBinaryComparisonOperatorSymbol();
 
         List<ImplicitCastCase> casts = List.of(
+            // TODO: Parametrize instead of using so much randomness
             // Exact numerical types
             // Bytes/Shorts are treated as ints by Lucene, so out of range = out of int range
             new ImplicitCastCase("byte", toLongOrDouble() + "(" + sign + "1000000000000)"),
@@ -219,6 +219,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
         List<ImplicitCastCase> casts = List.of(
             // Exact numerical types
+            // TODO: Parametrize instead of using so much randomness
             new ImplicitCastCase("byte", toIntLongOrDouble() + "(2147483647)"),
             new ImplicitCastCase("byte", toIntLongOrDouble() + "(-2147483648)"),
             new ImplicitCastCase("short", toIntLongOrDouble() + "(2147483647)"),

@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -79,8 +80,9 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             // Make sure we sometimes have a few segments
             try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
                 for (int j = 0; j < numberOfDocsPerRefresh; j++) {
-                    bulkRequestBuilder.add(
-                        prepareIndex("test").setOpType(DocWriteRequest.OpType.CREATE)
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex("test");
+                    try {
+                        indexRequestBuilder.setOpType(DocWriteRequest.OpType.CREATE)
                             .setSource(
                                 "@timestamp",
                                 now + (long) i * numberOfDocsPerRefresh + j,
@@ -88,8 +90,11 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                                 (double) j,
                                 "dim",
                                 String.valueOf(j % 100)
-                            )
-                    );
+                            );
+                        bulkRequestBuilder.add(indexRequestBuilder);
+                    } finally {
+                        indexRequestBuilder.request().decRef();
+                    }
                 }
                 assertNoFailures(bulkRequestBuilder.get());
             }

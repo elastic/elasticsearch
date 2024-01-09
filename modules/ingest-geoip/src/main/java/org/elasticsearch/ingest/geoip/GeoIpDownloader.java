@@ -225,10 +225,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         MessageDigest md = MessageDigests.md5();
         for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
             md.update(buf);
-            IndexRequest indexRequest = new IndexRequest(DATABASES_INDEX).id(name + "_" + chunk + "_" + timestamp)
-                .create(true)
-                .source(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf);
-            client.index(indexRequest).actionGet();
+            IndexRequest indexRequest = new IndexRequest(DATABASES_INDEX);
+            try {
+                indexRequest.id(name + "_" + chunk + "_" + timestamp)
+                    .create(true)
+                    .source(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf);
+                client.index(indexRequest).actionGet();
+            } finally {
+                indexRequest.decRef();
+            }
             chunk++;
         }
 

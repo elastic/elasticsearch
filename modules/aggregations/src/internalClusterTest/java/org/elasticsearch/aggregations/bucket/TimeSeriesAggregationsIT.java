@@ -19,6 +19,7 @@ import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -174,6 +175,9 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
             docs.add(prepareIndex("index" + findIndex(timestamp)).setOpType(DocWriteRequest.OpType.CREATE).setSource(docSource));
         }
         indexRandom(true, false, docs);
+        for (IndexRequestBuilder doc : docs) {
+            doc.request().decRef();
+        }
     }
 
     public void testStandAloneTimeSeriesAgg() {
@@ -508,12 +512,22 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
                 .add(prepareIndex("test").setId("1").setSource("key", "bar", "val", 10, "@timestamp", "2021-01-01T00:00:00Z"))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
+            for (DocWriteRequest<?> request : bulkRequestBuilder.request().requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
         }
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("key", "bar", "val", 50, "@timestamp", "2021-01-01T00:00:30Z"))
                 .add(prepareIndex("test").setId("3").setSource("key", "bar", "val", 40, "@timestamp", "2021-01-01T00:00:20Z"))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
+            for (DocWriteRequest<?> request : bulkRequestBuilder.request().requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
         }
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             bulkRequestBuilder.add(prepareIndex("test").setId("7").setSource("key", "foo", "val", 20, "@timestamp", "2021-01-01T00:00:00Z"))
@@ -522,6 +536,11 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
                 .add(prepareIndex("test").setId("6").setSource("key", "baz", "val", 30, "@timestamp", "2021-01-01T00:10:00Z"))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
+            for (DocWriteRequest<?> request : bulkRequestBuilder.request().requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
         }
 
         QueryBuilder queryBuilder = QueryBuilders.rangeQuery("@timestamp").lte("2021-01-01T00:10:00Z");

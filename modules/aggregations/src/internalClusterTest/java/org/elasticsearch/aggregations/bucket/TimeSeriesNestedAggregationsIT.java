@@ -12,6 +12,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
@@ -67,7 +68,12 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         try (BulkRequestBuilder bulkIndexRequest = client().prepareBulk()) {
             for (int docId = 0; docId < numberOfDocuments; docId++) {
                 final XContentBuilder document = timeSeriesDocument(FOO_DIM_VALUE, BAR_DIM_VALUE, BAZ_DIM_VALUE, docId, timestamps::next);
-                bulkIndexRequest.add(prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("index");
+                try {
+                    bulkIndexRequest.add(indexRequestBuilder.setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
+                } finally {
+                    indexRequestBuilder.request().decRef();
+                }
             }
 
             final BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

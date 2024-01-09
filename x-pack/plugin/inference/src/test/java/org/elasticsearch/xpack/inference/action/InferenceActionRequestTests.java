@@ -76,7 +76,7 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected InferenceAction.Request mutateInstance(InferenceAction.Request instance) throws IOException {
-        int select = randomIntBetween(0, 3);
+        int select = randomIntBetween(0, 4);
         return switch (select) {
             case 0 -> {
                 var nextTask = TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length];
@@ -132,9 +132,7 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
                     nextInputType
                 );
             }
-            default -> {
-                throw new UnsupportedOperationException();
-            }
+            default -> throw new UnsupportedOperationException();
         };
     }
 }

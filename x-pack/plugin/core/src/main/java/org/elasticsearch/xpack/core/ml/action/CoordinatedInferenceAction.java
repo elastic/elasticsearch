@@ -99,7 +99,8 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         // DFA models only
         private final List<Map<String, Object>> objectsToInfer;
 
-        private Request(
+        // default for testing
+        Request(
             String modelId,
             @Nullable List<String> inputs,
             @Nullable Map<String, Object> taskSettings,

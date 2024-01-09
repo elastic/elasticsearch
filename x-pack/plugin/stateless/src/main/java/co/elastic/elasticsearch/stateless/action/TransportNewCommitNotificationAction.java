@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,6 +38,8 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -47,6 +50,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     NewCommitNotificationRequest,
     NewCommitNotificationResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportNewCommitNotificationAction.class);
     public static final String NAME = "internal:admin/" + Stateless.NAME + "/search/new/commit";
     public static final ActionType<NewCommitNotificationResponse> TYPE = new ActionType<>(NAME, NewCommitNotificationResponse::new);
 
@@ -79,44 +83,62 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     protected void unpromotableShardOperation(
         Task task,
         NewCommitNotificationRequest request,
-        ActionListener<NewCommitNotificationResponse> responseListener
+        ActionListener<NewCommitNotificationResponse> listener
     ) {
-        ActionListener.run(responseListener, (listener) -> {
-            if (logger.isTraceEnabled()) {
-                logger.trace("received new commit notification request [{}]", request);
-            } else {
-                logger.debug(
-                    "received new commit notification request for shard [{}], term [{}], generation [{}]",
-                    request.shardId(),
-                    request.getTerm(),
-                    request.getGeneration()
-                );
-            }
-            IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-            shard.waitForEngineOrClosedShard(listener.delegateFailureAndWrap((l, ignored) -> {
+        if (logger.isTraceEnabled()) {
+            logger.trace("received new commit notification request [{}]", request);
+        } else {
+            logger.debug(
+                "received new commit notification request for shard [{}], term [{}], generation [{}]",
+                request.shardId(),
+                request.getTerm(),
+                request.getGeneration()
+            );
+        }
+
+        final IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
+
+        SubscribableListener
+
+            // Step 1: wait to ensure the shard is no longer in the process of starting up: when this step completes the shard either now
+            // has an engine, or it closed without ever creating an engine.
+            .newForked(shard::waitForEngineOrClosedShard)
+
+            // Step 2: grab the shard's SearchEngine engine, failing if the engine is absent or closed instead
+            .andThenApply(ignored -> {
                 if (shard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE) {
-                    l.onFailure(new IndexClosedException(request.shardId().getIndex()));
-                    return;
+                    throw new IndexClosedException(request.shardId().getIndex());
                 }
-                Engine engineOrNull = shard.getEngineOrNull();
+
+                final Engine engineOrNull = shard.getEngineOrNull();
                 if (engineOrNull == null) {
                     throw new EngineException(shard.shardId(), "Engine not started.");
                 }
+
                 if (engineOrNull instanceof SearchEngine searchEngine) {
-                    searchEngine.onCommitNotification(
-                        request.getCompoundCommit(),
-                        l.delegateFailure((dl, v) -> ActionListener.completeWith(dl, () -> {
-                            shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
-                            shardSizeCollector.collectShardSize(shard.shardId());
-                            return new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations());
-                        }))
-                    );
+                    return searchEngine;
                 } else {
-                    assert false : "expecting SearchEngine but got " + engineOrNull;
-                    throw new ElasticsearchException("Engine not type SearchEngine.");
+                    final var exception = new ElasticsearchException("expecting SearchEngine but got " + engineOrNull);
+                    logger.error("unexpected", exception);
+                    assert false : exception;
+                    throw exception;
                 }
-            }));
-        });
+            })
+
+            // Step 3: notify the engine of the new commit, and wait for it to finish processing this notification
+            .<SearchEngine>andThen(
+                (l, searchEngine) -> searchEngine.onCommitNotification(request.getCompoundCommit(), l.map(v -> searchEngine))
+            )
+
+            // Step 4: update the things that need updating, and compute the final response containing the commits that are still in use
+            .<NewCommitNotificationResponse>andThen((l, searchEngine) -> {
+                shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
+                shardSizeCollector.collectShardSize(shard.shardId());
+                l.onResponse(new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations()));
+            })
+
+            // Step 5: send the response back to the primary
+            .addListener(listener);
     }
 
     @Override

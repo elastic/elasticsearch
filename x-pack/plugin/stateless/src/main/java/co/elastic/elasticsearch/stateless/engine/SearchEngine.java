@@ -199,6 +199,10 @@ public class SearchEngine extends Engine {
         return openReaders.values().stream().map(OpenReaderInfo::primaryTermAndGeneration).collect(Collectors.toSet());
     }
 
+    /**
+     * Process a new commit notification from the primary, and complete the provided {@code listener} when this commit (or a later commit)
+     * is visible to searches.
+     */
     public void onCommitNotification(StatelessCompoundCommit commit, ActionListener<Void> listener) {
         if (addOrExecuteSegmentGenerationListener(commit.primaryTermAndGeneration(), listener.map(g -> null))) {
             commitNotifications.add(commit);

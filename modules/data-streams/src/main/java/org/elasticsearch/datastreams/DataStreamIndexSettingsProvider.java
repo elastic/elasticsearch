@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.PassthroughObjectMapper;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -167,9 +167,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 extractPath(routingPaths, fieldMapper);
             }
             for (var objectMapper : mapperService.documentMapper().mappers().objectMappers().values()) {
-                if (objectMapper instanceof PassthroughObjectMapper passthroughObjectMapper) {
-                    if (passthroughObjectMapper.containsDimensions()) {
-                        routingPaths.add(passthroughObjectMapper.fullPath() + ".*");
+                if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+                    if (passThroughObjectMapper.containsDimensions()) {
+                        routingPaths.add(passThroughObjectMapper.fullPath() + ".*");
                     }
                 }
             }

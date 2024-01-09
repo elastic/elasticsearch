@@ -540,8 +540,8 @@ public abstract class DocumentParserContext {
         }
         boolean containsDimensions = false;
         ObjectMapper objectMapper = mappingLookup.objectMappers().get(p);
-        if (objectMapper instanceof PassthroughObjectMapper passthroughObjectMapper) {
-            containsDimensions = passthroughObjectMapper.containsDimensions();
+        if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+            containsDimensions = passThroughObjectMapper.containsDimensions();
         }
         return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false, containsDimensions);
     }

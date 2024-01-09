@@ -20,8 +20,8 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
-public class PassThroughObjectMapper extends ObjectMapper {
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PassThroughObjectMapper.class);
+public class PassthroughObjectMapper extends ObjectMapper {
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PassthroughObjectMapper.class);
 
     public static final String CONTENT_TYPE = "passthrough";
 
@@ -34,7 +34,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public PassThroughObjectMapper.Builder add(Mapper.Builder builder) {
+        public PassthroughObjectMapper.Builder add(Mapper.Builder builder) {
             if (containsDimensions.value() && builder instanceof KeywordFieldMapper.Builder keywordBuilder) {
                 keywordBuilder.dimension(true);
             }
@@ -43,8 +43,8 @@ public class PassThroughObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public PassThroughObjectMapper build(MapperBuilderContext context) {
-            return new PassThroughObjectMapper(
+        public PassthroughObjectMapper build(MapperBuilderContext context) {
+            return new PassthroughObjectMapper(
                 name,
                 enabled,
                 subobjects,
@@ -57,7 +57,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
     private final Explicit<Boolean> containsDimensions;
 
-    PassThroughObjectMapper(
+    PassthroughObjectMapper(
         String name,
         Explicit<Boolean> enabled,
         Explicit<Boolean> subobjects,
@@ -74,23 +74,23 @@ public class PassThroughObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public PassThroughObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(name());
+    public PassthroughObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
+        PassthroughObjectMapper.Builder builder = new PassthroughObjectMapper.Builder(name());
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
     }
 
     @Override
-    public PassThroughObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+    public PassthroughObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
         final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
-        PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
+        PassthroughObjectMapper mergeWithObject = (PassthroughObjectMapper) mergeWith;
 
         final Explicit<Boolean> containsDimensions = (mergeWithObject.containsDimensions.explicit())
             ? mergeWithObject.containsDimensions
             : this.containsDimensions;
 
-        return new PassThroughObjectMapper(
+        return new PassthroughObjectMapper(
             simpleName(),
             mergeResult.enabled(),
             mergeResult.subObjects(),
@@ -121,14 +121,14 @@ public class PassThroughObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            PassThroughObjectMapper.Builder builder = new Builder(name);
+            PassthroughObjectMapper.Builder builder = new Builder(name);
 
             parsePassthrough(name, node, builder);
             parseObjectFields(node, parserContext, builder);
             return builder;
         }
 
-        protected static void parsePassthrough(String name, Map<String, Object> node, PassThroughObjectMapper.Builder builder) {
+        protected static void parsePassthrough(String name, Map<String, Object> node, PassthroughObjectMapper.Builder builder) {
             Object fieldNode = node.get(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM);
             if (fieldNode != null) {
                 builder.containsDimensions = Explicit.explicitBoolean(

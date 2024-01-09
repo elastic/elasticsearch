@@ -110,21 +110,13 @@ public class RootObjectMapper extends ObjectMapper {
             Map<String, Mapper> aliasMappers = new HashMap<>();
             for (Mapper mapper : mappers.values()) {
                 // Create aliases for all fields in child passthrough mappers and place them under the root object.
-                if (mapper instanceof PassthroughObjectMapper passthroughMapper) {
+                if (mapper instanceof PassThroughObjectMapper passthroughMapper) {
                     for (Mapper internalMapper : passthroughMapper.mappers.values()) {
                         if (internalMapper instanceof FieldMapper fieldMapper) {
-                            Mapper conflict = mappers.get(fieldMapper.simpleName());
-                            if (conflict != null) {
-                                if (conflict.typeName().equals(FieldAliasMapper.CONTENT_TYPE) == false) {
-                                    throw new IllegalArgumentException(
-                                        "field ["
-                                            + fieldMapper.simpleName()
-                                            + "] in object ["
-                                            + passthroughMapper.name()
-                                            + "] with [type=passthrough] conflicts with a field at the root level"
-                                    );
-                                }
-                            } else {
+                            // If there's a conflicting alias with the same name at the root level, we don't want to throw an error
+                            // to avoid indexing disruption.
+                            // TODO: record an error without affecting document indexing, so that it can be investigated later.
+                            if (mappers.containsKey(fieldMapper.simpleName()) == false) {
                                 FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
                                     fieldMapper.mappedFieldType.name()
                                 ).build(context);

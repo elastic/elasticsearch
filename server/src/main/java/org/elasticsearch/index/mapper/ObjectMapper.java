@@ -313,7 +313,7 @@ public class ObjectMapper extends Mapper {
                                 + "] which does not support subobjects"
                         );
                     }
-                    if (objBuilder.subobjects.value() == false && type.equals(PassthroughObjectMapper.CONTENT_TYPE)) {
+                    if (objBuilder.subobjects.value() == false && type.equals(PassThroughObjectMapper.CONTENT_TYPE)) {
                         throw new MapperParsingException(
                             "Tried to add passthrough subobject ["
                                 + fieldName

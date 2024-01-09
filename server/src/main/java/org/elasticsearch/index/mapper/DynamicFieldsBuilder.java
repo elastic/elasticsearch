@@ -307,10 +307,15 @@ final class DynamicFieldsBuilder {
             this.parseField = parseField;
         }
 
-        void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(context.createDynamicMapperBuilderContext());
-            context.addDynamicMapper(mapper.name(), builder);
+        void createDynamicField(Mapper.Builder builder, DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
+            throws IOException {
+            Mapper mapper = builder.build(mapperBuilderContext);
+            context.addDynamicMapper(mapper);
             parseField.accept(context, mapper);
+        }
+
+        void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
+            createDynamicField(builder, context, context.createDynamicMapperBuilderContext());
         }
 
         @Override

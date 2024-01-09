@@ -6,10 +6,10 @@ experimental[]
 
 Creates a model to perform an {infer} task.
 
-IMPORTANT: The {infer} service the following APIs provide enable you to use 
-certain services, such as ELSER or OpenAI, in your cluster. This is not the 
-same feature that you can use on an ML node with custom {ml} models. If you want 
-to train and use your own model, use the <<ml-df-trained-models-apis>>.
+IMPORTANT: The {infer} APIs enable you to use certain services, such as ELSER, 
+OpenAI, or Hugging Face, in your cluster. This is not the same feature that you 
+can use on an ML node with custom {ml} models. If you want to train and use your 
+own model, use the <<ml-df-trained-models-apis>>.
 
 
 [discrete]

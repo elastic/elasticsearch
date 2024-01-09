@@ -145,9 +145,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     public void testMissingSubfields() throws IOException {
         final String fieldName = randomAlphaOfLengthBetween(5, 15);
 
-        DocumentMapper documentMapper = createDocumentMapper(
-            mapping(b -> addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8)))
-        );
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8))));
 
         {
             DocumentParsingException ex = expectThrows(
@@ -230,9 +228,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             generateSemanticTextinferenceResults(fieldName, List.of("a b"))
         );
 
-        DocumentMapper documentMapper = createDocumentMapper(
-            mapping(b -> addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8)))
-        );
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8))));
 
         Consumer<ParsedDocument> checkParsedDocument = d -> {
             Set<VisitedChildDocInfo> visitedChildDocs = new HashSet<>();
@@ -302,15 +298,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             extraSubfields.put("extra_key", null);
 
             ParsedDocument doc = documentMapper.parse(
-                source(
-                    b -> addSemanticTextInferenceResults(
-                        b,
-                        semanticTextInferenceResultsList,
-                        true,
-                        true,
-                        extraSubfields
-                    )
-                )
+                source(b -> addSemanticTextInferenceResults(b, semanticTextInferenceResultsList, true, true, extraSubfields))
             );
 
             checkParsedDocument.accept(doc);

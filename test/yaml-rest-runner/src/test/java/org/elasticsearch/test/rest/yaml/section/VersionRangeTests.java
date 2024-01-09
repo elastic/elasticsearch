@@ -15,6 +15,8 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Set;
 
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -156,7 +158,7 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
 
-        assertTrue(versionRange.get(0).test(Set.of(randomAlphaOfLength(10))));
+        assertThat(versionRange.get(0), trueWith(Set.of(randomAlphaOfLength(10))));
     }
 
     public void testMatchCurrent() {
@@ -164,9 +166,9 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
 
-        assertFalse(versionRange.get(0).test(Set.of(randomAlphaOfLength(10))));
-        assertTrue(versionRange.get(0).test(Set.of(Build.current().version())));
-        assertFalse(versionRange.get(0).test(Set.of(Build.current().version(), "8.10.0")));
+        assertThat(versionRange.get(0), falseWith(Set.of(randomAlphaOfLength(10))));
+        assertThat(versionRange.get(0), trueWith(Set.of(Build.current().version())));
+        assertThat(versionRange.get(0), falseWith(Set.of(Build.current().version(), "8.10.0")));
     }
 
     public void testMatchNonCurrent() {
@@ -174,9 +176,9 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
 
-        assertTrue(versionRange.get(0).test(Set.of(randomAlphaOfLength(10))));
-        assertFalse(versionRange.get(0).test(Set.of(Build.current().version())));
-        assertTrue(versionRange.get(0).test(Set.of(Build.current().version(), "8.10.0")));
+        assertThat(versionRange.get(0), trueWith(Set.of(randomAlphaOfLength(10))));
+        assertThat(versionRange.get(0), falseWith(Set.of(Build.current().version())));
+        assertThat(versionRange.get(0), trueWith(Set.of(Build.current().version(), "8.10.0")));
     }
 
     public void testMatchMixed() {
@@ -184,9 +186,9 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
 
-        assertFalse(versionRange.get(0).test(Set.of(randomAlphaOfLength(10))));
-        assertFalse(versionRange.get(0).test(Set.of(Build.current().version())));
-        assertTrue(versionRange.get(0).test(Set.of(Build.current().version(), "8.10.0")));
-        assertTrue(versionRange.get(0).test(Set.of("8.9.0", "8.10.0")));
+        assertThat(versionRange.get(0), falseWith(Set.of(randomAlphaOfLength(10))));
+        assertThat(versionRange.get(0), falseWith(Set.of(Build.current().version())));
+        assertThat(versionRange.get(0), trueWith(Set.of(Build.current().version(), "8.10.0")));
+        assertThat(versionRange.get(0), trueWith(Set.of("8.9.0", "8.10.0")));
     }
 }

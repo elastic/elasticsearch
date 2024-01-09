@@ -9,11 +9,11 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.VersionId;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -29,10 +29,15 @@ class VersionRange {
 
     static final Predicate<Set<String>> CURRENT = versions -> versions.size() == 1 && versions.contains(Build.current().version());
 
-    static final Predicate<Set<String>> NON_CURRENT = versions -> CURRENT.test(versions) == false;
+    static final Predicate<Set<String>> NON_CURRENT = CURRENT.negate();
 
     static final Predicate<Set<String>> MIXED = versions -> versions.size() > 1;
 
+    /**
+     * Encapsulates the logic to test a set of node versions ({@code Predicate<Set<String>>}) against a version range.
+     * The minimum node version must be included in the range between {@link MinimumContainedInVersionRange#lower} and
+     * {@link MinimumContainedInVersionRange#upper}, both ends included.
+     */
     static class MinimumContainedInVersionRange implements Predicate<Set<String>> {
         final Version lower;
         final Version upper;
@@ -48,7 +53,7 @@ class VersionRange {
             var minimumNodeVersion = nodesVersions.stream()
                 .map(ESRestTestCase::parseLegacyVersion)
                 .flatMap(Optional::stream)
-                .min(VersionId::compareTo)
+                .min(Comparator.naturalOrder())
                 .orElseThrow(() -> new IllegalArgumentException("Checks against a version range require semantic version format (x.y.z)"));
             return minimumNodeVersion.onOrAfter(lower) && minimumNodeVersion.onOrBefore(upper);
         }

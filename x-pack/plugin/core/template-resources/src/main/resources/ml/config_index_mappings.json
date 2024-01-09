@@ -376,6 +376,9 @@
           }
         }
       },
+      "esql_query": {
+        "type": "keyword"
+      },
       "finished_time" : {
         "type" : "date"
       },

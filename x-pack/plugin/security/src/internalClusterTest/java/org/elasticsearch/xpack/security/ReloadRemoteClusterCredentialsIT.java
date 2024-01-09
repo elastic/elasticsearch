@@ -36,7 +36,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
@@ -246,7 +245,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                     capturedHeaders.add(Map.copyOf(threadPool.getThreadContext().getHeaders()));
                     channel.sendResponse(
                         new SearchResponse(
-                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                             InternalAggregations.EMPTY,
                             null,
                             false,
@@ -280,31 +279,36 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
 
-        final var request = new NodesReloadSecureSettingsRequest(Strings.EMPTY_ARRAY);
-        request.setSecureStorePassword(emptyPassword);
-        client().execute(TransportNodesReloadSecureSettingsAction.TYPE, request, new ActionListener<>() {
-            @Override
-            public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                try {
-                    assertThat(nodesReloadResponse, notNullValue());
-                    final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
-                    assertThat(nodesMap.size(), equalTo(1));
-                    for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
-                        assertThat(nodeResponse.reloadException(), nullValue());
+        final var request = new NodesReloadSecureSettingsRequest();
+        try {
+            request.nodesIds(Strings.EMPTY_ARRAY);
+            request.setSecureStorePassword(emptyPassword);
+            client().execute(TransportNodesReloadSecureSettingsAction.TYPE, request, new ActionListener<>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    try {
+                        assertThat(nodesReloadResponse, notNullValue());
+                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                        assertThat(nodesMap.size(), equalTo(1));
+                        for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
+                            assertThat(nodeResponse.reloadException(), nullValue());
+                        }
+                    } catch (final AssertionError e) {
+                        reloadSettingsError.set(e);
+                    } finally {
+                        latch.countDown();
                     }
-                } catch (final AssertionError e) {
-                    reloadSettingsError.set(e);
-                } finally {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
                     latch.countDown();
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                reloadSettingsError.set(new AssertionError("Nodes request failed", e));
-                latch.countDown();
-            }
-        });
+            });
+        } finally {
+            request.decRef();
+        }
         safeAwait(latch);
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();

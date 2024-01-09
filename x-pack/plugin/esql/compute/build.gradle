@@ -30,12 +30,13 @@ spotless {
   }
 }
 
-def prop(Type, type, TYPE, BYTES) {
+def prop(Type, type, TYPE, BYTES, Array) {
   return [
     "Type" : Type,
     "type" : type,
     "TYPE" : TYPE,
     "BYTES" : BYTES,
+    "Array" : Array,
 
     "int" : type == "int" ? "true" : "",
     "long" : type == "long" ? "true" : "",
@@ -46,11 +47,11 @@ def prop(Type, type, TYPE, BYTES) {
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES")
-  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES")
-  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF")
-  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES")
+  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES", "IntArray")
+  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES", "LongArray")
+  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
+  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {

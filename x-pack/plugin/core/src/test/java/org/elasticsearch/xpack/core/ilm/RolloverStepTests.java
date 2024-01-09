@@ -152,7 +152,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
             assertRolloverIndexRequest(request, rolloverTarget);
-            listener.onResponse(new RolloverResponse(null, null, Collections.emptyMap(), request.isDryRun(), true, true, true));
+            listener.onResponse(new RolloverResponse(null, null, Collections.emptyMap(), request.isDryRun(), true, true, true, false));
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
     }

@@ -21,7 +21,7 @@ import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.mockito.ArgumentMatcher;
 
 import static java.util.Collections.emptyMap;
@@ -47,7 +47,7 @@ public class TransportStopILMActionTests extends ESTestCase {
         Task task = new Task(
             randomLong(),
             "transport",
-            StopILMAction.NAME,
+            ILMActions.STOP.name(),
             "description",
             new TaskId(randomLong() + ":" + randomLong()),
             emptyMap()

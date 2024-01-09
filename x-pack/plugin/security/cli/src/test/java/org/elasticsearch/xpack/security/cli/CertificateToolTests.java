@@ -900,6 +900,7 @@ public class CertificateToolTests extends ESTestCase {
 
         final Path ca1zip = tempDir.resolve("ca1.zip");
         final String ca1Password = generateCA(ca1zip, terminal, env, true);
+        terminal.reset();
         final Path ca2zip = tempDir.resolve("ca2.zip");
         final String ca2Password = generateCA(ca2zip, terminal, env, true);
 

@@ -21,7 +21,6 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;

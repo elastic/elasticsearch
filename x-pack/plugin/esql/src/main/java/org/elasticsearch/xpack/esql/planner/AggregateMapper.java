@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsolute
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -44,9 +45,13 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+
 public class AggregateMapper {
 
     static final List<String> NUMERIC = List.of("Int", "Long", "Double");
+    static final List<String> SPATIAL = List.of("GeoPoint", "CartesianPoint");
 
     /** List of all ESQL agg functions. */
     static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
@@ -57,6 +62,7 @@ public class AggregateMapper {
         MedianAbsoluteDeviation.class,
         Min.class,
         Percentile.class,
+        SpatialCentroid.class,
         Sum.class
     );
 
@@ -137,6 +143,8 @@ public class AggregateMapper {
             types = NUMERIC;
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
+        } else if (clazz == SpatialCentroid.class) {
+            types = SPATIAL;
         } else {
             assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();
@@ -227,6 +235,10 @@ public class AggregateMapper {
             return "Double";
         } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP) || type.equals(DataTypes.TEXT)) {
             return "BytesRef";
+        } else if (type.equals(GEO_POINT)) {
+            return "GeoPoint";
+        } else if (type.equals(CARTESIAN_POINT)) {
+            return "CartesianPoint";
         } else {
             throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
         }

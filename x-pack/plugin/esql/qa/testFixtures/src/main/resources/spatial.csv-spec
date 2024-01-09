@@ -31,6 +31,15 @@ wkt:keyword                                                                     
 ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
 ;
 
+centroidFromLong#[skip:-8.12.99, reason:st_centroid added in 8.13]
+row long = [1512146573982606908, 2329183180959557901]
+| eval pt = to_geopoint(long)
+| stats c = st_centroid(pt);
+
+c:geo_point
+POINT(59.39019390126475 18.741501267068088)
+;
+
 simpleLoad#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
 FROM airports | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
 
@@ -126,6 +135,15 @@ row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
 
 wkt:keyword                                                                           |pt:cartesian_point
 ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
+;
+
+centroidFromCartesianLong#[skip:-8.12.99, reason:st_centroid added in 8.13]
+row long = [5009771769843126025, 5038656556796611666]
+| eval pt = to_cartesianpoint(long)
+| stats c = st_centroid(pt);
+
+c:cartesian_point
+POINT(5939.02001953125 398.61999511718)
 ;
 
 simpleCartesianLoad#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.versionfield;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -17,6 +19,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
@@ -41,12 +44,12 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "11.1.0").endObject()).get();
-        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.0.0").endObject()).get();
-        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject()).get();
-        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject()).get();
-        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        prepareIndex(indexName).setId("6").setSource(jsonBuilder().startObject().field("version", "21.11.0").endObject()).get();
+        index(indexName, "1", jsonBuilder().startObject().field("version", "11.1.0").endObject());
+        index(indexName, "2", jsonBuilder().startObject().field("version", "1.0.0").endObject());
+        index(indexName, "3", jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject());
+        index(indexName, "4", jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject());
+        index(indexName, "5", jsonBuilder().startObject().field("version", "2.1.0").endObject());
+        index(indexName, "6", jsonBuilder().startObject().field("version", "21.11.0").endObject());
         client().admin().indices().prepareRefresh(indexName).get();
         return indexName;
     }
@@ -126,8 +129,8 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
     public void testSort() throws IOException {
         String indexName = setUpIndex("test");
         // also adding some invalid versions that should be sorted after legal ones
-        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.2.3alpha").endObject()).get();
-        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.3.567#12").endObject()).get();
+        index(indexName, jsonBuilder().startObject().field("version", "1.2.3alpha").endObject());
+        index(indexName, jsonBuilder().startObject().field("version", "1.3.567#12").endObject());
         client().admin().indices().prepareRefresh(indexName).get();
 
         // sort based on version field
@@ -169,13 +172,11 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        prepareIndex(indexName).setId("1")
-            .setSource(jsonBuilder().startObject().field("version", "1.0.0alpha2.1.0-rc.1").endObject())
-            .get();
-        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject()).get();
-        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject()).get();
-        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.33.0").endObject()).get();
+        index(indexName, "1", jsonBuilder().startObject().field("version", "1.0.0alpha2.1.0-rc.1").endObject());
+        index(indexName, "2", jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject());
+        index(indexName, "3", jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject());
+        index(indexName, "4", jsonBuilder().startObject().field("version", "2.1.0").endObject());
+        index(indexName, "5", jsonBuilder().startObject().field("version", "2.33.0").endObject());
         client().admin().indices().prepareRefresh(indexName).get();
 
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "2.*0")), response -> {
@@ -223,14 +224,12 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        prepareIndex(indexName).setId("1")
-            .setSource(jsonBuilder().startObject().field("version", "1.0.0-alpha.2.1.0-rc.1").endObject())
-            .get();
-        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject()).get();
-        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject()).get();
-        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.33.0").endObject()).get();
-        prepareIndex(indexName).setId("6").setSource(jsonBuilder().startObject().field("version", "2.a3.0").endObject()).get();
+        index(indexName, "1", jsonBuilder().startObject().field("version", "1.0.0-alpha.2.1.0-rc.1").endObject());
+        index(indexName, "2", jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject());
+        index(indexName, "3", jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject());
+        index(indexName, "4", jsonBuilder().startObject().field("version", "2.1.0").endObject());
+        index(indexName, "5", jsonBuilder().startObject().field("version", "2.33.0").endObject());
+        index(indexName, "6", jsonBuilder().startObject().field("version", "2.a3.0").endObject());
         client().admin().indices().prepareRefresh(indexName).get();
 
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.fuzzyQuery("version", "2.3.0")), response -> {
@@ -264,7 +263,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
             "3.1.1+b",
             "3.1.123"
         )) {
-            prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", version).endObject()).get();
+            index(indexName, jsonBuilder().startObject().field("version", version).endObject());
         }
         client().admin().indices().prepareRefresh(indexName).get();
 
@@ -314,10 +313,10 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.invalid.0").endObject()).get();
-        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "2.2.0").endObject()).get();
-        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.2.0-badchar!").endObject()).get();
-        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "").endObject()).get();
+        index(indexName, "1", jsonBuilder().startObject().field("version", "1.invalid.0").endObject());
+        index(indexName, "2", jsonBuilder().startObject().field("version", "2.2.0").endObject());
+        index(indexName, "3", jsonBuilder().startObject().field("version", "2.2.0-badchar!").endObject());
+        index(indexName, "4", jsonBuilder().startObject().field("version", "").endObject());
         client().admin().indices().prepareRefresh(indexName).get();
 
         assertResponse(client().prepareSearch(indexName).addDocValueField("version"), response -> {
@@ -381,11 +380,11 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0").endObject()).get();
-        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0").endObject()).get();
-        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha").endObject()).get();
-        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
+        index(indexName, "1", jsonBuilder().startObject().field("version", "1.0").endObject());
+        index(indexName, "2", jsonBuilder().startObject().field("version", "1.3.0").endObject());
+        index(indexName, "3", jsonBuilder().startObject().field("version", "2.1.0-alpha").endObject());
+        index(indexName, "4", jsonBuilder().startObject().field("version", "2.1.0").endObject());
+        index(indexName, "5", jsonBuilder().startObject().field("version", "3.11.5").endObject());
         client().admin().indices().prepareRefresh(indexName).get();
 
         // terms aggs
@@ -429,11 +428,9 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().array("version", "1.0.0", "3.0.0").endObject()).get();
-        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().array("version", "2.0.0", "4.alpha.0").endObject()).get();
-        prepareIndex(indexName).setId("3")
-            .setSource(jsonBuilder().startObject().array("version", "2.1.0", "2.2.0", "5.99.0").endObject())
-            .get();
+        index(indexName, "1", jsonBuilder().startObject().array("version", "1.0.0", "3.0.0").endObject());
+        index(indexName, "2", jsonBuilder().startObject().array("version", "2.0.0", "4.alpha.0").endObject());
+        index(indexName, "3", jsonBuilder().startObject().array("version", "2.1.0", "2.2.0", "5.99.0").endObject());
         client().admin().indices().prepareRefresh(indexName).get();
 
         assertResponse(client().prepareSearch(indexName).addSort("version", SortOrder.ASC), response -> {
@@ -468,5 +465,18 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
             client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("5.0.0").to("6.0.0")),
             response -> assertEquals(1, response.getHits().getTotalHits().value)
         );
+    }
+
+    protected final DocWriteResponse index(String index, String id, XContentBuilder source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    protected final DocWriteResponse index(String index, XContentBuilder source) {
+        return index(index, null, source);
     }
 }

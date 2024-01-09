@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -94,7 +95,9 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
                 while (isRunning.get()) {
-                    leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
+                    IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON);
+                    indexRequestBuilder.get();
+                    indexRequestBuilder.request().decRef();
                 }
             });
             threads[i].start();

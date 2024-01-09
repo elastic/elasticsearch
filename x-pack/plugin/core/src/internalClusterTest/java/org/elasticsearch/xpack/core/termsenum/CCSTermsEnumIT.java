@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -50,15 +51,15 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
         final Client remoteClient = client("remote_cluster");
         String localIndex = "local_test";
         assertAcked(localClient.admin().indices().prepareCreate(localIndex).setSettings(indexSettings));
-        localClient.prepareIndex(localIndex).setSource("foo", "foo").get();
-        localClient.prepareIndex(localIndex).setSource("foo", "foobar").get();
+        indexDoc(localClient, localIndex, "foo", "foo");
+        indexDoc(localClient, localIndex, "foo", "foobar");
         localClient.admin().indices().prepareRefresh(localIndex).get();
 
         String remoteIndex = "remote_test";
         assertAcked(remoteClient.admin().indices().prepareCreate(remoteIndex).setSettings(indexSettings));
-        remoteClient.prepareIndex(remoteIndex).setSource("foo", "bar").get();
-        remoteClient.prepareIndex(remoteIndex).setSource("foo", "foobar").get();
-        remoteClient.prepareIndex(remoteIndex).setSource("foo", "zar").get();
+        indexDoc(remoteClient, remoteIndex, "foo", "bar");
+        indexDoc(remoteClient, remoteIndex, "foo", "foobar");
+        indexDoc(remoteClient, remoteIndex, "foo", "zar");
         remoteClient.admin().indices().prepareRefresh(remoteIndex).get();
 
         // _terms_enum on a remote cluster
@@ -105,5 +106,14 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
         assertThat(response.getTerms().get(0), equalTo("foo"));
         assertThat(response.getTerms().get(1), equalTo("foobar"));
         assertThat(response.getTerms().get(2), equalTo("zar"));
+    }
+
+    private void indexDoc(Client client, String index, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+        try {
+            indexRequestBuilder.setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

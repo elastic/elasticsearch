@@ -277,6 +277,8 @@ public final class Messages {
     public static final String REST_CANNOT_DELETE_FORECAST_IN_CURRENT_STATE =
         "Forecast(s) [{0}] for job [{1}] needs to be either FAILED or FINISHED to be deleted";
     public static final String FIELD_CANNOT_BE_NULL = "Field [{0}] cannot be null";
+    public static final String MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT =
+        "Model IDs must be unique. Requested model ID [{}] matches existing model IDs but must not.";
 
     private Messages() {}
 

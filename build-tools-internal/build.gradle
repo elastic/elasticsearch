@@ -255,7 +255,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
-    integTestImplementation('org.ow2.asm:asm:9.5')
+    integTestImplementation('org.ow2.asm:asm:9.6')
     api("org.yaml:snakeyaml") {
       version { strictly(versions.snakeyaml) }
     }
@@ -294,6 +294,8 @@ dependencies {
 
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
+
+  implementation 'com.github.javaparser:javaparser-core:3.18.0'
 
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle

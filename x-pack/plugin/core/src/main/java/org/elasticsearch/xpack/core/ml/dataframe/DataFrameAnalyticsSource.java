@@ -107,7 +107,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         index = in.readStringArray();
         queryProvider = QueryProvider.fromStream(in);
         sourceFiltering = in.readOptionalWriteable(FetchSourceContext::readFrom);
-        runtimeMappings = in.readMap();
+        runtimeMappings = in.readGenericMap();
     }
 
     public DataFrameAnalyticsSource(DataFrameAnalyticsSource other) {

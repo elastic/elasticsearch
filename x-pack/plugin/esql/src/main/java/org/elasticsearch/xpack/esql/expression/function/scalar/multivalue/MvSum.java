@@ -45,7 +45,7 @@ public class MvSum extends AbstractMultivalueFunction {
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
                 ? new MvSumUnsignedLongEvaluator.Factory(source(), fieldEval)
                 : new MvSumLongEvaluator.Factory(source(), fieldEval);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
 
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };

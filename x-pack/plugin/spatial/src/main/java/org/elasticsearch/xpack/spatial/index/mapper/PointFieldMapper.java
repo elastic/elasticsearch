@@ -21,9 +21,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -183,10 +180,9 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 
-    public static class PointFieldType extends AbstractGeometryFieldType<CartesianPoint> implements ShapeQueryable {
+    public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {
 
         private final ShapeQueryPointProcessor queryProcessor;
-        private final CartesianPoint nullValue;
 
         private PointFieldType(
             String name,
@@ -197,8 +193,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             CartesianPoint nullValue,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, parser, meta);
-            this.nullValue = nullValue;
+            super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
             this.queryProcessor = new ShapeQueryPointProcessor();
         }
 
@@ -230,17 +225,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         protected Function<List<CartesianPoint>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, p -> new Point(p.getX(), p.getY()));
-        }
-
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
-            }
-            // TODO: Currently we use longs in the compute engine and render to WKT in ESQL
-            return new BlockSourceReader.LongsBlockLoader(
-                valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
-            );
         }
     }
 

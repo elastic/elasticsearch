@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -17,6 +20,8 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -30,6 +35,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -43,6 +49,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
@@ -63,6 +70,19 @@ public class PlannerUtils {
             return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
+    }
+
+    public static boolean hasEnrich(PhysicalPlan plan) {
+        boolean[] found = { false };
+        plan.forEachDown(p -> {
+            if (p instanceof EnrichExec) {
+                found[0] = true;
+            }
+            if (p instanceof FragmentExec f) {
+                f.fragment().forEachDown(Enrich.class, e -> found[0] = true);
+            }
+        });
+        return found[0];
     }
 
     /**
@@ -131,12 +151,16 @@ public class PlannerUtils {
 
     /**
      * Extracts the ES query provided by the filter parameter
+     * @param plan
+     * @param hasIdenticalDelegate a lambda that given a field attribute sayis if it has
+     *                             a synthetic source delegate with the exact same value
+     * @return
      */
-    public static QueryBuilder requestFilter(PhysicalPlan plan) {
-        return detectFilter(plan, "@timestamp");
+    public static QueryBuilder requestFilter(PhysicalPlan plan, Predicate<FieldAttribute> hasIdenticalDelegate) {
+        return detectFilter(plan, "@timestamp", hasIdenticalDelegate);
     }
 
-    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName) {
+    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, Predicate<FieldAttribute> hasIdenticalDelegate) {
         // first position is the REST filter, the second the query filter
         var requestFilter = new QueryBuilder[] { null, null };
 
@@ -157,7 +181,7 @@ public class PlannerUtils {
                         boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
+                        if (matchesField && refs.isEmpty() && canPushToSource(exp, hasIdenticalDelegate)) {
                             matches.add(exp);
                         }
                     }
@@ -214,12 +238,23 @@ public class PlannerUtils {
         if (dataType == EsQueryExec.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
+        // TODO: Spatial types can be read from source into BYTES_REF, or read from doc-values into LONG
         if (dataType == EsqlDataTypes.GEO_POINT) {
-            return ElementType.LONG;
+            return ElementType.BYTES_REF;
         }
         if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
-            return ElementType.LONG;
+            return ElementType.BYTES_REF;
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
+
+    /**
+     * A non-breaking block factory used to create small pages during the planning
+     * TODO: Remove this
+     */
+    @Deprecated(forRemoval = true)
+    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop-esql-breaker"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
 }

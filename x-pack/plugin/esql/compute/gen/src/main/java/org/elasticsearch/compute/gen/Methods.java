@@ -83,7 +83,7 @@ public class Methods {
         if (method.getParameters().isEmpty()) {
             return new VariableElement[0];
         }
-        return method.getParameters().stream().filter(e -> filter.test(e)).toArray(VariableElement[]::new);
+        return method.getParameters().stream().filter(filter).toArray(VariableElement[]::new);
     }
 
     /**
@@ -194,7 +194,7 @@ public class Methods {
             case "DOUBLE" -> "getDouble";
             case "BYTES_REF" -> "getBytesRef";
             default -> throw new IllegalArgumentException(
-                "don't know how to fetch primitive values from " + elementTypeName + ". define combineStates."
+                "don't know how to fetch primitive values from " + elementTypeName + ". define combineIntermediate."
             );
         };
     }

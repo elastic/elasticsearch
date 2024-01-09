@@ -292,13 +292,13 @@ public class ClientYamlTestSuite {
         SetupSection setupSection,
         TeardownSection teardownSection
     ) {
-        return (testSection != null && hasSkipFeature(feature, testSection.getSkipSection()))
-            || (setupSection != null && hasSkipFeature(feature, setupSection.getSkipSection()))
-            || (teardownSection != null && hasSkipFeature(feature, teardownSection.getSkipSection()));
+        return (testSection != null && hasSkipFeature(feature, testSection.getPrerequisiteSection()))
+            || (setupSection != null && hasSkipFeature(feature, setupSection.getPrerequisiteSection()))
+            || (teardownSection != null && hasSkipFeature(feature, teardownSection.getPrerequisiteSection()));
     }
 
-    private static boolean hasSkipFeature(String feature, SkipSection skipSection) {
-        return skipSection != null && skipSection.yamlRunnerHasFeature(feature);
+    private static boolean hasSkipFeature(String feature, PrerequisiteSection prerequisiteSection) {
+        return prerequisiteSection != null && prerequisiteSection.yamlRunnerHasFeature(feature);
     }
 
     public List<ClientYamlTestSection> getTestSections() {

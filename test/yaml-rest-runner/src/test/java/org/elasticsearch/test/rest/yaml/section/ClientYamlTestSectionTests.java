@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.yaml.YamlXContent;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -69,7 +70,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
-        assertThat(testSection.getSkipSection().isEmpty(), equalTo(true));
+        assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(testSection.getExecutableSections().size(), equalTo(1));
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), equalTo("missing"));
@@ -96,8 +97,11 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
-        assertThat(testSection.getSkipSection(), notNullValue());
-        assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
+        assertThat(testSection.getPrerequisiteSection(), notNullValue());
+        assertThat(
+            testSection.getPrerequisiteSection().getSkipMessage(""),
+            containsString("Update doesn't return metadata fields, waiting for #3259")
+        );
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), equalTo("missing"));
@@ -130,7 +134,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("Basic"));
-        assertThat(testSection.getSkipSection().isEmpty(), equalTo(true));
+        assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), nullValue());
@@ -181,7 +185,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("Basic"));
-        assertThat(testSection.getSkipSection().isEmpty(), equalTo(true));
+        assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(testSection.getExecutableSections().size(), equalTo(10));
 
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);

@@ -36,7 +36,7 @@ public class SetupSection {
     }
 
     public static SetupSection parse(XContentParser parser) throws IOException {
-        SkipSection skipSection = SkipSection.parseIfNext(parser);
+        PrerequisiteSection prerequisiteSection = PrerequisiteSection.parseIfNext(parser);
         List<ExecutableSection> executableSections = new ArrayList<>();
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
             ParserUtils.advanceToFieldName(parser);
@@ -51,21 +51,21 @@ public class SetupSection {
             parser.nextToken();
         }
         parser.nextToken();
-        return new SetupSection(skipSection, executableSections);
+        return new SetupSection(prerequisiteSection, executableSections);
     }
 
-    public static final SetupSection EMPTY = new SetupSection(SkipSection.EMPTY, Collections.emptyList());
+    public static final SetupSection EMPTY = new SetupSection(PrerequisiteSection.EMPTY, Collections.emptyList());
 
-    private final SkipSection skipSection;
+    private final PrerequisiteSection prerequisiteSection;
     private final List<ExecutableSection> executableSections;
 
-    public SetupSection(SkipSection skipSection, List<ExecutableSection> executableSections) {
-        this.skipSection = Objects.requireNonNull(skipSection, "skip section cannot be null");
+    public SetupSection(PrerequisiteSection prerequisiteSection, List<ExecutableSection> executableSections) {
+        this.prerequisiteSection = Objects.requireNonNull(prerequisiteSection, "skip section cannot be null");
         this.executableSections = Collections.unmodifiableList(executableSections);
     }
 
-    public SkipSection getSkipSection() {
-        return skipSection;
+    public PrerequisiteSection getPrerequisiteSection() {
+        return prerequisiteSection;
     }
 
     public List<ExecutableSection> getExecutableSections() {

@@ -28,7 +28,7 @@ import java.util.function.Predicate;
  * - a specific test feature required that might not be implemented yet by the runner
  * - an operating system (full name, including specific Linux distributions) that might show a certain behavior
  */
-public class SkipSection {
+public class PrerequisiteSection {
 
     static class PrerequisiteSectionBuilder {
         String version = null;
@@ -138,7 +138,7 @@ public class SkipSection {
             }
         }
 
-        public SkipSection build() {
+        public PrerequisiteSection build() {
             final List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList = new ArrayList<>();
             final List<Predicate<ClientYamlTestExecutionContext>> requireCriteriaList;
 
@@ -167,14 +167,14 @@ public class SkipSection {
                     skipCriteriaList.add(Prerequisites.skipOnClusterFeatures(forbiddenClusterFeatures));
                 }
             }
-            return new SkipSection(skipCriteriaList, requireCriteriaList, requiredYamlRunnerFeatures, skipReason); // TODO: requiresReason
+            return new PrerequisiteSection(skipCriteriaList, skipReason, requireCriteriaList, requiresReason, requiredYamlRunnerFeatures);
         }
     }
 
     /**
-     * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
+     * Parse a {@link PrerequisiteSection} if the next field is {@code skip}, otherwise returns {@link PrerequisiteSection#EMPTY}.
      */
-    public static SkipSection parseIfNext(XContentParser parser) throws IOException {
+    public static PrerequisiteSection parseIfNext(XContentParser parser) throws IOException {
         return parseInternal(parser).build();
     }
 
@@ -313,38 +313,38 @@ public class SkipSection {
         parser.nextToken();
     }
 
-    public static final SkipSection EMPTY = new SkipSection();
+    public static final PrerequisiteSection EMPTY = new PrerequisiteSection();
 
     private final List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList;
     private final List<Predicate<ClientYamlTestExecutionContext>> requireCriteriaList;
     private final List<String> yamlRunnerFeatures;
-    private final String reason;
+    private final String skipReason;
+    private final String requireReason;
 
-    private SkipSection() {
+    private PrerequisiteSection() {
         this.skipCriteriaList = new ArrayList<>();
         this.requireCriteriaList = new ArrayList<>();
         this.yamlRunnerFeatures = new ArrayList<>();
-        this.reason = null;
+        this.skipReason = null;
+        this.requireReason = null;
     }
 
-    SkipSection(
+    PrerequisiteSection(
         List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList,
+        String skipReason,
         List<Predicate<ClientYamlTestExecutionContext>> requireCriteriaList,
-        List<String> yamlRunnerFeatures,
-        String reason
+        String requireReason,
+        List<String> yamlRunnerFeatures
     ) {
         this.skipCriteriaList = skipCriteriaList;
         this.requireCriteriaList = requireCriteriaList;
         this.yamlRunnerFeatures = yamlRunnerFeatures;
-        this.reason = reason;
+        this.skipReason = skipReason;
+        this.requireReason = requireReason;
     }
 
     public boolean yamlRunnerHasFeature(String feature) {
         return yamlRunnerFeatures.contains(feature);
-    }
-
-    public String getReason() {
-        return reason;
     }
 
     public boolean skip(ClientYamlTestExecutionContext context) {
@@ -366,8 +366,8 @@ public class SkipSection {
     public String getSkipMessage(String description) {
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append("[").append(description).append("] skipped,");
-        if (reason != null) {
-            messageBuilder.append(" reason: [").append(getReason()).append("]");
+        if (skipReason != null) {
+            messageBuilder.append(" reason: [").append(skipReason).append("]");
         }
         if (yamlRunnerFeatures.isEmpty() == false) {
             messageBuilder.append(" unsupported features ").append(yamlRunnerFeatures);

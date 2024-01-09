@@ -1297,7 +1297,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 return (FieldNamesFieldMapper.FieldNamesFieldType) mapper.fieldType(FieldNamesFieldMapper.NAME);
             }
         });
-        Function<Object, Object> valuesConvert = loadBlockExpected();
+        Function<Object, Object> valuesConvert = loadBlockExpected(mapper, loaderFieldName);
         if (valuesConvert == null) {
             assertNull(loader);
             return;
@@ -1371,7 +1371,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * How {@link MappedFieldType#blockLoader} should load values or {@code null}
      * if that method isn't supported by field being tested.
      */
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
         return null;
     }
 

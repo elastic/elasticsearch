@@ -23,9 +23,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -56,99 +54,96 @@ import java.util.stream.Stream;
  * Computes the expired snapshots for SLM. Called by {@link SnapshotRetentionTask}, but made into a separate (local-only) transport action
  * so that it can access the {@link RepositoriesService} directly.
  */
-public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapshotsAction.Response> {
+public class TransportSLMGetExpiredSnapshotsAction extends TransportAction<
+    TransportSLMGetExpiredSnapshotsAction.Request,
+    TransportSLMGetExpiredSnapshotsAction.Response> {
 
-    public static final SLMGetExpiredSnapshotsAction INSTANCE = new SLMGetExpiredSnapshotsAction();
+    public static final ActionType<Response> INSTANCE = ActionType.localOnly("cluster:admin/slm/execute/get_expired_snapshots");
 
-    private static final Logger logger = LogManager.getLogger(SLMGetExpiredSnapshotsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportSLMGetExpiredSnapshotsAction.class);
 
-    private SLMGetExpiredSnapshotsAction() {
-        super("cluster:admin/slm/execute/get_expired_snapshots", Writeable.Reader.localOnly());
+    private final RepositoriesService repositoriesService;
+    private final Executor retentionExecutor;
+
+    @Inject
+    public TransportSLMGetExpiredSnapshotsAction(
+        TransportService transportService,
+        RepositoriesService repositoriesService,
+        ActionFilters actionFilters
+    ) {
+        super(INSTANCE.name(), actionFilters, transportService.getTaskManager());
+        this.repositoriesService = repositoriesService;
+        this.retentionExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
     }
 
-    public static class LocalAction extends TransportAction<Request, Response> {
-        private final RepositoriesService repositoriesService;
-        private final Executor retentionExecutor;
-        private final ThreadContext threadContext;
+    private static class ResultsBuilder {
+        private final Map<String, List<Tuple<SnapshotId, String>>> resultsByRepository = ConcurrentCollections.newConcurrentMap();
 
-        private static final Logger logger = SLMGetExpiredSnapshotsAction.logger;
-
-        @Inject
-        public LocalAction(TransportService transportService, RepositoriesService repositoriesService, ActionFilters actionFilters) {
-            super(INSTANCE.name(), actionFilters, transportService.getTaskManager());
-            this.repositoriesService = repositoriesService;
-            final var threadPool = transportService.getThreadPool();
-            this.retentionExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
-            this.threadContext = threadPool.getThreadContext();
+        Response getResponse() {
+            // copyOf just so we aren't returning the CHM
+            return new Response(Map.copyOf(resultsByRepository));
         }
 
-        private static class ResultsBuilder {
-            private final Map<String, List<Tuple<SnapshotId, String>>> resultsByRepository = ConcurrentCollections.newConcurrentMap();
-
-            Response getResponse() {
-                // copyOf just so we aren't returning the CHM
-                return new Response(Map.copyOf(resultsByRepository));
+        void addResult(String repository, List<Tuple<SnapshotId, String>> snapshotsToDelete) {
+            // snapshotsToDelete is immutable because it comes from a Stream#toList() so no further copying needed
+            if (snapshotsToDelete.isEmpty()) {
+                assert resultsByRepository.containsKey(repository) == false;
+            } else {
+                final var previousValue = resultsByRepository.put(repository, snapshotsToDelete);
+                assert previousValue == null : repository + ": " + previousValue + " vs " + snapshotsToDelete;
             }
+        }
+    }
 
-            void addResult(String repository, List<Tuple<SnapshotId, String>> snapshotsToDelete) {
-                // snapshotsToDelete is immutable because it comes from a Stream#toList() so no further copying needed
-                if (snapshotsToDelete.isEmpty()) {
-                    assert resultsByRepository.containsKey(repository) == false;
-                } else {
-                    final var previousValue = resultsByRepository.put(repository, snapshotsToDelete);
-                    assert previousValue == null : repository + ": " + previousValue + " vs " + snapshotsToDelete;
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        final var resultsBuilder = new ResultsBuilder();
+        try (var refs = new RefCountingRunnable(() -> listener.onResponse(resultsBuilder.getResponse()))) {
+            for (final var repositoryName : request.repositories()) {
+
+                final Repository repository;
+                try {
+                    repository = repositoriesService.repository(repositoryName);
+                } catch (RepositoryMissingException e) {
+                    logger.debug("[{}]: repository not found", repositoryName);
+                    continue;
                 }
-            }
-        }
 
-        @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            final var resultsBuilder = new ResultsBuilder();
-            try (var refs = new RefCountingRunnable(() -> listener.onResponse(resultsBuilder.getResponse()))) {
-                for (final var repositoryName : request.repositories()) {
+                if (repository.isReadOnly()) {
+                    logger.debug("[{}]: skipping readonly repository", repositoryName);
+                    continue;
+                }
 
-                    final Repository repository;
-                    try {
-                        repository = repositoriesService.repository(repositoryName);
-                    } catch (RepositoryMissingException e) {
-                        logger.debug("[{}]: repository not found", repositoryName);
-                        continue;
+                retentionExecutor.execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void unused) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(Strings.format("[%s]: could not compute expired snapshots", repositoryName), e);
                     }
+                }, refs.acquire()),
+                    perRepositoryListener -> SubscribableListener
 
-                    if (repository.isReadOnly()) {
-                        logger.debug("[{}]: skipping readonly repository", repositoryName);
-                        continue;
-                    }
+                        // Get repository data
+                        .<RepositoryData>newForked(l -> repository.getRepositoryData(retentionExecutor, l))
 
-                    retentionExecutor.execute(
-                        ActionRunnable.wrap(
-                            refs.acquireListener(),
-                            perRepositoryListener -> SubscribableListener
-
-                                // Get repository data
-                                .<RepositoryData>newForked(l -> repository.getRepositoryData(retentionExecutor, l))
-
-                                // Collect snapshot details by policy, and get any missing details by reading SnapshotInfo
-                                .<SnapshotDetailsByPolicy>andThen(
-                                    (l, repositoryData) -> getSnapshotDetailsByPolicy(retentionExecutor, repository, repositoryData, l)
-                                )
-
-                                // Compute snapshots to delete for each (relevant) policy
-                                .andThenAccept(snapshotDetailsByPolicy -> {
-                                    resultsBuilder.addResult(
-                                        repositoryName,
-                                        getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)
-                                    );
-                                })
-
-                                // And notify this repository's listener on completion
-                                .addListener(perRepositoryListener.delegateResponse((l, e) -> {
-                                    logger.debug(Strings.format("[%s]: could not compute expired snapshots", repositoryName), e);
-                                    l.onResponse(null);
-                                }))
+                        // Collect snapshot details by policy, and get any missing details by reading SnapshotInfo
+                        .<SnapshotDetailsByPolicy>andThen(
+                            (l, repositoryData) -> getSnapshotDetailsByPolicy(retentionExecutor, repository, repositoryData, l)
                         )
-                    );
-                }
+
+                        // Compute snapshots to delete for each (relevant) policy
+                        .andThenAccept(snapshotDetailsByPolicy -> {
+                            resultsBuilder.addResult(
+                                repositoryName,
+                                getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)
+                            );
+                        })
+
+                        // And notify this repository's listener on completion
+                        .addListener(perRepositoryListener)
+                ));
             }
         }
     }

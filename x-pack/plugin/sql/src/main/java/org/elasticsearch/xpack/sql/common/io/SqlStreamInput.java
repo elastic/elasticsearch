@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.sql.common.io;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,8 +31,7 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
         StreamInput in = StreamInput.wrap(bytes);
         TransportVersion inVersion = TransportVersion.readVersion(in);
         validateStreamVersion(version, inVersion);
-        InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
-        return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion);
+        return new SqlStreamInput(CompressorFactory.COMPRESSOR.threadLocalStreamInput(in), namedWriteableRegistry, inVersion);
     }
 
     /**

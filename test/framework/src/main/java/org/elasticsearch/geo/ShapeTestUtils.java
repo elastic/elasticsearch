@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-package org.elasticsearch.xpack.spatial.util;
+package org.elasticsearch.geo;
 
-import org.apache.lucene.geo.XShapeTestUtil;
 import org.apache.lucene.geo.XYCircle;
 import org.apache.lucene.geo.XYPolygon;
 import org.elasticsearch.geometry.Circle;
@@ -117,7 +117,7 @@ public class ShapeTestUtils {
         return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt));
     }
 
-    static double area(XYPolygon p) {
+    public static double area(XYPolygon p) {
         double windingSum = 0;
         final int numPts = p.numPoints() - 1;
         for (int i = 0; i < numPts; i++) {
@@ -127,7 +127,7 @@ public class ShapeTestUtils {
         return Math.abs(windingSum / 2);
     }
 
-    static double[] floatsToDoubles(float[] f) {
+    public static double[] floatsToDoubles(float[] f) {
         double[] d = new double[f.length];
         for (int i = 0; i < f.length; i++) {
             d[i] = f[i];

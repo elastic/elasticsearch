@@ -1,0 +1,6 @@
+pr: 103510
+summary: "ES|QL: better management of exact subfields for TEXT fields"
+area: ES|QL
+type: bug
+issues:
+ - 99899

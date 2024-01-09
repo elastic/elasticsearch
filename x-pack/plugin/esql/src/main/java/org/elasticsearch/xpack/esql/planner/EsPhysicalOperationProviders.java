@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
@@ -73,9 +72,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            if (attr instanceof FieldAttribute fa && fa.getExactInfo().hasExact()) {
-                attr = fa.exactAttribute();
-            }
             layout.append(attr);
             DataType dataType = attr.dataType();
             ElementType elementType = PlannerUtils.toElementType(dataType);

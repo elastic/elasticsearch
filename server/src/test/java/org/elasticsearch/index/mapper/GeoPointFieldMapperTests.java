@@ -708,7 +708,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     private boolean useDocValues = false;
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
         if (useDocValues) {
             return v -> asJacksonNumberOutput(((Number) v).longValue());
         } else {

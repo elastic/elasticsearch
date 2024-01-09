@@ -45,7 +45,7 @@ public class ScriptConfig implements SimpleDiffable<ScriptConfig>, Writeable, To
     }
 
     public ScriptConfig(final StreamInput in) throws IOException {
-        source = in.readMap();
+        source = in.readGenericMap();
         script = in.readOptionalWriteable(Script::new);
     }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -135,6 +134,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             CheckedBiFunction<T, XContentType, BytesReference, IOException> toXContent,
             CheckedFunction<XContentParser, T, IOException> fromXContent
         ) {
+
             this.createParser = createParser;
             this.instanceSupplier = instanceSupplier;
             this.toXContent = toXContent;
@@ -170,15 +170,9 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
                         }
                     } finally {
                         dispose.accept(parsed);
-                        if (parsed instanceof RefCounted refCounted) {
-                            refCounted.decRef();
-                        }
                     }
                 } finally {
                     dispose.accept(testInstance);
-                    if (testInstance instanceof RefCounted refCounted) {
-                        refCounted.decRef();
-                    }
                 }
             }
         }

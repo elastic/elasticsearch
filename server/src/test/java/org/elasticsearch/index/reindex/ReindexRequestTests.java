@@ -414,4 +414,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             return ReindexRequest.fromXContent(p);
         }
     }
+
+    @Override
+    protected void dispose(ReindexRequest instance) {
+        instance.decRef();
+    }
 }

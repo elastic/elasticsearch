@@ -324,11 +324,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
-        IndexRequestBuilder indexRequestBuilder1 = prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE);
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE);
         try {
-            indexRequestBuilder1.get();
+            indexRequestBuilder.get();
         } finally {
-            indexRequestBuilder1.request().decRef();
+            indexRequestBuilder.request().decRef();
         }
 
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -363,32 +363,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setSource("field", "value")
-                            .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+                        IndexRequestBuilder indexRequestBuilder = prepareIndex("index");
                         try {
-                            indexRequestBuilder.execute(
-                                ActionListener.runBefore(
-                                    ActionListener.running(semaphore::release),
-                                    () -> indexRequestBuilder.request().decRef()
-                                )
-                            );
+                            indexRequestBuilder.setSource("field", "value")
+                                .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+                            indexRequestBuilder.execute(ActionListener.runBefore(ActionListener.running(semaphore::release), () -> {
+                                indexRequestBuilder.request().decRef();
+                            }));
                         } catch (Exception e) {
                             indexRequestBuilder.request().decRef();
                             throw e;
                         }
-                    }
-                    IndexRequestBuilder indexRequestBuilder2 = prepareIndex("index");
-                    try {
-                        indexRequestBuilder2.setSource("field", "value").setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
-                        indexRequestBuilder2.execute(
-                            ActionListener.runAfter(
-                                ActionListener.running(semaphore::release),
-                                () -> indexRequestBuilder2.request().decRef()
-                            )
-                        );
-                    } catch (Exception e) {
-                        indexRequestBuilder2.request().decRef();
-                        throw e;
                     }
                 }
             }

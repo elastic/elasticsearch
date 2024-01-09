@@ -113,6 +113,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             .numberOfTestRuns(20)
             .supportsUnknownFields(supportsUnknownFields())
             .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(MultiSearchResponse::decRef)
             .test();
     }
 

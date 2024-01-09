@@ -12,7 +12,6 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -100,12 +99,12 @@ public class ToLong extends AbstractConvertFunction {
         }
     }
 
-    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })
     static long fromDouble(double dbl) {
         return safeDoubleToLong(dbl);
     }
 
-    @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class })
     static long fromUnsignedLong(long ul) {
         return safeToLong(unsignedLongAsNumber(ul));
     }

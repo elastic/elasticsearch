@@ -11,9 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -22,6 +25,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DateParseTests extends AbstractScalarFunctionTestCase {
     public DateParseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -58,6 +62,22 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
+    }
+
+    public void testInvalidPattern() {
+        String pattern = randomAlphaOfLength(10);
+        DriverContext driverContext = driverContext();
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> evaluator(
+                new DateParse(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, new BytesRef(pattern), DataTypes.KEYWORD),
+                    field("str", DataTypes.KEYWORD)
+                )
+            ).get(driverContext)
+        );
+        assertThat(e.getMessage(), startsWith("invalid date pattern for []: Invalid format: [" + pattern + "]"));
     }
 
     @Override

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -61,6 +62,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class SharedBlobCacheService<KeyType> implements Releasable {
 
@@ -428,6 +430,21 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return effectiveRegionSize;
     }
 
+    /**
+     * Returns the list of regions, as integers, that are required to read a given byte range.
+     *
+     * @param range a range of bytes that can cover more than one region
+     * @return a list of region ids
+     */
+    public List<Integer> findRegions(ByteRange range) {
+        int startRegion = getRegion(range.start());
+        int endRegion = getEndingRegion(range.end());
+        if (startRegion != endRegion) {
+            return IntStream.rangeClosed(startRegion, endRegion).boxed().toList();
+        }
+        return List.of(startRegion);
+    }
+
     CacheFileRegion get(KeyType cacheKey, long fileLength, int region) {
         return cache.get(cacheKey, fileLength, region).chunk;
     }
@@ -493,6 +510,49 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
         return true;
+    }
+
+    /**
+     * Fetch and write in cache a region of a blob if there are enough free pages in the cache to do so.
+     *
+     * This method returns as soon as the download tasks are instantiated, but the tasks themselves
+     * are run on the bulk executor.
+     *
+     * If an exception is thrown from the writer then the cache entry being downloaded is freed
+     * and unlinked
+     *
+     * @param cacheKey  the key to fetch data for
+     * @param region    the region of the blob to fetch
+     * @param blobLength the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer    a writer that handles writing of newly downloaded data to the shared cache
+     * @param listener  listener that is called once all downloading has finished
+     */
+    public void maybeFetchRegion(
+        final KeyType cacheKey,
+        final int region,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final ActionListener<Void> listener
+    ) {
+        if (freeRegionCount() < 1) {
+            listener.onResponse(null);
+            return;
+        }
+        long regionLength = regionSize;
+        try {
+            if (region == getEndingRegion(blobLength)) {
+                regionLength = blobLength - getRegionStart(region);
+            }
+            ByteRange regionRange = ByteRange.of(0, regionLength);
+            if (regionRange.isEmpty()) {
+                listener.onResponse(null);
+                return;
+            }
+            final CacheFileRegion entry = get(cacheKey, blobLength, region);
+            entry.populate(regionRange, writer, bulkIOExecutor, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private static void throwAlreadyClosed(String message) {
@@ -666,6 +726,45 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return true;
         }
 
+        /**
+         * Populates a range in cache
+         * <p>
+         * If the range to write is already available (or pending to be available) in cache, then the listener is completed immediately. If
+         * the range is not fully available then the listener is completed once the missing gaps are written in cache.
+         * </p>
+         */
+        void populate(
+            final ByteRange rangeToWrite,
+            final RangeMissingHandler writer,
+            final Executor executor,
+            final ActionListener<Void> listener
+        ) {
+            Releasable resource = null;
+            try {
+                incRef();
+                resource = Releasables.releaseOnce(this::decRef);
+                ensureOpen();
+                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                    rangeToWrite,
+                    rangeToWrite,
+                    Assertions.ENABLED
+                        ? ActionListener.releaseAfter(ActionListener.running(() -> { assert regionOwners.get(io) == this; }), resource)
+                        : ActionListener.releasing(resource)
+                );
+                try (RefCountingListener refs = new RefCountingListener(listener)) {
+                    if (gaps.isEmpty() == false) {
+                        final var cacheFileRegion = CacheFileRegion.this;
+                        for (SparseFileTracker.Gap gap : gaps) {
+                            var fillGap = fillGap(cacheFileRegion, writer, gap);
+                            executor.execute(ActionRunnable.run(refs.acquire(), fillGap::run));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                releaseAndFail(listener, resource, e);
+            }
+        }
+
         void populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
@@ -701,51 +800,50 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 );
 
                 if (gaps.isEmpty() == false) {
-                    fillGaps(executor, writer, gaps);
+                    final var cacheFileRegion = CacheFileRegion.this;
+                    for (SparseFileTracker.Gap gap : gaps) {
+                        executor.execute(fillGap(cacheFileRegion, writer, gap));
+                    }
                 }
             } catch (Exception e) {
                 releaseAndFail(listener, resource, e);
             }
         }
 
-        private void fillGaps(Executor executor, RangeMissingHandler writer, List<SparseFileTracker.Gap> gaps) {
-            final var cacheFileRegion = CacheFileRegion.this;
-            for (SparseFileTracker.Gap gap : gaps) {
-                executor.execute(new AbstractRunnable() {
-
-                    @Override
-                    protected void doRun() throws Exception {
-                        ensureOpen();
-                        if (cacheFileRegion.tryIncRef() == false) {
-                            throw new AlreadyClosedException("File chunk [" + cacheFileRegion.regionKey + "] has been released");
-                        }
-                        try {
-                            final int start = Math.toIntExact(gap.start());
-                            var ioRef = io;
-                            assert regionOwners.get(ioRef) == cacheFileRegion;
-                            writer.fillCacheRange(
-                                ioRef,
-                                start,
-                                start,
-                                Math.toIntExact(gap.end() - start),
-                                progress -> gap.onProgress(start + progress)
-                            );
-                            writeCount.increment();
-                        } finally {
-                            cacheFileRegion.decRef();
-                        }
-                        gap.onCompletion();
+        private AbstractRunnable fillGap(CacheFileRegion cacheFileRegion, RangeMissingHandler writer, SparseFileTracker.Gap gap) {
+            return new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    ensureOpen();
+                    if (cacheFileRegion.tryIncRef() == false) {
+                        throw new AlreadyClosedException("File chunk [" + cacheFileRegion.regionKey + "] has been released");
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        gap.onFailure(e);
+                    try {
+                        final int start = Math.toIntExact(gap.start());
+                        var ioRef = io;
+                        assert regionOwners.get(ioRef) == cacheFileRegion;
+                        writer.fillCacheRange(
+                            ioRef,
+                            start,
+                            start,
+                            Math.toIntExact(gap.end() - start),
+                            progress -> gap.onProgress(start + progress)
+                        );
+                        writeCount.increment();
+                    } finally {
+                        cacheFileRegion.decRef();
                     }
-                });
-            }
+                    gap.onCompletion();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    gap.onFailure(e);
+                }
+            };
         }
 
-        private static void releaseAndFail(ActionListener<Integer> listener, Releasable decrementRef, Exception e) {
+        private static void releaseAndFail(ActionListener<?> listener, Releasable decrementRef, Exception e) {
             try {
                 Releasables.close(decrementRef);
             } catch (Exception ex) {

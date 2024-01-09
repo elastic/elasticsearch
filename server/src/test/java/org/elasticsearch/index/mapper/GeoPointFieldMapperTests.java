@@ -19,7 +19,10 @@ import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -604,15 +607,19 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Tuple<Object, GeoPoint> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), encode(v.v2()), this::mapping);
+                    return new SyntheticSourceExample(v.v1(), v.v2(), v.v2().toWKT(), this::mapping);
                 }
                 List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
-                List<Object> in = values.stream().map(Tuple::v1).toList();
-                // The results are currently sorted in order of encoded values, so we need to sort the expected values too
-                List<GeoPoint> outList = values.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
+                // For the synthetic source tests, the results are sorted in order of encoded values, but for row-stride reader
+                // they are sorted in order of input, so we sort both input and expected here to support both types of tests
+                List<Tuple<Object, GeoPoint>> sorted = values.stream()
+                    .sorted((a, b) -> Long.compare(encode(a.v2()), encode(b.v2())))
+                    .toList();
+                List<Object> in = sorted.stream().map(Tuple::v1).toList();
+                List<GeoPoint> outList = sorted.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<Long> outBlockList = outList.stream().map(this::encode).toList();
+                List<String> outBlockList = outList.stream().map(GeoPoint::toWKT).toList();
                 Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
                 return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
@@ -627,7 +634,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
             private GeoPoint randomGeoPoint() {
                 Point point = GeometryTestUtils.randomPoint(false);
-                return new GeoPoint(point.getLat(), point.getLon());
+                return decode(encode(new GeoPoint(point.getLat(), point.getLon())));
             }
 
             private Object randomGeoPointInput(GeoPoint point) {
@@ -698,9 +705,15 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
+    private boolean useDocValues = false;
+
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> asJacksonNumberOutput(((Number) v).longValue());
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+        if (useDocValues) {
+            return v -> asJacksonNumberOutput(((Number) v).longValue());
+        } else {
+            return v -> asWKT((BytesRef) v);
+        }
     }
 
     protected static Object asJacksonNumberOutput(long l) {
@@ -710,5 +723,22 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         } else {
             return l;
         }
+    }
+
+    protected static Object asWKT(BytesRef value) {
+        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
+        return WellKnownText.toWKT(geometry);
+    }
+
+    @Override
+    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+        // Currently ESQL support for geo_point is limited to source values
+        return false;
+    }
+
+    @Override
+    public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() {
+        assumeTrue("Synthetic source not completed supported for geo_point", false);
     }
 }

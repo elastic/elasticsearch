@@ -34,7 +34,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -212,7 +211,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             sendSearchResponse(
-                withTotalHits ? InternalSearchResponse.EMPTY_WITH_TOTAL_HITS : InternalSearchResponse.EMPTY_WITHOUT_TOTAL_HITS,
+                withTotalHits ? SearchResponseSections.EMPTY_WITH_TOTAL_HITS : SearchResponseSections.EMPTY_WITHOUT_TOTAL_HITS,
                 new AtomicArray<>(0)
             );
             return;
@@ -655,7 +654,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private SearchResponse buildSearchResponse(
-        InternalSearchResponse internalSearchResponse,
+        SearchResponseSections internalSearchResponse,
         ShardSearchFailure[] failures,
         String scrollId,
         String searchContextId
@@ -682,7 +681,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";

@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -32,11 +31,19 @@ import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParserConstructor;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -51,6 +58,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.esql.action.ResponseValueUtils.valuesToPage;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -89,11 +99,21 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     EsqlQueryResponse randomResponse(boolean columnar, EsqlQueryResponse.Profile profile) {
+        return randomResponseAsync(columnar, profile, false);
+    }
+
+    EsqlQueryResponse randomResponseAsync(boolean columnar, EsqlQueryResponse.Profile profile, boolean async) {
         int noCols = randomIntBetween(1, 10);
         List<ColumnInfo> columns = randomList(noCols, noCols, this::randomColumnInfo);
         int noPages = randomIntBetween(1, 20);
         List<Page> values = randomList(noPages, noPages, () -> randomPage(columns));
-        return new EsqlQueryResponse(columns, values, profile, columnar);
+        String id = null;
+        boolean isRunning = false;
+        if (async) {
+            id = randomAlphaOfLengthBetween(1, 16);
+            isRunning = randomBoolean();
+        }
+        return new EsqlQueryResponse(columns, values, profile, columnar, id, isRunning, async);
     }
 
     private ColumnInfo randomColumnInfo() {
@@ -130,8 +150,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
                 );
                 case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
-                case "geo_point" -> ((LongBlock.Builder) builder).appendLong(GEO.pointAsLong(randomGeoPoint()));
-                case "cartesian_point" -> ((LongBlock.Builder) builder).appendLong(CARTESIAN.pointAsLong(randomCartesianPoint()));
+                case "geo_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.pointAsWKB(GeometryTestUtils.randomPoint()));
+                case "cartesian_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                    CARTESIAN.pointAsWKB(ShapeTestUtils.randomPoint())
+                );
                 case "null" -> builder.appendNull();
                 case "_source" -> {
                     try {
@@ -167,19 +189,21 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 List<ColumnInfo> cols = new ArrayList<>(instance.columns());
                 // keep the type the same so the values are still valid but change the name
                 cols.set(mutCol, new ColumnInfo(cols.get(mutCol).name() + "mut", cols.get(mutCol).type()));
-                yield new EsqlQueryResponse(cols, deepCopyOfPages(instance), instance.profile(), instance.columnar());
+                yield new EsqlQueryResponse(cols, deepCopyOfPages(instance), instance.profile(), instance.columnar(), instance.isAsync());
             }
             case 1 -> new EsqlQueryResponse(
                 instance.columns(),
                 deepCopyOfPages(instance),
                 instance.profile(),
-                false == instance.columnar()
+                false == instance.columnar(),
+                instance.isAsync()
             );
             case 2 -> new EsqlQueryResponse(
                 instance.columns(),
                 deepCopyOfPages(instance),
                 randomValueOtherThan(instance.profile(), this::randomProfile),
-                instance.columnar()
+                instance.columnar(),
+                instance.isAsync()
             );
             case 3 -> {
                 int noPages = instance.pages().size();
@@ -188,7 +212,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     differentPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
                     differentPages = randomList(noPages, noPages, () -> randomPage(instance.columns()));
                 } while (differentPages.equals(instance.pages()));
-                yield new EsqlQueryResponse(instance.columns(), differentPages, instance.profile(), instance.columnar());
+                yield new EsqlQueryResponse(
+                    instance.columns(),
+                    differentPages,
+                    instance.profile(),
+                    instance.columnar(),
+                    instance.isAsync()
+                );
             }
             default -> throw new IllegalArgumentException();
         };
@@ -214,7 +244,58 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     @Override
     protected EsqlQueryResponse doParseInstance(XContentParser parser) {
-        return EsqlQueryResponse.fromXContent(parser);
+        return ResponseBuilder.fromXContent(parser);
+    }
+
+    public static class ResponseBuilder {
+        private static final ParseField ID = new ParseField("id");
+        private static final ParseField IS_RUNNING = new ParseField("is_running");
+        private static final InstantiatingObjectParser<ResponseBuilder, Void> PARSER;
+
+        static {
+            InstantiatingObjectParser.Builder<ResponseBuilder, Void> parser = InstantiatingObjectParser.builder(
+                "esql/query_response",
+                true,
+                ResponseBuilder.class
+            );
+            parser.declareString(optionalConstructorArg(), ID);
+            parser.declareField(
+                optionalConstructorArg(),
+                p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? false : p.booleanValue(),
+                IS_RUNNING,
+                ObjectParser.ValueType.BOOLEAN_OR_NULL
+            );
+            parser.declareObjectArray(constructorArg(), (p, c) -> ColumnInfo.fromXContent(p), new ParseField("columns"));
+            parser.declareField(constructorArg(), (p, c) -> p.list(), new ParseField("values"), ObjectParser.ValueType.OBJECT_ARRAY);
+            PARSER = parser.build();
+        }
+
+        // Used for XContent reconstruction
+        private final EsqlQueryResponse response;
+
+        @ParserConstructor
+        public ResponseBuilder(@Nullable String asyncExecutionId, Boolean isRunning, List<ColumnInfo> columns, List<List<Object>> values) {
+            this.response = new EsqlQueryResponse(
+                columns,
+                List.of(valuesToPage(TestBlockFactory.getNonBreakingInstance(), columns, values)),
+                null,
+                false,
+                asyncExecutionId,
+                isRunning != null,
+                isAsync(asyncExecutionId, isRunning)
+            );
+        }
+
+        static boolean isAsync(@Nullable String asyncExecutionId, Boolean isRunning) {
+            if (asyncExecutionId != null || isRunning != null) {
+                return true;
+            }
+            return false;
+        }
+
+        static EsqlQueryResponse fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null).response;
+        }
     }
 
     public void testChunkResponseSizeColumnar() {
@@ -223,12 +304,22 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
             assertChunkCount(resp, r -> 5 + bodySize);
         }
+
+        try (EsqlQueryResponse resp = randomResponseAsync(true, null, true)) {
+            int columnCount = resp.pages().get(0).getBlockCount();
+            int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
+            assertChunkCount(resp, r -> 6 + bodySize); // is_running
+        }
     }
 
     public void testChunkResponseSizeRows() {
         try (EsqlQueryResponse resp = randomResponse(false, null)) {
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount()).sum();
             assertChunkCount(resp, r -> 5 + bodySize);
+        }
+        try (EsqlQueryResponse resp = randomResponseAsync(false, null, true)) {
+            int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount()).sum();
+            assertChunkCount(resp, r -> 6 + bodySize);
         }
     }
 
@@ -239,6 +330,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public void testSimpleXContentColumnarAsync() {
+        try (EsqlQueryResponse response = simple(true, true)) {
+            assertThat(Strings.toString(response), equalTo("""
+                {"is_running":false,"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}"""));
+        }
+    }
+
     public void testSimpleXContentRows() {
         try (EsqlQueryResponse response = simple(false)) {
             assertThat(Strings.toString(response), equalTo("""
@@ -246,12 +344,41 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public void testSimpleXContentRowsAsync() {
+        try (EsqlQueryResponse response = simple(false, true)) {
+            assertThat(Strings.toString(response), equalTo("""
+                {"is_running":false,"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
+        }
+    }
+
+    public void testBasicXContentIdAndRunning() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfo("foo", "integer")),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                null,
+                false,
+                "id-123",
+                true,
+                true
+            )
+        ) {
+            assertThat(Strings.toString(response), equalTo("""
+                {"id":"id-123","is_running":true,"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
+        }
+    }
+
     private EsqlQueryResponse simple(boolean columnar) {
+        return simple(columnar, false);
+    }
+
+    private EsqlQueryResponse simple(boolean columnar, boolean async) {
         return new EsqlQueryResponse(
             List.of(new ColumnInfo("foo", "integer")),
-            List.of(new Page(new IntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+            List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
             null,
-            columnar
+            columnar,
+            async
         );
     }
 
@@ -259,10 +386,11 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
                 List.of(new ColumnInfo("foo", "integer")),
-                List.of(new Page(new IntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 new EsqlQueryResponse.Profile(
                     List.of(new DriverProfile(List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10)))))
                 ),
+                false,
                 false
             );
         ) {

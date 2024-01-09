@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
@@ -179,36 +178,41 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         TimeValue delay,
         Tuple<Long, Long> expectedRangeQueryBounds
     ) throws InterruptedException {
-        doAnswer(withResponse(newSearchResponse(totalHits))).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
-        String transformId = getTestName();
-        TransformConfig transformConfig = newTransformConfigWithDateHistogram(
-            transformId,
-            transformVersion,
-            dateHistogramField,
-            dateHistogramInterval,
-            delay
-        );
-        TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig);
+        final SearchResponse searchResponse = newSearchResponse(totalHits);
+        try {
+            doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+            String transformId = getTestName();
+            TransformConfig transformConfig = newTransformConfigWithDateHistogram(
+                transformId,
+                transformVersion,
+                dateHistogramField,
+                dateHistogramInterval,
+                delay
+            );
+            TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
-        SetOnce<Boolean> hasChangedHolder = new SetOnce<>();
-        SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        provider.sourceHasChanged(
-            lastCheckpoint,
-            new LatchedActionListener<>(ActionListener.wrap(hasChangedHolder::set, exceptionHolder::set), latch)
-        );
-        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+            SetOnce<Boolean> hasChangedHolder = new SetOnce<>();
+            SetOnce<Exception> exceptionHolder = new SetOnce<>();
+            CountDownLatch latch = new CountDownLatch(1);
+            provider.sourceHasChanged(
+                lastCheckpoint,
+                new LatchedActionListener<>(ActionListener.wrap(hasChangedHolder::set, exceptionHolder::set), latch)
+            );
+            assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
 
-        ArgumentCaptor<SearchRequest> searchRequestArgumentCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        verify(client).execute(eq(TransportSearchAction.TYPE), searchRequestArgumentCaptor.capture(), any());
-        SearchRequest searchRequest = searchRequestArgumentCaptor.getValue();
-        BoolQueryBuilder boolQuery = (BoolQueryBuilder) searchRequest.source().query();
-        RangeQueryBuilder rangeQuery = (RangeQueryBuilder) boolQuery.filter().get(1);
-        assertThat(rangeQuery.from(), is(equalTo(expectedRangeQueryBounds.v1())));
-        assertThat(rangeQuery.to(), is(equalTo(expectedRangeQueryBounds.v2())));
+            ArgumentCaptor<SearchRequest> searchRequestArgumentCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+            verify(client).execute(eq(TransportSearchAction.TYPE), searchRequestArgumentCaptor.capture(), any());
+            SearchRequest searchRequest = searchRequestArgumentCaptor.getValue();
+            BoolQueryBuilder boolQuery = (BoolQueryBuilder) searchRequest.source().query();
+            RangeQueryBuilder rangeQuery = (RangeQueryBuilder) boolQuery.filter().get(1);
+            assertThat(rangeQuery.from(), is(equalTo(expectedRangeQueryBounds.v1())));
+            assertThat(rangeQuery.to(), is(equalTo(expectedRangeQueryBounds.v2())));
 
-        assertThat(hasChangedHolder.get(), is(equalTo(expectedHasChangedValue)));
-        assertThat(exceptionHolder.get(), is(nullValue()));
+            assertThat(hasChangedHolder.get(), is(equalTo(expectedHasChangedValue)));
+            assertThat(exceptionHolder.get(), is(nullValue()));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testCreateNextCheckpoint_NoDelay() throws InterruptedException {
@@ -339,15 +343,13 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     private static SearchResponse newSearchResponse(long totalHits) {
         return new SearchResponse(
-            new SearchResponseSections(
-                new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0),
-                null,
-                null,
-                false,
-                false,
-                null,
-                0
-            ),
+            SearchHits.empty(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0),
+            null,
+            null,
+            false,
+            false,
+            null,
+            0,
             null,
             1,
             1,

@@ -19,14 +19,9 @@ import java.util.Objects;
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, IntBlock, LongBlock, DoubleBlock, BytesRefBlock {
+final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, IntBlock, LongBlock, DoubleBlock, BytesRefBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
-
-    // Eventually, this should use the GLOBAL breaking instance
-    ConstantNullBlock(int positionCount) {
-        this(positionCount, BlockFactory.getNonBreakingInstance());
-    }
 
     ConstantNullBlock(int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
@@ -83,8 +78,9 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
         return "ConstantNullBlock";
     }
 
-    static ConstantNullBlock of(StreamInput in) throws IOException {
-        return new ConstantNullBlock(in.readVInt());
+    static Block of(StreamInput in) throws IOException {
+        BlockFactory blockFactory = ((BlockStreamInput) in).blockFactory();
+        return blockFactory.newConstantNullBlock(in.readVInt());
     }
 
     @Override
@@ -128,7 +124,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed());
     }
 
     static class Builder implements Block.Builder {

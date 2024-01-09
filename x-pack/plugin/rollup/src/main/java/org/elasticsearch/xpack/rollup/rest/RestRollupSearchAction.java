@@ -11,7 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 
@@ -55,7 +55,11 @@ public class RestRollupSearchAction extends BaseRestHandler {
             )
         );
         RestSearchAction.validateSearchRequest(restRequest, searchRequest);
-        return channel -> client.execute(RollupSearchAction.INSTANCE, searchRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> client.execute(
+            RollupSearchAction.INSTANCE,
+            searchRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
     }
 
     @Override

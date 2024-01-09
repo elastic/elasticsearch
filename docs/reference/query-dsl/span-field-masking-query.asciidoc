@@ -4,11 +4,11 @@
 <titleabbrev>Span field masking</titleabbrev>
 ++++
 
-Wrapper to allow span queries to participate in composite single-field span queries by 'lying' about their search field. The span field masking query maps to Lucene's `SpanFieldMaskingQuery`
+Wrapper to allow span queries to participate in composite single-field span queries by 'lying' about their search field.
 
 This can be used to support queries like `span-near` or `span-or` across different fields, which is not ordinarily permitted.
 
-Span field masking query is invaluable in conjunction with *multi-fields* when same content is indexed with multiple analyzers. For instance we could index a field with the standard analyzer which breaks text up into words, and again with the english analyzer which stems words into their root form.
+Span field masking query is invaluable in conjunction with *multi-fields* when same content is indexed with multiple analyzers. For instance, we could index a field with the standard analyzer which breaks text up into words, and again with the english analyzer which stems words into their root form.
 
 Example:
 
@@ -28,18 +28,33 @@ GET /_search
           "span_field_masking": {
             "query": {
               "span_term": {
-                "text.stems": "fox"
+                "text.stems": "fox" <1>
               }
             },
-            "field": "text"
+            "field": "text" <2>
           }
         }
       ],
       "slop": 5,
       "in_order": false
     }
+  },
+  "highlight": {
+    "require_field_match" : false, <3>
+    "fields": {
+      "*": {}
+    }
   }
 }
 --------------------------------------------------
+<1> Original field on which we do the search
+<2> Masked field, which we are masking with the original field
+<3> Use "require_field_match" : false to highlight the masked field
 
-Note: as span field masking query returns the masked field, scoring will be done using the norms of the field name supplied. This may lead to unexpected scoring behaviour.
+Note: `span_field_masking` query may have unexpected scoring and highlighting
+behaviour. This is because the query returns and highlights the masked field,
+but scoring and highlighting are done using the terms statistics and offsets
+of the original field.
+
+Note: For highlighting to work the parameter: `require_field_match` should
+be set to `false` on the highlighter.

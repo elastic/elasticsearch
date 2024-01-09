@@ -200,8 +200,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         IntVector docs = null;
         Page page = null;
         try (
-            IntVector.Builder currentSegmentBuilder = IntVector.newVectorBuilder(size, blockFactory);
-            IntVector.Builder currentDocsBuilder = IntVector.newVectorBuilder(size, blockFactory)
+            IntVector.Builder currentSegmentBuilder = blockFactory.newIntVectorFixedBuilder(size);
+            IntVector.Builder currentDocsBuilder = blockFactory.newIntVectorFixedBuilder(size)
         ) {
             int start = offset;
             offset += size;
@@ -213,7 +213,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 currentDocsBuilder.appendInt(doc - leafContexts.get(segment).docBase); // the offset inside the segment
             }
 
-            shard = IntBlock.newConstantBlockWith(perShardCollector.shardIndex, size, blockFactory);
+            shard = blockFactory.newConstantIntBlockWith(perShardCollector.shardIndex, size);
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
             page = new Page(size, new DocVector(shard.asVector(), segments, docs, null).asBlock());

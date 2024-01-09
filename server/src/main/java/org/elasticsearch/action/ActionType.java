@@ -59,7 +59,8 @@ public class ActionType<Response extends ActionResponse> {
      *
      * @param name           The name of the action, which must be unique across actions. When executed on a remote cluster, this is the
      *                       ID of the transport action which is sent to the handling node in the remote cluster.
-     * @param responseReader A reader for the response type, which is only used by actions executed on a remote cluster.
+     * @param responseReader Defines how to deserialize responses received from executions of this action on remote clusters. Executions of
+     *                       this action on the local node receive the response object directly, without needing any deserialization.
      */
     public ActionType(String name, Writeable.Reader<Response> responseReader) {
         this.name = name;

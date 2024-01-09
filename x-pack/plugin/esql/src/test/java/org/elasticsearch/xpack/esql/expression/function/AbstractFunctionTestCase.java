@@ -469,7 +469,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             // Note: the null-in-fast-null-out handling prevents any exception from being thrown, so the warnings provided in some test
             // cases won't actually be registered. This isn't an issue for unary functions, but could be an issue for n-ary ones, if
             // function processing of the first parameter(s) could raise an exception/warning. (But hasn't been the case so far.)
-            // For n-ary functions, dealing with one multivalue (before hitting the null parameter injected above) will now trigger
+            // N-ary non-MV functions dealing with one multivalue (before hitting the null parameter injected above) will now trigger
             // a warning ("SV-function encountered a MV") that thus needs to be checked.
             if (this instanceof AbstractMultivalueFunctionTestCase == false
                 && simpleData.stream().anyMatch(List.class::isInstance)

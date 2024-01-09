@@ -35,7 +35,7 @@ perform a specific {infer} task.
 The following services are available through the {infer} API:
 * ELSER
 * OpenAI
-
+* Hugging Face
 
 [discrete]
 [[put-inference-api-path-params]]
@@ -63,6 +63,7 @@ The type of service supported for the specified task type.
 Available services:
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
 * `openai`: specify the `text_embedding` task type to use the OpenAI service.
+* `hugging_face`: specify the `text_embedding` task type to use the Hugging Face service.
 
 `service_settings`::
 (Required, object)

@@ -349,7 +349,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
 
         for (ImplicitCastCase c : casts) {
-            var query = builder().query(fromIndex() + " | where " + c.datatype + " == " + c.expression + " | keep " + c.datatype).build();
+            var query = builder().query(fromIndex() + " | where " + c.datatype + " == " + c.expression + " | keep " + c.datatype);
             runEsql(query);
         }
     }

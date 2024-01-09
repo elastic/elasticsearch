@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
@@ -90,7 +89,6 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     private LogicalPlanOptimizer logicalOptimizer;
     private PhysicalPlanOptimizer physicalPlanOptimizer;
     private Mapper mapper;
-    private Map<String, EsField> mapping;
     private int allFieldRowSize;
 
     private final EsqlConfiguration config;
@@ -120,30 +118,16 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     @Before
     public void init() {
         parser = new EsqlParser();
-
-        mapping = loadMapping("mapping-basic.json");
-        var allFieldRowSize = mapping.values()
-            .stream()
-            .mapToInt(
-                f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())) + f.getProperties()
-                    .values()
-                    .stream()
-                    // check one more level since the mapping contains TEXT fields with KEYWORD multi-fields
-                    .mapToInt(x -> EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(x.getDataType())))
-                    .sum())
-            )
-            .sum();
-        EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
+        mapper = new Mapper(new EsqlFunctionRegistry());
 
         basicMappingAnalyzer = basicMappingAnalyzer();
         allTypesMappingAnalyzer = allFieldMappingAnalyzer();
     }
 
     private Analyzer basicMappingAnalyzer() {
-        mapping = loadMapping("mapping-basic.json");
+        var mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
         var enrichResolution = new EnrichResolution(
@@ -172,7 +156,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private Analyzer allFieldMappingAnalyzer() {
-        mapping = loadMapping("mapping-alltypes.json");
+        var mapping = loadMapping("mapping-alltypes.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
 

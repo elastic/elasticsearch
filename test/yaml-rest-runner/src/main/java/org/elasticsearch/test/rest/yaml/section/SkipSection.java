@@ -32,7 +32,8 @@ public class SkipSection {
 
     static class PrerequisiteSectionBuilder {
         String version = null;
-        String reason = null;
+        String skipReason = null;
+        String requiresReason = null;
         List<String> requiredYamlRunnerFeatures = new ArrayList<>();
         List<String> operatingSystems = new ArrayList<>();
 
@@ -54,7 +55,12 @@ public class SkipSection {
         }
 
         public PrerequisiteSectionBuilder setSkipReason(String reason) {
-            this.reason = reason;
+            this.skipReason = reason;
+            return this;
+        }
+
+        public PrerequisiteSectionBuilder setRequiresReason(String reason) {
+            this.requiresReason = reason;
             return this;
         }
 
@@ -108,23 +114,29 @@ public class SkipSection {
                     "at least one criteria (version, cluster features, runner features, os) is mandatory within a skip section"
                 );
             }
-            if (Strings.hasLength(version) && Strings.hasLength(reason) == false) {
+            if (Strings.hasLength(version) && Strings.hasLength(skipReason) == false) {
                 throw new ParsingException(contentLocation, "reason is mandatory within skip version section");
             }
-            if (operatingSystems.isEmpty() == false && Strings.hasLength(reason) == false) {
-                throw new ParsingException(contentLocation, "reason is mandatory within skip version section");
+            if (operatingSystems.isEmpty() == false && Strings.hasLength(skipReason) == false) {
+                throw new ParsingException(contentLocation, "reason is mandatory within skip os section");
+            }
+            if (forbiddenClusterFeatures.isEmpty() == false && Strings.hasLength(skipReason) == false) {
+                throw new ParsingException(contentLocation, "reason is mandatory within skip cluster_features section");
+            }
+            if (requiredClusterFeatures.isEmpty() == false && Strings.hasLength(requiresReason) == false) {
+                throw new ParsingException(contentLocation, "reason is mandatory within requires cluster_features section");
             }
             // make feature "skip_os" mandatory if os is given, this is a temporary solution until language client tests know about os
             if (operatingSystems.isEmpty() == false && requiredYamlRunnerFeatures.contains("skip_os") == false) {
                 throw new ParsingException(contentLocation, "if os is specified, feature skip_os must be set");
             }
             if (xpackRequired == XPackRequired.MISMATCHED) {
-                throw new ParsingException(contentLocation, "either `xpack` or `no_xpack` can be present, not both");
+                throw new ParsingException(contentLocation, "either [xpack] or [no_xpack] can be present, not both");
             }
             if (forbiddenClusterFeatures.stream().anyMatch(x -> requiredClusterFeatures.contains(x))) {
                 throw new ParsingException(
                     contentLocation,
-                    "skip on a cluster feature can be when it is either present or missing, not both"
+                    "a cluster feature can be specified either in [requires] or [skip], not both"
                 );
             }
         }
@@ -158,7 +170,7 @@ public class SkipSection {
                     skipCriteriaList.add(Prerequisites.skipOnClusterFeatures(forbiddenClusterFeatures));
                 }
             }
-            return new SkipSection(skipCriteriaList, requireCriteriaList, requiredYamlRunnerFeatures, reason);
+            return new SkipSection(skipCriteriaList, requireCriteriaList, requiredYamlRunnerFeatures, skipReason); // TODO: requiresReason
         }
     }
 
@@ -166,21 +178,30 @@ public class SkipSection {
      * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
      */
     public static SkipSection parseIfNext(XContentParser parser) throws IOException {
+        return parseInternal(parser).build();
+    }
+
+    static PrerequisiteSectionBuilder parseInternal(XContentParser parser) throws IOException {
         PrerequisiteSectionBuilder builder = new PrerequisiteSectionBuilder();
-        var insidePrerequisiteSection = true;
-        while (insidePrerequisiteSection) {
-            ParserUtils.advanceToFieldName(parser);
+        var hasPrerequisiteSection = false;
+        var unknownFieldName = false;
+        ParserUtils.advanceToFieldName(parser);
+        while (unknownFieldName == false) {
             if ("skip".equals(parser.currentName())) {
                 parseSkipSection(parser, builder);
-                parser.nextToken();
+                hasPrerequisiteSection = true;
             } else if ("requires".equals(parser.currentName())) {
-                // parseRequireSection(parser, builder);
+                parseRequiresSection(parser, builder);
+                hasPrerequisiteSection = true;
             } else {
-                insidePrerequisiteSection = false;
+                unknownFieldName = true;
             }
         }
-
-        return builder.build();
+        if (hasPrerequisiteSection) {
+            parser.nextToken();
+            builder.validate(parser.getTokenLocation());
+        }
+        return builder;
     }
 
     private static void parseFeatureField(String feature, PrerequisiteSectionBuilder builder) {
@@ -219,13 +240,12 @@ public class SkipSection {
                 } else if ("reason".equals(currentFieldName)) {
                     builder.setSkipReason(parser.text());
                 } else if ("features".equals(currentFieldName)) {
+                    // TODO: legacy - remove
                     parseFeatureField(parser.text(), builder);
                 } else if ("os".equals(currentFieldName)) {
                     builder.skipIfOs(parser.text());
-                } else if ("cluster_features_present".equals(currentFieldName)) {
+                } else if ("cluster_features".equals(currentFieldName)) {
                     builder.skipIfClusterFeature(parser.text());
-                } else if ("cluster_features_absent".equals(currentFieldName)) {
-                    builder.requireClusterFeature(parser.text());
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -233,6 +253,7 @@ public class SkipSection {
                     );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
+                // TODO: legacy - remove
                 if ("features".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         parseFeatureField(parser.text(), builder);
@@ -241,21 +262,60 @@ public class SkipSection {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         builder.skipIfOs(parser.text());
                     }
-                } else if ("cluster_features_present".equals(currentFieldName)) {
+                } else if ("cluster_features".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         builder.skipIfClusterFeature(parser.text());
                     }
-                } else if ("cluster_features_absent".equals(currentFieldName)) {
+                }
+            }
+        }
+        parser.nextToken();
+    }
+
+    static void parseRequiresSection(XContentParser parser, PrerequisiteSectionBuilder builder) throws IOException {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException(
+                "Expected ["
+                    + XContentParser.Token.START_OBJECT
+                    + ", found ["
+                    + parser.currentToken()
+                    + "], the requires section is not properly indented"
+            );
+        }
+        String currentFieldName = null;
+        XContentParser.Token token;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("reason".equals(currentFieldName)) {
+                    builder.setRequiresReason(parser.text());
+                } else if ("test_runner_features".equals(currentFieldName)) {
+                    parseFeatureField(parser.text(), builder);
+                } else if ("cluster_features".equals(currentFieldName)) {
+                    builder.requireClusterFeature(parser.text());
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "field " + currentFieldName + " not supported within requires section"
+                    );
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("test_runner_features".equals(currentFieldName)) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        parseFeatureField(parser.text(), builder);
+                    }
+                } else if ("cluster_features".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         builder.requireClusterFeature(parser.text());
                     }
                 }
             }
         }
-
         parser.nextToken();
-        builder.validate(parser.getTokenLocation());
     }
+
 
     public static final SkipSection EMPTY = new SkipSection();
 

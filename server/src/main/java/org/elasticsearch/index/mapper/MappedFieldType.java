@@ -650,6 +650,14 @@ public abstract class MappedFieldType {
         String indexName();
 
         /**
+         * Whether the data will be used in stats.
+         * This is relevant to some types, where the choice between doc-values or reading from source is dependent on the usage.
+         * For example, spatial types use doc-values for stats, but read from source for search because doc-values are modified
+         * from the original.
+         */
+        boolean forStats();
+
+        /**
          * {@link SearchLookup} used for building scripts.
          */
         SearchLookup lookup();

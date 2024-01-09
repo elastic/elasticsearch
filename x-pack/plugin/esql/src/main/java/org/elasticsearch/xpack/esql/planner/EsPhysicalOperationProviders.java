@@ -77,7 +77,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /**
          * Returns something to load values from this field into a {@link Block}.
          */
-        BlockLoader blockLoader(String name, boolean asUnsupportedSource);
+        BlockLoader blockLoader(String name, boolean asUnsupportedSource, boolean forStats);
     }
 
     private final List<ShardContext> shardContexts;
@@ -104,7 +104,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ElementType elementType = PlannerUtils.toElementType(dataType);
             String fieldName = attr.name();
             boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
-            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported);
+            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported, false);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
@@ -186,7 +186,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // Costin: why are they ready and not already exposed in the layout?
         boolean isUnsupported = EsqlDataTypes.isUnsupported(attrSource.dataType());
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported),
+            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported, true),
             vsShardContexts,
             groupElementType,
             docChannel,
@@ -255,7 +255,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public BlockLoader blockLoader(String name, boolean asUnsupportedSource) {
+        public BlockLoader blockLoader(String name, boolean asUnsupportedSource, boolean forStats) {
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
             }
@@ -268,6 +268,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public String indexName() {
                     return ctx.getFullyQualifiedIndex().getName();
+                }
+
+                @Override
+                public boolean forStats() {
+                    return forStats;
                 }
 
                 @Override

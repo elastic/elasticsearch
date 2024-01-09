@@ -184,7 +184,9 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // Currently we can only load from source in ESQL
+            if (blContext.forStats() && hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
             ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
             // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
             return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());

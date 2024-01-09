@@ -608,6 +608,8 @@ public class SubscribableListenerTests extends ESTestCase {
     }
 
     public void testJavaDocExample() {
+        // Not really testing anything meaningful, this is just here to make sure that the example in the JavaDocs for SubscribableListener
+        // actually compiles and at least vaguely makes sense.
         safeAwait(SubscribableListener.<Boolean>newForked(l -> exampleAsyncMethod(randomIdentifier(), List.of(), l)));
     }
 

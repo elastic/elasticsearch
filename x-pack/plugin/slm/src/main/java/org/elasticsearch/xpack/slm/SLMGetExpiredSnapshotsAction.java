@@ -114,34 +114,36 @@ public class SLMGetExpiredSnapshotsAction extends TransportAction<
                     continue;
                 }
 
-                retentionExecutor.execute(
-                    ActionRunnable.wrap(
-                        refs.acquireListener(),
-                        perRepositoryListener -> SubscribableListener
+                retentionExecutor.execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void unused) {}
 
-                            // Get repository data
-                            .<RepositoryData>newForked(l -> repository.getRepositoryData(retentionExecutor, l))
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(Strings.format("[%s]: could not compute expired snapshots", repositoryName), e);
+                    }
+                }, refs.acquire()),
+                    perRepositoryListener -> SubscribableListener
 
-                            // Collect snapshot details by policy, and get any missing details by reading SnapshotInfo
-                            .<SnapshotDetailsByPolicy>andThen(
-                                (l, repositoryData) -> getSnapshotDetailsByPolicy(retentionExecutor, repository, repositoryData, l)
-                            )
+                        // Get repository data
+                        .<RepositoryData>newForked(l -> repository.getRepositoryData(retentionExecutor, l))
 
-                            // Compute snapshots to delete for each (relevant) policy
-                            .andThenAccept(snapshotDetailsByPolicy -> {
-                                resultsBuilder.addResult(
-                                    repositoryName,
-                                    getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)
-                                );
-                            })
+                        // Collect snapshot details by policy, and get any missing details by reading SnapshotInfo
+                        .<SnapshotDetailsByPolicy>andThen(
+                            (l, repositoryData) -> getSnapshotDetailsByPolicy(retentionExecutor, repository, repositoryData, l)
+                        )
 
-                            // And notify this repository's listener on completion
-                            .addListener(perRepositoryListener.delegateResponse((l, e) -> {
-                                logger.debug(Strings.format("[%s]: could not compute expired snapshots", repositoryName), e);
-                                l.onResponse(null);
-                            }))
-                    )
-                );
+                        // Compute snapshots to delete for each (relevant) policy
+                        .andThenAccept(snapshotDetailsByPolicy -> {
+                            resultsBuilder.addResult(
+                                repositoryName,
+                                getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)
+                            );
+                        })
+
+                        // And notify this repository's listener on completion
+                        .addListener(perRepositoryListener)
+                ));
             }
         }
     }

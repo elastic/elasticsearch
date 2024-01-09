@@ -1,8 +1,10 @@
 ---
 setup:
   - skip:
-      version: " - 8.12.99"
-      reason: "Universal Profiling test infrastructure is available in 8.12+"
+      version: all
+      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/104038
+      # version: " - 8.12.99"
+      # reason: "Universal Profiling test infrastructure is available in 8.12+"
 
   - do:
       cluster.put_settings:

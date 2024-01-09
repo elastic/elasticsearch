@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -355,25 +353,25 @@ public class PivotTests extends ESTestCase {
                         searchFailures.add(new ShardSearchFailure(new RuntimeException("shard failed")));
                     }
                 }
-
-                final SearchResponse response = new SearchResponse(
-                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0),
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    1,
-                    null,
-                    10,
-                    searchFailures.size() > 0 ? 0 : 5,
-                    0,
-                    0,
-                    searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]),
-                    null
+                ActionListener.respondAndRelease(
+                    listener,
+                    (Response) new SearchResponse(
+                        SearchHits.EMPTY_WITH_TOTAL_HITS,
+                        null,
+                        null,
+                        false,
+                        null,
+                        null,
+                        1,
+                        null,
+                        10,
+                        searchFailures.size() > 0 ? 0 : 5,
+                        0,
+                        0,
+                        searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]),
+                        null
+                    )
                 );
-
-                listener.onResponse((Response) response);
                 return;
             }
 

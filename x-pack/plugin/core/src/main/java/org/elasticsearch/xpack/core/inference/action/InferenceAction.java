@@ -86,7 +86,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 this.input = List.of(in.readString());
             }
-            this.taskSettings = in.readMap();
+            this.taskSettings = in.readGenericMap();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
                 this.inputType = InputType.fromStream(in);
             } else {

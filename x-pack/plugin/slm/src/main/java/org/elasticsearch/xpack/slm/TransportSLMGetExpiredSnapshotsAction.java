@@ -54,19 +54,19 @@ import java.util.stream.Stream;
  * Computes the expired snapshots for SLM. Called by {@link SnapshotRetentionTask}, but made into a separate (local-only) transport action
  * so that it can access the {@link RepositoriesService} directly.
  */
-public class SLMGetExpiredSnapshotsAction extends TransportAction<
-    SLMGetExpiredSnapshotsAction.Request,
-    SLMGetExpiredSnapshotsAction.Response> {
+public class TransportSLMGetExpiredSnapshotsAction extends TransportAction<
+    TransportSLMGetExpiredSnapshotsAction.Request,
+    TransportSLMGetExpiredSnapshotsAction.Response> {
 
     public static final ActionType<Response> INSTANCE = ActionType.localOnly("cluster:admin/slm/execute/get_expired_snapshots");
 
-    private static final Logger logger = LogManager.getLogger(SLMGetExpiredSnapshotsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportSLMGetExpiredSnapshotsAction.class);
 
     private final RepositoriesService repositoriesService;
     private final Executor retentionExecutor;
 
     @Inject
-    public SLMGetExpiredSnapshotsAction(
+    public TransportSLMGetExpiredSnapshotsAction(
         TransportService transportService,
         RepositoriesService repositoriesService,
         ActionFilters actionFilters

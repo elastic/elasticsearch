@@ -27,7 +27,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
@@ -866,17 +865,25 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            SearchResponseSections sections = new SearchResponseSections(
-                null,
-                new Aggregations(Collections.singletonList(result)),
-                null,
-                false,
-                null,
-                null,
-                1
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(
+                    null,
+                    new Aggregations(Collections.singletonList(result)),
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    null
+                )
             );
-            SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-            listener.onResponse(response);
         }
 
         @Override

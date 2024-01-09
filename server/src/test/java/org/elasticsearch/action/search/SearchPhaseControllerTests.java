@@ -50,7 +50,6 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -293,8 +292,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     profile
                 );
+                final SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                 try {
-                    InternalSearchResponse mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
@@ -347,6 +346,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         assertThat(mergedResponse.profile(), is(anEmptyMap()));
                     }
                 } finally {
+                    mergedResponse.decRef();
                     fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {
@@ -411,8 +411,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     false
                 );
+                SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                 try {
-                    InternalSearchResponse mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
@@ -428,6 +428,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs().scoreDocs().length));
                     assertThat(mergedResponse.profile(), is(anEmptyMap()));
                 } finally {
+                    mergedResponse.decRef();
                     fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {
@@ -578,7 +579,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     }
                 }
             }
-            SearchHit[] hits = searchHits.toArray(new SearchHit[0]);
+            SearchHit[] hits = searchHits.toArray(SearchHits.EMPTY);
             ProfileResult profileResult = profile && searchHits.size() > 0
                 ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), randomNonNegativeLong(), List.of())
                 : null;

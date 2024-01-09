@@ -118,7 +118,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final ScriptCompiler scriptCompiler;
-        public final NumberType type;
+        private final NumberType type;
 
         private boolean allowMultipleValues = true;
         private final IndexVersion indexCreatedVersion;
@@ -448,8 +448,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         FLOAT("float", NumericType.FLOAT) {
@@ -610,8 +610,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -750,8 +750,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -853,8 +853,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
         },
         SHORT("short", NumericType.SHORT) {
@@ -952,8 +952,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -1119,8 +1119,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -1256,8 +1256,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
-                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup);
             }
         };
 
@@ -1525,7 +1525,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName);
 
-        abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher);
+        abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1665,7 +1665,10 @@ public class NumberFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return type.blockLoaderFromDocValues(name());
             }
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())));
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }
 
         @Override
@@ -1819,6 +1822,10 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     public NumberFieldType fieldType() {
         return (NumberFieldType) super.fieldType();
+    }
+
+    public NumberType type() {
+        return type;
     }
 
     @Override

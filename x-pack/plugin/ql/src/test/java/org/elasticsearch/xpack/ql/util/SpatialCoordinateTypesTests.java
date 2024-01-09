@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ql.util;
 
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.LinkedHashMap;
@@ -53,7 +54,7 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
             for (int i = 0; i < 10; i++) {
                 SpatialCoordinateTypes coordType = type.getKey();
                 SpatialPoint geoPoint = type.getValue().randomPoint.get();
-                SpatialPoint point = coordType.stringAsPoint(coordType.pointAsString(geoPoint));
+                Point point = coordType.stringAsPoint(coordType.pointAsString(geoPoint));
                 assertThat(coordType + ": Y[" + i + "]", point.getY(), closeTo(geoPoint.getY(), 1e-5));
                 assertThat(coordType + ": X[" + i + "]", point.getX(), closeTo(geoPoint.getX(), 1e-5));
             }

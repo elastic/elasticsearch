@@ -565,19 +565,17 @@ public class RecoverySourceHandler {
                     // but we must still create a retention lease
                     .<RetentionLease>newForked(leaseListener -> createRetentionLease(startingSeqNo, leaseListener))
                     // and then compute the result of sending no files
-                    .<SendFileResult>andThen((l, ignored) -> {
+                    .andThenApply(ignored -> {
                         final TimeValue took = stopWatch.totalTime();
                         logger.trace("recovery [phase1]: took [{}]", took);
-                        l.onResponse(
-                            new SendFileResult(
-                                Collections.emptyList(),
-                                Collections.emptyList(),
-                                0L,
-                                Collections.emptyList(),
-                                Collections.emptyList(),
-                                0L,
-                                took
-                            )
+                        return new SendFileResult(
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            0L,
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            0L,
+                            took
                         );
                     })
                     // and finally respond
@@ -751,19 +749,17 @@ public class RecoverySourceHandler {
                     cleanFiles(store, recoverySourceMetadata, () -> translogOps, lastKnownGlobalCheckpoint, finalRecoveryPlanListener);
                 })
                 // compute the result
-                .<SendFileResult>andThen((resultListener, ignored) -> {
+                .andThenApply(ignored -> {
                     final TimeValue took = stopWatch.totalTime();
                     logger.trace("recovery [phase1]: took [{}]", took);
-                    resultListener.onResponse(
-                        new SendFileResult(
-                            shardRecoveryPlan.getFilesToRecoverNames(),
-                            shardRecoveryPlan.getFilesToRecoverSizes(),
-                            shardRecoveryPlan.getTotalSize(),
-                            shardRecoveryPlan.getFilesPresentInTargetNames(),
-                            shardRecoveryPlan.getFilesPresentInTargetSizes(),
-                            shardRecoveryPlan.getExistingSize(),
-                            took
-                        )
+                    return new SendFileResult(
+                        shardRecoveryPlan.getFilesToRecoverNames(),
+                        shardRecoveryPlan.getFilesToRecoverSizes(),
+                        shardRecoveryPlan.getTotalSize(),
+                        shardRecoveryPlan.getFilesPresentInTargetNames(),
+                        shardRecoveryPlan.getFilesPresentInTargetSizes(),
+                        shardRecoveryPlan.getExistingSize(),
+                        took
                     );
                 })
                 // and finally respond

@@ -17,6 +17,8 @@ import java.util.Set;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,13 +127,11 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
         var nonMatch1 = versionRanges.stream().filter(range -> range.test(Set.of("5.1.0"))).findFirst();
         var nonMatch2 = versionRanges.stream().filter(range -> range.test(Set.of("8.1.0"))).findFirst();
 
-        assertTrue(match1.isPresent());
-        assertThat(match1.get(), is(versionRanges.get(0)));
-        assertTrue(match2.isPresent());
-        assertThat(match2.get(), is(versionRanges.get(1)));
+        assertThat(match1, isPresentWith(versionRanges.get(0)));
+        assertThat(match2, isPresentWith(versionRanges.get(1)));
 
-        assertFalse(nonMatch1.isPresent());
-        assertFalse(nonMatch2.isPresent());
+        assertThat(nonMatch1, isEmpty());
+        assertThat(nonMatch2, isEmpty());
     }
 
     public void testMatchRangeMultipleNodeVersions() {
@@ -144,13 +144,11 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
         var nonMatch1 = versionRanges.stream().filter(range -> range.test(Set.of("5.1.0", "6.1.0"))).findFirst();
         var nonMatch2 = versionRanges.stream().filter(range -> range.test(Set.of("8.0.0", "8.1.0"))).findFirst();
 
-        assertTrue(match1.isPresent());
-        assertThat(match1.get(), is(versionRanges.get(0)));
-        assertTrue(match2.isPresent());
-        assertThat(match2.get(), is(versionRanges.get(1)));
+        assertThat(match1, isPresentWith(versionRanges.get(0)));
+        assertThat(match2, isPresentWith(versionRanges.get(1)));
 
-        assertFalse(nonMatch1.isPresent());
-        assertFalse(nonMatch2.isPresent());
+        assertThat(nonMatch1, isEmpty());
+        assertThat(nonMatch2, isEmpty());
     }
 
     public void testMatchAll() {

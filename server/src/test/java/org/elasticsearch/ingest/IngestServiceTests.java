@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -91,6 +92,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -1640,6 +1642,184 @@ public class IngestServiceTests extends ESTestCase {
         );
 
         verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(e -> e.getCause().equals(error)));
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    public void testExecuteFailureRedirection() throws Exception {
+        final CompoundProcessor processor = mockCompoundProcessor();
+        IngestService ingestService = createWithProcessors(
+            Map.of(
+                "mock",
+                (factories, tag, description, config) -> processor,
+                "set",
+                (factories, tag, description, config) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
+            )
+        );
+        PutPipelineRequest putRequest1 = new PutPipelineRequest(
+            "_id1",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        // given that set -> fail() above, it's a failure if a document executes against this pipeline
+        PutPipelineRequest putRequest2 = new PutPipelineRequest(
+            "_id2",
+            new BytesArray("{\"processors\": [{\"set\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(putRequest1, clusterState);
+        clusterState = executePut(putRequest2, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
+            .source(Map.of())
+            .setPipeline("_id1")
+            .setFinalPipeline("_id2");
+        doThrow(new RuntimeException()).when(processor)
+            .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
+        final Predicate<String> redirectCheck = (idx) -> indexRequest.index().equals(idx);
+        @SuppressWarnings("unchecked")
+        final TriConsumer<Integer, String, Exception> redirectHandler = mock(TriConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        ingestService.executeBulkRequest(
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            redirectCheck,
+            redirectHandler,
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
+        verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
+        verify(redirectHandler, times(1)).apply(eq(0), eq(indexRequest.index()), any(RuntimeException.class));
+        verifyNoInteractions(failureHandler);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    public void testExecuteFailureRedirectionWithNestedOnFailure() throws Exception {
+        final Processor processor = mock(Processor.class);
+        when(processor.isAsync()).thenReturn(true);
+        final Processor onFailureProcessor = mock(Processor.class);
+        when(onFailureProcessor.isAsync()).thenReturn(true);
+        final Processor onFailureOnFailureProcessor = mock(Processor.class);
+        when(onFailureOnFailureProcessor.isAsync()).thenReturn(true);
+        final List<Processor> processors = List.of(onFailureProcessor);
+        final List<Processor> onFailureProcessors = List.of(onFailureOnFailureProcessor);
+        final CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            List.of(processor),
+            List.of(new CompoundProcessor(false, processors, onFailureProcessors))
+        );
+        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> compoundProcessor));
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
+            .source(Map.of())
+            .setPipeline("_id")
+            .setFinalPipeline("_none");
+        doThrow(new RuntimeException()).when(onFailureOnFailureProcessor)
+            .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
+        doThrow(new RuntimeException()).when(onFailureProcessor)
+            .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
+        doThrow(new RuntimeException()).when(processor)
+            .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
+        final Predicate<String> redirectPredicate = (idx) -> indexRequest.index().equals(idx);
+        @SuppressWarnings("unchecked")
+        final TriConsumer<Integer, String, Exception> redirectHandler = mock(TriConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        ingestService.executeBulkRequest(
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            redirectPredicate,
+            redirectHandler,
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
+        verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
+        verify(redirectHandler, times(1)).apply(eq(0), eq(indexRequest.index()), any(RuntimeException.class));
+        verifyNoInteractions(failureHandler);
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    public void testBulkRequestExecutionWithRedirectedFailures() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        String pipelineId = "_id";
+
+        int numRequest = scaledRandomIntBetween(8, 64);
+        int numIndexRequests = 0;
+        for (int i = 0; i < numRequest; i++) {
+            DocWriteRequest<?> request;
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    request = new DeleteRequest("_index", "_id");
+                } else {
+                    request = new UpdateRequest("_index", "_id");
+                }
+            } else {
+                IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
+                indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+                request = indexRequest;
+                numIndexRequests++;
+            }
+            bulkRequest.add(request);
+        }
+
+        CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(processor.isAsync()).thenReturn(true);
+        when(processor.getProcessors()).thenReturn(List.of(mock(Processor.class)));
+        Exception error = new RuntimeException();
+        doAnswer(args -> {
+            @SuppressWarnings("unchecked")
+            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
+            handler.accept(null, error);
+            return null;
+        }).when(processor).execute(any(), any());
+        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        @SuppressWarnings("unchecked")
+        TriConsumer<Integer, String, Exception> requestItemRedirectHandler = mock(TriConsumer.class);
+        @SuppressWarnings("unchecked")
+        BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        ingestService.executeBulkRequest(
+            numRequest,
+            bulkRequest.requests(),
+            indexReq -> {},
+            (s) -> true,
+            requestItemRedirectHandler,
+            requestItemErrorHandler,
+            completionHandler,
+            Names.WRITE
+        );
+
+        verify(requestItemRedirectHandler, times(numIndexRequests)).apply(anyInt(), anyString(), argThat(e -> e.getCause().equals(error)));
+        verifyNoInteractions(requestItemErrorHandler);
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 

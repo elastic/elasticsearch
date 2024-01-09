@@ -134,10 +134,7 @@ public class SkipSection {
                 throw new ParsingException(contentLocation, "either [xpack] or [no_xpack] can be present, not both");
             }
             if (forbiddenClusterFeatures.stream().anyMatch(x -> requiredClusterFeatures.contains(x))) {
-                throw new ParsingException(
-                    contentLocation,
-                    "a cluster feature can be specified either in [requires] or [skip], not both"
-                );
+                throw new ParsingException(contentLocation, "a cluster feature can be specified either in [requires] or [skip], not both");
             }
         }
 
@@ -315,7 +312,6 @@ public class SkipSection {
         }
         parser.nextToken();
     }
-
 
     public static final SkipSection EMPTY = new SkipSection();
 

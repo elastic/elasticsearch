@@ -192,9 +192,9 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseNoPrerequisites() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
-        do:
-           something
-        """);
+            do:
+               something
+            """);
         var skipSectionBuilder = SkipSection.parseInternal(parser);
         assertThat(skipSectionBuilder, notNullValue());
 
@@ -259,14 +259,11 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseBothXPackFeatures() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
-           skip:
-              features:     [xpack, no_xpack]
-           """);
+            skip:
+               features:     [xpack, no_xpack]
+            """);
 
-        var e = expectThrows(
-            ParsingException.class,
-            () -> SkipSection.parseInternal(parser)
-        );
+        var e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
         assertThat(e.getMessage(), containsString("either [xpack] or [no_xpack] can be present, not both"));
     }
 
@@ -296,27 +293,21 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionNoReason() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-           skip:
-              version: " - 0.90.2"
-           """);
+            skip:
+               version: " - 0.90.2"
+            """);
 
-        Exception e = expectThrows(
-            ParsingException.class,
-            () -> SkipSection.parseInternal(parser)
-        );
+        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
         assertThat(e.getMessage(), is("reason is mandatory within skip version section"));
     }
 
     public void testParseSkipSectionNoVersionNorFeature() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-           skip:
-              reason:      Delete ignores the parent param
-           """);
+            skip:
+               reason:      Delete ignores the parent param
+            """);
 
-        Exception e = expectThrows(
-            ParsingException.class,
-            () -> SkipSection.parseInternal(parser)
-        );
+        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
         assertThat(
             e.getMessage(),
             is("at least one criteria (version, cluster features, runner features, os) is mandatory within a skip section")
@@ -362,10 +353,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
                reason:      memory accounting broken, see gh#xyz
             """);
 
-        Exception e = expectThrows(
-            ParsingException.class,
-            () -> SkipSection.parseInternal(parser)
-        );
+        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
         assertThat(e.getMessage(), is("if os is specified, feature skip_os must be set"));
     }
 
@@ -445,10 +433,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
                reason: test cannot run with some-feature
             """);
 
-        var e = expectThrows(
-            ParsingException.class,
-            () -> SkipSection.parseInternal(parser)
-        );
+        var e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
         assertThat(e.getMessage(), is("a cluster feature can be specified either in [requires] or [skip], not both"));
     }
 

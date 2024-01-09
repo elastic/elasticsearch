@@ -1,0 +1,6 @@
+pr: 103202
+summary: ES|QL - create DATE_DIFF function
+area: ES|QL
+type: enhancement
+issues:
+  - 101942

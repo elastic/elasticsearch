@@ -132,7 +132,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 // assertThat(predictionValue, closeTo(10 * featureValue, 2.0));
 
                 assertThat(resultsObject, hasKey(predictedClassField));
-                assertThat(resultsObject, hasKey("is_training"));
                 assertThat(resultsObject, hasEntry("is_training", destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
@@ -505,7 +504,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
 
                 assertThat(resultsObject, hasKey(predictedClassField));
-                assertThat(resultsObject, hasKey("is_training"));
                 assertThat(resultsObject, hasEntry("is_training", destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");

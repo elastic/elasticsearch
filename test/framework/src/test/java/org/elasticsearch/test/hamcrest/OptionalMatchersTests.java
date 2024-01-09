@@ -35,7 +35,6 @@ public class OptionalMatchersTests extends ESTestCase {
         assertThat(Optional.empty(), not(isPresent()));
 
         StringDescription desc = new StringDescription();
-
         isPresent().describeMismatch(Optional.empty(), desc);
         assertThat(desc.toString(), equalTo("an empty optional"));
     }

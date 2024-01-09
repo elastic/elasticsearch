@@ -383,15 +383,15 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(enterpriseSearchIndex), is(false));
         });
 
-        // connector secrets
+        // Connector secrets. Enterprise Search has read and write access.
         assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/get", request, authentication), is(true));
-        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/post", request, authentication), is(false));
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/post", request, authentication), is(true));
 
         final IndexAbstraction dotConnectorSecretsIndex = mockIndexAbstraction(".connector-secrets" + randomAlphaOfLengthBetween(1, 20));
-        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(dotConnectorSecretsIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotConnectorSecretsIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(dotConnectorSecretsIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotConnectorSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(dotConnectorSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotConnectorSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(dotConnectorSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotConnectorSecretsIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(dotConnectorSecretsIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(dotConnectorSecretsIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(dotConnectorSecretsIndex), is(true));

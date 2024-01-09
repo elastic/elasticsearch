@@ -22,12 +22,12 @@ public enum SecurityMetricType {
     AUTHC_SERVICE_ACCOUNT(
         SecurityMetricGroup.AUTHC,
         new SecurityMetricInfo(
-            "es.security.authc.service_account.success.count",
+            "es.security.authc.service_account.success.total",
             "Number of successful service account authentications.",
             "count"
         ),
         new SecurityMetricInfo(
-            "es.security.authc.service_account.failures.count",
+            "es.security.authc.service_account.failures.total",
             "Number of failed service account authentications.",
             "count"
         ),

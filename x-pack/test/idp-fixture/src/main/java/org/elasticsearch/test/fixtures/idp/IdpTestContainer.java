@@ -144,20 +144,18 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
             .run("chmod +x /opt/jetty-home/bin/jetty.sh")
             // Opening 4443 (browser TLS), 8443 (mutual auth TLS)
             .cmd("run-jetty.sh")
-//                    .withStatement(
-//                     new SingleArgumentStatement(
-//                     "HEALTHCHECK",
-//                     "CMD curl -f -s --http0.9 http://localhost:4443 " + "--connect-timeout 40 --max-time 60 --output - > /dev/null"
-//                     )
-//                     )
+            // .withStatement(
+            // new SingleArgumentStatement(
+            // "HEALTHCHECK",
+            // "CMD curl -f -s --http0.9 http://localhost:4443 " + "--connect-timeout 40 --max-time 60 --output - > /dev/null"
+            // )
+            // )
             .build();
     }
 
     public IdpTestContainer(Network network) {
         super(
-            new ImageFromDockerfile("es-idp-testfixture").withDockerfileFromBuilder(
-                    imageBuilder()
-            )
+            new ImageFromDockerfile("es-idp-testfixture").withDockerfileFromBuilder(imageBuilder())
                 .withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
                 .withFileFromClasspath("idp/jetty-custom/keystore", "/idp/jetty-custom/keystore")
                 .withFileFromClasspath("idp/shib-jetty-base/", "/idp/shib-jetty-base/")

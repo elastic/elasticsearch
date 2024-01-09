@@ -1,0 +1,5 @@
+pr: 103178
+summary: Expose API key authentication metrics
+area: Authentication
+type: enhancement
+issues: []

@@ -87,6 +87,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {
 
         protected final Parser<T> geometryParser;
+        protected final T nullValue;
 
         protected AbstractGeometryFieldType(
             String name,
@@ -94,9 +95,11 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             boolean stored,
             boolean hasDocValues,
             Parser<T> geometryParser,
+            T nullValue,
             Map<String, String> meta
         ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
+            this.nullValue = nullValue;
             this.geometryParser = geometryParser;
         }
 
@@ -127,7 +130,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         public ValueFetcher valueFetcher(Set<String> sourcePaths, Object nullValue, String format) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-            return new ArraySourceValueFetcher(sourcePaths, nullValue) {
+            return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue)) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     final List<T> values = new ArrayList<>();
@@ -136,6 +139,8 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                 }
             };
         }
+
+        protected abstract Object nullValueAsSource(Object nullValue);
     }
 
     private final Explicit<Boolean> ignoreMalformed;

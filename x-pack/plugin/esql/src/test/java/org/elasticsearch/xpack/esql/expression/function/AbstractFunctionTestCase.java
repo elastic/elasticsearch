@@ -28,10 +28,13 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -123,8 +127,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
-            case "geo_point" -> GEO.pointAsLong(randomGeoPoint());
-            case "cartesian_point" -> CARTESIAN.pointAsLong(randomCartesianPoint());
+            case "geo_point" -> GEO.pointAsWKB(GeometryTestUtils.randomPoint());
+            case "cartesian_point" -> CARTESIAN.pointAsWKB(ShapeTestUtils.randomPoint());
             case "null" -> null;
             case "_source" -> {
                 try {
@@ -150,11 +154,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return parameters;
     }
 
-    protected static FieldAttribute field(String name, DataType type) {
+    /**
+     * Build an {@link Attribute} that loads a field.
+     */
+    public static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true));
     }
 
-    protected static Expression deepCopyOfField(String name, DataType type) {
+    /**
+     * Build an {@link Attribute} that loads a field and then creates a deep copy of its data.
+     */
+    public static Expression deepCopyOfField(String name, DataType type) {
         return new DeepCopy(Source.EMPTY, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true)));
     }
 
@@ -180,7 +190,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return build(testCase.getSource(), testCase.getDataAsLiterals());
     }
 
-    protected final ExpressionEvaluator.Factory evaluator(Expression e) {
+    /**
+     * Convert an {@link Expression} tree into a {@link ExpressionEvaluator.Factory}
+     * for {@link ExpressionEvaluator}s in the same way as our planner.
+     */
+    public static ExpressionEvaluator.Factory evaluator(Expression e) {
         e = new FoldNull().rule(e);
         if (e.foldable()) {
             e = new Literal(e.source(), e.fold(), e.dataType());
@@ -192,14 +206,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Page row(List<Object> values) {
-        return new Page(BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), values));
+        return new Page(BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
     }
 
     /**
      * Hack together a layout by scanning for Fields.
      * Those will show up in the layout in whatever order a depth first traversal finds them.
      */
-    protected void buildLayout(Layout.Builder builder, Expression e) {
+    protected static void buildLayout(Layout.Builder builder, Expression e) {
         if (e instanceof FieldAttribute f) {
             builder.append(f);
             return;
@@ -434,13 +448,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
         try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
-            Block[] orig = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), simpleData);
+            BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+            Block[] orig = BlockUtils.fromListRow(blockFactory, simpleData);
             for (int i = 0; i < orig.length; i++) {
                 List<Object> data = new ArrayList<>();
                 Block[] blocks = new Block[orig.length];
                 for (int b = 0; b < blocks.length; b++) {
                     if (b == i) {
-                        blocks[b] = orig[b].elementType().newBlockBuilder(1).appendNull().build();
+                        blocks[b] = orig[b].elementType().newBlockBuilder(1, blockFactory).appendNull().build();
                         data.add(null);
                     } else {
                         blocks[b] = orig[b];
@@ -664,13 +679,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     if (newSignature) {
                         suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
                             TestCaseSupplier.TestCase oc = original.get();
-                            List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
-                                TestCaseSupplier.TypedData od = oc.getData().get(i);
-                                if (i == finalNullPosition) {
-                                    return new TestCaseSupplier.TypedData(null, DataTypes.NULL, od.name());
-                                }
-                                return od;
-                            }).toList();
+                            List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size())
+                                .mapToObj(i -> i == finalNullPosition ? TestCaseSupplier.TypedData.NULL : oc.getData().get(i))
+                                .toList();
                             return new TestCaseSupplier.TestCase(
                                 data,
                                 "LiteralsEvaluator[lit=null]",
@@ -891,6 +902,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 DataTypes.NULL
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
+        ),
+        Map.entry(
+            Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.NULL),
+            "geo_point or long or string"
+        ),
+        Map.entry(
+            Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.NULL),
+            "cartesian_point or long or string"
         )
     );
 

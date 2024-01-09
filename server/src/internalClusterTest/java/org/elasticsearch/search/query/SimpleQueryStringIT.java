@@ -525,7 +525,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("test").setQuery(simpleQueryStringQuery("foo123").lenient(false)).get()
+            prepareSearch("test").setQuery(simpleQueryStringQuery("foo123").lenient(false))
         );
         assertThat(e.getDetailedMessage(), containsString("NumberFormatException: For input string: \"foo123\""));
     }

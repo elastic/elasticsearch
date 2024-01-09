@@ -91,7 +91,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -186,6 +185,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
@@ -691,8 +691,8 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             @Override
-            public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-                super.flush(force, waitIfOngoing, listener);
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+                super.flushHoldingLock(force, waitIfOngoing, listener);
                 postFlushSegmentInfoGen.set(getLastCommittedSegmentInfos().getGeneration());
                 assertThat(getPreCommitSegmentGeneration(), equalTo(preCommitGen.get()));
             }
@@ -1347,7 +1347,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     void syncFlush(IndexWriter writer, InternalEngine engine, String syncId) throws IOException {
-        try (ReleasableLock ignored = engine.readLock.acquire()) {
+        try (var ignored = engine.acquireEnsureOpenRef()) {
             Map<String, String> userData = new HashMap<>();
             writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
             userData.put(Engine.SYNC_COMMIT_ID, syncId);
@@ -7720,7 +7720,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {
         var releasable = commits.keySet().stream().filter(c -> c.getGeneration() == generation).findFirst();
-        assertThat(releasable.isPresent(), is(true));
+        assertThat(releasable, isPresent());
         Engine.IndexCommitRef indexCommitRef = commits.get(releasable.get());
         try {
             indexCommitRef.close();

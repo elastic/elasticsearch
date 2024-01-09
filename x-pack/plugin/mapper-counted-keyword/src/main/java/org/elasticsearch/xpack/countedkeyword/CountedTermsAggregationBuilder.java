@@ -73,6 +73,11 @@ public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuild
         CountedTermsAggregatorFactory.registerAggregators(builder);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     public CountedTermsAggregationBuilder size(int size) {
         if (size <= 0) {
             throw new IllegalArgumentException("[size] must be greater than 0. Found [" + size + "] in [" + name + "]");

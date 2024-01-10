@@ -107,7 +107,14 @@ class FieldCapabilitiesFetcher {
         if (includeFieldsWithNoValue) {
             indexMappingHash = mapping != null ? mapping.getSha256() : null;
         } else {
-            indexMappingHash = indexService.getShard(shardId.getId()).getShardUuid();
+            // even if the mapping is the same if we return only fields with values we need
+            // to make sure that we consider all the shard-mappings pair, that is why we
+            // calculate a different hash for this particular case.
+            StringBuilder sb = new StringBuilder(indexService.getShard(shardId.getId()).getShardUuid());
+            if (mapping != null) {
+                sb.append(mapping.getSha256());
+            }
+            indexMappingHash = sb.toString();
         }
         if (indexMappingHash != null) {
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);

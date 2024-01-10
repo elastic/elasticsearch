@@ -654,14 +654,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 try (Engine.Searcher hasValueSearcher = engine.acquireSearcher("field_has_value")) {
                     IndexReader hasValueReader = hasValueSearcher.getIndexReader();
                     for (LeafReaderContext leaf : hasValueReader.leaves()) {
-                        try (LeafReader leafReader = leaf.reader()) {
-                            for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
-                                indexShard.setFieldHasValue(fieldInfo.getName());
-                            }
+                        LeafReader leafReader = leaf.reader();
+                        for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
+                            indexShard.setFieldHasValue(fieldInfo.getName());
                         }
                     }
-                } catch (IOException ignore) {
-                    // TODO-MP should we ignore this?
                 }
                 listener.onResponse(null);
             }

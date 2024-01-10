@@ -205,13 +205,13 @@ final class RequestDispatcher {
         for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
             if (indexResponse.canMatch()) {
                 if (fieldCapsRequest.includeFieldsWithNoValue() == false) {
+                    // we accept all the responses because they may vary from node to node if we exclude empty fields
                     onIndexResponse.accept(indexResponse);
                 } else if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
                     onIndexResponse.accept(indexResponse);
                 }
             }
         }
-
         for (ShardId unmatchedShardId : nodeResponse.getUnmatchedShardIds()) {
             final IndexSelector indexSelector = indexSelectors.get(unmatchedShardId.getIndexName());
             if (indexSelector != null) {

@@ -38,21 +38,6 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         );
     }
 
-    // @Override
-    // protected boolean addMockHttpTransport() {
-    // return false;
-    // }
-
-    // @Override
-    // protected int numberOfShards() {
-    // return 1; // TODO-MP find solution to remove this
-    // }
-    //
-    // @Override
-    // protected int numberOfReplicas() {
-    // return 0; // TODO-MP find solution to remove this
-    // }
-
     public void testNoFieldsInEmptyIndex() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
 
@@ -64,9 +49,8 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
     }
 
     public void testOnlyFieldsWithValue() {
-        // createIndex(INDEX1, 1, 0);
         prepareIndex(INDEX1).setSource("foo", "foo-text").get();
-        refresh(INDEX1); // TODO-MP is really needed or am I missing something?
+        refresh(INDEX1);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
 
@@ -84,7 +68,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
 
     public void testOnlyFieldsWithValueWithIndexFilter() {
         prepareIndex(INDEX1).setSource("foo", "foo-text").get();
-        refresh(INDEX1); // TODO-MP is really needed or am I missing something?
+        refresh(INDEX1);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
 
@@ -277,7 +261,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         // In this current implementation we do not handle deleted documents (without a restart).
         // This test should fail if in a future implementation we handle deletes.
         DocWriteResponse foo = prepareIndex(INDEX1).setSource("foo", "foo-text").get();
-        client().prepareDelete().setId(foo.getId());
+        client().prepareDelete().setIndex(INDEX1).setId(foo.getId()).get();
         refresh(INDEX1);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
@@ -296,7 +280,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
 
     public void testDeletedDocsNotReturnedAfterRestart() throws Exception {
         DocWriteResponse foo = prepareIndex(INDEX1).setSource("foo", "foo-text").get();
-        client().prepareDelete().setId(foo.getId());
+        client().prepareDelete().setIndex(INDEX1).setId(foo.getId()).get();
         internalCluster().fullRestart();
         ensureGreen(INDEX1);
 

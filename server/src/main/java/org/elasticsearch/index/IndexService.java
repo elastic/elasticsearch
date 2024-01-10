@@ -162,6 +162,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
+    // We keep track if a field has ever seen a value in an index at index level rather than
+    // on a per-shard basis. This has being done in order to reduce heap consumption on data
+    // nodes. The only limitation is that if a shard gets relocated to a different data node
+    // the response of that data node could be outdated but the _field_caps API response
+    // would still be correct, this works because we are not handling deletes.
     private final Set<String> fieldHasValue;
 
     @SuppressWarnings("this-escape")

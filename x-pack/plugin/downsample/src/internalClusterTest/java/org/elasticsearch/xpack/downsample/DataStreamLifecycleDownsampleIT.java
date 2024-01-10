@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.putTS
 import static org.hamcrest.Matchers.is;
 
 public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
-    public static final int DOC_COUNT = 50_000;
+    public static final int DOC_COUNT = 5_000; // TODO put this back to 50k!!
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

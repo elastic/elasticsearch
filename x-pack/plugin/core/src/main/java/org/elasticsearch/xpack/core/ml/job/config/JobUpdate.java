@@ -178,7 +178,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             categorizationFilters = null;
         }
         perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
-        customSettings = in.readMap();
+        customSettings = in.readGenericMap();
         modelSnapshotId = in.readOptionalString();
         if (in.readBoolean()) {
             jobVersion = MlConfigVersion.readVersion(in);

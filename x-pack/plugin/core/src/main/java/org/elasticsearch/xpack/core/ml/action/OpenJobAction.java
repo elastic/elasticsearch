@@ -44,10 +44,6 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
-        public static Request fromXContent(XContentParser parser) {
-            return parseRequest(null, parser);
-        }
-
         public static Request parseRequest(String jobId, XContentParser parser) {
             JobParams jobParams = JobParams.PARSER.apply(parser, null);
             if (jobId != null) {

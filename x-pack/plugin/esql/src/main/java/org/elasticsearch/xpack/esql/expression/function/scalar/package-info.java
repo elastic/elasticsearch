@@ -100,7 +100,7 @@
  *         {@code ./gradlew -p x-pack/plugin/esql/ check}
  *     </li>
  *     <li>
- *         Now it's time to write some docs! Open {@code docs/reference/esql/esql-functions.asciidoc}
+ *         Now it's time to write some docs! Open {@code docs/reference/esql/esql-functions-operators.asciidoc}
  *         and add your function in alphabetical order to the list at the top and then add it to
  *         the includes below.
  *     </li>

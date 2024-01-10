@@ -201,7 +201,7 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
         * still technically be open, meaning the calling code should close it
         * which will return all used memory to the breaker.
         */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed(), false);
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
         return theBlock;
     }
 

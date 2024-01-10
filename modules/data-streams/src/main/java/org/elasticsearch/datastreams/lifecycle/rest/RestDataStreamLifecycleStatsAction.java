@@ -14,7 +14,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.util.List;
 
@@ -40,6 +40,10 @@ public class RestDataStreamLifecycleStatsAction extends BaseRestHandler {
         if (masterNodeTimeout != null) {
             request.masterNodeTimeout(masterNodeTimeout);
         }
-        return channel -> client.execute(GetDataStreamLifecycleStatsAction.INSTANCE, request, new RestChunkedToXContentListener<>(channel));
+        return channel -> client.execute(
+            GetDataStreamLifecycleStatsAction.INSTANCE,
+            request,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
     }
 }

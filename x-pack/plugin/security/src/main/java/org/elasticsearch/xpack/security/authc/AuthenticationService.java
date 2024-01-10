@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -88,7 +89,8 @@ public class AuthenticationService {
         TokenService tokenService,
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
-        OperatorPrivilegesService operatorPrivilegesService
+        OperatorPrivilegesService operatorPrivilegesService,
+        MeterRegistry meterRegistry
     ) {
         this.realms = realms;
         this.auditTrailService = auditTrailService;
@@ -111,7 +113,7 @@ public class AuthenticationService {
             new AuthenticationContextSerializer(),
             new ServiceAccountAuthenticator(serviceAccountService, nodeName),
             new OAuth2TokenAuthenticator(tokenService),
-            new ApiKeyAuthenticator(apiKeyService, nodeName),
+            new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
             new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
         );
     }

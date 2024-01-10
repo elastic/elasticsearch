@@ -34,8 +34,21 @@ public enum SpatialCoordinateTypes {
         }
     },
     CARTESIAN {
+
+        private static final int MAX_VAL_ENCODED = XYEncodingUtils.encode((float) XYEncodingUtils.MAX_VAL_INCL);
+        private static final int MIN_VAL_ENCODED = XYEncodingUtils.encode((float) XYEncodingUtils.MIN_VAL_INCL);
+
         public Point longAsPoint(long encoded) {
-            return new Point(XYEncodingUtils.decode((int) (encoded >>> 32)), XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFF)));
+            final int x = checkCoordinate((int) (encoded >>> 32));
+            final int y = checkCoordinate((int) (encoded & 0xFFFFFFFF));
+            return new Point(XYEncodingUtils.decode(x), XYEncodingUtils.decode(y));
+        }
+
+        private int checkCoordinate(int i) {
+            if (i > MAX_VAL_ENCODED || i < MIN_VAL_ENCODED) {
+                throw new IllegalArgumentException("Failed to convert invalid encoded value to cartesian point");
+            }
+            return i;
         }
 
         public long pointAsLong(double x, double y) {

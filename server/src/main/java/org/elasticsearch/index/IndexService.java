@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
@@ -161,6 +162,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
+    private final Set<String> fieldHasValue;
+
     @SuppressWarnings("this-escape")
     public IndexService(
         IndexSettings indexSettings,
@@ -275,6 +278,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
+        this.fieldHasValue = ConcurrentCollections.newConcurrentSet();
         updateFsyncTaskIfNecessary();
     }
 
@@ -546,7 +550,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 snapshotCommitSupplier,
                 System::nanoTime,
-                indexCommitListener
+                indexCommitListener,
+                fieldHasValue
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

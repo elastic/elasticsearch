@@ -103,7 +103,12 @@ class FieldCapabilitiesFetcher {
         }
 
         final MappingMetadata mapping = indexService.getMetadata().mapping();
-        final String indexMappingHash = mapping != null ? mapping.getSha256() : null;
+        String indexMappingHash;
+        if (includeFieldsWithNoValue) {
+            indexMappingHash = mapping != null ? mapping.getSha256() : null;
+        } else {
+            indexMappingHash = indexService.getShard(shardId.getId()).getShardUuid();
+        }
         if (indexMappingHash != null) {
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
             if (existing != null) {
@@ -147,7 +152,7 @@ class FieldCapabilitiesFetcher {
             }
             MappedFieldType ft = context.getFieldType(field);
             boolean includeField = includeFieldsWithNoValue || indexShard.fieldHasValue(ft.name()) || ft instanceof ConstantFieldType;
-            if (filter.test(ft) && includeField) {
+            if (includeField && filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

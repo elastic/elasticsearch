@@ -47,7 +47,6 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
     private Map<String, Object> runtimeFields = Collections.emptyMap();
-    private Map<String, Object> fieldHasValue = Collections.emptyMap();
     private Long nowInMillis;
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
@@ -265,12 +264,20 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             && Arrays.equals(filters, that.filters)
             && Arrays.equals(types, that.types)
             && Objects.equals(runtimeFields, that.runtimeFields)
-            && Objects.equals(fieldHasValue, that.fieldHasValue);
+            && includeFieldsWithNoValue == that.includeFieldsWithNoValue;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, includeUnmapped, mergeResults, indexFilter, nowInMillis, runtimeFields, fieldHasValue);
+        int result = Objects.hash(
+            indicesOptions,
+            includeUnmapped,
+            mergeResults,
+            indexFilter,
+            nowInMillis,
+            runtimeFields,
+            includeFieldsWithNoValue
+        );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);

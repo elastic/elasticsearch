@@ -82,17 +82,21 @@ public final class DomainSplitFunction {
         );
 
         static {
-            try (
-                var stream = DomainSplitFunction.class.getClassLoader()
-                    .getResourceAsStream("org/elasticsearch/xpack/ml/utils/exact.properties")
-            ) {
-                exact = Streams.readAllLines(stream)
-                    .stream()
-                    .map(line -> line.split("="))
-                    .collect(Collectors.toUnmodifiableMap(split -> split[0].intern(), split -> split[1].intern()));
-            } catch (final IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            exact = AccessController.doPrivileged((PrivilegedAction<Map<String, String>>) () -> {
+                try (
+                    var stream = DomainSplitFunction.class.getClassLoader()
+                        .getResourceAsStream("org/elasticsearch/xpack/ml/utils/exact.properties")
+                ) {
+                    return Streams.readAllLines(stream)
+                        .stream()
+                        .map(line -> line.split("="))
+                        .collect(
+                            Collectors.<String[], String, String>toUnmodifiableMap(split -> split[0].intern(), split -> split[1].intern())
+                        );
+                } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
         }
     }
 

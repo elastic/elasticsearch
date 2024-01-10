@@ -377,7 +377,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             Map<String, Object> result = new LinkedHashMap<>(size);
 
             for (int i = 0; i < size; i++) {
-                String name = in.readBytesRef().utf8ToString();
+                String name = null;
+                try {
+                    name = in.readBytesRef().utf8ToString();
+                } catch (AssertionError ae) {
+                    throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
+                }
 
                 int type = in.read();
                 switch (type) {
@@ -386,7 +391,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                         try {
                             result.put(name, in.readBytesRef().utf8ToString());
                         } catch (AssertionError ae) {
-                            throw new IllegalArgumentException("Error parsing keyword dimension " + name + ": " + ae.getMessage(), ae);
+                            throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
                         }
                     }
                     case (byte) 'l' -> // parse a long

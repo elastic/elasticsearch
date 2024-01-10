@@ -30,3 +30,6 @@ public class RestRefCountedChunkedToXContentListener<Response extends ChunkedToX
         return Releasables.assertOnce(response::decRef);
     }
 }
+/*
+Subclass of this that extends search response so that I can report took.
+ */

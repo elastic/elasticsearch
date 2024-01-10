@@ -23,6 +23,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.action.search.ReportsTookTime;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -39,7 +40,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * A multi search response.
  */
-public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ChunkedToXContentObject {
+public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ChunkedToXContentObject, ReportsTookTime {
+    private static final String MetricIdentifier = "MultiSearchResponse";
 
     private static final ParseField RESPONSES = new ParseField(Fields.RESPONSES);
     private static final ParseField TOOK_IN_MILLIS = new ParseField("took");
@@ -52,6 +54,16 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> itemFromXContent(p), RESPONSES);
         PARSER.declareLong(constructorArg(), TOOK_IN_MILLIS);
+    }
+
+    @Override
+    public long getTookMillis() {
+        return tookInMillis;
+    }
+
+    @Override
+    public String getIdentifier() {
+        return MetricIdentifier;
     }
 
     /**

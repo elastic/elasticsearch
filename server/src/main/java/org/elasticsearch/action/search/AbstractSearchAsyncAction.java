@@ -672,7 +672,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             getNumShards(),
             numSuccess,
             skippedOps.get(),
-            buildTookInMillis(),
+            buildTookInMillis(),  // TODO: John here
             failures,
             clusters,
             searchContextId

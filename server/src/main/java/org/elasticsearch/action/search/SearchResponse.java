@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.search.ReportsTookTime;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -56,11 +57,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A response of a search request.
  */
-public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
+public class SearchResponse extends ActionResponse implements ChunkedToXContentObject, ReportsTookTime {
+    private static final String MetricIdentifier = "SearchResponse";
 
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
-    private static final ParseField TOOK = new ParseField("took");
+    private static final ParseField TOOK = new ParseField("took"); // here
     private static final ParseField TIMED_OUT = new ParseField("timed_out");
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
@@ -79,7 +81,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final int skippedShards;
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
-    private final long tookInMillis;
+    private final long tookInMillis; // here
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -120,7 +122,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int totalShards,
         int successfulShards,
         int skippedShards,
-        long tookInMillis,
+        long tookInMillis,  // TODO: John here
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
@@ -149,7 +151,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int totalShards,
         int successfulShards,
         int skippedShards,
-        long tookInMillis,
+        long tookInMillis,  // TODO: John here
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
         String pointInTimeId
@@ -185,7 +187,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int totalShards,
         int successfulShards,
         int skippedShards,
-        long tookInMillis,
+        long tookInMillis,  // TODO: John here
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
         String pointInTimeId
@@ -538,6 +540,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Override
+    public long getTookMillis() {
+        return tookInMillis;
+    }
+
+    @Override
+    public String getIdentifier() {
+        return MetricIdentifier;
     }
 
     /**

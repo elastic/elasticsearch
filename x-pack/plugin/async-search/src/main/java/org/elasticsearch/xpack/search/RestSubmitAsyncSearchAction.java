@@ -13,7 +13,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentInstrumentedListener;
+import org.elasticsearch.rest.action.search.SearchRestMetrics;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -34,9 +35,12 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
 
     private final SearchUsageHolder searchUsageHolder;
+    private final SearchRestMetrics searchRestMetrics;
 
-    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder) {
+
+    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, SearchRestMetrics searchRestMetrics) {
         this.searchUsageHolder = searchUsageHolder;
+        this.searchRestMetrics = searchRestMetrics;
     }
 
     @Override
@@ -79,7 +83,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         }
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, new RestRefCountedChunkedToXContentListener<>(channel) {
+            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, new RestRefCountedChunkedToXContentInstrumentedListener<>(channel, searchRestMetrics) {
                 @Override
                 protected RestStatus getRestStatus(AsyncSearchResponse asyncSearchResponse) {
                     return asyncSearchResponse.status();

@@ -168,7 +168,7 @@ class MutableSearchResponse {
             totalShards,
             successfulShards,
             skippedShards,
-            tookInMillis,
+            tookInMillis,  // TODO: John here
             buildQueryFailures(),
             clusters
         );

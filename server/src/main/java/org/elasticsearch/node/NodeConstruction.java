@@ -167,6 +167,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.rest.action.search.SearchRestMetrics;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -796,7 +797,8 @@ class NodeConstruction {
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
-        ActionModule actionModule = new ActionModule(
+        final SearchRestMetrics searchRestMetrics = new SearchRestMetrics(telemetryProvider.getMeterRegistry());
+        ActionModule actionModule = new ActionModule( // here
             settings,
             clusterModule.getIndexNameExpressionResolver(),
             settingsModule.getIndexScopedSettings(),
@@ -819,7 +821,8 @@ class NodeConstruction {
                 indexSettingProviders,
                 metadataCreateIndexService
             ),
-            pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
+            pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
+            searchRestMetrics
         );
         modules.add(actionModule);
 

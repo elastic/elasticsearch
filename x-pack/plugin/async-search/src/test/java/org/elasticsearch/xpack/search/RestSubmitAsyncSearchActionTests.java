@@ -33,7 +33,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder());
+        action = new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder(), searchRestMetrics);
         controller().registerHandler(action);
     }
 

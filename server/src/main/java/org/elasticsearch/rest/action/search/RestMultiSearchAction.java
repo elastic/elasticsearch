@@ -26,7 +26,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentInstrumentedListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContent;
@@ -49,10 +49,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
     private final SearchUsageHolder searchUsageHolder;
+    private final SearchRestMetrics searchRestMetrics;
 
-    public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder) {
+    public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder, SearchRestMetrics searchRestMetrics) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.searchUsageHolder = searchUsageHolder;
+        this.searchRestMetrics = searchRestMetrics;
     }
 
     @Override
@@ -85,7 +87,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             cancellableClient.execute(
                 TransportMultiSearchAction.TYPE,
                 multiSearchRequest,
-                new RestRefCountedChunkedToXContentListener<>(channel)
+                new RestRefCountedChunkedToXContentInstrumentedListener<>(channel, searchRestMetrics)
             );
         };
     }

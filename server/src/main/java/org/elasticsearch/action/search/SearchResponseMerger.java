@@ -223,7 +223,7 @@ final class SearchResponseMerger implements Releasable {
             totalShards,
             successfulShards,
             skippedShards,
-            tookInMillis,
+            tookInMillis,  // TODO: John here
             shardFailures,
             clusters,
             null

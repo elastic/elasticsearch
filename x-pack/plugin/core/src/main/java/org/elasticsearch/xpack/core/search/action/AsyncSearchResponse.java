@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.ReportsTookTime;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
 
@@ -30,7 +31,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * A response of an async search request.
  */
-public class AsyncSearchResponse extends ActionResponse implements ChunkedToXContentObject, AsyncResponse<AsyncSearchResponse> {
+public class AsyncSearchResponse extends ActionResponse implements ChunkedToXContentObject, AsyncResponse<AsyncSearchResponse>, ReportsTookTime {
+    private static final String MetricIdentifier = "AsyncSearchResponse";
+
     @Nullable
     private final String id;
     @Nullable
@@ -234,5 +237,15 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
     public AsyncSearchResponse convertToFailure(Exception exc) {
         exc.setStackTrace(new StackTraceElement[0]); // we don't need to store stack traces
         return new AsyncSearchResponse(id, null, exc, isPartial, false, startTimeMillis, expirationTimeMillis);
+    }
+
+    @Override
+    public long getTookMillis() {
+        return searchResponse.getTookMillis();
+    }
+
+    @Override
+    public String getIdentifier() {
+        return MetricIdentifier;
     }
 }

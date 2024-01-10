@@ -554,7 +554,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getTotalShards(),
                             searchResponse.getSuccessfulShards(),
                             searchResponse.getSkippedShards(),
-                            timeProvider.buildTookInMillis(),
+                            timeProvider.buildTookInMillis(), // TODO: John here
                             searchResponse.getShardFailures(),
                             clusters,
                             searchResponse.pointInTimeId()

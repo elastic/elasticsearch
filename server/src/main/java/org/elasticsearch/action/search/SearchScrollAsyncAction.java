@@ -253,7 +253,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                     this.scrollId.getContext().length,
                     successfulOps.get(),
                     0,
-                    buildTookInMillis(),
+                    buildTookInMillis(),  // TODO: John here
                     buildShardFailures(),
                     SearchResponse.Clusters.EMPTY,
                     null

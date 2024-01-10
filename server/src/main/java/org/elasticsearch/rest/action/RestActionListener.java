@@ -32,7 +32,7 @@ public abstract class RestActionListener<Response> implements ActionListener<Res
     }
 
     @Override
-    public final void onResponse(Response response) {
+    public void onResponse(Response response) {
         try {
             ensureOpen();
             processResponse(response);

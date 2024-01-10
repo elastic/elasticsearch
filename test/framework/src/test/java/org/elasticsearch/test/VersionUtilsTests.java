@@ -353,7 +353,7 @@ public class VersionUtilsTests extends ESTestCase {
      * agree with the list of wire and index compatible versions we build in gradle.
      */
     public void testGradleVersionsMatchVersionUtils() {
-        assumeFalse("We have limited backward compatibility testing for ARM", Constants.OS_ARCH.equals("aarch64"));
+        //assumeFalse("We have limited backward compatibility testing for ARM", Constants.OS_ARCH.equals("aarch64"));
 
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");

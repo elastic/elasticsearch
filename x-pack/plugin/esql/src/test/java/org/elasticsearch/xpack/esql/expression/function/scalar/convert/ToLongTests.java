@@ -24,9 +24,6 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
-
 public class ToLongTests extends AbstractFunctionTestCase {
     public ToLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -43,15 +40,6 @@ public class ToLongTests extends AbstractFunctionTestCase {
 
         TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataTypes.LONG, b -> b ? 1L : 0L, List.of());
 
-        // geo types
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, evaluatorName.apply("GeoPoint"), DataTypes.LONG, GEO::wkbAsLong, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(
-            suppliers,
-            evaluatorName.apply("CartesianPoint"),
-            DataTypes.LONG,
-            CARTESIAN::wkbAsLong,
-            List.of()
-        );
         // datetimes
         TestCaseSupplier.forUnaryDatetime(suppliers, read, DataTypes.LONG, Instant::toEpochMilli, List.of());
         // random strings that don't look like a long

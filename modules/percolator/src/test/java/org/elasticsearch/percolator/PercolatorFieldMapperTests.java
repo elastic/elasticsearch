@@ -31,6 +31,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -620,7 +621,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testQueryWithRewrite() throws Exception {
         addQueryFieldMappings();
-        prepareIndex("remote").setId("1").setSource("field", "value").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("remote").setId("1").setSource("field", "value");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         QueryBuilder queryBuilder = termsLookupQuery("field", new TermsLookup("remote", "1", "field"));
         ParsedDocument doc = mapperService.documentMapper()
             .parse(

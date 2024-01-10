@@ -8,8 +8,10 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -94,9 +96,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
-            prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
-            prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            indexDoc("test-idx-1", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-2", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-3", Integer.toString(i), "foo", "bar" + i);
         }
         client().admin().indices().prepareRefresh().get();
 
@@ -167,9 +169,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
-            prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
-            prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            indexDoc("test-idx-1", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-2", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-3", Integer.toString(i), "foo", "bar" + i);
         }
         client().admin().indices().prepareRefresh().get();
 
@@ -220,7 +222,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         createIndex("test-idx-1");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            IndexRequestBuilder indexRequestBuilder = client().prepareIndex("test-idx-1")
+                .setId(Integer.toString(i))
+                .setSource("foo", "bar" + i);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         final var repository = getRepository();
@@ -313,5 +319,14 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
     protected BlobStoreRepository getRepository() {
         return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(TEST_REPO_NAME);
+    }
+
+    protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

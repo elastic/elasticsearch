@@ -147,7 +147,7 @@ public class CsvTestsDataLoader {
 
     public static void loadDataSetIntoEs(RestClient client, Logger logger) throws IOException {
         for (var dataSet : CSV_DATASET_MAP.values()) {
-            load(client, dataSet.indexName, "/" + dataSet.mappingFileName, "/" + dataSet.dataFileName, logger);
+            load(client, dataSet, logger);
         }
         forceMerge(client, CSV_DATASET_MAP.keySet(), logger);
         for (var policy : ENRICH_POLICIES) {
@@ -169,17 +169,17 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static void load(RestClient client, String indexName, String mappingName, String dataName, Logger logger) throws IOException {
-        URL mapping = CsvTestsDataLoader.class.getResource(mappingName);
+    private static void load(RestClient client, TestsDataset dataset, Logger logger) throws IOException {
+        URL mapping = CsvTestsDataLoader.class.getResource("/" + dataset.mappingFileName);
         if (mapping == null) {
-            throw new IllegalArgumentException("Cannot find resource " + mappingName);
+            throw new IllegalArgumentException("Cannot find resource " + dataset.mappingFileName);
         }
-        URL data = CsvTestsDataLoader.class.getResource(dataName);
+        URL data = CsvTestsDataLoader.class.getResource("/" + dataset.dataFileName);
         if (data == null) {
-            throw new IllegalArgumentException("Cannot find resource " + dataName);
+            throw new IllegalArgumentException("Cannot find resource " + dataset.dataFileName);
         }
-        createTestIndex(client, indexName, readTextFile(mapping));
-        loadCsvData(client, indexName, data, CsvTestsDataLoader::createParser, logger);
+        createTestIndex(client, dataset.indexName, readTextFile(mapping));
+        loadCsvData(client, dataset, data, CsvTestsDataLoader::createParser, logger);
     }
 
     private static void createTestIndex(RestClient client, String indexName, String mapping) throws IOException {
@@ -200,7 +200,7 @@ public class CsvTestsDataLoader {
     @SuppressWarnings("unchecked")
     private static void loadCsvData(
         RestClient client,
-        String indexName,
+        TestsDataset dataset,
         URL resource,
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
@@ -280,7 +280,7 @@ public class CsvTestsDataLoader {
                                     }
                                     if (entries[i].contains(",")) {// multi-value
                                         StringBuilder rowStringValue = new StringBuilder("[");
-                                        for (String s : delimitedListToStringArray(entries[i], ",")) {
+                                        for (String s : delimitedListToStringArray(entries[i], dataset.delimiter)) {
                                             rowStringValue.append("\"" + s + "\",");
                                         }
                                         // remove the last comma and put a closing bracket instead
@@ -305,7 +305,7 @@ public class CsvTestsDataLoader {
                             }
                         }
                         String idPart = idField != null ? "\", \"_id\": \"" + idField : "";
-                        builder.append("{\"index\": {\"_index\":\"" + indexName + idPart + "\"}}\n");
+                        builder.append("{\"index\": {\"_index\":\"" + dataset.indexName + idPart + "\"}}\n");
                         builder.append("{" + row + "}\n");
                     }
                 }
@@ -324,13 +324,13 @@ public class CsvTestsDataLoader {
                 Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
                 Object errors = result.get("errors");
                 if (Boolean.FALSE.equals(errors)) {
-                    logger.info("Data loading of [{}] OK", indexName);
+                    logger.info("Data loading of [{}] OK", dataset.indexName);
                 } else {
-                    throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
+                    throw new IOException("Data loading of [" + dataset.indexName + "] failed with errors: " + errors);
                 }
             }
         } else {
-            throw new IOException("Data loading of [" + indexName + "] failed with status: " + response.getStatusLine());
+            throw new IOException("Data loading of [" + dataset.indexName + "] failed with status: " + response.getStatusLine());
         }
     }
 
@@ -353,7 +353,11 @@ public class CsvTestsDataLoader {
         return xContent.createParser(config, data);
     }
 
-    public record TestsDataset(String indexName, String mappingFileName, String dataFileName) {}
+    public record TestsDataset(String indexName, String mappingFileName, String dataFileName, String delimiter) {
+        public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
+            this(indexName, mappingFileName, dataFileName, ",");
+        }
+    }
 
     public record EnrichConfig(String policyName, String policyFileName) {}
 }

@@ -52,6 +52,9 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
             indexRequestBuilders.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
         }
         indexRandom(true, true, indexRequestBuilders);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+            indexRequestBuilder.request().decRef();
+        }
         refresh(indexName);
 
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, "snapshot");

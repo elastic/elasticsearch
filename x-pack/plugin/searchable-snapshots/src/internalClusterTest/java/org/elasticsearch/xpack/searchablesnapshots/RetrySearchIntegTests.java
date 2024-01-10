@@ -51,6 +51,9 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             indexRequestBuilders.add(prepareIndex(indexName).setSource("created_date", "2011-02-02"));
         }
         indexRandom(true, false, indexRequestBuilders);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+            indexRequestBuilder.request().decRef();
+        }
         assertThat(
             indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
             equalTo(0)
@@ -118,6 +121,9 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             indexRequestBuilders.add(prepareIndex(indexName).setSource("created_date", "2011-02-02"));
         }
         indexRandom(true, false, indexRequestBuilders);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+            indexRequestBuilder.request().decRef();
+        }
         assertThat(
             indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
             equalTo(0)

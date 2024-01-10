@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
@@ -116,17 +118,19 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
 
         // MULTIPOINT
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        prepareIndex("geo_points_only").setId("1")
-            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            "geo_points_only",
+            "1",
+            GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject()
+        );
 
         // POINT
         Point point = GeometryTestUtils.randomPoint(false);
-        prepareIndex("geo_points_only").setId("2")
-            .setSource(GeoJson.toXContent(point, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            "geo_points_only",
+            "2",
+            GeoJson.toXContent(point, jsonBuilder().startObject().field(defaultFieldName), null).endObject()
+        );
 
         // test that point was inserted
         assertHitCount(client().prepareSearch("geo_points_only").setQuery(matchAllQuery()), 2L);
@@ -167,10 +171,11 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
 
         Geometry geometry = GeometryTestUtils.randomGeometry(false);
         try {
-            prepareIndex("geo_points_only").setId("1")
-                .setSource(GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
+            indexImmediate(
+                "geo_points_only",
+                "1",
+                GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultFieldName), null).endObject()
+            );
         } catch (DocumentParsingException e) {
             // Random geometry generator created something other than a POINT type, verify the correct exception is thrown
             assertThat(e.getMessage(), containsString("is configured for points only"));
@@ -213,10 +218,11 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
         ensureGreen();
 
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        prepareIndex(defaultIndexName).setId("1")
-            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "1",
+            GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject()
+        );
 
         assertHitCount(client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)), 1L);
     }
@@ -231,5 +237,14 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
     @Override
     public void testIndexPointsFromPolygon() throws Exception {
         super.testIndexPointsFromPolygon();
+    }
+
+    private DocWriteResponse indexImmediate(String index, String id, XContentBuilder source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

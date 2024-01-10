@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script.expression;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -41,13 +43,18 @@ public class StoredExpressionIT extends ESIntegTestCase {
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         clusterAdmin().preparePutStoredScript().setId("script1").setContent(new BytesArray("""
             {"script": {"lang": "expression", "source": "2"} }"""), XContentType.JSON).get();
-        prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "1");
         try {
-            client().prepareUpdate("test", "1").setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();
+            updateRequestBuilder.setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();
             fail("update script should have been rejected");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
             assertThat(e.getCause().getMessage(), containsString("Failed to compile stored script [script1] using lang [expression]"));
+        } finally {
+            updateRequestBuilder.request().decRef();
         }
         try {
             prepareSearch().setSource(

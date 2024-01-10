@@ -757,6 +757,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             );
         }
         indexRandom(true, false, indexRequestBuilders);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+            indexRequestBuilder.request().decRef();
+        }
 
         assertThat(
             indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),

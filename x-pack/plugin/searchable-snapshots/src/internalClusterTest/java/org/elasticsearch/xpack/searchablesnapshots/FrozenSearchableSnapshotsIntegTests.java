@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -433,11 +434,11 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 .setMapping("f", "type=date")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
         );
-        indexRandom(
-            true,
-            prepareIndex("test-index").setSource("f", "2014-03-10T00:00:00.000Z"),
-            prepareIndex("test-index").setSource("f", "2014-05-13T00:00:00.000Z")
-        );
+        IndexRequestBuilder indexRequestBuilder1 = prepareIndex("test-index").setSource("f", "2014-03-10T00:00:00.000Z");
+        IndexRequestBuilder indexRequestBuilder2 = prepareIndex("test-index").setSource("f", "2014-05-13T00:00:00.000Z");
+        indexRandom(true, indexRequestBuilder1, indexRequestBuilder2);
+        indexRequestBuilder1.request().decRef();
+        indexRequestBuilder2.request().decRef();
         ensureSearchable("test-index");
 
         createRepository("repo", "fs", Settings.builder().put("location", randomRepoPath()));

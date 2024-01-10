@@ -363,7 +363,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             }
             try {
                 safeAwait(cyclicBarrier);
-                indexRandom(true, true, indexRequestBuilders);
+                indexRandomAndDecRefRequests(true, true, indexRequestBuilders);
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
@@ -417,7 +417,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertAcked(prepareCreate(indexName, indexSettings));
 
         final int nbDocs = between(10, 50);
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             false,
             IntStream.range(0, nbDocs)
@@ -706,7 +706,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 )
             );
         }
-        indexRandom(true, false, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, false, indexRequestBuilders);
         assertThat(
             indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
             equalTo(0)
@@ -1157,5 +1157,16 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
     private static long max(long... values) {
         return Arrays.stream(values).max().orElseThrow(() -> new AssertionError("no values"));
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders)
+        throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, dummyDocuments, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

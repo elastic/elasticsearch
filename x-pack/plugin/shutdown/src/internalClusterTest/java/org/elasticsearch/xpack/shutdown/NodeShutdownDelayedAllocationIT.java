@@ -216,6 +216,9 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
     }
 
     private String findIdOfNodeWithShard() {

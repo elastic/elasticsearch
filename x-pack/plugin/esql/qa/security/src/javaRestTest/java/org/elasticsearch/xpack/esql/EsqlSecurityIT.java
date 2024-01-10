@@ -288,32 +288,30 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     static void addRandomPragmas(XContentBuilder builder) throws IOException {
-        Settings pragmas = randomPragmas();
-        if (pragmas != Settings.EMPTY) {
-            builder.startObject("pragma");
-            builder.value(pragmas);
-            builder.endObject();
+        if (Build.current().isSnapshot()) {
+            Settings pragmas = randomPragmas();
+            if (pragmas != Settings.EMPTY) {
+                builder.startObject("pragma");
+                builder.value(pragmas);
+                builder.endObject();
+            }
         }
     }
 
     static Settings randomPragmas() {
-        Settings pragmas = Settings.EMPTY;
-        if (Build.current().isSnapshot()) {
-            Settings.Builder settings = Settings.builder();
-            if (randomBoolean()) {
-                settings.put("page_size", between(1, 5));
-            }
-            if (randomBoolean()) {
-                settings.put("exchange_buffer_size", between(1, 2));
-            }
-            if (randomBoolean()) {
-                settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
-            }
-            if (randomBoolean()) {
-                settings.put("enrich_max_workers", between(1, 5));
-            }
-            pragmas = settings.build();
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put("page_size", between(1, 5));
         }
-        return pragmas;
+        if (randomBoolean()) {
+            settings.put("exchange_buffer_size", between(1, 2));
+        }
+        if (randomBoolean()) {
+            settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
+        }
+        if (randomBoolean()) {
+            settings.put("enrich_max_workers", between(1, 5));
+        }
+        return settings.build();
     }
 }

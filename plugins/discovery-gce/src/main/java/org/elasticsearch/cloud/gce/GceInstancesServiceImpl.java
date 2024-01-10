@@ -10,7 +10,6 @@ package org.elasticsearch.cloud.gce;
 
 import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.googleapis.compute.ComputeCredential;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpRequest;

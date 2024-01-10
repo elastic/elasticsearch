@@ -20,7 +20,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
 
@@ -32,7 +35,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         assertOK(response);
         var respMap = entityAsMap(response.getEntity());
         String id = (String) respMap.get("id");
-        assertFalse((boolean) respMap.get("is_running"));
+        assertThat((boolean) respMap.get("is_running"), either(is(true)).or(is(false)));
         var getResponse = runAsyncGet(user, id);
         assertOK(getResponse);
         var deleteResponse = runAsyncDelete(user, id);
@@ -48,7 +51,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
             assertOK(response);
             var respMap = entityAsMap(response.getEntity());
             String id = (String) respMap.get("id");
-            assertFalse((boolean) respMap.get("is_running"));
+            assertThat((boolean) respMap.get("is_running"), either(is(true)).or(is(false)));
 
             var getResponse = runAsyncGet("user1", id); // sanity
             assertOK(getResponse);
@@ -66,7 +69,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
             assertOK(response);
             var respMap = entityAsMap(response.getEntity());
             String id = (String) respMap.get("id");
-            assertFalse((boolean) respMap.get("is_running"));
+            assertThat((boolean) respMap.get("is_running"), either(is(true)).or(is(false)));
 
             var getResponse = runAsyncGet("user2", id); // sanity
             assertOK(getResponse);
@@ -79,7 +82,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         }
     }
 
-    // Keep_on_complete is always true so we will always get an id
+    // Keep_on_complete is always true, so we will always get an id
     private Response runAsync(String user, String command) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
@@ -89,7 +92,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         json.startObject();
         json.field("query", command);
         addRandomPragmas(json);
-        json.field("wait_for_completion_timeout", "60s");
+        json.field("wait_for_completion_timeout", timeValueNanos(randomIntBetween(1, 1000)));
         json.field("keep_on_completion", "true");
         json.endObject();
         Request request = new Request("POST", "_query/async");

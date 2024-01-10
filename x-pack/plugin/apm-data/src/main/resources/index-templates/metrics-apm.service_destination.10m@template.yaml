@@ -16,12 +16,12 @@ composed_of:
 - metrics-apm@mappings
 - metrics-apm@settings
 - metrics-apm.service_destination@mappings
-- apm@custom
-- metrics-apm.service_destination@custom
+- metrics@custom
+- metrics-apm.service_destination.10m@custom
 - ecs@mappings
 ignore_missing_component_templates:
-- apm@custom
-- metrics-apm.service_destination@custom
+- metrics@custom
+- metrics-apm.service_destination.10m@custom
 template:
   settings:
     index:

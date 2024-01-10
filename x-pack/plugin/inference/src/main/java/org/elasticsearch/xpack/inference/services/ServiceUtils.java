@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -105,6 +107,10 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
+    public static String invalidType(String settingName, String scope, String invalidType, String requiredType) {
+        return Strings.format("[%s] Invalid type [%s] received. [%s] must be type [%s]", scope, invalidType, settingName, requiredType);
+    }
+
     // TODO improve URI validation logic
     public static URI convertToUri(String url, String settingName, String settingScope, ValidationException validationException) {
         try {
@@ -154,6 +160,42 @@ public class ServiceUtils {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> extractOptionalListOfType(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        Class<T> type,
+        ValidationException validationException
+    ) {
+        List<?> listField = ServiceUtils.removeAsType(map, settingName, List.class);
+
+        if (listField == null) {
+            return null;
+        }
+
+        if (listField.isEmpty()) {
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
+            return null;
+        }
+
+        List<T> castedList = new ArrayList<>(listField.size());
+
+        for (Object listEntry : listField) {
+            if (type.isAssignableFrom(listEntry.getClass()) == false) {
+                // TODO should we just throw here like removeAsType
+                validationException.addValidationError(
+                    invalidType(settingName, scope, listEntry.getClass().getSimpleName(), type.getSimpleName())
+                );
+                return null;
+            }
+
+            castedList.add((T) listEntry);
+        }
+
+        return castedList;
+    }
+
     public static String extractRequiredString(
         Map<String, Object> map,
         String settingName,
@@ -184,6 +226,35 @@ public class ServiceUtils {
         String optionalField = ServiceUtils.removeAsType(map, settingName, String.class);
 
         if (optionalField != null && optionalField.isEmpty()) {
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        return optionalField;
+    }
+
+    public static <T> T extractOptionalEnum(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        CheckedFunction<String, T, IllegalArgumentException> converter,
+        ValidationException validationException
+    ) {
+        var s = extractOptionalString(map, settingName, scope, validationException);
+        if (s == null) {
+            return null;
+        }
+
+        try {
+            var e = converter.apply(s);
+        } catch (IllegalArgumentException e) {
+            validationException.addValidationError(invalidType(settingName, scope, s, ))
+        }
+
+        if (s.isEmpty()) {
             validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
         }
 

@@ -42,13 +42,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-// TODO: fill in blanks in javadoc
 /**
  * A mapper for the {@code _semantic_text_inference} field.
  * <br>
  * <br>
  * This mapper works in tandem with {@link SemanticTextFieldMapper semantic_text} fields to index inference results.
- * The inference results for {@code semantic_text} fields are written to {@code _source} by ______ like so:
+ * The inference results for {@code semantic_text} fields are written to {@code _source} by an upstream process like so:
  * <br>
  * <br>
  * <pre>

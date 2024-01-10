@@ -40,10 +40,6 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 
-// TODO: Tests to add:
-//  - Parse inference results for field not registered as semantic_text
-//  - Parse _semantic_text_inference with invalid structure
-
 public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperTestCase {
     private record SemanticTextInferenceResults(String fieldName, SparseEmbeddingResults sparseEmbeddingResults, List<String> text) {
         private SemanticTextInferenceResults {

@@ -21,7 +21,6 @@ import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -39,15 +38,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 // account for slow stored secure settings updates (involves removing and re-creating the keystore)
 @TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemoteClusterSecurityTestCase {
-
-    @BeforeClass
-    public static void disableInFips() {
-        assumeFalse(
-            "Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload"
-                + "settings api call, requires TLS to be configured for the transport layer",
-            inFipsJvm()
-        );
-    }
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
 

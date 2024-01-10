@@ -53,8 +53,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static final String REMOTE_TRANSFORM_USER = "remote_transform_user";
     protected static final String REMOTE_SEARCH_ROLE = "remote_search";
     protected static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
+    private static final String KEYSTORE_PASSWORD = "keystore-password";
 
     protected static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("analysis-common")
+        .keystorePassword(KEYSTORE_PASSWORD)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.token.enabled", "true")
@@ -216,7 +218,9 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
 
     @SuppressWarnings("unchecked")
     private void reloadSecureSettings() throws IOException {
-        final Response reloadResponse = adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings"));
+        final Request request = new Request("POST", "/_nodes/reload_secure_settings");
+        request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+        final Response reloadResponse = adminClient().performRequest(request);
         assertOK(reloadResponse);
         final Map<String, Object> map = entityAsMap(reloadResponse);
         assertThat(map.get("nodes"), instanceOf(Map.class));

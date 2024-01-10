@@ -199,7 +199,7 @@ public class DfsPhase {
             Integer topK = knnSearch.get(i).k();
             int size = source.size() == -1 ? DEFAULT_SIZE : source.size();
             knnResults.add(
-                singleKnnSearch(knnQuery, topK != null ? topK : size, context.getProfilers(), context.searcher(), knnNestedPath)
+                singleKnnSearch(knnQuery, topK == null ? size : topK, context.getProfilers(), context.searcher(), knnNestedPath)
             );
         }
         context.dfsResult().knnResults(knnResults);

@@ -76,7 +76,6 @@ import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -636,28 +635,25 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
         @Override
         protected Expression rule(BinaryComparison bc) {
-            if (bc.left().dataType().isNumeric() == false || bc.right().dataType().isNumeric() == false) {
-                return bc;
-            }
-
-            if (bc.right() instanceof Literal r) {
-                if (r.value() == null || isInRange(bc.left().dataType(), r)) {
+            if (bc.right() instanceof Literal r && r.dataType().isNumeric()) {
+                if (isInRange(bc.left().dataType(), r)) {
                     return bc;
                 }
 
+                boolean result = false;
                 if (bc instanceof Equals || bc instanceof NullEquals) {
-                    return Literal.of(bc, false);
+                    result = false;
                 }
                 if (bc instanceof NotEquals) {
-                    return Literal.of(bc, true);
+                    result = true;
                 }
-
                 if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                    return Literal.of(bc, isPositive(r));
+                    result = isPositive(r);
                 }
                 if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
-                    return Literal.of(bc, isPositive(r) == false);
+                    result = isPositive(r) == false;
                 }
+                return Literal.of(bc, result);
             }
 
             return bc;

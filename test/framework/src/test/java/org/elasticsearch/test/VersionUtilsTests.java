@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;

@@ -38,6 +38,13 @@ well-tested, so you can be very confident that a checksum mismatch really does
 indicate that the data read from disk is different from the data that {es}
 previously wrote.
 
+If a file header is corrupted then it's possible that {es} might not be able
+to work out how to even start reading the file which can lead to an exception
+such as:
+
+- `org.apache.lucene.index.IndexFormatTooOldException`
+- `org.apache.lucene.index.IndexFormatTooNewException`
+
 It is also possible that {es} reports a corruption if a file it needs is
 entirely missing, with an exception such as:
 
@@ -50,8 +57,7 @@ system previously confirmed to {es} that this file was durably synced to disk.
 On Linux this means that the `fsync()` system call returned successfully. {es}
 sometimes reports that an index is corrupt because a file needed for recovery
 is missing, or it exists but has been truncated or is missing its footer. This
-indicates that your storage system acknowledges durable writes incorrectly or
-that some external process has modified the data {es} previously wrote to disk.
+may indicate that your storage system acknowledges durable writes incorrectly.
 
 There are many possible explanations for {es} detecting corruption in your
 cluster. Databases like {es} generate a challenging I/O workload that may find

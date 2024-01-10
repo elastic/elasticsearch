@@ -441,7 +441,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 listener.onFailure(e);
                 return;
             }
-            listener.onResponse(resp);
+            ActionListener.respondAndRelease(listener, resp);
         }));
     }
 
@@ -490,7 +490,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             }
             Objects.requireNonNull(resp, "Get result doesn't include [" + RESULT_FIELD + "] field");
             Objects.requireNonNull(expirationTime, "Get result doesn't include [" + EXPIRATION_TIME_FIELD + "] field");
-            return resp.withExpirationTime(expirationTime);
+            try {
+                return resp.withExpirationTime(expirationTime);
+            } finally {
+                resp.decRef();
+            }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse the get result", e);
         }
@@ -582,10 +586,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
+        final StreamInput input;
         if (version.onOrAfter(TransportVersions.V_7_15_0)) {
-            encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
+            input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
+        } else {
+            input = new InputStreamStreamInput(encodedIn);
         }
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(input, registry)) {
             in.setTransportVersion(version);
             return reader.read(in);
         }

@@ -22,6 +22,7 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .shared(true)
+            .setting("cluster.routing.rebalance.enable", "none")
             .build();
     }
 
@@ -37,6 +38,7 @@ public class Clusters {
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
             .setting("cluster.remote.connections_per_cluster", "1")
             .shared(true)
+            .setting("cluster.routing.rebalance.enable", "none")
             .build();
     }
 

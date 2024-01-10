@@ -245,20 +245,25 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
             }
-            ActionListener.respondAndRelease(
-                listener,
-                new SearchResponse(
-                    SearchPhaseController.merge(true, queryPhase, fetchResults),
-                    scrollId,
-                    this.scrollId.getContext().length,
-                    successfulOps.get(),
-                    0,
-                    buildTookInMillis(),
-                    buildShardFailures(),
-                    SearchResponse.Clusters.EMPTY,
-                    null
-                )
-            );
+            var sections = SearchPhaseController.merge(true, queryPhase, fetchResults);
+            try {
+                ActionListener.respondAndRelease(
+                    listener,
+                    new SearchResponse(
+                        sections,
+                        scrollId,
+                        this.scrollId.getContext().length,
+                        successfulOps.get(),
+                        0,
+                        buildTookInMillis(),
+                        buildShardFailures(),
+                        SearchResponse.Clusters.EMPTY,
+                        null
+                    )
+                );
+            } finally {
+                sections.decRef();
+            }
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
         }

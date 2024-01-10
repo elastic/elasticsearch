@@ -76,7 +76,7 @@ task. In this situation, the following task must be resumed manually with the
 (string) The name of the follower index.
 
 `total_global_checkpoint_lag`::
-(long) Total number of pending indexing operations
+(long) Indication of how much the follower is lagging the leader. This is the sum of the difference between the `leader_global_checkpoint` and the `follower_global_checkpoint` for all shards.
 
 //Begin shards
 `shards`::

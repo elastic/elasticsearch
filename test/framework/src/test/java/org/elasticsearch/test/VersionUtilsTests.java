@@ -299,10 +299,7 @@ public class VersionUtilsTests extends ESTestCase {
                 )
             )
         );
-        assertThat(
-            unreleased,
-            equalTo(Arrays.asList(TestVersionBumpIn6x.V_6_0_1, TestVersionBumpIn6x.V_6_1_0))
-        );
+        assertThat(unreleased, equalTo(Arrays.asList(TestVersionBumpIn6x.V_6_0_1, TestVersionBumpIn6x.V_6_1_0)));
     }
 
     public static class TestNewMinorBranchIn6x {
@@ -348,10 +345,7 @@ public class VersionUtilsTests extends ESTestCase {
                 )
             )
         );
-        assertThat(
-            unreleased,
-            equalTo(Arrays.asList(TestNewMinorBranchIn6x.V_6_1_2, TestNewMinorBranchIn6x.V_6_2_0))
-        );
+        assertThat(unreleased, equalTo(Arrays.asList(TestNewMinorBranchIn6x.V_6_1_2, TestNewMinorBranchIn6x.V_6_2_0)));
     }
 
     /**

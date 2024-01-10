@@ -133,10 +133,6 @@ public class GetConnectorSyncJobAction extends ActionType<GetConnectorSyncJobAct
             return connectorSyncJob.toXContent(builder, params);
         }
 
-        public static GetConnectorSyncJobAction.Response fromXContent(XContentParser parser) throws IOException {
-            return new GetConnectorSyncJobAction.Response(ConnectorSyncJob.fromXContent(parser));
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

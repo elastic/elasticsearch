@@ -1,0 +1,6 @@
+pr: 104099
+summary: Fix `require_alias` implicit true value on presence
+area: Indices APIs
+type: bug
+issues:
+ - 103945

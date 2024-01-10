@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -41,8 +43,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESTestCase.randomCartesianPoint;
-import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -551,17 +551,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<Long, Object> expectedValue,
+        Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            geoPointCases(),
-            expectedType,
-            n -> expectedValue.apply(n.longValue()),
-            warnings
-        );
+        unary(suppliers, expectedEvaluatorToString, geoPointCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
@@ -571,17 +564,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<Long, Object> expectedValue,
+        Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            cartesianPointCases(),
-            expectedType,
-            n -> expectedValue.apply(n.longValue()),
-            warnings
-        );
+        unary(suppliers, expectedEvaluatorToString, cartesianPointCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
@@ -926,13 +912,19 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    public static List<TypedDataSupplier> geoPointCases() {
-        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
+    private static List<TypedDataSupplier> geoPointCases() {
+        return List.of(
+            new TypedDataSupplier("<geo_point>", () -> GEO.pointAsWKB(GeometryTestUtils.randomPoint()), EsqlDataTypes.GEO_POINT)
+        );
     }
 
-    public static List<TypedDataSupplier> cartesianPointCases() {
+    private static List<TypedDataSupplier> cartesianPointCases() {
         return List.of(
-            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsLong(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
+            new TypedDataSupplier(
+                "<cartesian_point>",
+                () -> CARTESIAN.pointAsWKB(ShapeTestUtils.randomPoint()),
+                EsqlDataTypes.CARTESIAN_POINT
+            )
         );
     }
 

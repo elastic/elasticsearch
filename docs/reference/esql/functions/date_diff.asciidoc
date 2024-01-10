@@ -1,0 +1,37 @@
+[discrete]
+[[esql-date_diff]]
+=== `DATE_DIFF`
+Subtract the second argument from the third argument and return their difference in multiples of the unit specified in the first argument.
+If the second argument (start) is greater than the third argument (end), then negative values are returned.
+
+[cols="^,^"]
+|===
+2+h|Datetime difference units
+
+s|unit
+s|abbreviations
+
+| year        | years, yy, yyyy
+| quarter     | quarters, qq, q
+| month       | months, mm, m
+| dayofyear   | dy, y
+| day         | days, dd, d
+| week        | weeks, wk, ww
+| weekday     | weekdays, dw
+| hour        | hours, hh
+| minute      | minutes, mi, n
+| second      | seconds, ss, s
+| millisecond | milliseconds, ms
+| microsecond | microseconds, mcs
+| nanosecond  | nanoseconds, ns
+|===
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dateDiff]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dateDiff-result]
+|===
+

@@ -16,6 +16,7 @@ module org.elasticsearch.compute {
     requires org.apache.logging.log4j;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.tdigest;
+    requires org.elasticsearch.geo;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;

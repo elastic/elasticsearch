@@ -154,13 +154,9 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor fe = getFieldHitExtractor("a.b.c");
         Object value = randomValue();
         DocumentField field = new DocumentField("a.b.c", singletonList(value));
-        SearchHit hit = new SearchHit(1, null, null);
-        try {
-            hit.setDocumentField("a.b.c", field);
-            assertThat(fe.extract(hit), is(value));
-        } finally {
-            hit.decRef();
-        }
+        SearchHit hit = SearchHit.unpooled(1, null, null);
+        hit.setDocumentField("a.b.c", field);
+        assertThat(fe.extract(hit), is(value));
     }
 
     public void testMultiValuedSource() {

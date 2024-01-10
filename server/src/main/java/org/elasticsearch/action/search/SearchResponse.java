@@ -526,27 +526,24 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
         }
-        try {
-            return new SearchResponse(
-                hits,
-                aggs,
-                suggest,
-                timedOut,
-                terminatedEarly,
-                profile,
-                numReducePhases,
-                scrollId,
-                totalShards,
-                successfulShards,
-                skippedShards,
-                tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-                clusters,
-                searchContextId
-            );
-        } finally {
-            hits.decRef();
-        }
+
+        return new SearchResponse(
+            hits,
+            aggs,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profile,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+            clusters,
+            searchContextId
+        );
     }
 
     @Override

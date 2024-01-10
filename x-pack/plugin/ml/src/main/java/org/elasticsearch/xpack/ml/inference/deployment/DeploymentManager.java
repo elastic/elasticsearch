@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
@@ -27,9 +28,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -54,7 +53,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -294,13 +292,11 @@ public class DeploymentManager {
 
     Vocabulary parseVocabularyDocLeniently(SearchHit hit) throws IOException {
         try (
-            InputStream stream = hit.getSourceRef().streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
-                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                    stream
-                )
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                hit.getSourceRef(),
+                XContentType.JSON
+            )
         ) {
             return Vocabulary.PARSER.apply(parser, null);
         } catch (IOException e) {

@@ -116,7 +116,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.translog.operations.count",
+                "es.translog.operations.total",
                 "Number of transaction log operations.",
                 "operation",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations())
@@ -134,7 +134,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.translog.uncommitted_operations.count",
+                "es.translog.uncommitted_operations.total",
                 "Number of uncommitted transaction log operations.",
                 "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedOperations())
@@ -224,7 +224,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.indexing.docs.count",
+                "es.indexing.docs.total",
                 "Current number of indexing documents",
                 "documents",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCurrent())
@@ -251,7 +251,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.indices.deletion.docs.count",
+                "es.indices.deletion.docs.total",
                 "Current number of deleting documents",
                 "documents",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCurrent())
@@ -323,7 +323,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.indexing.coordinating_operations.count",
+                "es.indexing.coordinating_operations.total",
                 "Current number of coordinating operations",
                 "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentCoordinatingOps())
@@ -368,7 +368,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.indexing.primary_operations.count",
+                "es.indexing.primary_operations.total",
                 "Current number of primary operations",
                 "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentPrimaryOps())

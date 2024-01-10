@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class APMAgentSettingsTests extends ESTestCase {
@@ -40,39 +39,7 @@ public class APMAgentSettingsTests extends ESTestCase {
     }
 
     /**
-     * Check that when cluster settings are synchronised with the system properties, default values are
-     * applied.
-     */
-    public void test_whenTracerCreated_defaultSettingsApplied() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
-        apmAgentSettings.syncAgentSystemProperties(settings);
-
-        verify(apmAgentSettings).setAgentSetting("transaction_sample_rate", "0.2");
-    }
-
-    /**
-     * Check that when cluster settings are synchronised with the system properties, values in the settings
-     * are reflected in the system properties, overwriting default values.
-     */
-    public void test_whenTracerCreated_clusterSettingsOverrideDefaults() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
-            .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "transaction_sample_rate", "0.75")
-            .build();
-        apmAgentSettings.syncAgentSystemProperties(settings);
-
-        // This happens twice because we first apply the default settings, whose values are overridden
-        // from the cluster settings, then we apply all the APM-agent related settings, not just the
-        // ones with default values. Although there is some redundancy here, it only happens at startup
-        // for a very small number of settings.
-        verify(apmAgentSettings, times(2)).setAgentSetting("transaction_sample_rate", "0.75");
-    }
-
-    /**
-     * Check that when cluster settings are synchronised with the system properties, agent settings other
-     * than those with default values are set.
+     * Check that when cluster settings are synchronised with the system properties, agent settings are set.
      */
     public void test_whenTracerCreated_clusterSettingsAlsoApplied() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());

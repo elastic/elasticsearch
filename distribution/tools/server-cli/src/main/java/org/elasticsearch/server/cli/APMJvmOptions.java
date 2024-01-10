@@ -79,7 +79,8 @@ class APMJvmOptions {
         "application_packages", "org.elasticsearch,org.apache.lucene",
         "metrics_interval", "120s",
         "breakdown_metrics", "false",
-        "central_config", "false"
+        "central_config", "false",
+        "transaction_sample_rate", "0.2"
         );
     // end::noformat
 

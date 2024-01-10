@@ -22,7 +22,6 @@ import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -36,17 +35,6 @@ import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic
 public class APMAgentSettings {
 
     private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
-
-    /**
-     * Sensible defaults that Elasticsearch configures. This cannot be done via the APM agent
-     * config file, as then their values could not be overridden dynamically via system properties.
-     */
-    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of(
-        "transaction_sample_rate",
-        "0.2",
-        "enable_experimental_instrumentations",
-        "true"
-    );
 
     public void addClusterSettingsListeners(
         ClusterService clusterService,
@@ -78,16 +66,7 @@ public class APMAgentSettings {
      */
     public void syncAgentSystemProperties(Settings settings) {
         this.setAgentSetting("recording", Boolean.toString(APM_ENABLED_SETTING.get(settings)));
-
-        // Apply default values for some system properties. Although we configure
-        // the settings in APM_AGENT_DEFAULT_SETTINGS to defer to the default values, they won't
-        // do anything if those settings are never configured.
-        APM_AGENT_DEFAULT_SETTINGS.keySet()
-            .forEach(
-                key -> this.setAgentSetting(key, APM_AGENT_SETTINGS.getConcreteSetting(APM_AGENT_SETTINGS.getKey() + key).get(settings))
-            );
-
-        // Then apply values from the settings in the cluster state
+        // Apply values from the settings in the cluster state
         APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
     }
 
@@ -246,8 +225,7 @@ public class APMAgentSettings {
         (qualifiedKey) -> {
             final String[] parts = qualifiedKey.split("\\.");
             final String key = parts[parts.length - 1];
-            final String defaultValue = APM_AGENT_DEFAULT_SETTINGS.getOrDefault(key, "");
-            return new Setting<>(qualifiedKey, defaultValue, (value) -> {
+            return new Setting<>(qualifiedKey, "", (value) -> {
                 if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(key) == false) {
                     throw new IllegalArgumentException("Explicitly configuring [" + qualifiedKey + "] is prohibited");
                 }

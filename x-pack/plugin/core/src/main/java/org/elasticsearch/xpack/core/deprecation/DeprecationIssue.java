@@ -98,7 +98,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         url = in.readString();
         details = in.readOptionalString();
         resolveDuringRollingUpgrade = in.readBoolean();
-        meta = in.readMap();
+        meta = in.readGenericMap();
     }
 
     public Level getLevel() {

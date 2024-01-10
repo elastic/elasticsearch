@@ -24,7 +24,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -1589,7 +1588,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         private final TrackedCluster.TrackedRepository trackedRepository;
         private final String snapshotName;
         private final Semaphore permits = new Semaphore(Integer.MAX_VALUE);
-        private final AtomicReference<ListenableActionFuture<SnapshotInfo>> snapshotInfoFutureRef = new AtomicReference<>();
+        private final AtomicReference<SubscribableListener<SnapshotInfo>> snapshotInfoFutureRef = new AtomicReference<>();
 
         TrackedSnapshot(TrackedCluster.TrackedRepository trackedRepository, String snapshotName) {
             this.trackedRepository = trackedRepository;
@@ -1628,7 +1627,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         }
 
         void getSnapshotInfo(Client client, ActionListener<SnapshotInfo> listener) {
-            final ListenableActionFuture<SnapshotInfo> newFuture = new ListenableActionFuture<>();
+            final SubscribableListener<SnapshotInfo> newFuture = new SubscribableListener<>();
 
             final boolean firstRunner = snapshotInfoFutureRef.compareAndSet(null, newFuture);
 

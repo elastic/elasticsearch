@@ -1,0 +1,5 @@
+pr: 103928
+summary: "ESQL: `MV_FIRST` and `MV_LAST`"
+area: ES|QL
+type: enhancement
+issues: []

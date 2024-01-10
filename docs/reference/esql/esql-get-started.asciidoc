@@ -206,6 +206,31 @@ include::{esql-specs}/stats.csv-spec[tag=gs-stats-by]
 ----
 
 [discrete]
+[[esql-getting-started-access-columns]]
+=== Access columns
+
+You can access columns by their name. If a name contains special characters,
+<<esql-identifiers,it needs to be quoted>> with backticks (+{backtick}+).
+
+Assigning an explicit name to a column created by `EVAL` or `STATS` is optional.
+If you don't provide a name, the new column name is equal to the function
+expression. For example:
+
+[source,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=gs-eval-no-column-name]
+----
+
+In this query, `EVAL` adds a new column named `event_duration/1000000.0`.
+Because its name contains special characters, to access this column, quote it
+with backticks:
+
+[source,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=gs-eval-stats-backticks]
+----
+
+[discrete]
 [[esql-getting-started-histogram]]
 === Create a histogram
 

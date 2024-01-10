@@ -64,10 +64,9 @@ public class AggregatorBenchmark {
     private static final int OP_COUNT = 1024;
     private static final int GROUPS = 5;
 
-    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;  // TODO real big arrays?
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
+        BigArrays.NON_RECYCLING_INSTANCE  // TODO real big arrays?
     );
 
     private static final String LONGS = "longs";
@@ -155,25 +154,25 @@ public class AggregatorBenchmark {
 
     private static AggregatorFunctionSupplier supplier(String op, String dataType, int dataChannel) {
         return switch (op) {
-            case COUNT -> CountAggregatorFunction.supplier(BIG_ARRAYS, List.of(dataChannel));
+            case COUNT -> CountAggregatorFunction.supplier(List.of(dataChannel));
             case COUNT_DISTINCT -> switch (dataType) {
-                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel), 3000);
-                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel), 3000);
+                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(List.of(dataChannel), 3000);
+                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(List.of(dataChannel), 3000);
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case MAX -> switch (dataType) {
-                case LONGS -> new MaxLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new MaxDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
+                case LONGS -> new MaxLongAggregatorFunctionSupplier(List.of(dataChannel));
+                case DOUBLES -> new MaxDoubleAggregatorFunctionSupplier(List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case MIN -> switch (dataType) {
-                case LONGS -> new MinLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new MinDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
+                case LONGS -> new MinLongAggregatorFunctionSupplier(List.of(dataChannel));
+                case DOUBLES -> new MinDoubleAggregatorFunctionSupplier(List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case SUM -> switch (dataType) {
-                case LONGS -> new SumLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new SumDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
+                case LONGS -> new SumLongAggregatorFunctionSupplier(List.of(dataChannel));
+                case DOUBLES -> new SumDoubleAggregatorFunctionSupplier(List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             default -> throw new IllegalArgumentException("unsupported op [" + op + "]");

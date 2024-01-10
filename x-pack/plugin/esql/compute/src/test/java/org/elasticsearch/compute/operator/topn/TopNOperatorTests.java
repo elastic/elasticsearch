@@ -14,7 +14,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -70,6 +69,7 @@ import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
+import static org.elasticsearch.compute.operator.topn.TopNEncoderTests.randomPointAsWKB;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -123,7 +123,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     );
 
     @Override
-    protected TopNOperator.TopNOperatorFactory simple(BigArrays bigArrays) {
+    protected TopNOperator.TopNOperatorFactory simple() {
         return new TopNOperator.TopNOperatorFactory(
             4,
             List.of(LONG),
@@ -175,15 +175,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                 .toArray(),
             equalTo(topN)
         );
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        /*
-         * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker.
-         */
-        return ByteSizeValue.ofBytes(775);
     }
 
     public void testRamBytesUsed() {
@@ -973,17 +964,26 @@ public class TopNOperatorTests extends OperatorTestCase {
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
                 if (e == BYTES_REF) {
                     if (rarely()) {
-                        if (randomBoolean()) {
-                            // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
-                            randomValueSupplier = (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-                            // use the right BytesRef encoder (don't touch the bytes)
-                            encoders.add(TopNEncoder.IP);
-                        } else {
-                            // create a valid Version
-                            randomValueSupplier = (blockType) -> randomVersion().toBytesRef();
-                            // use the right BytesRef encoder (don't touch the bytes)
-                            encoders.add(TopNEncoder.VERSION);
-                        }
+                        randomValueSupplier = switch (randomInt(2)) {
+                            case 0 -> {
+                                // use the right BytesRef encoder (don't touch the bytes)
+                                encoders.add(TopNEncoder.IP);
+                                // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
+                                yield (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            }
+                            case 1 -> {
+                                // use the right BytesRef encoder (don't touch the bytes)
+                                encoders.add(TopNEncoder.VERSION);
+                                // create a valid Version
+                                yield (blockType) -> randomVersion().toBytesRef();
+                            }
+                            default -> {
+                                // use the right BytesRef encoder (don't touch the bytes)
+                                encoders.add(DEFAULT_UNSORTABLE);
+                                // create a valid geo_point
+                                yield (blockType) -> randomPointAsWKB();
+                            }
+                        };
                     } else {
                         encoders.add(UTF8);
                     }

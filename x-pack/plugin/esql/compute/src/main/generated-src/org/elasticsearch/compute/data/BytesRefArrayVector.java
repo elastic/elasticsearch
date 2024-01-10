@@ -19,7 +19,9 @@ import org.elasticsearch.core.Releasables;
  */
 final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance(BytesRefVectorBlock.class);
 
     private final BytesRefArray values;
 

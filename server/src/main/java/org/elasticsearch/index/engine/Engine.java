@@ -2168,4 +2168,11 @@ public abstract class Engine implements Closeable {
         public static final long UNKNOWN_GENERATION = -1L;
         public static final FlushResult NO_FLUSH = new FlushResult(false, UNKNOWN_GENERATION);
     }
+
+    /**
+     * Moves state from the Engine to a ClosedShardService. This is useful when an IndexShard closes and becomes inaccessible, allowing
+     * information to exceed that lifetime and continue to be accessible.
+     * TODO: should I put ClosedShardService in the main repo, and then extend it for stateless?
+     */
+    public void saveInfoToClosedShardService() {}
 }

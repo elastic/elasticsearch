@@ -1682,6 +1682,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
                     if (engine != null && flushEngine) {
+                        engine.saveInfoToClosedShardService();
                         engine.flushAndClose();
                     }
                 } finally {

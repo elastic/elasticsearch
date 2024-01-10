@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 public interface ClusterStateListener {
 
     /**
-     * Called when cluster state changes.
+     * Called when cluster state changes. The cluster state changes will never be applied out-of-order: see {@link ClusterState}.
      * <p>
      * Cluster states are applied one-by-one which means they can be a performance bottleneck. Implementations of this method should
      * therefore be fast, so please consider forking work into the background rather than doing everything inline.

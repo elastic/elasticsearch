@@ -340,12 +340,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             DocumentParsingException.class,
             DocumentParsingException.class,
             () -> documentMapper.parse(
-                source(
-                    b -> addSemanticTextInferenceResults(
-                        b,
-                        List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b")))
-                    )
-                )
+                source(b -> addSemanticTextInferenceResults(b, List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b")))))
             )
         );
         assertThat(

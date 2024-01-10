@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.action.user.QueryUserAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -281,6 +282,7 @@ public class PrivilegeTests extends ESTestCase {
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME,
             GetUsersAction.NAME,
+            QueryUserAction.NAME,
             HasPrivilegesAction.NAME,
             GetUserPrivilegesAction.NAME,
             GetSecuritySettingsAction.NAME
@@ -341,14 +343,9 @@ public class PrivilegeTests extends ESTestCase {
         );
         verifyClusterActionDenied(
             ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
-            "cluster:admin/xpack/security/role/put",
-            "cluster:admin/xpack/security/role/get",
-            "cluster:admin/xpack/security/role/delete"
-        );
-        verifyClusterActionDenied(
-            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
             "cluster:admin/xpack/security/user/put",
             "cluster:admin/xpack/security/user/get",
+            "cluster:admin/xpack/security/user/query",
             "cluster:admin/xpack/security/user/delete"
         );
         verifyClusterActionDenied(

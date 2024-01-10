@@ -235,10 +235,10 @@ public class ClusterPrivilegeResolver {
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME + "*",
             GetUsersAction.NAME,
+            QueryUserAction.NAME,
             GetUserPrivilegesAction.NAME, // normally authorized under the "same-user" authz check, but added here for uniformity
             HasPrivilegesAction.NAME,
-            GetSecuritySettingsAction.NAME,
-            QueryUserAction.NAME
+            GetSecuritySettingsAction.NAME
         )
     );
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);

@@ -27,6 +27,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.blobcache.BlobCachePlugin;
@@ -72,6 +73,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -266,11 +268,15 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected static void indexDocs(String indexName, int numDocs) {
+        indexDocs(indexName, numDocs, UnaryOperator.identity());
+    }
+
+    protected static void indexDocs(String indexName, int numDocs, UnaryOperator<BulkRequestBuilder> requestOperator) {
         var bulkRequest = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
-        assertNoFailures(bulkRequest.get());
+        assertNoFailures(requestOperator.apply(bulkRequest).get());
     }
 
     protected void indexDocsAndRefresh(String indexName, int numDocs) throws Exception {

@@ -44,7 +44,7 @@ public class PutConnectorActionTests extends ESTestCase {
         ActionRequestValidationException exception = requestWithMissingConnectorId.validate();
 
         assertThat(exception, notNullValue());
-        assertThat(exception.getMessage(), containsString("connector_id cannot be null or empty"));
+        assertThat(exception.getMessage(), containsString("[connector_id] cannot be [null] or [\"\"]"));
     }
 
     public void testValidate_WhenMalformedIndexName_ExpectValidationError() {

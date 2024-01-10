@@ -156,10 +156,10 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(getConnectorId())) {
-                validationException = addValidationError("connector_id cannot be null or empty", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"]", validationException);
             }
             if (Strings.isNullOrEmpty(getIndexName())) {
-                validationException = addValidationError("index_name cannot be null or empty", validationException);
+                validationException = addValidationError("[index_name] cannot be [null] or [\"\"]", validationException);
             }
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);

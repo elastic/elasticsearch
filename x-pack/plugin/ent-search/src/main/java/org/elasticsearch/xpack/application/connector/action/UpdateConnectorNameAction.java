@@ -82,10 +82,10 @@ public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionR
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
             if (Strings.isNullOrEmpty(name)) {
-                validationException = addValidationError("[name] cannot be null or empty.", validationException);
+                validationException = addValidationError("[name] cannot be [null] or [\"\"].", validationException);
             }
 
             return validationException;

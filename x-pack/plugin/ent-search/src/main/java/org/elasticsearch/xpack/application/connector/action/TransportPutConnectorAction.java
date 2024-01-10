@@ -41,6 +41,6 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
 
     @Override
     protected void doExecute(Task task, PutConnectorAction.Request request, ActionListener<PutConnectorAction.Response> listener) {
-        connectorIndexService.putConnector(request, listener.map(r -> new PutConnectorAction.Response(r.getResult())));
+        connectorIndexService.createConnectorWithDocId(request, listener.map(r -> new PutConnectorAction.Response(r.getResult())));
     }
 }

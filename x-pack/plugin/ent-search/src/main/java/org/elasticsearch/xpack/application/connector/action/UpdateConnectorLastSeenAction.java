@@ -53,7 +53,7 @@ public class UpdateConnectorLastSeenAction extends ActionType<ConnectorUpdateAct
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
             return validationException;

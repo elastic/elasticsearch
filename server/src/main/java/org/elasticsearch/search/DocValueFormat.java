@@ -670,8 +670,6 @@ public interface DocValueFormat extends NamedWriteable {
      * DocValues format for time series id.
      */
     class TimeSeriesIdDocValueFormat implements DocValueFormat {
-
-        private static final Base64.Encoder BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
         private static final Base64.Decoder BASE64_DECODER = Base64.getUrlDecoder();
 
         private TimeSeriesIdDocValueFormat() {}

@@ -32,13 +32,11 @@ import java.util.concurrent.Executor;
 
 /**
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
- * fans-out its result to the subscribed listeners.
+ * fans-out its result to the subscribed listeners. Exceptions are passed to subscribed listeners without modification.
  * <p>
- * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
- * completed exceptionally then the exception is passed to subscribed listeners without modification.
- * <p>
- * Often this will be used to chain together a sequence of async actions, similarly to {@link CompletionStage} (without the
- * {@code catch (Throwable t)}), such as in the following example:
+ * A sequence of async steps can be chained together using a series of SubscribableListeners, similar to {@link CompletionStage} (without
+ * the {@code catch (Throwable t)}). Listeners can be created for each step, where the next step subscribes to the result of the previous,
+ * using utilities like {@link #andThen(CheckedBiConsumer)}. The following example demonstrates how this might be used:
  * <pre>{@code
  * private void exampleAsyncMethod(String request, List<Long> items, ActionListener<Boolean> finalListener) {
  *     SubscribableListener

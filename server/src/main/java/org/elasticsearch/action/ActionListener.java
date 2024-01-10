@@ -89,19 +89,20 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Creates a listener that delegates all exceptions it receives to another listener.
+     * Creates a new listener, wrapping this one, that overrides {@link #onResponse(Object)} handling with the given {@code bc} lambda.
+     * {@link #onFailure(Exception)} handling is delegated to the wrapped internal listener. Exceptions in onResponse are not handled.
      *
-     * @param bc BiConsumer invoked with delegate listener and response
+     * @param bc BiConsumer invoked via {@link #onResponse(Object)} with internal wrapped listener and response
      * @param <T> Type of the delegating listener's response
-     * @return Delegating listener
+     * @return a new listener that delegates failures to the internal wrapped listener but runs {@code bc} on a response.
      */
     default <T> ActionListener<T> delegateFailure(BiConsumer<ActionListener<Response>, T> bc) {
         return new ActionListenerImplementations.DelegatingFailureActionListener<>(this, bc);
     }
 
     /**
-     * Same as {@link #delegateFailure(BiConsumer)} except that any failure thrown by {@code bc} or the delegate listener's
-     * {@link #onResponse} will be passed to the delegate listeners {@link #onFailure(Exception)}.
+     * Same as {@link #delegateFailure(BiConsumer)} except that any failure thrown by {@code bc} or the internal listener's
+     * {@link #onResponse} will be passed to the internal listener's {@link #onFailure(Exception)}.
      */
     default <T> ActionListener<T> delegateFailureAndWrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
         return new ActionListenerImplementations.ResponseWrappingActionListener<>(this, bc);
@@ -150,7 +151,7 @@ public interface ActionListener<Response> {
      * the sense that an exception from the {@code onResponse} consumer is passed into the {@code onFailure} consumer.
      * <p>
      * If the {@code onFailure} argument is {@code listener::onFailure} for some other {@link ActionListener}, prefer to use
-     * {@link #delegateFailureAndWrap} instead.
+     * {@link #delegateFailureAndWrap} instead for performance reasons.
      * @param onResponse the checked consumer of the response, executed when the listener is completed successfully. If it throws an
      *                   exception, the exception is passed to the {@code onFailure} consumer.
      * @param onFailure the consumer of the failure, executed when the listener is completed with an exception (or it is completed

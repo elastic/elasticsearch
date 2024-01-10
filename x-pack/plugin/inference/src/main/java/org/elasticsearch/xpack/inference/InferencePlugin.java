@@ -21,10 +21,12 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.inference.InferenceProvider;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.InferenceProviderPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
@@ -66,7 +68,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, InferenceProviderPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
@@ -77,6 +79,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
+
+    private final SetOnce<InferenceProvider> inferenceProvider = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -141,7 +145,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         registry.init(services.client());
         inferenceServiceRegistry.set(registry);
 
-        return List.of(modelRegistry, registry);
+        var provider = new InferenceActionInferenceProvider(services.client());
+        inferenceProvider.set(provider);
+
+        return List.of(modelRegistry, registry, provider);
     }
 
     @Override
@@ -234,5 +241,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var throttlerToClose = serviceComponentsRef != null ? serviceComponentsRef.throttlerManager() : null;
 
         IOUtils.closeWhileHandlingException(httpManager.get(), throttlerToClose);
+    }
+
+    @Override
+    public InferenceProvider getInferenceProvider() {
+        return inferenceProvider.get();
     }
 }

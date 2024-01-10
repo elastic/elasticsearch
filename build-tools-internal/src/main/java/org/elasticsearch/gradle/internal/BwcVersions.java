@@ -249,17 +249,6 @@ public class BwcVersions {
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
 
-        // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
-        final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
-        unreleased.add(latestOfPreviousMajor);
-        if (latestOfPreviousMajor.getRevision() == 0) {
-            // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
-            final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
-            if (previousMinor != null) {
-                unreleased.add(previousMinor);
-            }
-        }
-
         final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
         int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
 

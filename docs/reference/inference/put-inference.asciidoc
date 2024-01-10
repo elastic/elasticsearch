@@ -245,5 +245,5 @@ Create a new {infer} endpoint on
 https://ui.endpoints.huggingface.co/[the Hugging Face endpoint page] to get an 
 endpoint URL. Select the model you want to use on the new endpoint creation page 
 - for example `intfloat/e5-small-v2` - then select the `Sentence Embeddings` 
-task under the Advanced configuration section. Create the endpoint and copy its 
-URL.
+task under the Advanced configuration section. Create the endpoint. Copy the URL 
+after the endpoint initialization has been finished.

@@ -403,7 +403,8 @@ class S3Service implements Closeable {
                     roleSessionName,
                     webIdentityTokenFileSymlink.toString()
                 ).withStsClient(stsClient).build();
-                // Proactively refresh credentials periodically to make sure we pick up a new web identity token that's rotated every 24 hours
+                // Proactively refresh credentials periodically to make sure we pick up a new web identity token.
+                // By default, the token gets rotated every 24 hours
                 threadPool.scheduleWithFixedDelay(
                     credentialsProvider::refresh,
                     credentialsRefreshInterval,

@@ -123,7 +123,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             mock(ActionFilters.class),
             indexNameExpressionResolver,
             new IndexingPressure(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            null
         ) {
             @Override
             void executeBulk(

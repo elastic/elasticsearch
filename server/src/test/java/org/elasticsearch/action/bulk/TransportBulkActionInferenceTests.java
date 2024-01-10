@@ -13,8 +13,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.inference.InferenceAction;
-import org.elasticsearch.action.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -30,11 +28,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.inference.InferenceProvider;
+import org.elasticsearch.inference.InferenceProviderException;
+import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TestInferenceResults;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -51,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -75,6 +79,8 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
     private ThreadPool threadPool;
     private NodeClient nodeClient;
     private TransportBulkAction transportBulkAction;
+
+    private InferenceProvider inferenceProvider;
 
     @Before
     public void setup() {
@@ -111,6 +117,8 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
 
         clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
 
+        inferenceProvider = mock(InferenceProvider.class);
+
         transportBulkAction = new TransportBulkAction(
             threadPool,
             mock(TransportService.class),
@@ -120,16 +128,17 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestIndexNameExpressionResolver.newInstance(),
             new IndexingPressure(Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true).build()),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            inferenceProvider
         );
 
         // Default answers to avoid hanging tests due to unexpected invocations
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            var listener = (ActionListener<InferenceAction.Response>) invocation.getArguments()[2];
-            listener.onFailure(new Exception("Unexpected invocation"));
+            var listener = (ActionListener<List<InferenceResults>>) invocation.getArguments()[2];
+            listener.onFailure(new InferenceProviderException("Unexpected invocation", null));
             return Void.TYPE;
-        }).when(nodeClient).execute(eq(InferenceAction.INSTANCE), any(), any());
+        }).when(inferenceProvider).textInference(any(), any(), any());
         when(nodeClient.executeLocally(eq(TransportShardBulkAction.TYPE), any(), any())).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<BulkShardResponse>) invocation.getArguments()[2];
@@ -268,7 +277,7 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
     }
 
     private void verifyInferenceExecuted(VerificationMode verificationMode) {
-        verify(nodeClient, verificationMode).execute(eq(InferenceAction.INSTANCE), any(InferenceAction.Request.class), any());
+        verify(inferenceProvider, verificationMode).textInference(any(), any(), any());
     }
 
     private void expectTransportShardBulkActionRequest(int requestSize) {
@@ -301,40 +310,34 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void expectInferenceRequest(String modelId, String... inferenceTexts) {
         doAnswer(invocation -> {
-            InferenceAction.Request request = (InferenceAction.Request) invocation.getArguments()[1];
-            var listener = (ActionListener<InferenceAction.Response>) invocation.getArguments()[2];
+            List<String> texts = (List<String>) invocation.getArguments()[1];
+            var listener = (ActionListener<List<InferenceResults>>) invocation.getArguments()[2];
             listener.onResponse(
-                new InferenceAction.Response(
-                    new SparseEmbeddingResults(
-                        request.getInput()
+                        texts
                             .stream()
                             .map(
-                                text -> new SparseEmbeddingResults.Embedding(
-                                    List.of(new SparseEmbeddingResults.WeightedToken(text.toString(), 1.0f)),
-                                    false
+                                text -> new TestInferenceResults(
+                                    "test_field",
+                                    randomMap(
+                                        1,
+                                        10,
+                                        () -> new Tuple<>(randomAlphaOfLengthBetween(1, 10), randomFloat())
+                                    )
                                 )
-                            )
-                            .toList()
-                    )
-                )
-            );
+                            ).collect(Collectors.toList()));
             return Void.TYPE;
-        }).when(nodeClient).execute(eq(InferenceAction.INSTANCE), argThat(r -> inferenceRequestMatches(r, modelId, inferenceTexts)), any());
+        }).when(inferenceProvider)
+            .textInference(eq(modelId), argThat(texts -> texts.containsAll(Arrays.stream(inferenceTexts).toList())), any());
     }
 
     private void expectInferenceRequestFails(String modelId, String... inferenceTexts) {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            var listener = (ActionListener<InferenceAction.Response>) invocation.getArguments()[2];
-            listener.onFailure(new Exception("Inference failed"));
+            var listener = (ActionListener<List<InferenceResults>>) invocation.getArguments()[2];
+            listener.onFailure(new InferenceProviderException("Inference failed", null));
             return Void.TYPE;
-        }).when(nodeClient).execute(eq(InferenceAction.INSTANCE), argThat(r -> inferenceRequestMatches(r, modelId, inferenceTexts)), any());
+        }).when(inferenceProvider)
+            .textInference(eq(modelId), argThat(texts -> texts.containsAll(Arrays.stream(inferenceTexts).toList())), any());
     }
 
-    private boolean inferenceRequestMatches(ActionRequest request, String modelId, String[] inferenceTexts) {
-        if (request instanceof InferenceAction.Request inferenceRequest) {
-            return inferenceRequest.getModelId().equals(modelId) && inferenceRequest.getInput().containsAll(List.of(inferenceTexts));
-        }
-        return false;
-    }
 }

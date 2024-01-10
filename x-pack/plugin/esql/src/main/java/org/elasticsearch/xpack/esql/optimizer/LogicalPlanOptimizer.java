@@ -644,6 +644,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     return bc;
                 }
 
+                // TODO: can specialize to our Equals instead of the ql Equals
                 if (bc instanceof org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals || bc instanceof NullEquals) {
                     return Literal.falseWithSource(bc.source());
                 }
@@ -651,6 +652,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     return Literal.trueWithSource(bc.source());
                 }
 
+                // TODO: can move OptimizerUtils to esql project
                 boolean isPositive = OptimizerUtils.isPositive(r);
                 if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
                     return isPositive ? Literal.falseWithSource(bc.source()) : Literal.trueWithSource(bc.source());

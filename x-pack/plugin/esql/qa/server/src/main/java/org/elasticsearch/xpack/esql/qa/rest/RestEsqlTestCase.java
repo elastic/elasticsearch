@@ -113,6 +113,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
               "long": {
                 "type": "long"
               },
+              "unsigned_long": {
+                "type": "unsigned_long"
+              },
               "short": {
                 "type": "short"
               },
@@ -397,6 +400,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // Long
             new ImplicitCastCase("long", toIntLongOrDouble + "(" + sign + "1)"),
             new ImplicitCastCase("long", toIntLongOrDouble + "(" + sign + "1)"),
+            // TODO: add long/double out of range cases also to optimizer unit tests
+            // TODO: add infty/NaN cases also to optimizer unit tests
+            new ImplicitCastCase("long", sign + "(to_double(9223372036854775807) + 2.0)"),
+            // Unsigned Long
+            new ImplicitCastCase("unsigned_long", "to_ul(9223372036854775808)"),
             // Floating point types
             // Half Float - in range
             new ImplicitCastCase("half_float", toIntLongOrDouble + "(" + sign + "65505)"),
@@ -408,6 +416,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // TODO: https://github.com/elastic/elasticsearch/issues/100130
             // new ImplicitCastCase("float", "to_double(" + sign + "1.797693134862315) * pow(10.0, 307)"),
             new ImplicitCastCase("double", toIntLongOrDouble + "(" + sign + "1)"),
+            // TODO: check +-infty and NaN for all data types
+            new ImplicitCastCase("double", "(" + sign + "0.0)/0.0"),
+            new ImplicitCastCase("double", "(" + sign + "1.0)/0.0"),
             // Other types
             new ImplicitCastCase("text", "\"foo\""),
             new ImplicitCastCase("wildcard", "\"foo\"")

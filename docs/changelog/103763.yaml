@@ -1,0 +1,5 @@
+pr: 103763
+summary: Ref count search response bytes
+area: Search
+type: enhancement
+issues: []

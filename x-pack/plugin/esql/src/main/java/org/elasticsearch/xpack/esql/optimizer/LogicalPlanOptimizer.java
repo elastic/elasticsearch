@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerUtils;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -76,6 +75,8 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -627,6 +628,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * type and replace the comparison by a literal TRUE or FALSE. This rule should be placed after {@link LiteralsOnTheRight}.
      */
     private static class OutOfRangeBinaryComparison extends OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+        private static final int HALF_FLOAT_MAX = 65504;
 
         OutOfRangeBinaryComparison() {
             super(TransformDirection.DOWN);
@@ -634,52 +636,80 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
         @Override
         protected Expression rule(BinaryComparison bc) {
-            // TODO: add tests with null literals if they do not already exist
             if (bc.left().dataType().isNumeric() == false || bc.right().dataType().isNumeric() == false) {
                 return bc;
             }
 
             if (bc.right() instanceof Literal r) {
-                if (r.value() == null || isInRange(bc.left().dataType(), r.value())) {
+                if (r.value() == null || isInRange(bc.left().dataType(), r)) {
                     return bc;
                 }
 
-                // TODO: can specialize to our Equals instead of the ql Equals
-                if (bc instanceof org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals || bc instanceof NullEquals) {
-                    return Literal.falseWithSource(bc.source());
+                if (bc instanceof Equals || bc instanceof NullEquals) {
+                    return Literal.of(bc, false);
                 }
                 if (bc instanceof NotEquals) {
-                    return Literal.trueWithSource(bc.source());
+                    return Literal.of(bc, true);
                 }
 
-                // TODO: can move OptimizerUtils to esql project
-                boolean isPositive = OptimizerUtils.isPositive(r);
-                if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
-                    return isPositive ? Literal.falseWithSource(bc.source()) : Literal.trueWithSource(bc.source());
-                }
                 if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                    return isPositive == false ? Literal.falseWithSource(bc.source()) : Literal.trueWithSource(bc.source());
+                    return Literal.of(bc, isPositive(r));
+                }
+                if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
+                    return Literal.of(bc, isPositive(r) == false);
                 }
             }
 
             return bc;
         }
 
-        private static boolean isInRange(DataType dataType, Object value) {
-            assert value != null;
-            if ((dataType == DataTypes.INTEGER || dataType == DataTypes.SHORT || dataType == DataTypes.BYTE)) {
-                return OptimizerUtils.isInIntegerRange(value);
-            }
-            // TODO: The half_float and float cases never trigger because we widen them to double
-            // https://github.com/elastic/elasticsearch/issues/100130
-            if (dataType == DataTypes.HALF_FLOAT) {
-                return OptimizerUtils.isInHalfFloatRange(value);
-            }
-            if (dataType == DataTypes.FLOAT) {
-                return OptimizerUtils.isInFloatRange(value);
+        private static boolean isInRange(DataType dataType, Literal num) {
+            Number value = (Number) num.value();
+
+            double doubleValue = value.doubleValue();
+            if (Double.isNaN(doubleValue) || Double.isInfinite(doubleValue)) {
+                // This also covers the Double data type, as well as scaled floats (represented as doubles in ESQL).
+                return false;
             }
 
-            return true;
+            BigDecimal decimalValue = num.dataType().isRational() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
+            // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.
+            // Initialize min and max with whatever.
+            BigDecimal minValue = BigDecimal.valueOf(1);
+            BigDecimal maxValue = BigDecimal.valueOf(0);
+            if (dataType == DataTypes.BYTE) {
+                minValue = BigDecimal.valueOf(Byte.MIN_VALUE);
+                maxValue = BigDecimal.valueOf(Byte.MAX_VALUE);
+            }
+            if (dataType == DataTypes.SHORT) {
+                minValue = BigDecimal.valueOf(Short.MIN_VALUE);
+                maxValue = BigDecimal.valueOf(Short.MAX_VALUE);
+            }
+            if (dataType == DataTypes.INTEGER) {
+                minValue = BigDecimal.valueOf(Integer.MIN_VALUE);
+                maxValue = BigDecimal.valueOf(Integer.MAX_VALUE);
+            }
+            if (dataType == DataTypes.LONG || dataType == DataTypes.UNSIGNED_LONG) {
+                // Unsigned longs are represented as longs in ESQL.
+                minValue = BigDecimal.valueOf(Long.MIN_VALUE);
+                maxValue = BigDecimal.valueOf(Long.MAX_VALUE);
+            }
+            if (dataType == DataTypes.HALF_FLOAT) {
+                minValue = BigDecimal.valueOf(-HALF_FLOAT_MAX);
+                maxValue = BigDecimal.valueOf(HALF_FLOAT_MAX);
+            }
+            if (dataType == DataTypes.FLOAT) {
+                minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
+                maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
+            }
+
+            return minValue.compareTo(decimalValue) <= 0 && maxValue.compareTo(decimalValue) >= 0;
+        }
+
+        private static boolean isPositive(Literal num) {
+            Number value = (Number) num.value();
+
+            return value.doubleValue() > 0;
         }
     }
 

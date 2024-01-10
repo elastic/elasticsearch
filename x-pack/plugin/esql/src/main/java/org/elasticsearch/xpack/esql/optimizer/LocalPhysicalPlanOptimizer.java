@@ -52,11 +52,9 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerUtils;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Queries;
 import org.elasticsearch.xpack.ql.util.Queries.Clause;
@@ -237,44 +235,22 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
             if (exp instanceof BinaryComparison bc) {
-                Expression left = bc.left();
-                Expression right = bc.right();
-
-                /**
-                 * Because of {@link org.elasticsearch.xpack.esql.type.EsqlDataTypes#widenSmallNumericTypes(DataType)} we should not
-                 * encounter some data types - we include them anyway to be on the safe side.
-                 */
-                if (isPushableAttribute(left, bc, hasIdenticalDelegate) && right.foldable()) {
-                    DataType leftDataType = left.dataType();
-                    if (leftDataType == DataTypes.INTEGER || leftDataType == DataTypes.SHORT || leftDataType == DataTypes.BYTE) {
-                        // Lucene treats bytes/shorts the same as integers, the right hand side only needs to be a valid integer.
-                        return OptimizerUtils.isInIntegerRange(right.fold());
-                    }
-                    // TODO: The half_float and float cases never trigger because we widen them to double
-                    // https://github.com/elastic/elasticsearch/issues/100130
-                    if (leftDataType == DataTypes.HALF_FLOAT) {
-                        return OptimizerUtils.isInHalfFloatRange(right.fold());
-                    }
-                    if (leftDataType == DataTypes.FLOAT) {
-                        return OptimizerUtils.isInFloatRange(right.fold());
-                    }
-                    return true;
-                }
+                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
             } else if (exp instanceof In in) {
-                return isPushableAttribute(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
+                return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
             } else if (exp instanceof Not not) {
                 return canPushToSource(not.field(), hasIdenticalDelegate);
             } else if (exp instanceof UnaryScalarFunction usf) {
                 if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
-                    return isPushableAttribute(usf.field(), usf, hasIdenticalDelegate);
+                    return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
                 }
             }
             return false;
         }
 
-        private static boolean isPushableAttribute(
+        private static boolean isAttributePushable(
             Expression expression,
             Expression operation,
             Predicate<FieldAttribute> hasIdenticalDelegate

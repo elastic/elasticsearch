@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -71,9 +71,6 @@ import static org.hamcrest.Matchers.nullValue;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
-    private static final Set<String> LONG_DOUBLE = Set.of("long", "double");
-    private static final Set<String> INT_LONG_DOUBLE = Set.of("integer", "long", "double");
-
     private static final String PARAM_FORMATTING = "%1$s";
 
     /**
@@ -82,11 +79,11 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataTypes.KEYWORD);
 
     private EsqlParser parser;
-    private Analyzer basicMappingAnalyzer;
-    private Analyzer allTypesMappingAnalyzer;
+    private Analyzer analyzer;
     private LogicalPlanOptimizer logicalOptimizer;
     private PhysicalPlanOptimizer physicalPlanOptimizer;
     private Mapper mapper;
+    private Map<String, EsField> mapping;
 
     private final EsqlConfiguration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
@@ -115,18 +112,14 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     @Before
     public void init() {
         parser = new EsqlParser();
-        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
-        mapper = new Mapper(new EsqlFunctionRegistry());
 
-        basicMappingAnalyzer = basicMappingAnalyzer();
-        allTypesMappingAnalyzer = allFieldMappingAnalyzer();
-    }
-
-    private Analyzer basicMappingAnalyzer() {
-        var mapping = loadMapping("mapping-basic.json");
+        mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
+        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
+        FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        mapper = new Mapper(functionRegistry);
         var enrichResolution = new EnrichResolution(
             Set.of(
                 new EnrichPolicyResolution(
@@ -146,122 +139,10 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             Set.of("foo")
         );
 
-        return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
+        analyzer = new Analyzer(
+            new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution),
             new Verifier(new Metrics())
         );
-    }
-
-    private Analyzer allFieldMappingAnalyzer() {
-        var mapping = loadMapping("mapping-alltypes.json");
-        EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-
-        return new Analyzer(new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, null), new Verifier(new Metrics()));
-    }
-
-    private record ImplicitCastCase(String datatype, String expression) {}
-
-    /**
-     * Expects the filter to be trivialized to a TRUE or FALSE literal, e.g.:
-     * LimitExec[500[INTEGER]]
-     * \_ExchangeExec[[],false]
-     *   \_EsQueryExec[test], query[][_doc{f}#19], limit[500], sort[] estimatedRowSize[4]
-     */
-    public void testTrivialFilterForUnsupportedImplicitCast() {
-        // TODO: turn into logical plan optimizer test instead
-        String sign = randomBoolean() ? "" : "-";
-        String op = randomBinaryComparisonOperatorSymbol();
-
-        List<ImplicitCastCase> casts = List.of(
-            // TODO: Parametrize instead of using so much randomness
-            // Exact numerical types
-            // Bytes/Shorts are treated as ints by Lucene, so out of range = out of int range
-            new ImplicitCastCase("byte", toLongOrDouble() + "(" + sign + "1000000000000)"),
-            new ImplicitCastCase("short", toLongOrDouble() + "(" + sign + "1000000000000)"),
-            new ImplicitCastCase("integer", toLongOrDouble() + "(" + sign + "1000000000000)")
-        // Floating point types
-        // TODO: We treat float and half_float as double, so we cannot properly decide if we can push down or not.
-        // https://github.com/elastic/elasticsearch/issues/100130
-        // new ImplicitCastCase("half_float", toLongOrDouble() + "(" + sign + "1000000000000)"),
-        // new ImplicitCastCase("float", "to_double(" + sign + "1.797693134862315) * pow(10.0, 307)"),
-        );
-
-        for (ImplicitCastCase c : casts) {
-            var plan = plan("from test | where " + c.datatype + op + c.expression, allTypesMappingAnalyzer);
-
-            // TODO: double check if this is really okay, happens for the byte vs. double case.
-            if (plan instanceof LocalSourceExec) {
-                return;
-            }
-
-            var limit = as(plan, LimitExec.class);
-            var exg = as(limit.child(), ExchangeExec.class);
-            var queryExec = as(exg.child(), EsQueryExec.class);
-            assertNull(queryExec.query());
-        }
-    }
-
-    /**
-     * Expects a single {@link EsQueryExec} containing the filter, like the following:
-     * LimitExec[500[INTEGER]]
-     * \_ExchangeExec[[],false]
-     *   \_EsQueryExec[test], query[{"esql_single_value":{"field":"byte","next":{"range":{"byte":{"gt":2147483647,"boost":1.0}}}}}]
-     *          [_doc{f}#18], limit[500], sort[] estimatedRowSize[4]
-     */
-    public void testFilterPushdownForSupportedImplicitCast() {
-        String sign = randomBoolean() ? "" : "-";
-        String op = randomBinaryComparisonOperatorSymbol();
-
-        List<ImplicitCastCase> casts = List.of(
-            // Exact numerical types
-            // TODO: Parametrize instead of using so much randomness
-            new ImplicitCastCase("byte", toIntLongOrDouble() + "(2147483647)"),
-            new ImplicitCastCase("byte", toIntLongOrDouble() + "(-2147483648)"),
-            new ImplicitCastCase("short", toIntLongOrDouble() + "(2147483647)"),
-            new ImplicitCastCase("short", toIntLongOrDouble() + "(-2147483648)"),
-            new ImplicitCastCase("integer", toIntLongOrDouble() + "(2147483647)"),
-            new ImplicitCastCase("integer", toIntLongOrDouble() + "(-2147483648)"),
-            new ImplicitCastCase("long", toIntLongOrDouble() + "(" + sign + "1)"),
-            new ImplicitCastCase("long", toIntLongOrDouble() + "(" + sign + "1)"),
-            // Floating point types
-            new ImplicitCastCase("half_float", toIntLongOrDouble() + "(" + sign + "65505)"),
-            new ImplicitCastCase("float", toIntLongOrDouble() + "(" + sign + "1.0)"),
-            new ImplicitCastCase("float", "to_double(" + sign + "3.4028235) * pow(10.0, 38)"),
-            new ImplicitCastCase("double", toIntLongOrDouble() + "(" + sign + "1)"),
-            // Other types
-            new ImplicitCastCase("wildcard", "\"foo\"")
-        );
-
-        for (ImplicitCastCase c : casts) {
-            var plan = plan("from test | where " + c.datatype + op + c.expression, allTypesMappingAnalyzer);
-
-            var limit = as(plan, LimitExec.class);
-            var exg = as(limit.child(), ExchangeExec.class);
-            var queryExec = as(exg.child(), EsQueryExec.class);
-            assertNotNull(queryExec.query());
-        }
-    }
-
-    private String randomBinaryComparisonOperatorSymbol() {
-        var operators = BinaryComparisonProcessor.BinaryComparisonOperation.values();
-
-        int ordinal = randomNonNegativeInt() % operators.length;
-
-        if (operators[ordinal] == BinaryComparisonProcessor.BinaryComparisonOperation.NULLEQ) {
-            // <=> not supported in ESQL
-            return BinaryComparisonProcessor.BinaryComparisonOperation.EQ.symbol();
-        }
-
-        return operators[ordinal].symbol();
-    }
-
-    private static String toIntLongOrDouble() {
-        return "to_" + randomSubsetOf(1, INT_LONG_DOUBLE).get(0);
-    }
-
-    private static String toLongOrDouble() {
-        return "to_" + randomSubsetOf(1, LONG_DOUBLE).get(0);
     }
 
     /**
@@ -277,7 +158,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var plan = plan("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(*)
-            """, basicMappingAnalyzer);
+            """);
         var stat = queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
@@ -293,7 +174,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *       limit[],
      */
     public void testCountAllWithFilter() {
-        var plan = plan("from test | where emp_no > 10040 | stats c = count(*)", basicMappingAnalyzer);
+        var plan = plan("from test | where emp_no > 10040 | stats c = count(*)");
         var stat = queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
@@ -313,7 +194,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *   limit[],
      */
     public void testCountFieldWithFilter() {
-        var plan = plan("from test | where emp_no > 10040 | stats c = count(emp_no)", basicMappingAnalyzer, IS_SV_STATS);
+        var plan = plan("from test | where emp_no > 10040 | stats c = count(emp_no)", IS_SV_STATS);
         var stat = queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(QueryBuilders.existsQuery("emp_no")));
@@ -334,7 +215,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var plan = plan("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(hidden_s)
-            """, basicMappingAnalyzer, IS_SV_STATS);
+            """, IS_SV_STATS);
+
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
         var exg = as(agg.child(), ExchangeExec.class);
@@ -352,7 +234,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | where salary > 1000
             | stats c = count(salary)
-            """, basicMappingAnalyzer, IS_SV_STATS);
+            """, IS_SV_STATS);
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -378,7 +260,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             | where salary > 1000
             | limit 10
             | stats c = count(salary)
-            """, basicMappingAnalyzer, IS_SV_STATS);
+            """, IS_SV_STATS);
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
@@ -388,7 +270,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | where salary > 1000 and emp_no > 10010
             | stats cs = count(salary), ce = count(emp_no)
-            """, basicMappingAnalyzer, IS_SV_STATS);
+            """, IS_SV_STATS);
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
@@ -397,7 +279,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | where emp_no > 10010
             | stats c = count()
-            """, basicMappingAnalyzer, IS_SV_STATS);
+            """, IS_SV_STATS);
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -427,7 +309,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | where emp_no > 10010
             | stats c = count(), call = count(*), c_literal = count(1)
-            """, basicMappingAnalyzer, IS_SV_STATS);
+            """, IS_SV_STATS);
 
         var project = as(plan, ProjectExec.class);
         var projections = project.projections();
@@ -453,7 +335,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | where emp_no > 10010
             | stats c = count(), cs = count(salary), ce = count(emp_no)
-            """, basicMappingAnalyzer, IS_SV_STATS);
+            """, IS_SV_STATS);
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
@@ -476,7 +358,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | where emp_no > 10010
             | stats c = count()
-            """, basicMappingAnalyzer, stats);
+            """, stats);
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -489,7 +371,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testIsNotNullPushdownFilter() {
-        var plan = plan("from test | where emp_no is not null", basicMappingAnalyzer);
+        var plan = plan("from test | where emp_no is not null");
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -500,7 +382,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testIsNullPushdownFilter() {
-        var plan = plan("from test | where emp_no is null", basicMappingAnalyzer);
+        var plan = plan("from test | where emp_no is null");
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -525,12 +407,12 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         return stat;
     }
 
-    private PhysicalPlan plan(String query, Analyzer analyzer) {
-        return plan(query, analyzer, EsqlTestUtils.TEST_SEARCH_STATS);
+    private PhysicalPlan plan(String query) {
+        return plan(query, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
-    private PhysicalPlan plan(String query, Analyzer analyzer, SearchStats stats) {
-        var physical = optimizedPlan(physicalPlan(query, analyzer), stats);
+    private PhysicalPlan plan(String query, SearchStats stats) {
+        var physical = optimizedPlan(physicalPlan(query), stats);
         return physical;
     }
 
@@ -553,7 +435,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         return l;
     }
 
-    private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
+    private PhysicalPlan physicalPlan(String query) {
         var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);

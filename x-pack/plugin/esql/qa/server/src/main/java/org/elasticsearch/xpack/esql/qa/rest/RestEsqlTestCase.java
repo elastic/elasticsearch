@@ -101,6 +101,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
               "half_float": {
                 "type": "half_float"
               },
+              "scaled_float": {
+                "type": "scaled_float",
+                "scaling_factor": 100
+              },
               "integer" : {
                 "type" : "integer"
               },
@@ -407,6 +411,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             new ImplicitCastCase("unsigned_long", "to_ul(9223372036854775808)"),
             // Floating point types
             // Half Float - in range
+            // TODO: add scaled floats
             new ImplicitCastCase("half_float", toIntLongOrDouble + "(" + sign + "65505)"),
             // TODO: We treat float and half_float as double, so we cannot properly decide if we can push down or not.
             // https://github.com/elastic/elasticsearch/issues/100130

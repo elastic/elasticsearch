@@ -32,14 +32,6 @@ public class Literal extends LeafExpression {
         this.value = value;
     }
 
-    public static Literal trueWithSource(Source source) {
-        return new Literal(source, Boolean.TRUE, DataTypes.BOOLEAN);
-    }
-
-    public static Literal falseWithSource(Source source) {
-        return new Literal(source, Boolean.FALSE, DataTypes.BOOLEAN);
-    }
-
     @Override
     protected NodeInfo<? extends Literal> info() {
         return NodeInfo.create(this, Literal::new, value, dataType);

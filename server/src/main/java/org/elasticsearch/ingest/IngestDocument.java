@@ -738,7 +738,7 @@ public final class IngestDocument {
     }
 
     /**
-     * Get the strongly typed metadata
+     * Get the strongly typed metadata, unmodified, as it existed when the ingest document was first created
      */
     public org.elasticsearch.script.Metadata getOriginalMetadata() {
         return originalMetadata;

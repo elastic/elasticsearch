@@ -110,8 +110,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private boolean requireAlias;
 
-    // Transient variable as it is not serialized. This will eventually be replaced with an official change to index options.
+    /**
+     * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
+     */
     private boolean writeToFailureStore = false;
+
     /**
      * This indicates whether the response to this request ought to list the ingest pipelines that were executed on the document
      */

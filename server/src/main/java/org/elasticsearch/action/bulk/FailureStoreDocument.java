@@ -38,11 +38,6 @@ public class FailureStoreDocument {
     }
 
     public IndexRequest convert() throws IOException {
-        // This is a problem - We want to target the targetted index name for creation, but we want the document to end up in its failure
-        // store. We could target the failure store directly, but if it does not exist, then we need the auto create logic to somehow pick
-        // up that the parent data stream needs to be created.
-        // One option is to make use of the eventual flag to perform an operation on the failure store. Ughh who would have thought the
-        // dependencies would be swapped like that...
         return new IndexRequest().index(targetIndexName)
             .source(createSource())
             .opType(DocWriteRequest.OpType.CREATE)

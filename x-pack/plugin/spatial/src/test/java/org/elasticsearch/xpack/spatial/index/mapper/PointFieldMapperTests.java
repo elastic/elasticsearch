@@ -428,14 +428,10 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     @Override
-    protected SupportedReaders getSupportedReaders(MapperService mapper, MappedFieldType ft) {
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
         // TODO: Support testing both reading from source as well as reading from doc-values
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
         PointFieldMapper.PointFieldType point = (PointFieldMapper.PointFieldType) ft;
-        return new SupportedReaders(point.isIndexed() == false && ft.hasDocValues(), false);
-    }
-
-    @Override
-    public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() {
-        assumeTrue("Synthetic source not completed supported for geo_point", false);
+        return new BlockReaderSupport(point.isIndexed() == false && ft.hasDocValues(), true, false, mapper, loaderFieldName);
     }
 }

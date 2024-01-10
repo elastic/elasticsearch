@@ -8,17 +8,22 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -56,8 +61,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     @Before
     public void setup() throws IOException {
         createIndex("test");
-        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
-        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("text", "value2").endObject()).get();
+        index("test", "1", jsonBuilder().startObject().field("text", "value1").endObject());
+        index("test", "2", jsonBuilder().startObject().field("text", "value2").endObject());
         indicesAdmin().prepareRefresh().get();
     }
 
@@ -178,6 +183,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
             bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
             bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+            for (DocWriteRequest<?> request : bulkRequestBuilder.request().requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
             bulkRequestBuilder.get();
             indicesAdmin().prepareRefresh().get();
         }
@@ -277,6 +287,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
             bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
             bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+            for (DocWriteRequest<?> request : bulkRequestBuilder.request().requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
             bulkRequestBuilder.get();
             indicesAdmin().prepareRefresh().get();
         }
@@ -315,7 +330,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         createIndex("testindex");
         ensureGreen("testindex");
 
-        prepareIndex("testindex").setId("1").setSource(jsonBuilder().startObject().field("searchtext", "dev1").endObject()).get();
+        index("testindex", "1", jsonBuilder().startObject().field("searchtext", "dev1").endObject());
         indicesAdmin().prepareRefresh().get();
 
         int iterations = randomIntBetween(2, 11);
@@ -399,6 +414,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
             bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
             bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+            for (DocWriteRequest<?> request : bulkRequestBuilder.request().requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
             bulkRequestBuilder.get();
             indicesAdmin().prepareRefresh().get();
         }
@@ -452,5 +472,14 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     public static void assertHitCount(SearchTemplateRequestBuilder requestBuilder, long expectedHitCount) {
         assertResponse(requestBuilder, response -> ElasticsearchAssertions.assertHitCount(response.getResponse(), expectedHitCount));
+    }
+
+    private DocWriteResponse index(String index, String id, XContentBuilder source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

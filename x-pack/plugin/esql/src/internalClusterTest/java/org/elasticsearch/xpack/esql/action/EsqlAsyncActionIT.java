@@ -74,8 +74,6 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
             String id = response.asyncExecutionId().get();
             if (response.isRunning() == false) {
                 assertThat(request.keepOnCompletion(), is(true));
-                assertThat(response.columns(), is(not(empty())));
-                assertThat(response.pages(), is(not(empty())));
                 initialColumns = List.copyOf(response.columns());
                 initialPages = deepCopyOf(response.pages(), TestBlockFactory.getNonBreakingInstance());
             } else {

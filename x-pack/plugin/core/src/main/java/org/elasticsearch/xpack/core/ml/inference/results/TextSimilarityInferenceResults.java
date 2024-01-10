@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.action.inference.results.NlpInferenceResults;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,7 +34,7 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(resultsField);
         out.writeDouble(score);
     }
@@ -65,7 +64,7 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void addMapFields(Map<String, Object> map) {
+    void addMapFields(Map<String, Object> map) {
         map.put(resultsField, score);
     }
 
@@ -82,7 +81,7 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, score);
     }
 

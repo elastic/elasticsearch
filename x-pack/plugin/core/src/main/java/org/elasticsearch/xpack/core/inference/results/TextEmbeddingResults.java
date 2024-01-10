@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.action.inference.results;
+package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Writes a text embedding result in the following json format
+ * Writes a text embedding result in the follow json format
  * {
  *     "text_embedding": [
  *         {
@@ -39,18 +39,23 @@ import java.util.stream.Collectors;
  *         }
  *     ]
  * }
- *
- * Legacy text embedding results represents what was returned prior to the
- * {@link org.elasticsearch.TransportVersions#INFERENCE_SERVICE_RESULTS_ADDED} version.
- * @deprecated use {@link TextEmbeddingResults} instead
  */
-@Deprecated
-public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements InferenceResults {
-    public static final String NAME = "text_embedding_results";
+public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults {
+    public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
-    public LegacyTextEmbeddingResults(StreamInput in) throws IOException {
+    public TextEmbeddingResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(Embedding::new));
+    }
+
+    @SuppressWarnings("deprecation")
+    TextEmbeddingResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
+        this(
+            legacyTextEmbeddingResults.embeddings()
+                .stream()
+                .map(embedding -> new Embedding(embedding.values()))
+                .collect(Collectors.toList())
+        );
     }
 
     @Override
@@ -74,33 +79,28 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
     }
 
     @Override
-    public String getResultsField() {
-        return TEXT_EMBEDDING;
+    public List<? extends InferenceResults> transformToCoordinationFormat() {
+        return embeddings.stream()
+            .map(embedding -> embedding.values.stream().mapToDouble(value -> value).toArray())
+            .map(values -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING, values, false))
+            .toList();
     }
 
     @Override
+    @SuppressWarnings("deprecation")
+    public List<? extends InferenceResults> transformToLegacyFormat() {
+        var legacyEmbedding = new LegacyTextEmbeddingResults(
+            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.values)).toList()
+        );
+
+        return List.of(legacyEmbedding);
+    }
+
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(getResultsField(), embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
+        map.put(TEXT_EMBEDDING, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
 
         return map;
-    }
-
-    @Override
-    public Map<String, Object> asMap(String outputField) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put(outputField, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
-
-        return map;
-    }
-
-    @Override
-    public Object predictedValue() {
-        throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
-    }
-
-    public TextEmbeddingResults transformToTextEmbeddingResults() {
-        return new TextEmbeddingResults(this);
     }
 
     public record Embedding(List<Float> values) implements Writeable, ToXContentObject {

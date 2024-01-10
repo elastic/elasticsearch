@@ -29,7 +29,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -65,9 +64,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.inference.InferenceProvider;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -114,6 +112,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
+    private final InferenceProvider inferenceProvider;
 
     public static final String ROOT_RESULT_FIELD = "_ml_inference";
     public static final String INFERENCE_FIELD = "result";
@@ -129,7 +128,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        InferenceProvider inferenceProvider
     ) {
         this(
             threadPool,
@@ -141,7 +141,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            System::nanoTime
+            System::nanoTime,
+            inferenceProvider
         );
     }
 
@@ -155,8 +156,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
-    ) {
+        LongSupplier relativeTimeProvider,
+        InferenceProvider inferenceProvider) {
         this(
             BulkAction.INSTANCE,
             BulkRequest::new,
@@ -169,7 +170,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            relativeTimeProvider
+            relativeTimeProvider,
+            inferenceProvider
         );
     }
 
@@ -185,7 +187,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeProvider,
+        InferenceProvider inferenceProvider
     ) {
         super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);
@@ -199,6 +202,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
+        this.inferenceProvider = inferenceProvider;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -788,6 +792,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Map<String, Set<String>> fieldsForModels,
             Releasable releaseOnFinish
         ) {
+            if (inferenceProvider == null) {
+                releaseOnFinish.close();
+                return;
+            }
+
             DocWriteRequest<?> docWriteRequest = request.request();
             Map<String, Object> sourceMap = null;
             if (docWriteRequest instanceof IndexRequest indexRequest) {
@@ -832,18 +841,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     docRef.acquire();
 
-                    InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-                        TaskType.SPARSE_EMBEDDING, // TODO Change when task type doesn't need to be specified
+                    inferenceProvider.textInference(
                         modelId,
                         inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
-                        Map.of()
-                    );
+                        new ActionListener<>() {
 
-                    client.execute(InferenceAction.INSTANCE, inferenceRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(InferenceAction.Response response) {
-                            // Transform into two subfields, one with the actual text and other with the inference
-                            InferenceServiceResults results = response.getResults();
+                            @Override
+                            public void onResponse(List<InferenceResults> results) {
+
                             if (results == null) {
                                 throw new IllegalArgumentException(
                                     "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
@@ -851,7 +856,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
 
                             int i = 0;
-                            for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
+                            for (InferenceResults inferenceResults : results) {
                                 String fieldName = inferenceFieldNames.get(i++);
                                 @SuppressWarnings("unchecked")
                                 Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(

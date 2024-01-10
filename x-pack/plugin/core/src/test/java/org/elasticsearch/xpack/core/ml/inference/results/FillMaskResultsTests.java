@@ -65,7 +65,7 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
         assertThat(asMap.get(PREDICTION_PROBABILITY), equalTo(testInstance.getPredictionProbability()));
         assertThat(asMap.get(DEFAULT_RESULTS_FIELD + "_sequence"), equalTo(testInstance.getPredictedSequence()));
         List<Map<String, Object>> resultList = (List<Map<String, Object>>) asMap.get(DEFAULT_TOP_CLASSES_RESULTS_FIELD);
-        if (testInstance.isTruncated()) {
+        if (testInstance.isTruncated) {
             assertThat(asMap.get("is_truncated"), is(true));
         } else {
             assertThat(asMap, not(hasKey("is_truncated")));

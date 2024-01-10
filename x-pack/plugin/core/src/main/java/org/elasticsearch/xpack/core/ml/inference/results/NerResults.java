@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.action.inference.results.NlpInferenceResults;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,7 +46,7 @@ public class NerResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, annotatedResult);
         builder.startArray("entities");
         for (EntityGroup entity : entityGroups) {
@@ -62,14 +61,14 @@ public class NerResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    void doWriteTo(StreamOutput out) throws IOException {
         out.writeCollection(entityGroups);
         out.writeString(resultsField);
         out.writeString(annotatedResult);
     }
 
     @Override
-    protected void addMapFields(Map<String, Object> map) {
+    void addMapFields(Map<String, Object> map) {
         map.put(resultsField, annotatedResult);
         map.put(ENTITY_FIELD, entityGroups.stream().map(EntityGroup::toMap).collect(Collectors.toList()));
     }

@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.action.inference.results;
+package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,23 +18,23 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class NlpInferenceResults implements InferenceResults {
+abstract class NlpInferenceResults implements InferenceResults {
 
     protected final boolean isTruncated;
 
-    public NlpInferenceResults(boolean isTruncated) {
+    NlpInferenceResults(boolean isTruncated) {
         this.isTruncated = isTruncated;
     }
 
-    public NlpInferenceResults(StreamInput in) throws IOException {
+    NlpInferenceResults(StreamInput in) throws IOException {
         this.isTruncated = in.readBoolean();
     }
 
-    protected abstract void doXContentBody(XContentBuilder builder, Params params) throws IOException;
+    abstract void doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+    abstract void doWriteTo(StreamOutput out) throws IOException;
 
-    protected abstract void addMapFields(Map<String, Object> map);
+    abstract void addMapFields(Map<String, Object> map);
 
     public boolean isTruncated() {
         return isTruncated;

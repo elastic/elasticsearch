@@ -68,7 +68,7 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
         }
         assertThat(resultList, hasSize(testInstance.getEntityGroups().size()));
         assertThat(asMap.get(testInstance.getResultsField()), equalTo(testInstance.getAnnotatedResult()));
-        if (testInstance.isTruncated()) {
+        if (testInstance.isTruncated) {
             assertThat(asMap.get("is_truncated"), is(true));
         } else {
             assertThat(asMap, not(hasKey("is_truncated")));

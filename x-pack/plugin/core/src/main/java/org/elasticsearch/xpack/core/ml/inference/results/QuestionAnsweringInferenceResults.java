@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.action.inference.results.NlpInferenceResults;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -77,7 +76,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(answer);
         out.writeVInt(startOffset);
         out.writeVInt(endOffset);
@@ -120,7 +119,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void addMapFields(Map<String, Object> map) {
+    void addMapFields(Map<String, Object> map) {
         map.put(resultsField, answer);
         addSupportingFieldsToMap(map);
     }
@@ -151,7 +150,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, answer);
         builder.field(START_OFFSET.getPreferredName(), startOffset);
         builder.field(END_OFFSET.getPreferredName(), endOffset);

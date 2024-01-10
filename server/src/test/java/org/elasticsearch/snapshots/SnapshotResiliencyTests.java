@@ -1936,12 +1936,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             client,
                             null,
                             () -> DocumentParsingObserver.EMPTY_INSTANCE
+
                         ),
                         client,
                         actionFilters,
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
-                        EmptySystemIndices.INSTANCE
+                        EmptySystemIndices.INSTANCE,
+                        null
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

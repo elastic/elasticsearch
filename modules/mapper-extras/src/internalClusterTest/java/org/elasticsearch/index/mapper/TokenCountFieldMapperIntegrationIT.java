@@ -157,21 +157,30 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
             .get();
         ensureGreen();
 
-        assertEquals(DocWriteResponse.Result.CREATED, prepareIndex("single", "I have four terms").get().getResult());
+        assertEquals(DocWriteResponse.Result.CREATED, indexDoc("test", "single", "foo", new String[] { "I have four terms" }).getResult());
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulk = bulkRequestBuilder.add(prepareIndex("bulk1", "bulk three terms"))
-                .add(prepareIndex("bulk2", "this has five bulk terms"))
-                .get();
+            IndexRequestBuilder indexRequestBuilder1 = prepareIndex("bulk1", "bulk three terms");
+            IndexRequestBuilder indexRequestBuilder2 = prepareIndex("bulk2", "this has five bulk terms");
+            BulkResponse bulk = bulkRequestBuilder.add(indexRequestBuilder1).add(indexRequestBuilder2).get();
+            indexRequestBuilder1.request().decRef();
+            indexRequestBuilder2.request().decRef();
             assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
             assertEquals(
                 DocWriteResponse.Result.CREATED,
-                prepareIndex("multi", "two terms", "wow now I have seven lucky terms").get().getResult()
+                // prepareIndex("multi", "two terms", "wow now I have seven lucky terms").get().getResult()
+                indexDoc("test", "multi", "foo", new String[] { "two terms", "wow now I have seven lucky terms" }).getResult()
             );
         }
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulk = bulkRequestBuilder.add(prepareIndex("multibulk1", "one", "oh wow now I have eight unlucky terms"))
-                .add(prepareIndex("multibulk2", "six is a bunch of terms", "ten!  ten terms is just crazy!  too many too count!"))
-                .get();
+            IndexRequestBuilder indexRequestBuilder1 = prepareIndex("multibulk1", "one", "oh wow now I have eight unlucky terms");
+            IndexRequestBuilder indexRequestBuilder2 = prepareIndex(
+                "multibulk2",
+                "six is a bunch of terms",
+                "ten!  ten terms is just crazy!  too many too count!"
+            );
+            BulkResponse bulk = bulkRequestBuilder.add(indexRequestBuilder1).add(indexRequestBuilder2).get();
+            indexRequestBuilder1.request().decRef();
+            indexRequestBuilder2.request().decRef();
             assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
         }
 

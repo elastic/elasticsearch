@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -48,9 +49,10 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mappings));
         try (BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
             for (int i = 0; i < 2000; i++) {
-                bulk.add(
-                    client().prepareIndex()
-                        .setSource(
+                IndexRequestBuilder indexRequestBuilder = client().prepareIndex();
+                try {
+                    bulk.add(
+                        indexRequestBuilder.setSource(
                             XContentFactory.jsonBuilder()
                                 .startObject()
                                 .field(
@@ -61,7 +63,10 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
                                 )
                                 .endObject()
                         )
-                );
+                    );
+                } finally {
+                    indexRequestBuilder.request().decRef();
+                }
             }
             BulkResponse bulkItemResponses = bulk.get();
             assertNoFailures(bulkItemResponses);
@@ -98,9 +103,10 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mappings));
         try (BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
             for (int i = 0; i < 2000; i++) {
-                bulk.add(
-                    client().prepareIndex()
-                        .setSource(
+                IndexRequestBuilder indexRequestBuilder = client().prepareIndex();
+                try {
+                    bulk.add(
+                        indexRequestBuilder.setSource(
                             XContentFactory.jsonBuilder()
                                 .startObject()
                                 .field(
@@ -111,7 +117,10 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
                                 )
                                 .endObject()
                         )
-                );
+                    );
+                } finally {
+                    indexRequestBuilder.request().decRef();
+                }
             }
             BulkResponse bulkItemResponses = bulk.get();
             assertNoFailures(bulkItemResponses);

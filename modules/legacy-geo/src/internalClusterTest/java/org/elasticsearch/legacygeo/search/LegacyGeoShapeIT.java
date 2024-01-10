@@ -8,6 +8,7 @@
 
 package org.elasticsearch.legacygeo.search;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
@@ -59,7 +60,7 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
         );
         ensureGreen();
 
-        indexRandom(true, prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
             builder.startObject()
                 .field("type", "circle")
                 .startArray("coordinates")
@@ -69,7 +70,9 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
                 .field("radius", "77km")
                 .endObject();
             return builder;
-        }));
+        });
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
 
         // test self crossing of circles
         assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))), 1L);

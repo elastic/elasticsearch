@@ -132,6 +132,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             .supportsUnknownFields(true)
             // exceptions are not of the same type whenever parsed back
             .assertToXContentEquivalence(false)
+            .dispose(MultiSearchResponse::decRef)
             .assertEqualsConsumer(this::assertEqualInstances)
             .test();
     }

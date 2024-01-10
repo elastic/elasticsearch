@@ -22,7 +22,7 @@ public class TestContainerUtils {
 
     public static String getArchTag() {
         String archSysProp = System.getProperty("os.arch");
-        switch(archSysProp) {
+        switch (archSysProp) {
             case "amd64":
                 return "x86_64";
             default:

@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
@@ -413,7 +415,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         DataType expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        points(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, GEO, ESTestCase::randomGeoPoint, matcher);
+        points(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, GEO, GeometryTestUtils::randomPoint, matcher);
     }
 
     /**
@@ -448,7 +450,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             EsqlDataTypes.CARTESIAN_POINT,
             expectedDataType,
             CARTESIAN,
-            ESTestCase::randomCartesianPoint,
+            ShapeTestUtils::randomPoint,
             matcher
         );
     }
@@ -463,12 +465,11 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         DataType dataType,
         DataType expectedDataType,
         SpatialCoordinateTypes spatial,
-        Supplier<SpatialPoint> randomPoint,
+        Supplier<Point> randomPoint,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
         cases.add(new TestCaseSupplier(name + "(" + dataType.typeName() + ")", List.of(dataType), () -> {
-            SpatialPoint point = randomPoint.get();
-            BytesRef wkb = spatial.pointAsWKB(point);
+            BytesRef wkb = spatial.asWkb(randomPoint.get());
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(List.of(wkb), dataType, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
@@ -478,7 +479,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
             cases.add(new TestCaseSupplier(name + "(<" + dataType.typeName() + "s>) " + ordering, List.of(dataType), () -> {
-                List<BytesRef> mvData = randomList(1, 100, () -> spatial.pointAsWKB(randomPoint.get()));
+                List<BytesRef> mvData = randomList(1, 100, () -> spatial.asWkb(randomPoint.get()));
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(mvData, dataType, "field")),

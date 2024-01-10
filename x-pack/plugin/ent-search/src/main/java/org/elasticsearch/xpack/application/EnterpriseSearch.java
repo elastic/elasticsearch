@@ -382,11 +382,16 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Arrays.asList(
+        Collection<SystemIndexDescriptor> systemIndices = new ArrayList<>(List.of(
             SearchApplicationIndexService.getSystemIndexDescriptor(),
-            QueryRulesIndexService.getSystemIndexDescriptor(),
-            ConnectorSecretsIndexService.getSystemIndexDescriptor()
-        );
+            QueryRulesIndexService.getSystemIndexDescriptor()
+        ));
+
+        if (ConnectorSecretsFeature.isEnabled()) {
+            systemIndices.add(ConnectorSecretsIndexService.getSystemIndexDescriptor());
+        }
+
+        return systemIndices;
     }
 
     @Override

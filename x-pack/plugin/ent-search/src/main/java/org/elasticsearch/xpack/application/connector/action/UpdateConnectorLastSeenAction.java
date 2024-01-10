@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.application.connector.Connector;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -36,17 +35,13 @@ public class UpdateConnectorLastSeenAction extends ActionType<ConnectorUpdateAct
 
         private final String connectorId;
 
-        private final Instant lastSeen;
-
         public Request(String connectorId) {
             this.connectorId = connectorId;
-            this.lastSeen = Instant.now();
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.connectorId = in.readString();
-            this.lastSeen = in.readInstant();
         }
 
         public String getConnectorId() {
@@ -58,7 +53,7 @@ public class UpdateConnectorLastSeenAction extends ActionType<ConnectorUpdateAct
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
             return validationException;
@@ -68,7 +63,7 @@ public class UpdateConnectorLastSeenAction extends ActionType<ConnectorUpdateAct
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(Connector.LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+                builder.field(Connector.ID_FIELD.getPreferredName(), connectorId);
             }
             builder.endObject();
             return builder;
@@ -78,7 +73,6 @@ public class UpdateConnectorLastSeenAction extends ActionType<ConnectorUpdateAct
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(connectorId);
-            out.writeInstant(lastSeen);
         }
 
         @Override
@@ -86,12 +80,12 @@ public class UpdateConnectorLastSeenAction extends ActionType<ConnectorUpdateAct
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(connectorId, request.connectorId) && Objects.equals(lastSeen, request.lastSeen);
+            return Objects.equals(connectorId, request.connectorId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectorId, lastSeen);
+            return Objects.hash(connectorId);
         }
     }
 }

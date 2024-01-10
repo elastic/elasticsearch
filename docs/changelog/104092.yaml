@@ -1,0 +1,5 @@
+pr: 104092
+summary: Ingest geoip processor cache 'no results' from the database
+area: Ingest Node
+type: enhancement
+issues: []

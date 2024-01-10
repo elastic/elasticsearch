@@ -26,7 +26,13 @@ public class TransportGetConnectorSecretAction extends HandledTransportAction<Ge
 
     @Inject
     public TransportGetConnectorSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(GetConnectorSecretAction.NAME, transportService, actionFilters, GetConnectorSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            GetConnectorSecretAction.NAME,
+            transportService,
+            actionFilters,
+            GetConnectorSecretRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 

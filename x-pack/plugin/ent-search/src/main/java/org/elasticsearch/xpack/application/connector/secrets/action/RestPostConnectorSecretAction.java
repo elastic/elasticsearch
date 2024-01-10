@@ -35,7 +35,11 @@ public class RestPostConnectorSecretAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             PostConnectorSecretRequest postSecretRequest = PostConnectorSecretRequest.fromXContent(parser);
-            return restChannel -> client.execute(PostConnectorSecretAction.INSTANCE, postSecretRequest, new RestToXContentListener<>(restChannel));
+            return restChannel -> client.execute(
+                PostConnectorSecretAction.INSTANCE,
+                postSecretRequest,
+                new RestToXContentListener<>(restChannel)
+            );
         }
     }
 }

@@ -63,6 +63,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.elasticsearch.xpack.autoscaling.capacity.nodeinfo.AutoscalingNodeInfoService.FETCH_TIMEOUT;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -148,8 +151,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             );
             client.respondStats(response, () -> {
                 Sets.union(missingNodes, Sets.difference(previousNodes, nodes))
-                    .forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
-                Sets.intersection(previousSucceededNodes, nodes).forEach(n -> assertThat(service.snapshot().get(n).isPresent(), is(true)));
+                    .forEach(n -> assertThat(service.snapshot().get(n), isEmpty()));
+                Sets.intersection(previousSucceededNodes, nodes).forEach(n -> assertThat(service.snapshot().get(n), isPresent()));
             });
             client.respondInfo(responseInfo, () -> {
 
@@ -159,7 +162,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             client.assertNoResponder();
 
             assertMatchesResponse(succeedingNodes, response, responseInfo);
-            failingNodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
+            failingNodes.forEach(n -> assertThat(service.snapshot().get(n), isEmpty()));
 
             previousNodes.clear();
             previousNodes.addAll(nodes);
@@ -177,7 +180,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         // client throws if called.
         service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
 
-        nodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
+        nodes.forEach(n -> assertThat(service.snapshot().get(n), isEmpty()));
     }
 
     public void testNoLongerMaster() {
@@ -208,7 +211,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         // client throws if called.
         service.onClusterChanged(new ClusterChangedEvent("test", notMasterState, masterState));
 
-        nodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
+        nodes.forEach(n -> assertThat(service.snapshot().get(n), isEmpty()));
     }
 
     public void testStatsFails() {
@@ -218,7 +221,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         client.respondStats((r, listener) -> listener.onFailure(randomFrom(new IllegalStateException(), new RejectedExecutionException())));
         service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
 
-        nodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
+        nodes.forEach(n -> assertThat(service.snapshot().get(n), isEmpty()));
 
         NodesStatsResponse response = new NodesStatsResponse(
             ClusterName.DEFAULT,
@@ -249,7 +252,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         client.respondStats(response, () -> {});
         client.respondInfo((r, listener) -> listener.onFailure(randomFrom(new IllegalStateException(), new RejectedExecutionException())));
         service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
-        nodes.forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
+        nodes.forEach(n -> assertThat(service.snapshot().get(n), isEmpty()));
         NodesInfoResponse responseInfo = new NodesInfoResponse(
             ClusterName.DEFAULT,
             nodes.stream().map(n -> infoForNode(n, randomIntBetween(1, 64))).collect(Collectors.toList()),
@@ -316,7 +319,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         assertMatchesResponse(Sets.intersection(restartedNodes, nodes), response, responseInfo);
         assertMatchesResponse(Sets.difference(restartedNodes, nodes), restartedStatsResponse, restartedInfoResponse);
 
-        Sets.difference(nodes, restartedNodes).forEach(n -> assertThat(service.snapshot().get(n).isEmpty(), is(true)));
+        Sets.difference(nodes, restartedNodes).forEach(n -> assertThat(service.snapshot().get(n), isEmpty()));
     }
 
     public void testConcurrentStateUpdate() throws Exception {
@@ -396,10 +399,9 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
 
     public void assertMatchesResponse(Set<DiscoveryNode> nodes, NodesStatsResponse response, NodesInfoResponse infoResponse) {
         nodes.forEach(n -> {
-            assertThat(service.snapshot().get(n).isPresent(), is(true));
             assertThat(
-                service.snapshot().get(n).get(),
-                equalTo(
+                service.snapshot().get(n),
+                isPresentWith(
                     new AutoscalingNodeInfo(
                         response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes(),
                         Processors.of(infoResponse.getNodesMap().get(n.getId()).getInfo(OsInfo.class).getFractionalAllocatedProcessors())

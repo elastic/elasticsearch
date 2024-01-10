@@ -16,10 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
-
-import java.util.Objects;
 
 public class TransportPutConnectorAction extends HandledTransportAction<PutConnectorAction.Request, PutConnectorAction.Response> {
 
@@ -44,21 +41,6 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
 
     @Override
     protected void doExecute(Task task, PutConnectorAction.Request request, ActionListener<PutConnectorAction.Response> listener) {
-
-        Boolean isNative = Objects.requireNonNullElse(request.getIsNative(), false);
-
-        Connector connector = new Connector.Builder().setDescription(request.getDescription())
-            .setIndexName(request.getIndexName())
-            .setIsNative(isNative)
-            .setLanguage(request.getLanguage())
-            .setName(request.getName())
-            .setServiceType(request.getServiceType())
-            .build();
-
-        connectorIndexService.putConnector(
-            request.getConnectorId(),
-            connector,
-            listener.map(r -> new PutConnectorAction.Response(r.getResult()))
-        );
+        connectorIndexService.createConnectorWithDocId(request, listener.map(r -> new PutConnectorAction.Response(r.getResult())));
     }
 }

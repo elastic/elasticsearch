@@ -64,6 +64,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104124")
     public void testInvalidPattern() {
         String pattern = randomAlphaOfLength(10);
         DriverContext driverContext = driverContext();

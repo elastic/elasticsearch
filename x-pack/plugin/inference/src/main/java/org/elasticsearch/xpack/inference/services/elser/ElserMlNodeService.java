@@ -165,11 +165,11 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public void stop(Model model, ActionListener<Boolean> listener) {
+    public void stop(String modelId, ActionListener<Boolean> listener) {
         client.execute(
             StopTrainedModelDeploymentAction.INSTANCE,
-            new StopTrainedModelDeploymentAction.Request(model.getConfigurations().getModelId()),
-            listener.delegateFailure((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
+            new StopTrainedModelDeploymentAction.Request(modelId),
+            listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
         );
     }
 

@@ -5,27 +5,34 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.heap_attack;
+package org.elasticsearch.xpack.esql.heap_attack;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -51,12 +58,12 @@ import static org.hamcrest.Matchers.hasSize;
  * Tests that run ESQL queries that have, in the past, used so much memory they
  * crash Elasticsearch.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103527")
 public class HeapAttackIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .module("test-esql-heap-attack")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .build();
@@ -265,7 +272,6 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
     public void testTooManyEval() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> manyEval(1000));
@@ -299,7 +305,40 @@ public class HeapAttackIT extends ESRestTestCase {
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
                 .setWarningsHandler(WarningsHandler.PERMISSIVE)
         );
-        return client().performRequest(request);
+        logger.info("--> test {} started querying", getTestName());
+        final ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        final long startedTimeInNanos = System.nanoTime();
+        Scheduler.Cancellable schedule = null;
+        try {
+            schedule = testThreadPool.schedule(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
+                    logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
+                    Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
+                    client().performRequest(triggerOOM);
+                }
+            }, TimeValue.timeValueMinutes(5), testThreadPool.executor(ThreadPool.Names.GENERIC));
+            Response resp = client().performRequest(request);
+            logger.info("--> test {} completed querying", getTestName());
+            return resp;
+        } finally {
+            if (schedule != null) {
+                schedule.cancel();
+            }
+            terminate(testThreadPool);
+        }
+    }
+
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        settings = Settings.builder().put(settings).put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "6m").build();
+        return super.buildClient(settings, hosts);
     }
 
     public void testFetchManyBigFields() throws IOException {
@@ -510,6 +549,16 @@ public class HeapAttackIT extends ESRestTestCase {
     @Before
     @After
     public void assertRequestBreakerEmpty() throws Exception {
-        EsqlSpecTestCase.assertRequestBreakerEmpty();
+        assertBusy(() -> {
+            HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats")).getEntity();
+            Map<?, ?> stats = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
+            Map<?, ?> nodes = (Map<?, ?>) stats.get("nodes");
+            for (Object n : nodes.values()) {
+                Map<?, ?> node = (Map<?, ?>) n;
+                Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");
+                Map<?, ?> request = (Map<?, ?>) breakers.get("request");
+                assertMap(request, matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b"));
+            }
+        });
     }
 }

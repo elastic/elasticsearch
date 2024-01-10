@@ -78,8 +78,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
     }
 
     @Override
-    protected ClearRealmCacheResponse.Node nodeOperation(ClearRealmCacheRequest.Node nodeRequest, Task task)
-        throws ElasticsearchException {
+    protected ClearRealmCacheResponse.Node nodeOperation(ClearRealmCacheRequest.Node nodeRequest, Task task) throws ElasticsearchException {
         if (nodeRequest.getRealms() == null || nodeRequest.getRealms().length == 0) {
             for (Realm realm : realms) {
                 clearCache(realm, nodeRequest.getUsernames());

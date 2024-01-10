@@ -72,10 +72,7 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
     }
 
     @Override
-    protected RepositoriesNodeMeteringResponse nodeOperation(
-        ClearRepositoriesStatsArchiveNodeRequest request,
-        Task task
-    ) {
+    protected RepositoriesNodeMeteringResponse nodeOperation(ClearRepositoriesStatsArchiveNodeRequest request, Task task) {
         List<RepositoryStatsSnapshot> clearedStats = repositoriesService.clearRepositoriesStatsArchive(request.maxVersionToClear);
         return new RepositoriesNodeMeteringResponse(clusterService.localNode(), clearedStats);
     }

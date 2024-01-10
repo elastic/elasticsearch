@@ -76,10 +76,7 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<
     }
 
     @Override
-    protected ClearPrivilegesCacheResponse.Node nodeOperation(
-        ClearPrivilegesCacheRequest.Node request,
-        Task task
-    ) {
+    protected ClearPrivilegesCacheResponse.Node nodeOperation(ClearPrivilegesCacheRequest.Node request, Task task) {
         if (request.getApplicationNames() == null || request.getApplicationNames().length == 0) {
             cacheInvalidatorRegistry.invalidateCache("application_privileges");
         } else {

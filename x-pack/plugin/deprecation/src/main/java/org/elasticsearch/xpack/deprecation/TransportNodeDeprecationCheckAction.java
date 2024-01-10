@@ -104,10 +104,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodesDeprecationCheckAction.NodeResponse nodeOperation(
-        NodesDeprecationCheckAction.NodeRequest request,
-        Task task
-    ) {
+    protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request, Task task) {
         return nodeOperation(request, DeprecationChecks.NODE_SETTINGS_CHECKS);
     }
 

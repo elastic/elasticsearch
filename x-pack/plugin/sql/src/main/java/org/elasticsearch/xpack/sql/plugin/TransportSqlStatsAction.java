@@ -72,10 +72,7 @@ public class TransportSqlStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected SqlStatsResponse.NodeStatsResponse nodeOperation(
-        SqlStatsRequest.NodeStatsRequest request,
-        Task task
-    ) {
+    protected SqlStatsResponse.NodeStatsResponse nodeOperation(SqlStatsRequest.NodeStatsRequest request, Task task) {
         SqlStatsResponse.NodeStatsResponse statsResponse = new SqlStatsResponse.NodeStatsResponse(clusterService.localNode());
         statsResponse.setStats(planExecutor.metrics().stats());
 

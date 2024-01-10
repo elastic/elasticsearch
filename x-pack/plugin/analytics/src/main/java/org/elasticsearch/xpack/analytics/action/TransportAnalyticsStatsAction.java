@@ -68,10 +68,7 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected AnalyticsStatsAction.NodeResponse nodeOperation(
-        AnalyticsStatsAction.NodeRequest request,
-        Task task
-    ) {
+    protected AnalyticsStatsAction.NodeResponse nodeOperation(AnalyticsStatsAction.NodeRequest request, Task task) {
         return usage.stats(clusterService.localNode());
     }
 

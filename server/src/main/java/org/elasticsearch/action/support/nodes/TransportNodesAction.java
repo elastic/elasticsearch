@@ -248,7 +248,9 @@ public abstract class TransportNodesAction<
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
             ActionListener.run(
-                new ChannelActionListener<NodeResponse>(channel), channelListener -> nodeOperationAsync(request, channelListener, task));
+                new ChannelActionListener<NodeResponse>(channel),
+                channelListener -> nodeOperationAsync(request, channelListener, task)
+            );
         }
     }
 

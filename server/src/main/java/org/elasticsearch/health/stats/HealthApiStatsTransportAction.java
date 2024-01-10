@@ -71,10 +71,7 @@ public class HealthApiStatsTransportAction extends TransportNodesAction<
     }
 
     @Override
-    protected HealthApiStatsAction.Response.Node nodeOperation(
-        HealthApiStatsAction.Request.Node request,
-        Task task
-    ) {
+    protected HealthApiStatsAction.Response.Node nodeOperation(HealthApiStatsAction.Request.Node request, Task task) {
         HealthApiStatsAction.Response.Node statsResponse = new HealthApiStatsAction.Response.Node(clusterService.localNode());
         if (healthApiStats.hasCounters()) {
             statsResponse.setStats(healthApiStats.getStats());

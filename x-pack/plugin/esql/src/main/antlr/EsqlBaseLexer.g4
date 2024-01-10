@@ -185,7 +185,7 @@ FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA: 'metadata';
 
 fragment FROM_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]
+    : ~[=`:|,[\]/ \t\r\n]
     | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
     ;
 
@@ -279,9 +279,10 @@ ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 ENRICH_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 
 ENRICH_CCQ_MODE : 'ccq.mode';
+
+COLON : ':';
 ON : 'on'     -> pushMode(ENRICH_FIELD_MODE);
 WITH : 'with' -> pushMode(ENRICH_FIELD_MODE);
-ENRICH_MODE_ASSIGN : ASSIGN -> type(ASSIGN);
 
 // use the unquoted pattern to let the parser invalidate fields with *
 ENRICH_POLICY_UNQUOTED_IDENTIFIER

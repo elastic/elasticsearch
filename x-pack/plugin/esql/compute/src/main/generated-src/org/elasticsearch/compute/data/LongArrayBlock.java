@@ -109,7 +109,7 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
         // The following line is correct because positions with multi-values are never null.
         int expandedPositionCount = vector.getPositionCount();
         long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
-        blockFactory().adjustBreaker(bitSetRamUsedEstimate, false);
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate);
 
         LongArrayBlock expanded = new LongArrayBlock(
             vector,
@@ -119,7 +119,7 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
             MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             blockFactory()
         );
-        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate, true);
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
         // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
         vector.incRef();
         return expanded;
@@ -167,7 +167,7 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

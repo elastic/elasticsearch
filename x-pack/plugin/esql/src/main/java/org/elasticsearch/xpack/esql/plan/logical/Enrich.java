@@ -37,8 +37,8 @@ public class Enrich extends UnaryPlan {
 
     public enum Mode {
         ANY,
-        RELATIVE,
-        ORIGINATOR;
+        COORDINATOR,
+        REMOTE;
 
         private static final Map<String, Mode> map;
 

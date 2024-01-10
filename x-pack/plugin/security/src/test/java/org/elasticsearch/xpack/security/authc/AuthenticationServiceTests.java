@@ -575,7 +575,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
 
         verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
-        verify(firstRealm, times(2)).name(); // used above one time
+        verify(firstRealm, times(4)).name(); // used above one time plus two times for success and time metrics
         verify(secondRealm, times(2)).realmRef(); // also used in license tracking
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
@@ -711,7 +711,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
         }, this::logAndFail));
         verify(auditTrail, times(2)).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
-        verify(firstRealm, times(3)).name(); // used above one time
+        verify(firstRealm, times(7)).name(); // used above one time plus two times for every call to collect success and time metrics
         verify(secondRealm, times(2)).realmRef();
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);

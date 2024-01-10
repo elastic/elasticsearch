@@ -47,8 +47,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Column or literal for which to count the number of values.",
-            canBeWildcard = true
+            description = "Column or literal for which to count the number of values."
         ) Expression field
     ) {
         super(source, field);

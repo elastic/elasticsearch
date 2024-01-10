@@ -25,6 +25,4 @@ public @interface Param {
     String description() default "";
 
     boolean optional() default false;
-
-    boolean canBeWildcard() default false;
 }

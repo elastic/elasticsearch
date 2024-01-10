@@ -275,7 +275,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 String name = paramInfo == null ? params[i].getName() : paramInfo.name();
                 variadic |= List.class.isAssignableFrom(params[i].getType());
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
-                String desc = paramInfo == null ? "" : paramInfo.description();
+                String desc = paramInfo == null ? "" : paramInfo.description().replaceAll(System.lineSeparator(), " ");
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
 
                 args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional));

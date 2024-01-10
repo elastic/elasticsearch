@@ -1642,7 +1642,7 @@ public final class PlanNamedTypes {
     }
 
     private static BytesRef longAsWKB(DataType dataType, long encoded) {
-        return dataType == GEO_POINT ? GEO.longAsWKB(encoded) : CARTESIAN.longAsWKB(encoded);
+        return dataType == GEO_POINT ? GEO.longAsWkb(encoded) : CARTESIAN.longAsWkb(encoded);
     }
 
     private static long wkbAsLong(DataType dataType, BytesRef wkb) {

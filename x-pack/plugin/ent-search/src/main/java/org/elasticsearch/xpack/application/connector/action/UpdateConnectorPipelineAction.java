@@ -69,11 +69,11 @@ public class UpdateConnectorPipelineAction extends ActionType<ConnectorUpdateAct
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
             if (Objects.isNull(pipeline)) {
-                validationException = addValidationError("[pipeline] cannot be null.", validationException);
+                validationException = addValidationError("[pipeline] cannot be [null].", validationException);
             }
 
             return validationException;

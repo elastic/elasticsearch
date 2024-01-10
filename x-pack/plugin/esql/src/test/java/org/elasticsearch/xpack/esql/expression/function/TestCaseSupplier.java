@@ -913,18 +913,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     private static List<TypedDataSupplier> geoPointCases() {
-        return List.of(
-            new TypedDataSupplier("<geo_point>", () -> GEO.pointAsWKB(GeometryTestUtils.randomPoint()), EsqlDataTypes.GEO_POINT)
-        );
+        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint()), EsqlDataTypes.GEO_POINT));
     }
 
     private static List<TypedDataSupplier> cartesianPointCases() {
         return List.of(
-            new TypedDataSupplier(
-                "<cartesian_point>",
-                () -> CARTESIAN.pointAsWKB(ShapeTestUtils.randomPoint()),
-                EsqlDataTypes.CARTESIAN_POINT
-            )
+            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), EsqlDataTypes.CARTESIAN_POINT)
         );
     }
 

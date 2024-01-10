@@ -82,10 +82,10 @@ public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionR
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
             if (Strings.isNullOrEmpty(name)) {
-                validationException = addValidationError("[name] cannot be null or empty.", validationException);
+                validationException = addValidationError("[name] cannot be [null] or [\"\"].", validationException);
             }
 
             return validationException;
@@ -122,9 +122,7 @@ public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionR
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                if (name != null) {
-                    builder.field(Connector.NAME_FIELD.getPreferredName(), name);
-                }
+                builder.field(Connector.NAME_FIELD.getPreferredName(), name);
                 if (description != null) {
                     builder.field(Connector.DESCRIPTION_FIELD.getPreferredName(), description);
                 }

@@ -110,6 +110,11 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState, MlTaskS
         return lastStateChangeTime;
     }
 
+    @Override
+    public boolean isFailed() {
+        return DataFrameAnalyticsState.FAILED.equals(state);
+    }
+
     public boolean isStatusStale(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         return allocationId != task.getAllocationId();
     }

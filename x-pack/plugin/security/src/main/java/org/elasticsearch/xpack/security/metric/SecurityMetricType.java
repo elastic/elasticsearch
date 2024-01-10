@@ -38,6 +38,17 @@ public enum SecurityMetricType {
         )
     ),
 
+    AUTHC_OAUTH2_TOKEN(
+        SecurityMetricGroup.AUTHC,
+        new SecurityMetricInfo("es.security.authc.token.success.total", "Number of successful OAuth2 token authentications.", "count"),
+        new SecurityMetricInfo("es.security.authc.token.failures.total", "Number of failed OAuth2 token authentications.", "count"),
+        new SecurityMetricInfo(
+            "es.security.authc.token.time",
+            "Time it took (in nanoseconds) to execute OAuth2 token authentication.",
+            "ns"
+        )
+    ),
+
     AUTHC_REALMS(
         SecurityMetricGroup.AUTHC,
         new SecurityMetricInfo("es.security.authc.realms.success.total", "Number of successful realm authentications.", "count"),

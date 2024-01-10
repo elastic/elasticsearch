@@ -59,6 +59,6 @@ public class ToCartesianPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return CARTESIAN.stringAsWKB(in.utf8ToString());
+        return CARTESIAN.wktToWkb(in.utf8ToString());
     }
 }

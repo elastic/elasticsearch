@@ -25,6 +25,8 @@ public class TestContainerUtils {
         switch (archSysProp) {
             case "amd64":
                 return "x86_64";
+            case "aarch64":
+                return "arm64";
             default:
                 return archSysProp;
         }
@@ -34,7 +36,6 @@ public class TestContainerUtils {
         // Get the DockerClient used by the Testcontainer library (you can also use your own if they every make that private).
         final DockerClient dockerClient = container.getDockerClient();
         dockerClient.commitCmd(container.getContainerId()).withRepository(repository).withTag(tag).exec();
-
         // Push new image to your repository. (equivalent to command line 'docker push')
         try {
             String pushImageId = repository + ":" + tag;

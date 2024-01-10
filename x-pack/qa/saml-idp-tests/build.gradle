@@ -9,7 +9,8 @@ dependencies {
   javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }
 
-
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
+  // explicitly enable using prebaked images
+  systemProperty "testcontainer.prebaked", "true"
 }

@@ -27,8 +27,8 @@ import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.
 
 public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    public static final String OPENJDK_BASE_IMAGE = "openjdk:11.0.16-jre";
     private static final String PRE_BAKED_IMAGE = "breskeby/test-fixture-idp:" + getArchTag();
+    private static final String OPENJDK_BASE_IMAGE = "openjdk:11.0.16-jre";
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Path certsPath;
@@ -165,7 +165,6 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
         );
         withNetworkAliases("idp");
         withNetwork(network);
-        withReuse(true);
         waitingFor(Wait.forListeningPorts(4443));
         addExposedPorts(4443, 8443);
         withCreateContainerCmdModifier(cmd -> cmd.withLinks(Link.parse("openldap:openldap")));

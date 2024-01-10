@@ -11,6 +11,7 @@ package org.elasticsearch.test.rest;
 import io.netty.handler.codec.http.HttpMethod;
 
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpDelete;
@@ -157,14 +158,18 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Convert the entity from a {@link Response} into a map of maps.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+        return entityAsMap(response.getEntity());
+    }
+
+    public static Map<String, Object> entityAsMap(HttpEntity entity) throws IOException {
+        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (
             XContentParser parser = xContentType.xContent()
                 .createParser(
                     XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
                         .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
-                    response.getEntity().getContent()
+                    entity.getContent()
                 )
         ) {
             return parser.map();

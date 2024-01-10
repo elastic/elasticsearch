@@ -232,7 +232,7 @@ public class DiskThresholdMonitor {
                 }
             }
 
-            final long reservedSpace = info.getReservedSpace(usage.nodeId(), usage.path()).getTotal();
+            final long reservedSpace = info.getReservedSpace(usage.nodeId(), usage.path()).total();
             final DiskUsage usageWithReservedSpace = new DiskUsage(
                 usage.nodeId(),
                 usage.nodeName(),

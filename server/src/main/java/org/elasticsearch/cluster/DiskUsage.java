@@ -81,7 +81,7 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
     }
 
     public long usedBytes() {
-        return totalBytes() - freeBytes();
+        return totalBytes - freeBytes;
     }
 
     @Override

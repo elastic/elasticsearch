@@ -121,7 +121,7 @@ public class APMAgentSettings {
         "sanitize_field_names",
         "enable_instrumentations",
         "disable_instrumentations",
-        "enable_experimental_instrumentations", // TODO TBD allow disabling this, conflicts with APMJvmOptions
+        // forbid 'enable_experimental_instrumentations', expected to be always enabled by APMJvmOptions
         "unnest_exceptions",
         "ignore_exceptions",
         "capture_body",
@@ -132,9 +132,9 @@ public class APMAgentSettings {
         "classes_excluded_from_instrumentation",
         "trace_methods",
         "trace_methods_duration_threshold",
-        "central_config", // TODO TBD disabled in APMJvmOptions defaults, does this impact usage of config_file?
-        "breakdown_metrics",
+        // forbid 'central_config', may impact usage of config_file, disabled in APMJvmOptions
         // forbid 'config_file', configured by APMJvmOptions
+        "breakdown_metrics",
         "plugins_dir",
         "use_elastic_traceparent_header",
         "disable_outgoing_tracecontext_headers",
@@ -167,7 +167,7 @@ public class APMAgentSettings {
 
         // Logging:
         "log_level", // allow overriding the default in APMJvmOptions
-        // forbid log_file, always overwritten by APMJvmOptions
+        // forbid log_file, always set by APMJvmOptions
         "log_ecs_reformatting",
         "log_ecs_reformatting_additional_fields",
         "log_ecs_formatter_allow_list",
@@ -215,7 +215,7 @@ public class APMAgentSettings {
         "data_flush_timeout",
 
         // Stacktraces:
-        "application_packages", // TODO TBD default configured by APMJvmOptions, allow overwrites?
+        "application_packages",
         "stack_trace_limit",
         "span_stack_trace_min_duration"
     );

@@ -381,8 +381,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
                 int type = in.read();
                 switch (type) {
-                    case (byte) 's' -> // parse a string
-                        result.put(name, in.readBytesRef().utf8ToString());
+                    case (byte) 's' -> {
+                        // parse a string
+                        try {
+                            result.put(name, in.readBytesRef().utf8ToString());
+                        } catch (AssertionError ae) {
+                            throw new IllegalArgumentException("Error parsing keyword dimension " + name + ": " + ae.getMessage(), ae);
+                        }
+                    }
                     case (byte) 'l' -> // parse a long
                         result.put(name, in.readLong());
                     case (byte) 'u' -> { // parse an unsigned_long

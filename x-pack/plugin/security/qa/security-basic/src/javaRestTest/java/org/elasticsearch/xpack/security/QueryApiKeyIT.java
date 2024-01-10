@@ -51,7 +51,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
     public void testQuery() throws IOException {
         createApiKeys();
-        createUser("someone", new String[0]);
+        createUser("someone");
 
         // Admin with manage_api_key can search for all keys
         assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
@@ -315,6 +315,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         List<String> apiKeyRestTypeQueries = List.of("""
             {"query": {"term": {"type": "rest" }}}""", """
+            {"query": {"bool": {"must_not": [{"term": {"type": "cross_cluster"}}, {"term": {"type": "other"}}]}}}""", """
             {"query": {"prefix": {"type": "re" }}}""", """
             {"query": {"wildcard": {"type": "r*t" }}}""", """
             {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""");
@@ -667,13 +668,17 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return tuple.v1();
     }
 
+    private String createUser(String username) throws IOException {
+        return createUser(username, new String[0]);
+    }
+
     private String createUser(String username, String[] roles) throws IOException {
         final Request request = new Request("POST", "/_security/user/" + username);
         Map<String, Object> body = Map.ofEntries(Map.entry("roles", roles), Map.entry("password", "super-strong-password".toString()));
         request.setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
         Response response = adminClient().performRequest(request);
         assertOK(response);
-        return basicAuthHeaderValue(SUPERUSER_WITH_SYSTEM_WRITE, new SecureString("super-strong-password".toCharArray()));
+        return basicAuthHeaderValue(username, new SecureString("super-strong-password".toCharArray()));
     }
 
     private void createSystemWriteRole(String roleName) throws IOException {

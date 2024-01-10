@@ -731,6 +731,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         // the "cross_cluster" keys are not "rest" type
         for (String restTypeQuery : List.of("""
             {"query": {"term": {"type": "rest" }}}""", """
+            {"query": {"bool": {"must_not": {"term": {"type": "cross_cluster"}}}}}""", """
             {"query": {"prefix": {"type": "re" }}}""", """
             {"query": {"wildcard": {"type": "r*t" }}}""", """
             {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
@@ -745,6 +746,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
         for (String crossClusterTypeQuery : List.of("""
             {"query": {"term": {"type": "cross_cluster" }}}""", """
+            {"query": {"bool": {"must_not": {"term": {"type": "rest"}}}}}""", """
             {"query": {"prefix": {"type": "cro" }}}""", """
             {"query": {"wildcard": {"type": "*oss_*er" }}}""", """
             {"query": {"range": {"type": {"gte": "cross", "lte": "zzzz"}}}}""")) {

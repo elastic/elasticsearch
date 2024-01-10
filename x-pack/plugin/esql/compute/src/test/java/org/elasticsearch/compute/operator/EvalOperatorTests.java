@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -113,10 +112,5 @@ public class EvalOperatorTests extends OperatorTestCase {
         assertThat(found, equalTo(LongStream.range(0, 10).mapToObj(Long::valueOf).collect(Collectors.toSet())));
         results.forEach(Page::releaseBlocks);
         assertThat(context.breaker().getUsed(), equalTo(0L));
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofKb(4);
     }
 }

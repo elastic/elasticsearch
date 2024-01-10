@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -124,13 +122,6 @@ public final class EsqlDataTypes {
         }
         if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
             return KEYWORD;
-        }
-        if (value instanceof GeoPoint) {
-            return GEO_POINT;
-        }
-        if (value instanceof SpatialPoint) {
-            // TODO: we have no access to CartesianPoint, but since it implements SpatialPoint we can use that here for now
-            return CARTESIAN_POINT;
         }
 
         return null;

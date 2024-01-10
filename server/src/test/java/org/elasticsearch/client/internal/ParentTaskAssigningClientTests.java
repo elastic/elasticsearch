@@ -43,7 +43,7 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
                 }
             };
 
-            final var client = new ParentTaskAssigningClient(mock, parentTaskId[0]);
+            final ParentTaskAssigningClient client = new ParentTaskAssigningClient(mock, parentTaskId[0]);
             assertEquals(parentTaskId[0], client.getParentTask());
 
             // All of these should have the parentTaskId set
@@ -62,13 +62,15 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
     public void testRemoteClientIsAlsoAParentAssigningClient() {
         TaskId parentTaskId = new TaskId(randomAlphaOfLength(3), randomLong());
 
-        NoOpClient mockClient = new NoOpClient(getTestName()) {
-            @Override
-            public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-                return mock(Client.class);
-            }
-        };
-        try (ParentTaskAssigningClient client = new ParentTaskAssigningClient(mockClient, parentTaskId)) {
+        try (var threadPool = createThreadPool()) {
+            final var mockClient = new NoOpClient(threadPool) {
+                @Override
+                public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+                    return mock(Client.class);
+                }
+            };
+
+            final ParentTaskAssigningClient client = new ParentTaskAssigningClient(mockClient, parentTaskId);
             assertThat(
                 client.getRemoteClusterClient("remote-cluster", EsExecutors.DIRECT_EXECUTOR_SERVICE),
                 is(instanceOf(ParentTaskAssigningClient.class))

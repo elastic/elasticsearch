@@ -360,7 +360,7 @@ public class ApiKeyService {
     }
 
     private static IllegalArgumentException validateNewExpirationTime(TimeValue expirationTime) {
-        if (expirationTime != null && expirationTime.getMillis() <= 0) {
+        if (expirationTime != null && expirationTime.nanos() <= 0) {
             return new IllegalArgumentException("expiration must be in the future");
         }
         return null;

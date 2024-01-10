@@ -46,12 +46,13 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 searchHits[i] = SearchHitTests.createTestItem(randomBoolean(), randomBoolean());
             }
             SearchHits hits = new SearchHits(searchHits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), 1.0f);
-            FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(
-                searchPhaseContext,
-                new SearchResponseSections(hits, null, null, false, null, null, 1),
-                null
-            );
-            phase.run();
+            var sections = new SearchResponseSections(hits, null, null, false, null, null, 1);
+            try {
+                FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
+                phase.run();
+            } finally {
+                sections.decRef();
+            }
             searchPhaseContext.assertNoFailure();
             assertNotNull(searchPhaseContext.searchResponse.get());
         } finally {
@@ -185,12 +186,13 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 new TotalHits(2, TotalHits.Relation.EQUAL_TO),
                 1.0f
             );
-            FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(
-                searchPhaseContext,
-                new SearchResponseSections(searchHits, null, null, false, null, null, 1),
-                null
-            );
-            phase.run();
+            var sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1);
+            try {
+                FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
+                phase.run();
+            } finally {
+                sections.decRef();
+            }
             assertTrue(requestSent.get());
             searchPhaseContext.assertNoFailure();
             assertNotNull(searchPhaseContext.searchResponse.get());

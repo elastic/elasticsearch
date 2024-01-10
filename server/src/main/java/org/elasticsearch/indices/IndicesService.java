@@ -644,26 +644,25 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         final IndexEventListener afterIndexCreated = new IndexEventListener() {
             @Override
-            public void afterIndexCreated(IndexService indexService) {
-
-                indexService.shardIds().forEach(shardId -> {
-                    IndexShard indexShard = indexService.getShard(shardId);
-                    Engine engine = indexShard.getEngineOrNull();
-                    if (engine == null) return; // TODO-MP log?
-                    Engine.Searcher hasValueSearcher = engine.acquireSearcher("field_has_value");
+            public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+                Engine engine = indexShard.getEngineOrNull();
+                if (engine == null) {
+                    listener.onResponse(null);
+                    return; // TODO-MP log?
+                }
+                try (Engine.Searcher hasValueSearcher = engine.acquireSearcher("field_has_value")) {
                     IndexReader hasValueReader = hasValueSearcher.getIndexReader();
                     for (LeafReaderContext leaf : hasValueReader.leaves()) {
-                        LeafReader leafReader = leaf.reader();
-                        for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
-                            indexShard.setFieldHasValue(fieldInfo.getName());
+                        try (LeafReader leafReader = leaf.reader()) {
+                            for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
+                                indexShard.setFieldHasValue(fieldInfo.getName());
+                            }
+                        } catch (IOException ignore) {
+                            // TODO-MP log?
                         }
                     }
-                    try {
-                        IOUtils.close(hasValueSearcher);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                }
+                listener.onResponse(null);
             }
         };
         finalListeners.add(onStoreClose);

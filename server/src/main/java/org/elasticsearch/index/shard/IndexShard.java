@@ -974,9 +974,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 ifPrimaryTerm,
                 getRelativeTimeInNanos()
             );
-            operation.parsedDoc()
-                .docs()
-                .forEach(doc -> { doc.getFields().forEach(indexableField -> setFieldHasValue(indexableField.name())); });
+
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
                 return new Engine.IndexResult(update, operation.parsedDoc().id());
@@ -989,8 +987,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed(e);
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
-
-        return index(engine, operation);
+        Engine.IndexResult indexResult = index(engine, operation);
+        if (indexResult.isCreated()) {
+            operation.parsedDoc()
+                .docs()
+                .forEach(doc -> { doc.getFields().forEach(indexableField -> setFieldHasValue(indexableField.name())); });
+        }
+        return indexResult;
     }
 
     public void setFieldHasValue(String fieldName) {

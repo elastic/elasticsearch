@@ -55,7 +55,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         originalIndices = OriginalIndices.readOriginalIndices(in);
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readLong();
-        runtimeFields = in.readMap();
+        runtimeFields = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
             includeFieldsWithNoValue = in.readBoolean();
         } else {

@@ -50,7 +50,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -46,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -84,6 +86,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             );
             return false;
         });
+        addUnassignedShardsWatcher(clusterService, indexName);
 
         PlainActionFuture.<Void, RuntimeException>get(
             fut -> putShutdownMetadata(
@@ -117,6 +120,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);
         final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName);
+        addUnassignedShardsWatcher(clusterService, indexName);
 
         updateIndexSettings(Settings.builder().putNull(REQUIRE_NODE_NAME_SETTING), indexName);
         putShutdownForRemovalMetadata(originalNode, clusterService);
@@ -128,7 +132,6 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         if (randomBoolean()) {
             internalCluster().stopNode(originalNode);
-            ensureGreen(indexName);
         }
 
         clearShutdownMetadata(clusterService);
@@ -146,6 +149,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);
         final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName);
+        addUnassignedShardsWatcher(clusterService, indexName);
 
         final var snapshotStatusUpdateBarrier = new CyclicBarrier(2);
         final var masterName = internalCluster().getMasterName();
@@ -258,6 +262,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, nodeForRemoval);
         final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName);
+        addUnassignedShardsWatcher(clusterService, indexName);
+
         waitForBlock(otherNode, repoName);
 
         putShutdownForRemovalMetadata(nodeForRemoval, clusterService);
@@ -312,6 +318,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, primaryNode);
         final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName);
+        addUnassignedShardsWatcher(clusterService, indexName);
 
         putShutdownForRemovalMetadata(primaryNode, clusterService);
         unblockAllDataNodes(repoName); // lets the shard snapshot abort, but allocation filtering stops it from moving
@@ -351,6 +358,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         );
 
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        addUnassignedShardsWatcher(clusterService, indexName);
         putShutdownForRemovalMetadata(primaryNode, clusterService);
         unblockAllDataNodes(repoName); // lets the shard snapshot abort, but allocation filtering stops it from moving
         safeAwait(updateSnapshotStatusBarrier); // wait for data node to notify master that the shard snapshot is paused
@@ -395,6 +403,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             )
         );
 
+        addUnassignedShardsWatcher(clusterService, indexName);
         assertEquals(
             SnapshotState.SUCCESS,
             startFullSnapshot(repoName, randomIdentifier()).get(10, TimeUnit.SECONDS).getSnapshotInfo().state()
@@ -409,6 +418,11 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     ) {
         return ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
             final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
+            if (entriesForRepo.isEmpty()) {
+                // it's (just about) possible for the data node to apply the initial snapshot state, start on the first shard snapshot, and
+                // hit the IO block, before the master even applies this cluster state, in which case we simply retry:
+                return false;
+            }
             assertThat(entriesForRepo, hasSize(1));
             final var shardSnapshotStatuses = entriesForRepo.iterator()
                 .next()
@@ -421,6 +435,18 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             final var shardState = shardSnapshotStatuses.iterator().next().state();
             assertThat(shardState, oneOf(SnapshotsInProgress.ShardState.INIT, SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL));
             return shardState == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL;
+        });
+    }
+
+    private static void addUnassignedShardsWatcher(ClusterService clusterService, String indexName) {
+        ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
+            final var indexRoutingTable = state.routingTable().index(indexName);
+            if (indexRoutingTable == null) {
+                // index was deleted, can remove this listener now
+                return true;
+            }
+            assertThat(indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED), empty());
+            return false;
         });
     }
 

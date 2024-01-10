@@ -172,10 +172,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             geoData = retrieveCityGeoData(geoIpDatabase, ipAddress);
         } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
             geoData = retrieveCountryGeoData(geoIpDatabase, ipAddress);
-
         } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
             geoData = retrieveAsnGeoData(geoIpDatabase, ipAddress);
-
         } else {
             throw new ElasticsearchParseException(
                 "Unsupported database type [" + geoIpDatabase.getDatabaseType() + "]",

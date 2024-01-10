@@ -51,8 +51,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -1195,32 +1193,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Generate a random valid point constrained to geographic ranges (lat, lon ranges).
-     */
-    public static SpatialPoint randomGeoPoint() {
-        return new GeoPoint(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true));
-    }
-
-    /**
-     * Generate a random valid point constrained to cartesian ranges.
-     */
-    public static SpatialPoint randomCartesianPoint() {
-        double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        return new SpatialPoint() {
-            @Override
-            public double getX() {
-                return x;
-            }
-
-            @Override
-            public double getY() {
-                return y;
-            }
-        };
-    }
-
-    /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */
     public static <T> void maybeSet(Consumer<T> consumer, T value) {
@@ -1734,10 +1706,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContentParserConfiguration config, XContent xContent, BytesReference data)
         throws IOException {
-        if (data.hasArray()) {
-            return xContent.createParser(config, data.array(), data.arrayOffset(), data.length());
-        }
-        return xContent.createParser(config, data.streamInput());
+        return XContentHelper.createParserNotCompressed(config, data, xContent.type());
     }
 
     protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data, RestApiVersion restApiVersion)

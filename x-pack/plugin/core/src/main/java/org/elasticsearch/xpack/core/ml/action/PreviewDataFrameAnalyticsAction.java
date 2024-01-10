@@ -143,7 +143,7 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.featureValues = in.readCollectionAsList(StreamInput::readMap);
+            this.featureValues = in.readCollectionAsList(StreamInput::readGenericMap);
         }
 
         public List<Map<String, Object>> getFeatureValues() {

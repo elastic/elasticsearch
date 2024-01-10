@@ -1418,6 +1418,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (rolloverInfos.equals(that.rolloverInfos) == false) {
             return false;
         }
+        if (fieldsForModels.equals(that.fieldsForModels) == false) {
+            return false;
+        }
         if (isSystem != that.isSystem) {
             return false;
         }
@@ -1438,6 +1441,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + Arrays.hashCode(primaryTerms);
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + rolloverInfos.hashCode();
+        result = 31 * result + fieldsForModels.hashCode();
         result = 31 * result + Boolean.hashCode(isSystem);
         return result;
     }
@@ -1671,6 +1675,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
+            builder.fieldsForModels(fieldsForModels.apply(part.fieldsForModels));
             return builder.build(true);
         }
     }
@@ -1738,6 +1743,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            builder.fieldsForModels(
+                in.readImmutableMap(StreamInput::readString, i -> i.readCollectionAsImmutableSet(StreamInput::readString))
+            );
+        }
         return builder.build(true);
     }
 
@@ -1783,6 +1793,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalWriteable(stats);
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            out.writeMap(fieldsForModels, StreamOutput::writeStringCollection);
         }
     }
 
@@ -1833,7 +1846,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;
         private Long shardSizeInBytesForecast = null;
-        private Map<String, Set<String>> fieldsForModels = Map.of();
+        private final ImmutableOpenMap.Builder<String, Set<String>> fieldsForModels;
 
         public Builder(String index) {
             this.index = index;
@@ -1841,6 +1854,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.customMetadata = ImmutableOpenMap.builder();
             this.inSyncAllocationIds = new HashMap<>();
             this.rolloverInfos = ImmutableOpenMap.builder();
+            this.fieldsForModels = ImmutableOpenMap.builder();
             this.isSystem = false;
         }
 
@@ -1865,7 +1879,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats = indexMetadata.stats;
             this.indexWriteLoadForecast = indexMetadata.writeLoadForecast;
             this.shardSizeInBytesForecast = indexMetadata.shardSizeInBytesForecast;
-            this.fieldsForModels = indexMetadata.fieldsForModels;
+            this.fieldsForModels = ImmutableOpenMap.builder(indexMetadata.fieldsForModels);
         }
 
         public Builder index(String index) {
@@ -1947,6 +1961,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder putMapping(MappingMetadata mappingMd) {
             mapping = mappingMd;
+            if (mappingMd != null) {
+                Map<String, Set<String>> fieldsForModels = mappingMd.getFieldsForModels();
+                processFieldsForModels(this.fieldsForModels, fieldsForModels);
+            }
             return this;
         }
 
@@ -2096,8 +2114,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public Builder fieldsForModels(Map<String, Set<String>> fieldsForModels) {
-            // TODO: How to handle null value? Clear this.fieldsForModels?
-            this.fieldsForModels = fieldsForModels;
+            processFieldsForModels(this.fieldsForModels, fieldsForModels);
             return this;
         }
 
@@ -2296,7 +2313,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 stats,
                 indexWriteLoadForecast,
                 shardSizeInBytesForecast,
-                fieldsForModels
+                fieldsForModels.build()
             );
         }
 
@@ -2422,10 +2439,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.field(KEY_SHARD_SIZE_FORECAST, indexMetadata.shardSizeInBytesForecast);
             }
 
-            // TODO: Need null check?
-            Map<String, Set<String>> fieldsForModels = indexMetadata.getFieldsForModels();
-            if (fieldsForModels != null && fieldsForModels.isEmpty() == false) {
-                builder.field(KEY_FIELDS_FOR_MODELS, fieldsForModels);
+            if (indexMetadata.fieldsForModels.isEmpty() == false) {
+                builder.field(KEY_FIELDS_FOR_MODELS, indexMetadata.fieldsForModels);
             }
 
             builder.endObject();
@@ -2712,6 +2727,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(new MappingMetadata(mappingType, mapping));
             } else if (mapping.size() > 1) {
                 builder.putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping));
+            }
+        }
+
+        private static void processFieldsForModels(
+            ImmutableOpenMap.Builder<String, Set<String>> builder,
+            Map<String, Set<String>> fieldsForModels
+        ) {
+            builder.clear();
+            if (fieldsForModels != null) {
+                // Ensure that all field sets contained in the processed map are immutable
+                fieldsForModels.forEach((k, v) -> builder.put(k, Set.copyOf(v)));
             }
         }
     }

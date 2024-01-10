@@ -937,9 +937,15 @@ public final class TextFieldMapper extends FieldMapper {
             return fielddata;
         }
 
+        public boolean canUseSyntheticSourceDelegateForQuerying() {
+            return syntheticSourceDelegate != null
+                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
+                && (syntheticSourceDelegate.isIndexed() || syntheticSourceDelegate.isStored());
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (syntheticSourceDelegate != null) {
+            if (canUseSyntheticSourceDelegateForQuerying()) {
                 return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
                     @Override
                     protected String delegatingTo() {

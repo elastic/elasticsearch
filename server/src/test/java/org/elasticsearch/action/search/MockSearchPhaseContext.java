@@ -98,6 +98,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
                 searchContextId
             )
         );
+        Releasables.close(releasables);
+        releasables.clear();
         if (existing != null) {
             existing.decRef();
         }

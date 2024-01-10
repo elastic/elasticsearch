@@ -38,11 +38,16 @@ final class FetchSearchPhase extends SearchPhase {
     private final AggregatedDfs aggregatedDfs;
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer, AggregatedDfs aggregatedDfs, SearchPhaseContext context) {
-        this(resultConsumer, aggregatedDfs, context, (response, queryPhaseResults) -> {
-            response.mustIncRef();
-            context.addReleasable(response::decRef);
-            return new ExpandSearchPhase(context, response.hits, () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults));
-        });
+        this(
+            resultConsumer,
+            aggregatedDfs,
+            context,
+            (response, queryPhaseResults) -> new ExpandSearchPhase(
+                context,
+                response.hits,
+                () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults)
+            )
+        );
     }
 
     FetchSearchPhase(
@@ -225,10 +230,7 @@ final class FetchSearchPhase extends SearchPhase {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr
     ) {
         var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
-        try {
-            context.executeNextPhase(this, nextPhaseFactory.apply(resp, queryResults));
-        } finally {
-            resp.decRef();
-        }
+        context.addReleasable(resp::decRef);
+        context.executeNextPhase(this, nextPhaseFactory.apply(resp, queryResults));
     }
 }

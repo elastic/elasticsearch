@@ -266,7 +266,7 @@ public class DoSection implements ExecutableSection {
         return apiCallSection;
     }
 
-    void setApiCallSection(ApiCallSection apiCallSection) {
+    public void setApiCallSection(ApiCallSection apiCallSection) {
         this.apiCallSection = apiCallSection;
     }
 
@@ -275,7 +275,7 @@ public class DoSection implements ExecutableSection {
      * If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
-    List<String> getExpectedWarningHeaders() {
+    public List<String> getExpectedWarningHeaders() {
         return expectedWarningHeaders;
     }
 
@@ -284,7 +284,7 @@ public class DoSection implements ExecutableSection {
      * If the headers don't match this request is considered to have failed.
      * Defaults to emptyList.
      */
-    List<Pattern> getExpectedWarningHeadersRegex() {
+    public List<Pattern> getExpectedWarningHeadersRegex() {
         return expectedWarningHeadersRegex;
     }
 
@@ -292,7 +292,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. If the headers don't match exactly this request is considered to have
      * failed. Defaults to emptyList.
      */
-    void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
+    public void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
     }
 
@@ -300,7 +300,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers patterns that we expect from this response. If the headers don't match this request is considered to have
      * failed. Defaults to emptyList.
      */
-    void setExpectedWarningHeadersRegex(List<Pattern> expectedWarningHeadersRegex) {
+    public void setExpectedWarningHeadersRegex(List<Pattern> expectedWarningHeadersRegex) {
         this.expectedWarningHeadersRegex = expectedWarningHeadersRegex;
     }
 
@@ -308,7 +308,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we allow from this response. These warning
      * headers don't cause the test to fail. Defaults to emptyList.
      */
-    List<String> getAllowedWarningHeaders() {
+    public List<String> getAllowedWarningHeaders() {
         return allowedWarningHeaders;
     }
 
@@ -316,7 +316,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we allow from this response. These warning
      * headers don't cause the test to fail. Defaults to emptyList.
      */
-    List<Pattern> getAllowedWarningHeadersRegex() {
+    public List<Pattern> getAllowedWarningHeadersRegex() {
         return allowedWarningHeadersRegex;
     }
 
@@ -324,7 +324,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. These
      * warning headers don't cause the test to fail. Defaults to emptyList.
      */
-    void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
+    public void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
         this.allowedWarningHeaders = allowedWarningHeaders;
     }
 
@@ -332,7 +332,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers pattern that we expect from this response. These
      * warning headers don't cause the test to fail. Defaults to emptyList.
      */
-    void setAllowedWarningHeadersRegex(List<Pattern> allowedWarningHeadersRegex) {
+    public void setAllowedWarningHeadersRegex(List<Pattern> allowedWarningHeadersRegex) {
         this.allowedWarningHeadersRegex = allowedWarningHeadersRegex;
     }
 

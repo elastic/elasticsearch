@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -37,6 +38,7 @@ import java.util.TreeSet;
 import java.util.function.Predicate;
 
 import static java.lang.String.format;
+import static org.elasticsearch.TransportVersions.DESIRED_NODE_VERSION_REMOVED;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
@@ -53,6 +55,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private static final ParseField PROCESSORS_RANGE_FIELD = new ParseField("processors_range");
     private static final ParseField MEMORY_FIELD = new ParseField("memory");
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
+    @UpdateForV9 // Remove deprecated field
     private static final ParseField VERSION_FIELD = new ParseField("node_version");
 
     public static final ConstructingObjectParser<DesiredNode, Void> PARSER = new ConstructingObjectParser<>(
@@ -63,8 +66,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             (Processors) args[1],
             (ProcessorsRange) args[2],
             (ByteSizeValue) args[3],
-            (ByteSizeValue) args[4],
-            (Version) args[5]
+            (ByteSizeValue) args[4]
         )
     );
 
@@ -99,18 +101,11 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             ObjectParser.ValueType.STRING
         );
         parser.declareField(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> parseVersion(p.text()),
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> null,
             VERSION_FIELD,
             ObjectParser.ValueType.STRING
         );
-    }
-
-    private static Version parseVersion(String version) {
-        if (version == null || version.isBlank()) {
-            throw new IllegalArgumentException(VERSION_FIELD.getPreferredName() + " must not be empty");
-        }
-        return Version.fromString(version);
     }
 
     private final Settings settings;
@@ -118,18 +113,19 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final ProcessorsRange processorsRange;
     private final ByteSizeValue memory;
     private final ByteSizeValue storage;
-    private final Version version;
+    private Version version;
     private final String externalId;
     private final Set<DiscoveryNodeRole> roles;
 
-    public DesiredNode(Settings settings, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage, Version version) {
-        this(settings, null, processorsRange, memory, storage, version);
+    public DesiredNode(Settings settings, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage) {
+        this(settings, null, processorsRange, memory, storage);
     }
 
-    public DesiredNode(Settings settings, double processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
-        this(settings, Processors.of(processors), null, memory, storage, version);
+    public DesiredNode(Settings settings, double processors, ByteSizeValue memory, ByteSizeValue storage) {
+        this(settings, Processors.of(processors), null, memory, storage);
     }
 
+    @Deprecated
     DesiredNode(
         Settings settings,
         Processors processors,
@@ -138,10 +134,14 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         ByteSizeValue storage,
         Version version
     ) {
+        this(settings, processors, processorsRange, memory, storage);
+        this.version = version;
+    }
+
+    DesiredNode(Settings settings, Processors processors, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage) {
         assert settings != null;
         assert memory != null;
         assert storage != null;
-        assert version != null;
 
         if (processors == null && processorsRange == null) {
             throw new IllegalArgumentException(
@@ -172,7 +172,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         this.processorsRange = processorsRange;
         this.memory = memory;
         this.storage = storage;
-        this.version = version;
         this.externalId = NODE_EXTERNAL_ID_SETTING.get(settings);
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(DiscoveryNode.getRolesFromSettings(settings)));
     }
@@ -190,6 +189,9 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         final var memory = ByteSizeValue.readFrom(in);
         final var storage = ByteSizeValue.readFrom(in);
+        if (in.getTransportVersion().onOrAfter(DESIRED_NODE_VERSION_REMOVED)) {
+            return new DesiredNode(settings, processors, processorsRange, memory, storage);
+        }
         final var version = Version.readVersion(in);
         return new DesiredNode(settings, processors, processorsRange, memory, storage, version);
     }
@@ -207,7 +209,13 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         memory.writeTo(out);
         storage.writeTo(out);
-        Version.writeVersion(version, out);
+        if (out.getTransportVersion().before(DESIRED_NODE_VERSION_REMOVED)) {
+            if (version == null) {
+                Version.writeVersion(Version.CURRENT, out);
+            } else {
+                Version.writeVersion(version, out);
+            }
+        }
     }
 
     public static DesiredNode fromXContent(XContentParser parser) throws IOException {
@@ -234,7 +242,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         builder.field(MEMORY_FIELD.getPreferredName(), memory);
         builder.field(STORAGE_FIELD.getPreferredName(), storage);
-        builder.field(VERSION_FIELD.getPreferredName(), version);
+        addDeprecatedVersionField(builder);
+    }
+
+    @UpdateForV9 // Remove deprecated field from response
+    private static void addDeprecatedVersionField(XContentBuilder builder) throws IOException {
+        builder.field(VERSION_FIELD.getPreferredName(), Version.CURRENT);
     }
 
     public boolean hasMasterRole() {
@@ -290,10 +303,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     public ByteSizeValue storage() {
         return storage;
-    }
-
-    public Version version() {
-        return version;
     }
 
     public String externalId() {
@@ -356,14 +365,16 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             + memory
             + ", storage="
             + storage
-            + ", version="
-            + version
             + ", externalId='"
             + externalId
             + '\''
             + ", roles="
             + roles
             + '}';
+    }
+
+    public boolean hasVersion() {
+        return version != null;
     }
 
     public record ProcessorsRange(Processors min, @Nullable Processors max) implements Writeable, ToXContentObject {

@@ -83,8 +83,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                     1238.49922909,
                     ByteSizeValue.ofGb(32),
-                    ByteSizeValue.ofGb(128),
-                    Version.CURRENT
+                    ByteSizeValue.ofGb(128)
                 )
             )
             .toList();
@@ -154,8 +153,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                         Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                         processorsPrecision == ProcessorsPrecision.DOUBLE ? randomDoubleProcessorCount() : 0.5f,
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                        ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                        Version.CURRENT
+                        ByteSizeValue.ofGb(randomIntBetween(128, 256))
                     )
                 )
                 .toList();
@@ -168,8 +166,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                     new DesiredNode.ProcessorsRange(minProcessors, minProcessors + randomIntBetween(10, 20)),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                    ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    Version.CURRENT
+                    ByteSizeValue.ofGb(randomIntBetween(128, 256))
                 );
             }).toList();
         }
@@ -183,8 +180,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                     randomIntBetween(1, 24),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                    ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    Version.CURRENT
+                    ByteSizeValue.ofGb(randomIntBetween(128, 256))
                 )
             )
             .toList();

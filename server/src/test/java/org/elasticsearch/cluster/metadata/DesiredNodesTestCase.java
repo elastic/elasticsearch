@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,38 +43,28 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode randomDesiredNode() {
-        return randomDesiredNode(Version.CURRENT, Settings.EMPTY);
+        return randomDesiredNode(Settings.EMPTY);
     }
 
     public static DesiredNode randomDesiredNode(Settings settings) {
-        return randomDesiredNode(Version.CURRENT, settings);
+        return randomDesiredNode(settings, randomProcessorRange());
     }
 
-    public static DesiredNode randomDesiredNode(Version version, Settings settings) {
-        if (randomBoolean()) {
-            return randomDesiredNode(version, settings, randomProcessorRange());
-        } else {
-            return randomDesiredNode(version, settings, randomNumberOfProcessors());
-        }
-    }
-
-    public static DesiredNode randomDesiredNode(Version version, Settings settings, double processors) {
+    public static DesiredNode randomDesiredNode(Settings settings, double processors) {
         return new DesiredNode(
             addExternalIdIfMissing(settings),
             processors,
             ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
-            ByteSizeValue.ofTb(randomIntBetween(1, 40)),
-            version
+            ByteSizeValue.ofTb(randomIntBetween(1, 40))
         );
     }
 
-    public static DesiredNode randomDesiredNode(Version version, Settings settings, DesiredNode.ProcessorsRange processorsRange) {
+    public static DesiredNode randomDesiredNode(Settings settings, DesiredNode.ProcessorsRange processorsRange) {
         return new DesiredNode(
             addExternalIdIfMissing(settings),
             processorsRange,
             ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
-            ByteSizeValue.ofTb(randomIntBetween(1, 40)),
-            version
+            ByteSizeValue.ofTb(randomIntBetween(1, 40))
         );
     }
 

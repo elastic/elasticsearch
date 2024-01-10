@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -101,7 +102,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
 
         numInvalidation = new AtomicLong();
         lastSuccessfulAuthCache = mock(Cache.class);
-        realmsAuthenticator = new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache);
+        realmsAuthenticator = new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, MeterRegistry.NOOP);
     }
 
     public void testExtractCredentials() {

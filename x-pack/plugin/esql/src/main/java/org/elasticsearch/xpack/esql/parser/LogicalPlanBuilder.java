@@ -312,7 +312,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
         return p -> {
-            String policyName = visitFromIdentifier(ctx.policyName);
+            String policyName = visitIdentifierPattern(ctx.policyName);
             var source = source(ctx);
             Mode mode = visitEnrichMode(ctx.enrichMode());
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);

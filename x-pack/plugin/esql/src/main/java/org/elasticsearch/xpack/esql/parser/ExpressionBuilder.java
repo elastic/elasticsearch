@@ -403,11 +403,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx == null) {
             return null;
         }
-        String value = unquoteIdentifier(null, ctx.FROM_UNQUOTED_IDENTIFIER());
+        String value = unquoteIdentifier(null, ctx.UNQUOTED_ID_PATTERN());
         Enrich.Mode m = Enrich.Mode.from(value);
         if (m == null) {
             throw new ParsingException(
-                source(ctx.FROM_UNQUOTED_IDENTIFIER()),
+                source(ctx.UNQUOTED_ID_PATTERN()),
                 "Unrecognized value [{}], ENRICH [{}] needs to be one of {}",
                 value,
                 ctx.ENRICH_CCQ_MODE().getText(),

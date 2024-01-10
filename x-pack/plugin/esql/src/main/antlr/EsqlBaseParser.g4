@@ -141,7 +141,7 @@ identifier
     ;
 
 identifierPattern
-    : PROJECT_UNQUOTED_IDENTIFIER
+    : UNQUOTED_ID_PATTERN
     | QUOTED_IDENTIFIER
     ;
 
@@ -246,7 +246,7 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH enrichMode? policyName=fromIdentifier (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH enrichMode? policyName=identifierPattern (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
@@ -254,5 +254,5 @@ enrichWithClause
     ;
 
 enrichMode
-    : OPENING_BRACKET ENRICH_CCQ_MODE COLON FROM_UNQUOTED_IDENTIFIER CLOSING_BRACKET
+    : OPENING_BRACKET ENRICH_CCQ_MODE COLON UNQUOTED_ID_PATTERN CLOSING_BRACKET
     ;

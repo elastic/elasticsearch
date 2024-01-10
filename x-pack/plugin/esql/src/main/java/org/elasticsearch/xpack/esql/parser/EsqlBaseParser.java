@@ -28,7 +28,7 @@ public class EsqlBaseParser extends Parser {
     PLUS=58, MINUS=59, ASTERISK=60, SLASH=61, PERCENT=62, OPENING_BRACKET=63, 
     CLOSING_BRACKET=64, UNQUOTED_IDENTIFIER=65, QUOTED_IDENTIFIER=66, EXPR_LINE_COMMENT=67, 
     EXPR_MULTILINE_COMMENT=68, EXPR_WS=69, METADATA=70, FROM_UNQUOTED_IDENTIFIER=71, 
-    FROM_LINE_COMMENT=72, FROM_MULTILINE_COMMENT=73, FROM_WS=74, PROJECT_UNQUOTED_IDENTIFIER=75, 
+    FROM_LINE_COMMENT=72, FROM_MULTILINE_COMMENT=73, FROM_WS=74, UNQUOTED_ID_PATTERN=75, 
     PROJECT_LINE_COMMENT=76, PROJECT_MULTILINE_COMMENT=77, PROJECT_WS=78, 
     AS=79, RENAME_LINE_COMMENT=80, RENAME_MULTILINE_COMMENT=81, RENAME_WS=82, 
     ENRICH_CCQ_MODE=83, COLON=84, ON=85, WITH=86, ENRICH_LINE_COMMENT=87, 
@@ -99,7 +99,7 @@ public class EsqlBaseParser extends Parser {
       "SLASH", "PERCENT", "OPENING_BRACKET", "CLOSING_BRACKET", "UNQUOTED_IDENTIFIER", 
       "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT", "EXPR_WS", 
       "METADATA", "FROM_UNQUOTED_IDENTIFIER", "FROM_LINE_COMMENT", "FROM_MULTILINE_COMMENT", 
-      "FROM_WS", "PROJECT_UNQUOTED_IDENTIFIER", "PROJECT_LINE_COMMENT", "PROJECT_MULTILINE_COMMENT", 
+      "FROM_WS", "UNQUOTED_ID_PATTERN", "PROJECT_LINE_COMMENT", "PROJECT_MULTILINE_COMMENT", 
       "PROJECT_WS", "AS", "RENAME_LINE_COMMENT", "RENAME_MULTILINE_COMMENT", 
       "RENAME_WS", "ENRICH_CCQ_MODE", "COLON", "ON", "WITH", "ENRICH_LINE_COMMENT", 
       "ENRICH_MULTILINE_COMMENT", "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", 
@@ -2536,7 +2536,7 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class IdentifierPatternContext extends ParserRuleContext {
-    public TerminalNode PROJECT_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.PROJECT_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode UNQUOTED_ID_PATTERN() { return getToken(EsqlBaseParser.UNQUOTED_ID_PATTERN, 0); }
     public TerminalNode QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.QUOTED_IDENTIFIER, 0); }
     @SuppressWarnings("this-escape")
     public IdentifierPatternContext(ParserRuleContext parent, int invokingState) {
@@ -2567,7 +2567,7 @@ public class EsqlBaseParser extends Parser {
       {
       setState(330);
       _la = _input.LA(1);
-      if ( !(_la==QUOTED_IDENTIFIER || _la==PROJECT_UNQUOTED_IDENTIFIER) ) {
+      if ( !(_la==QUOTED_IDENTIFIER || _la==UNQUOTED_ID_PATTERN) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -4375,11 +4375,11 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class EnrichCommandContext extends ParserRuleContext {
-    public FromIdentifierContext policyName;
+    public IdentifierPatternContext policyName;
     public QualifiedNamePatternContext matchField;
     public TerminalNode ENRICH() { return getToken(EsqlBaseParser.ENRICH, 0); }
-    public FromIdentifierContext fromIdentifier() {
-      return getRuleContext(FromIdentifierContext.class,0);
+    public IdentifierPatternContext identifierPattern() {
+      return getRuleContext(IdentifierPatternContext.class,0);
     }
     public EnrichModeContext enrichMode() {
       return getRuleContext(EnrichModeContext.class,0);
@@ -4440,7 +4440,7 @@ public class EsqlBaseParser extends Parser {
       }
 
       setState(500);
-      ((EnrichCommandContext)_localctx).policyName = fromIdentifier();
+      ((EnrichCommandContext)_localctx).policyName = identifierPattern();
       setState(503);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,49,_ctx) ) {
@@ -4565,7 +4565,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode OPENING_BRACKET() { return getToken(EsqlBaseParser.OPENING_BRACKET, 0); }
     public TerminalNode ENRICH_CCQ_MODE() { return getToken(EsqlBaseParser.ENRICH_CCQ_MODE, 0); }
     public TerminalNode COLON() { return getToken(EsqlBaseParser.COLON, 0); }
-    public TerminalNode FROM_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.FROM_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode UNQUOTED_ID_PATTERN() { return getToken(EsqlBaseParser.UNQUOTED_ID_PATTERN, 0); }
     public TerminalNode CLOSING_BRACKET() { return getToken(EsqlBaseParser.CLOSING_BRACKET, 0); }
     @SuppressWarnings("this-escape")
     public EnrichModeContext(ParserRuleContext parent, int invokingState) {
@@ -4600,7 +4600,7 @@ public class EsqlBaseParser extends Parser {
       setState(525);
       match(COLON);
       setState(526);
-      match(FROM_UNQUOTED_IDENTIFIER);
+      match(UNQUOTED_ID_PATTERN);
       setState(527);
       match(CLOSING_BRACKET);
       }
@@ -4975,7 +4975,7 @@ public class EsqlBaseParser extends Parser {
     "\u0000\u0000\u0000\u01ef]\u0001\u0000\u0000\u0000\u01f0\u01f2\u0005\u0003"+
     "\u0000\u0000\u01f1\u01f3\u0003b1\u0000\u01f2\u01f1\u0001\u0000\u0000\u0000"+
     "\u01f2\u01f3\u0001\u0000\u0000\u0000\u01f3\u01f4\u0001\u0000\u0000\u0000"+
-    "\u01f4\u01f7\u0003(\u0014\u0000\u01f5\u01f6\u0005U\u0000\u0000\u01f6\u01f8"+
+    "\u01f4\u01f7\u00030\u0018\u0000\u01f5\u01f6\u0005U\u0000\u0000\u01f6\u01f8"+
     "\u0003,\u0016\u0000\u01f7\u01f5\u0001\u0000\u0000\u0000\u01f7\u01f8\u0001"+
     "\u0000\u0000\u0000\u01f8\u0202\u0001\u0000\u0000\u0000\u01f9\u01fa\u0005"+
     "V\u0000\u0000\u01fa\u01ff\u0003`0\u0000\u01fb\u01fc\u0005\"\u0000\u0000"+
@@ -4988,7 +4988,7 @@ public class EsqlBaseParser extends Parser {
     "\u0000\u0207\u0204\u0001\u0000\u0000\u0000\u0207\u0208\u0001\u0000\u0000"+
     "\u0000\u0208\u0209\u0001\u0000\u0000\u0000\u0209\u020a\u0003,\u0016\u0000"+
     "\u020aa\u0001\u0000\u0000\u0000\u020b\u020c\u0005?\u0000\u0000\u020c\u020d"+
-    "\u0005S\u0000\u0000\u020d\u020e\u0005T\u0000\u0000\u020e\u020f\u0005G"+
+    "\u0005S\u0000\u0000\u020d\u020e\u0005T\u0000\u0000\u020e\u020f\u0005K"+
     "\u0000\u0000\u020f\u0210\u0005@\u0000\u0000\u0210c\u0001\u0000\u0000\u0000"+
     "5ov\u0085\u0091\u009a\u00a2\u00a6\u00ae\u00b0\u00b5\u00bc\u00c1\u00c8"+
     "\u00ce\u00d6\u00d8\u00e2\u00ec\u00ef\u00fb\u0103\u010b\u010f\u0118\u0122"+

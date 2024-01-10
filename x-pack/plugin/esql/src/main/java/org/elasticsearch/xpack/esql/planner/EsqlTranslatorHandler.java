@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -28,24 +27,13 @@ import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
-import org.elasticsearch.xpack.versionfield.Version;
 
-import java.time.OffsetTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class EsqlTranslatorHandler extends QlTranslatorHandler {
 
@@ -131,54 +119,9 @@ public final class EsqlTranslatorHandler extends QlTranslatorHandler {
         static Query translate(InsensitiveEquals bc) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
-            Object value = ExpressionTranslators.valueOf(bc.right());
-            String format = null;
-            boolean isDateLiteralComparison = false;
-
-            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
-            // no matter the timezone provided by the user
-            if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
-                DateFormatter formatter;
-                if (value instanceof ZonedDateTime) {
-                    formatter = DateFormatter.forPattern(ExpressionTranslators.DATE_FORMAT);
-                    // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime instance
-                    // which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
-                    // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
-                    value = formatter.format((ZonedDateTime) value);
-                } else {
-                    formatter = DateFormatter.forPattern(ExpressionTranslators.TIME_FORMAT);
-                    value = formatter.format((OffsetTime) value);
-                }
-                format = formatter.pattern();
-                isDateLiteralComparison = true;
-            } else if (attribute.dataType() == IP && value instanceof BytesRef bytesRef) {
-                value = DocValueFormat.IP.format(bytesRef);
-            } else if (attribute.dataType() == VERSION) {
-                // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
-                // encoded) representation of the version as it'll do the encoding itself.
-                if (value instanceof BytesRef bytesRef) {
-                    value = new Version(bytesRef).toString();
-                } else if (value instanceof Version version) {
-                    value = version.toString();
-                }
-            } else if (attribute.dataType() == UNSIGNED_LONG && value instanceof Long ul) {
-                value = unsignedLongAsNumber(ul);
-            }
-
-            ZoneId zoneId = null;
-            if (DataTypes.isDateTime(attribute.dataType())) {
-                zoneId = bc.zoneId();
-            }
-
+            BytesRef value = BytesRefs.toBytesRef(ExpressionTranslators.valueOf(bc.right()));
             String name = pushableAttributeName(attribute);
-
-            Query query;
-            if (isDateLiteralComparison) {
-                // dates equality uses a range query because it's the one that has a "format" parameter
-                query = new RangeQuery(source, name, value, true, value, true, format, zoneId);
-            } else {
-                query = new TermQuery(source, name, value, DataTypes.isString(attribute.dataType()));
-            }
+            Query query = new WildcardQuery(source, name, value.utf8ToString(), true);
             return query;
 
         }

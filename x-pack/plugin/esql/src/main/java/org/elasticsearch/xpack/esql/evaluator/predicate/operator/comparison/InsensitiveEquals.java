@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -61,7 +62,7 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     public static Automaton automaton(BytesRef val) {
-        return AutomatonQueries.toCaseInsensitiveString(val.utf8ToString());
+        return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(null, val.utf8ToString()));
     }
 
     @Override

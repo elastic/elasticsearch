@@ -1,5 +1,5 @@
 pr: 103741
-summary: Detect object cycles in Exception XContent
+summary: Limit nesting depth in Exception XContent
 area: Infra/Resiliency
 type: bug
 issues: []

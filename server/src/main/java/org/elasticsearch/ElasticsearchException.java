@@ -59,7 +59,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -107,7 +106,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String HEADER = "header";
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";
-    private static final String CYCLE_DETECTED = "cycle_detected";
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
@@ -345,19 +343,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, new HashSet<>());
+        return toXContent(builder, params, 0);
     }
 
     /**
-     * Equivalent to {@link org.elasticsearch.xcontent.ToXContent#toXContent(XContentBuilder, Params)} except that it detects object cycles
-     * so that it can avoid stackoverflow exceptions.
+     * Equivalent to {@link org.elasticsearch.xcontent.ToXContent#toXContent(XContentBuilder, Params)} except that it limits nesting depth
+     * so that it can avoid stackoverflow errors.
      */
-    protected XContentBuilder toXContent(XContentBuilder builder, Params params, Set<Throwable> seenExceptions) throws IOException {
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this, seenExceptions);
+            generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause(), seenExceptions);
+            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause(), nestedLevel);
         }
         return builder;
     }
@@ -371,7 +369,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Map<String, List<String>> headers,
         Map<String, List<String>> metadata,
         Throwable cause,
-        Set<Throwable> seenExceptions
+        int nestedLevel
     ) throws IOException {
         builder.field(TYPE, type);
         builder.field(REASON, message);
@@ -384,16 +382,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             exception.metadataToXContent(builder, params);
         }
 
-        if (seenExceptions.add(throwable) == false) {
-            builder.field(CYCLE_DETECTED, true);
-            return;
+        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            if (cause != null || throwable.getSuppressed().length > 0) {
+                cause = new IllegalStateException("too many nested exceptions");
+            }
         }
 
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
             if (cause != null) {
                 builder.field(CAUSED_BY);
                 builder.startObject();
-                generateThrowableXContent(builder, params, cause, seenExceptions);
+                generateThrowableXContent(builder, params, cause, nestedLevel + 1);
                 builder.endObject();
             }
         }
@@ -410,15 +409,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
         }
 
-        Throwable[] allSuppressed = throwable.getSuppressed();
-        if (allSuppressed.length > 0) {
-            builder.startArray(SUPPRESSED.getPreferredName());
-            for (Throwable suppressed : allSuppressed) {
-                builder.startObject();
-                generateThrowableXContent(builder, params, suppressed, seenExceptions);
-                builder.endObject();
+        if (nestedLevel <= MAX_NESTED_EXCEPTION_LEVEL) {
+            Throwable[] allSuppressed = throwable.getSuppressed();
+            if (allSuppressed.length > 0) {
+                builder.startArray(SUPPRESSED.getPreferredName());
+                for (Throwable suppressed : allSuppressed) {
+                    builder.startObject();
+                    generateThrowableXContent(builder, params, suppressed, nestedLevel + 1);
+                    builder.endObject();
+                }
+                builder.endArray();
             }
-            builder.endArray();
         }
     }
 
@@ -568,27 +569,26 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
-     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable, Set)}.
+     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable, int)}.
      *
      * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
      * be parsed back using the {@link #fromXContent(XContentParser)} method.
      */
     public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
-        generateThrowableXContent(builder, params, t, new HashSet<>());
+        generateThrowableXContent(builder, params, t, 0);
     }
 
     /**
-     * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but detects object cycles
-     * so that it can avoid stackoverflow exceptions.
+     * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but limits nesting depth
+     * so that it can avoid stackoverflow errors.
      */
-    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, Set<Throwable> seenExceptions)
-        throws IOException {
+    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, int nestedLevel) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof ElasticsearchException) {
-            ((ElasticsearchException) t).toXContent(builder, params, seenExceptions);
+            ((ElasticsearchException) t).toXContent(builder, params, nestedLevel);
         } else {
-            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause(), seenExceptions);
+            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause(), nestedLevel);
         }
     }
 

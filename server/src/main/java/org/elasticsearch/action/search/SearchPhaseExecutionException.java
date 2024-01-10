@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 public class SearchPhaseExecutionException extends ElasticsearchException {
     private final String phaseName;
@@ -130,10 +129,10 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    protected XContentBuilder toXContent(XContentBuilder builder, Params params, Set<Throwable> seenExceptions) throws IOException {
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this, seenExceptions);
+            generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
@@ -147,7 +146,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
                 getHeaders(),
                 getMetadata(),
                 super.getCause(),
-                seenExceptions
+                nestedLevel
             );
         }
         return builder;

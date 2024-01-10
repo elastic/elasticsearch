@@ -234,6 +234,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return this;
     }
 
+    /**
+     * If we are rewriting for inner hits, this means that the nearest parent doc IDs have already been computed. So simply scoring the
+     * inner hits is sufficient.
+     */
     @Override
     protected AbstractQueryBuilder<?> rewriteForInnerHits() {
         return new ExactKnnQueryBuilder(queryVector, fieldName).boost(boost).queryName(queryName);

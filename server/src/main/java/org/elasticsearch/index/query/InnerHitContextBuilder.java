@@ -78,7 +78,8 @@ public abstract class InnerHitContextBuilder {
         if (query instanceof AbstractQueryBuilder<?> original) {
             AbstractQueryBuilder<?> builder = original;
             int iteration = 0;
-            for (AbstractQueryBuilder<?> rewrittenBuilder = builder.rewriteForInnerHits(); rewrittenBuilder != builder; rewrittenBuilder = builder.rewriteForInnerHits()) {
+            for (AbstractQueryBuilder<?> rewrittenBuilder = builder.rewriteForInnerHits(); rewrittenBuilder != builder; rewrittenBuilder =
+                builder.rewriteForInnerHits()) {
                 builder = rewrittenBuilder;
                 if (iteration++ >= MAX_REWRITE_ROUNDS) {
                     // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds

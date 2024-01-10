@@ -199,7 +199,7 @@ setup:
             num_candidates: 5
             inner_hits: {size: 2, fields: ["nested.paragraph_id"], _source: false}
 
-  - match: {hits.total.value: 6}
+  - match: {hits.total.value: 3}
   - length: { hits.hits.0.inner_hits.nested.hits.hits: 2 }
   - length: { hits.hits.1.inner_hits.nested.hits.hits: 2 }
   - length: { hits.hits.2.inner_hits.nested.hits.hits: 2 }
@@ -219,7 +219,7 @@ setup:
             num_candidates: 5
             inner_hits: {size: 2, fields: ["nested.paragraph_id"], _source: false}
 
-  - match: {hits.total.value: 6}
+  - match: {hits.total.value: 5}
   # All these initial matches are "moose.jpg", which has 3 nested vectors, but two are closest
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
   - length: { hits.hits.0.inner_hits.nested.hits.hits: 2 }

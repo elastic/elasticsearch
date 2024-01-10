@@ -528,7 +528,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             }
 
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
-            QueryBuilder rewritten = InnerHitContextBuilder.rewriteQueryForInnerHits(query);;
+            QueryBuilder rewritten = InnerHitContextBuilder.rewriteQueryForInnerHits(query);
+            ;
             InnerHitContextBuilder.extractInnerHits(rewritten, children);
             InnerHitContextBuilder innerHitContextBuilder = new ParentChildInnerHitContextBuilder(
                 type,

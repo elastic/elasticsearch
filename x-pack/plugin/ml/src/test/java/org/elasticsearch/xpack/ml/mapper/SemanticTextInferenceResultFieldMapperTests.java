@@ -53,6 +53,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     }
 
     private record VisitedChildDocInfo(String path, int sparseVectorDims) {}
+
     private record SparseVectorSubfieldOptions(boolean include, boolean includeEmbedding, boolean includeIsTruncated) {}
 
     @Override
@@ -237,14 +238,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     )
                 )
             );
-            assertThat(
-                ex.getMessage(),
-                containsString(
-                    "Missing required subfields: ["
-                        + SparseEmbeddingResults.Embedding.EMBEDDING
-                        + "]"
-                )
-            );
+            assertThat(ex.getMessage(), containsString("Missing required subfields: [" + SparseEmbeddingResults.Embedding.EMBEDDING + "]"));
         }
     }
 

@@ -43,7 +43,7 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
                 }
             };
 
-            final ParentTaskAssigningClient client = new ParentTaskAssigningClient(mock, parentTaskId[0]);
+            final var client = new ParentTaskAssigningClient(mock, parentTaskId[0]);
             assertEquals(parentTaskId[0], client.getParentTask());
 
             // All of these should have the parentTaskId set
@@ -70,7 +70,7 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
                 }
             };
 
-            final ParentTaskAssigningClient client = new ParentTaskAssigningClient(mockClient, parentTaskId);
+            final var client = new ParentTaskAssigningClient(mockClient, parentTaskId);
             assertThat(
                 client.getRemoteClusterClient("remote-cluster", EsExecutors.DIRECT_EXECUTOR_SERVICE),
                 is(instanceOf(ParentTaskAssigningClient.class))

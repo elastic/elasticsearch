@@ -1239,19 +1239,23 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertNoDocValueLoader(b -> b.startArray("field").endArray());
     }
 
-    public final void testBlockLoaderFromColumnReader() throws IOException {
+    // TextFieldMapperTests @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromColumnReader() throws IOException {
         testBlockLoader(false, true);
     }
 
-    public final void testBlockLoaderFromRowStrideReader() throws IOException {
+    // TextFieldMapperTests @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromRowStrideReader() throws IOException {
         testBlockLoader(false, false);
     }
 
-    public final void testBlockLoaderFromColumnReaderWithSyntheticSource() throws IOException {
+    // TextFieldMapperTests @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromColumnReaderWithSyntheticSource() throws IOException {
         testBlockLoader(true, true);
     }
 
     // Removed 'final' to silence this test in GeoPointFieldMapperTests, which does not support synthetic source completely
+    // TextFieldMapperTests @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
     public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
         testBlockLoader(true, false);
     }

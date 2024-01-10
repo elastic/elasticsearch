@@ -18,25 +18,25 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.xpack.application.connector.secrets.SecretsIndexService.CONNECTOR_SECRETS_INDEX_NAME;
+import static org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsIndexService.CONNECTOR_SECRETS_INDEX_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
-public class TransportGetSecretAction extends HandledTransportAction<GetSecretRequest, GetSecretResponse> {
+public class TransportGetConnectorSecretAction extends HandledTransportAction<GetConnectorSecretRequest, GetConnectorSecretResponse> {
     private final Client client;
 
     @Inject
-    public TransportGetSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(GetSecretAction.NAME, transportService, actionFilters, GetSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    public TransportGetConnectorSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(GetConnectorSecretAction.NAME, transportService, actionFilters, GetConnectorSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 
-    protected void doExecute(Task task, GetSecretRequest request, ActionListener<GetSecretResponse> listener) {
+    protected void doExecute(Task task, GetConnectorSecretRequest request, ActionListener<GetConnectorSecretResponse> listener) {
         client.prepareGet(CONNECTOR_SECRETS_INDEX_NAME, request.id()).execute(listener.delegateFailureAndWrap((delegate, getResponse) -> {
             if (getResponse.isSourceEmpty()) {
                 delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
                 return;
             }
-            delegate.onResponse(new GetSecretResponse(getResponse.getId(), getResponse.getSource().get("value").toString()));
+            delegate.onResponse(new GetConnectorSecretResponse(getResponse.getId(), getResponse.getSource().get("value").toString()));
         }));
     }
 }

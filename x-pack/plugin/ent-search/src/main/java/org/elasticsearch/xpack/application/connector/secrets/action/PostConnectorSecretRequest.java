@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -20,14 +21,14 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PostSecretRequest extends ActionRequest {
+public class PostConnectorSecretRequest extends ActionRequest {
 
     public static final ParseField VALUE_FIELD = new ParseField("value");
 
-    public static final ConstructingObjectParser<PostSecretRequest, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<PostConnectorSecretRequest, Void> PARSER = new ConstructingObjectParser<>(
         "post_secret_request",
         args -> {
-            return new PostSecretRequest((String) args[0]);
+            return new PostConnectorSecretRequest((String) args[0]);
         }
     );
 
@@ -40,17 +41,17 @@ public class PostSecretRequest extends ActionRequest {
         );
     }
 
-    public static PostSecretRequest fromXContent(XContentParser parser) throws IOException {
+    public static PostConnectorSecretRequest fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     private final String value;
 
-    public PostSecretRequest(String value) {
+    public PostConnectorSecretRequest(String value) {
         this.value = value;
     }
 
-    public PostSecretRequest(StreamInput in) throws IOException {
+    public PostConnectorSecretRequest(StreamInput in) throws IOException {
         super(in);
         this.value = in.readString();
     }
@@ -74,7 +75,7 @@ public class PostSecretRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        if (this.value == null) {
+        if (Strings.isNullOrEmpty(this.value)) {
             ActionRequestValidationException exception = new ActionRequestValidationException();
             exception.addValidationError("value is missing");
             return exception;
@@ -87,7 +88,7 @@ public class PostSecretRequest extends ActionRequest {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PostSecretRequest that = (PostSecretRequest) o;
+        PostConnectorSecretRequest that = (PostConnectorSecretRequest) o;
         return Objects.equals(value, that.value);
     }
 

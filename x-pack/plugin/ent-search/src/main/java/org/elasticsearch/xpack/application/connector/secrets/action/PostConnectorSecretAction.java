@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionType;
 
-public class GetSecretAction extends ActionType<GetSecretResponse> {
+public class PostConnectorSecretAction extends ActionType<PostConnectorSecretResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/connector/secret/get";
+    public static final String NAME = "cluster:admin/xpack/connector/secret/post";
 
-    public static final GetSecretAction INSTANCE = new GetSecretAction();
+    public static final PostConnectorSecretAction INSTANCE = new PostConnectorSecretAction();
 
-    private GetSecretAction() {
-        super(NAME, GetSecretResponse::new);
+    private PostConnectorSecretAction() {
+        super(NAME, PostConnectorSecretResponse::new);
     }
 }

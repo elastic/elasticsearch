@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 /**
  * A service that manages persistent Connector Secrets.
  */
-public class SecretsIndexService {
+public class ConnectorSecretsIndexService {
 
     public static final String CONNECTOR_SECRETS_INDEX_NAME = ".connector-secrets";
 

@@ -18,25 +18,25 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.application.connector.secrets.SecretsIndexService.CONNECTOR_SECRETS_INDEX_NAME;
+import static org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsIndexService.CONNECTOR_SECRETS_INDEX_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
-public class TransportPostSecretAction extends HandledTransportAction<PostSecretRequest, PostSecretResponse> {
+public class TransportPostConnectorSecretAction extends HandledTransportAction<PostConnectorSecretRequest, PostConnectorSecretResponse> {
 
     private final Client client;
 
     @Inject
-    public TransportPostSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PostSecretAction.NAME, transportService, actionFilters, PostSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    public TransportPostConnectorSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(PostConnectorSecretAction.NAME, transportService, actionFilters, PostConnectorSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 
-    protected void doExecute(Task task, PostSecretRequest request, ActionListener<PostSecretResponse> listener) {
+    protected void doExecute(Task task, PostConnectorSecretRequest request, ActionListener<PostConnectorSecretResponse> listener) {
         try {
             client.prepareIndex(CONNECTOR_SECRETS_INDEX_NAME)
                 .setSource(request.toXContent(jsonBuilder()))
                 .execute(
-                    listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(new PostSecretResponse(indexResponse.getId())))
+                    listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(new PostConnectorSecretResponse(indexResponse.getId())))
                 );
         } catch (Exception e) {
             listener.onFailure(e);

@@ -39,15 +39,34 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             ),
             List.of(new DriverStatus.OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple()))
         );
-        assertThat(Strings.toString(status), equalTo("""
-            {"sessionId":"ABC:123","last_updated":"1973-11-29T09:27:23.214Z","status":"running",
-            """.trim() + """
-            "completed_operators":[{"operator":"LuceneSource","status":
-            """.trim() + LuceneSourceOperatorStatusTests.simpleToJson() + """
-            },{"operator":"ValuesSourceReader","status":
-            """.trim() + ValuesSourceReaderOperatorStatusTests.simpleToJson() + """
-            }],"active_operators":[{"operator":"ExchangeSink","status":
-            """.trim() + ExchangeSinkOperatorStatusTests.simpleToJson() + "}]}"));
+        assertThat(Strings.toString(status, true, true), equalTo("""
+            {
+              "sessionId" : "ABC:123",
+              "last_updated" : "1973-11-29T09:27:23.214Z",
+              "status" : "running",
+              "completed_operators" : [
+                {
+                  "operator" : "LuceneSource",
+                  "status" :
+            """.trim() + " " + LuceneSourceOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
+
+                },
+                {
+                  "operator" : "ValuesSourceReader",
+                  "status" :
+            """.stripTrailing() + " " + ValuesSourceReaderOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
+
+                }
+              ],
+              "active_operators" : [
+                {
+                  "operator" : "ExchangeSink",
+                  "status" :
+            """.stripTrailing() + " " + ExchangeSinkOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
+
+                }
+              ]
+            }"""));
     }
 
     @Override

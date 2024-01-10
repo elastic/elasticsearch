@@ -15,27 +15,22 @@ import java.util.Arrays;
  * Vector implementation that stores an array of long values.
  * This class is generated. Do not edit it.
  */
-public final class LongArrayVector extends AbstractVector implements LongVector {
+final class LongArrayVector extends AbstractVector implements LongVector {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance(LongVectorBlock.class);
 
     private final long[] values;
 
-    private final LongBlock block;
-
-    public LongArrayVector(long[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
+    LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new LongVectorBlock(this);
     }
 
     @Override
     public LongBlock asBlock() {
-        return block;
+        return new LongVectorBlock(this);
     }
 
     @Override

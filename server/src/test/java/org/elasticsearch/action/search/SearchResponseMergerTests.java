@@ -21,6 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -29,7 +30,6 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
@@ -108,8 +108,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
-                SearchResponse searchResponse = new SearchResponse(
-                    InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     1,
                     1,
@@ -169,8 +168,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     shardSearchFailures[j] = failure;
                     priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
                 }
-                SearchResponse searchResponse = new SearchResponse(
-                    InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     1,
                     1,
@@ -231,8 +229,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     shardSearchFailures[j] = failure;
                     priorityQueue.add(Tuple.tuple(shardId, failure));
                 }
-                SearchResponse searchResponse = new SearchResponse(
-                    InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     1,
                     1,
@@ -291,8 +288,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     shardSearchFailures[j] = shardSearchFailure;
                     expectedFailures.add(shardSearchFailure);
                 }
-                SearchResponse searchResponse = new SearchResponse(
-                    InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     1,
                     1,
@@ -334,10 +330,14 @@ public class SearchResponseMergerTests extends ESTestCase {
             for (int i = 0; i < numResponses; i++) {
                 SearchProfileResults profile = SearchProfileResultsTests.createTestItem();
                 expectedProfile.putAll(profile.getShardResults());
-                SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, null, profile, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                    null,
+                    null,
+                    false,
+                    null,
+                    profile,
+                    1,
                     null,
                     1,
                     1,
@@ -407,10 +407,15 @@ public class SearchResponseMergerTests extends ESTestCase {
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
-                SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, suggest, null, false, null, 1);
+                SearchHits searchHits = SearchHits.empty(null, Float.NaN);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    searchHits,
+                    null,
+                    suggest,
+                    false,
+                    null,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -488,10 +493,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
-                SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, suggest, null, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    SearchHits.empty(null, Float.NaN),
+                    null,
+                    suggest,
+                    false,
+                    null,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -554,7 +563,6 @@ public class SearchResponseMergerTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
         try (
             SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
                 0,
@@ -566,9 +574,14 @@ public class SearchResponseMergerTests extends ESTestCase {
         ) {
             for (Max max : Arrays.asList(max1, max2)) {
                 InternalAggregations aggs = InternalAggregations.from(Arrays.asList(max));
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    SearchHits.empty(null, Float.NaN),
+                    aggs,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -629,10 +642,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                 );
                 InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
                 InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));
-                SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    SearchHits.empty(null, Float.NaN),
+                    aggs,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -787,18 +804,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                 Boolean terminatedEarly = frequently() ? null : true;
                 expectedTerminatedEarly = expectedTerminatedEarly == null ? terminatedEarly : expectedTerminatedEarly;
 
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+                SearchResponse searchResponse = new SearchResponse(
                     searchHits,
-                    null,
                     null,
                     null,
                     timedOut,
                     terminatedEarly,
-                    numReducePhases
-                );
-
-                SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    null,
+                    numReducePhases,
                     null,
                     total,
                     successful,
@@ -937,9 +950,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                     null,
                     null
                 );
-                InternalSearchResponse response = new InternalSearchResponse(searchHits, null, null, null, false, false, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    response,
+                    searchHits,
+                    null,
+                    null,
+                    false,
+                    false,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -955,17 +973,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                 }
             }
             {
-                SearchHits empty = new SearchHits(
-                    new SearchHit[0],
-                    new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-                    Float.NaN,
-                    null,
-                    null,
-                    null
-                );
-                InternalSearchResponse response = new InternalSearchResponse(empty, null, null, null, false, false, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    response,
+                    SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                    null,
+                    null,
+                    false,
+                    false,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -1014,10 +1029,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                     long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value;
                     expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value, trackTotalHitsUpTo), totalHitsRelation);
                 }
-                SearchHits empty = new SearchHits(new SearchHit[0], totalHits, Float.NaN, null, null, null);
-                InternalSearchResponse response = new InternalSearchResponse(empty, null, null, null, false, false, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    response,
+                    SearchHits.empty(totalHits, Float.NaN),
+                    null,
+                    null,
+                    false,
+                    false,
+                    null,
+                    1,
                     null,
                     1,
                     1,

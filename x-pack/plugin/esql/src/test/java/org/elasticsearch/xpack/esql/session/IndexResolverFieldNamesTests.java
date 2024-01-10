@@ -198,7 +198,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval y = date_trunc(hire_date, 1 year)
             | stats count(emp_no) by y
             | sort y
-            | keep y, count(emp_no)
+            | keep y, `count(emp_no)`
             | limit 5""", Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*"));
     }
 

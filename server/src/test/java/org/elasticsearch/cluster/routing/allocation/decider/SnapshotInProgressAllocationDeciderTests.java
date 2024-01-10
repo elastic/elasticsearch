@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -25,7 +27,9 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.snapshots.SnapshotsInProgressSerializationTests;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.List;
@@ -197,6 +201,115 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
         );
     }
 
+    public void testYesWhenSnapshotInProgressButShardIsPausedDueToShutdown() {
+
+        // need to have a shard in INIT state to avoid the fast-path
+        final var otherIndex = randomIdentifier();
+
+        final var clusterStateWithShutdownMetadata = SnapshotsInProgressSerializationTests.CLUSTER_STATE_FOR_NODE_SHUTDOWNS
+            .copyAndUpdateMetadata(
+                mdb -> mdb.putCustom(
+                    NodesShutdownMetadata.TYPE,
+                    new NodesShutdownMetadata(
+                        Map.of(
+                            nodeId,
+                            SingleNodeShutdownMetadata.builder()
+                                .setNodeId(nodeId)
+                                .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                .setStartedAtMillis(randomNonNegativeLong())
+                                .setReason("test")
+                                .build()
+                        )
+                    )
+                )
+            );
+        final var snapshotsInProgress = SnapshotsInProgress.EMPTY
+            // mark nodeID as shutting down for removal
+            .withUpdatedNodeIdsForRemoval(clusterStateWithShutdownMetadata)
+            // create a running snapshot with shardId paused
+            .withUpdatedEntriesForRepo(
+                repositoryName,
+                List.of(
+                    SnapshotsInProgress.Entry.snapshot(
+                        snapshot,
+                        randomBoolean(),
+                        randomBoolean(),
+                        SnapshotsInProgress.State.STARTED,
+                        Map.of(
+                            shardId.getIndexName(),
+                            new IndexId(shardId.getIndexName(), randomUUID()),
+                            otherIndex,
+                            new IndexId(otherIndex, randomUUID())
+                        ),
+                        List.of(),
+                        List.of(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        Map.of(
+                            shardId,
+                            new SnapshotsInProgress.ShardSnapshotStatus(
+                                nodeId,
+                                SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
+                                ShardGeneration.newGeneration(random())
+                            ),
+                            new ShardId(otherIndex, randomUUID(), 0),
+                            new SnapshotsInProgress.ShardSnapshotStatus(
+                                nodeId,
+                                SnapshotsInProgress.ShardState.INIT,
+                                ShardGeneration.newGeneration(random())
+                            )
+                        ),
+                        null,
+                        Map.of(),
+                        IndexVersion.current()
+                    )
+                )
+            );
+
+        // if the node is marked for shutdown then the shard can move
+
+        final var routingAllocationWithShutdownMetadata = new RoutingAllocation(
+            new AllocationDeciders(List.of(decider)),
+            ClusterState.builder(clusterStateWithShutdownMetadata).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build(),
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            randomNonNegativeLong()
+        );
+        routingAllocationWithShutdownMetadata.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        final var decisionWithShutdownMetadata = decider.canAllocate(
+            TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED),
+            null,
+            routingAllocationWithShutdownMetadata
+        );
+
+        assertEquals(Decision.Type.YES, decisionWithShutdownMetadata.type());
+        assertEquals("the shard is not being snapshotted", decisionWithShutdownMetadata.getExplanation());
+
+        // if the node is not marked for shutdown then the shard is fixed in place
+
+        final var routingAllocationWithoutShutdownMetadata = new RoutingAllocation(
+            new AllocationDeciders(List.of(decider)),
+            ClusterState.builder(ClusterName.DEFAULT).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build(),
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            randomNonNegativeLong()
+        );
+        routingAllocationWithoutShutdownMetadata.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        final var decisionWithoutShutdownMetadata = decider.canAllocate(
+            TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED),
+            null,
+            routingAllocationWithoutShutdownMetadata
+        );
+
+        assertEquals(Decision.Type.THROTTLE, decisionWithoutShutdownMetadata.type());
+        assertThat(
+            decisionWithoutShutdownMetadata.getExplanation(),
+            Matchers.matchesRegex("waiting for snapshot .* of shard .* to complete on node .*")
+        );
+    }
+
     private ClusterState makeClusterState(ShardId shardId, SnapshotsInProgress.ShardState shardState) {
         return ClusterState.builder(ClusterName.DEFAULT)
             .putCustom(SnapshotsInProgress.TYPE, makeSnapshotsInProgress(shardId, shardState))
@@ -216,8 +329,8 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
                 nodeId,
                 shardState,
-                randomAlphaOfLength(10),
-                ShardGeneration.newGeneration(random())
+                ShardGeneration.newGeneration(random()),
+                randomAlphaOfLength(10)
             );
         } else {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, ShardGeneration.newGeneration(random()));

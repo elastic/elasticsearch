@@ -40,10 +40,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIE
  */
 public class PutDataStreamLifecycleAction {
 
-    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(
-        "indices:admin/data_stream/lifecycle/put",
-        AcknowledgedResponse::readFrom
-    );
+    public static final ActionType<AcknowledgedResponse> INSTANCE = ActionType.localOnly("indices:admin/data_stream/lifecycle/put");
 
     private PutDataStreamLifecycleAction() {/* no instances */}
 

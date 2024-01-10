@@ -22,6 +22,9 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 
+/**
+ * InferenceProvider implementation that uses the inference action to retrieve inference results.
+ */
 public class InferenceActionInferenceProvider implements InferenceProvider {
 
     private final Client client;

@@ -14,8 +14,7 @@ public enum ConfigurationValidationType {
     GREATER_THAN,
     LIST_TYPE,
     INCLUDED_IN,
-    REGEX,
-    UNSET;
+    REGEX;
 
     @Override
     public String toString() {

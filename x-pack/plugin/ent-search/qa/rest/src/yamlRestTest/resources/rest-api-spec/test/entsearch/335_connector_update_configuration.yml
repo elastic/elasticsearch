@@ -72,8 +72,8 @@ setup:
               type: str
               ui_restrictions: [ ]
               validations:
-                - constraint: 0
-                  type: greater_than
+                - constraint: [123, 456, 789]
+                  type: included_in
               value: 456
 
   - match: { result: updated }

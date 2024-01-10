@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -79,6 +80,7 @@ public class RestIndicesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
+        final DataStreamOptions dataStreamOptions = DataStreamOptions.fromRequest(request, DataStreamOptions.INCLUDE_FAILURE_STORE);
         final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
@@ -116,6 +118,7 @@ public class RestIndicesAction extends AbstractCatAction {
                     .indices()
                     .prepareGetSettings(indices)
                     .setIndicesOptions(indicesOptions)
+                    .setDataStreamOptions(dataStreamOptions)
                     .setMasterNodeTimeout(masterNodeTimeout)
                     .setNames(IndexSettings.INDEX_SEARCH_THROTTLED.getKey())
                     .execute(listeners.acquire(indexSettingsRef::set));

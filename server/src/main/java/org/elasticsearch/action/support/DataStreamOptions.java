@@ -61,6 +61,8 @@ public record DataStreamOptions(FailureStore failureStore) implements ToXContent
 
     public static final DataStreamOptions EXCLUDE_FAILURE_STORE = new DataStreamOptions(FailureStore.EXCLUDE);
 
+    public static final DataStreamOptions INCLUDE_FAILURE_STORE = new DataStreamOptions(FailureStore.INCLUDE);
+
     public boolean includeNormalIndices() {
         return FailureStore.includeNormalIndices(failureStore);
     }

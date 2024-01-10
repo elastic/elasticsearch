@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -24,9 +25,11 @@ import java.util.Objects;
 public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true);
+    public static final DataStreamOptions DEFAULT_DATA_STREAM_OPTIONS = DataStreamOptions.EXCLUDE_FAILURE_STORE;
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+    private DataStreamOptions dataStreamOptions = DEFAULT_DATA_STREAM_OPTIONS;
     private String[] names = Strings.EMPTY_ARRAY;
     private boolean humanReadable = false;
     private boolean includeDefaults = false;
@@ -39,6 +42,11 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
 
     public GetSettingsRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
+        return this;
+    }
+
+    public GetSettingsRequest dataStreamOptions(DataStreamOptions dataStreamOptions) {
+        this.dataStreamOptions = dataStreamOptions;
         return this;
     }
 
@@ -80,6 +88,11 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public DataStreamOptions dataStreamOptions() {
+        return dataStreamOptions;
     }
 
     @Override
@@ -127,12 +140,13 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
             && includeDefaults == that.includeDefaults
             && Arrays.equals(indices, that.indices)
             && Objects.equals(indicesOptions, that.indicesOptions)
+            && Objects.equals(dataStreamOptions, that.dataStreamOptions)
             && Arrays.equals(names, that.names);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, humanReadable, includeDefaults);
+        int result = Objects.hash(indicesOptions, humanReadable, includeDefaults, dataStreamOptions);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(names);
         return result;

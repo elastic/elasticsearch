@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -39,6 +40,16 @@ public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBui
      */
     public GetSettingsRequestBuilder setIndicesOptions(IndicesOptions options) {
         request.indicesOptions(options);
+        return this;
+    }
+
+    /**
+     * Specifies what type of data stream related indices to include.
+     * <p>
+     * For example just backing indices, or to also include failure store.
+     */
+    public GetSettingsRequestBuilder setDataStreamOptions(DataStreamOptions options) {
+        request.dataStreamOptions(options);
         return this;
     }
 

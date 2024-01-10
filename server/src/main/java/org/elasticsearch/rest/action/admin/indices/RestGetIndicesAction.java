@@ -67,7 +67,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.indices(indices);
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         if (DataStream.isFailureStoreEnabled()) {
-            getIndexRequest.dataStreamOptions(DataStreamOptions.fromRequest(request, getIndexRequest.dataStreamOptions()));
+            getIndexRequest.dataStreamOptions(DataStreamOptions.fromRequest(request, DataStreamOptions.INCLUDE_FAILURE_STORE));
         }
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
         getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));

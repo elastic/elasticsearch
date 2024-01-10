@@ -190,22 +190,16 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         MapperBuilderContext mapperBuilderContext,
         String fieldName
     ) throws IOException {
-
         XContentParser parser = context.parser();
         NestedObjectMapper nestedObjectMapper = createNestedObjectMapper(context, mapperBuilderContext, fieldName);
-        context.path().add(fieldName); // TODO: Need path manipulation?
 
-        try {
-            if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
-                throw new DocumentParsingException(parser.getTokenLocation(), "Expected a START_ARRAY, got " + parser.currentToken());
-            }
+        if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
+            throw new DocumentParsingException(parser.getTokenLocation(), "Expected a START_ARRAY, got " + parser.currentToken());
+        }
 
-            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
-                DocumentParserContext nestedContext = context.createNestedContext(nestedObjectMapper);
-                parseObject(nestedContext, nestedObjectMapper, new LinkedList<>());
-            }
-        } finally {
-            context.path().remove();
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+            DocumentParserContext nestedContext = context.createNestedContext(nestedObjectMapper);
+            parseObject(nestedContext, nestedObjectMapper, new LinkedList<>());
         }
     }
 

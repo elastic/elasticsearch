@@ -1332,6 +1332,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected final void testBlockLoader(boolean columnReader, SyntheticSourceExample example, BlockReaderSupport blockReaderSupport)
         throws IOException {
+        BlockLoader loader = blockReaderSupport.getBlockLoader(columnReader);
         Function<Object, Object> valuesConvert = loadBlockExpected(blockReaderSupport, columnReader);
         if (valuesConvert == null) {
             assertNull(loader);
@@ -1408,7 +1409,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * How {@link MappedFieldType#blockLoader} should load values or {@code null}
      * if that method isn't supported by field being tested.
      */
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+    protected Function<Object, Object> loadBlockExpected() {
         return null;
     }
 
@@ -1419,7 +1420,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * when loading from doc values vs source.
      */
     protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        return loadBlockExpected(blockReaderSupport.mapper, blockReaderSupport.loaderFieldName);
+        return loadBlockExpected();
     }
 
     public final void testEmptyDocumentNoDocValueLoader() throws IOException {

@@ -1195,8 +1195,8 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String fieldName) {
-        if (nullLoaderExpected(mapper, fieldName)) {
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        if (nullLoaderExpected(blockReaderSupport.mapper(), blockReaderSupport.loaderFieldName())) {
             return null;
         }
         return v -> ((BytesRef) v).utf8ToString();

@@ -722,12 +722,12 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+    protected Function<Object, Object> loadBlockExpected() {
         throw new IllegalStateException("Should never reach here, call loadBlockExpected(boolean) instead");
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName, boolean columnReader) {
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
         if (columnReader) {
             // When using column reader, we expect the output to be doc-values (which means encoded longs)
             return v -> asJacksonNumberOutput(((Number) v).longValue());

@@ -217,7 +217,7 @@ public class CsvTestsDataLoader {
                 line = line.trim();
                 // ignore comments
                 if (line.isEmpty() == false && line.startsWith("//") == false) {
-                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
+                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber, dataset.delimiter);
                     // the schema row
                     if (columns == null) {
                         columns = new String[entries.length];
@@ -280,7 +280,7 @@ public class CsvTestsDataLoader {
                                     }
                                     if (entries[i].contains(",")) {// multi-value
                                         StringBuilder rowStringValue = new StringBuilder("[");
-                                        for (String s : delimitedListToStringArray(entries[i], dataset.delimiter)) {
+                                        for (String s : delimitedListToStringArray(entries[i], ",")) {
                                             rowStringValue.append("\"" + s + "\",");
                                         }
                                         // remove the last comma and put a closing bracket instead

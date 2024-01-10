@@ -150,7 +150,7 @@ public final class CsvTestUtils {
                 line = line.trim();
                 // ignore comments
                 if (shouldSkipLine(line) == false) {
-                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
+                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber, ",");
                     // the schema row
                     if (columns == null) {
                         columns = new CsvColumn[entries.length];
@@ -230,16 +230,16 @@ public final class CsvTestUtils {
      * in another string and it creates a single concatenated comma-separated String of all the values between the opening bracket entry
      * and the closing bracket entry. In other words, entries enclosed by "[]" are returned as a single element.
      */
-    static String[] multiValuesAwareCsvToStringArray(String csvLine, int lineNumber) {
+    static String[] multiValuesAwareCsvToStringArray(String csvLine, int lineNumber, String delimiter) {
         var mvCompressedEntries = new ArrayList<String>();
         String previousMvValue = null; // just helping out with error messaging
         StringBuilder mvValue = null;
 
         int pos = 0;          // current position in the csv String
-        int commaPos;         // current "," character position
-        while ((commaPos = csvLine.indexOf(",", pos)) != -1 || pos <= csvLine.length()) {
-            boolean isLastElement = commaPos == -1;
-            String entry = csvLine.substring(pos, isLastElement ? csvLine.length() : commaPos).trim();
+        int delimmiterPos;         // current "," character position
+        while ((delimmiterPos = csvLine.indexOf(delimiter, pos)) != -1 || pos <= csvLine.length()) {
+            boolean isLastElement = delimmiterPos == -1;
+            String entry = csvLine.substring(pos, isLastElement ? csvLine.length() : delimmiterPos).trim();
             if (entry.startsWith("[")) {
                 if (previousMvValue != null || (isLastElement && entry.endsWith("]") == false)) {
                     String message = "Error line [{}:{}]: Unexpected start of a multi-value field value; current token [{}], "
@@ -289,7 +289,7 @@ public final class CsvTestUtils {
                     mvCompressedEntries.add(entry);// regular comma separated value
                 }
             }
-            pos = 1 + (isLastElement ? csvLine.length() : commaPos);// break out of the loop if it reached its last element
+            pos = 1 + (isLastElement ? csvLine.length() : delimmiterPos);// break out of the loop if it reached its last element
         }
         return mvCompressedEntries.toArray(String[]::new);
     }

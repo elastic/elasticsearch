@@ -21,11 +21,8 @@ import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -151,33 +148,23 @@ public class Verifier {
     private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Aggregate agg) {
             agg.aggregates().forEach(e -> {
-                var exp = e instanceof Alias ? ((Alias) e).child() : e;
-                if (exp instanceof AggregateFunction aggFunc) {
-                    Expression field = aggFunc.field();
-
-                    // TODO: allow an expression?
-                    if ((field instanceof FieldAttribute
-                        || field instanceof MetadataAttribute
-                        || field instanceof ReferenceAttribute
-                        || field instanceof Literal) == false) {
+                var exp = e instanceof Alias a ? a.child() : e;
+                if (exp instanceof AggregateFunction == false) {
+                    if (Expressions.match(agg.groupings(), g -> {
+                        Expression to = g instanceof Alias al ? al.child() : g;
+                        return to.semanticEquals(exp);
+                    }) == false) {
                         failures.add(
                             fail(
-                                e,
-                                "aggregate function's field must be an attribute or literal; found ["
-                                    + field.sourceText()
+                                exp,
+                                "expected an aggregate function or group but got ["
+                                    + exp.sourceText()
                                     + "] of type ["
-                                    + field.nodeName()
+                                    + exp.nodeName()
                                     + "]"
                             )
                         );
                     }
-                } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
-                    failures.add(
-                        fail(
-                            exp,
-                            "expected an aggregate function or group but got [" + exp.sourceText() + "] of type [" + exp.nodeName() + "]"
-                        )
-                    );
                 }
             });
         }

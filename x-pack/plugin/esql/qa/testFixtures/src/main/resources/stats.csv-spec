@@ -879,3 +879,36 @@ AVG(salary):double | avg_salary_rounded:double
 48248.55           | 48249.0
 // end::statsUnnamedColumnEval-result[]
 ;
+
+nestedExpressionNoGrouping
+FROM employees
+| STATS s = SUM(emp_no + 3), c = COUNT(emp_no)
+;
+
+s: long | c: long
+1005350 | 100
+;
+
+nestedExpressionInSurrogateAgg
+FROM employees
+| STATS a = AVG(emp_no % 5), s = SUM(emp_no % 5), c = COUNT(emp_no % 5)
+;
+
+a:double | s:long | c:long
+2.0      | 200    | 100
+;
+
+nestedExpressionInGroupingWithAlias
+FROM employees
+| STATS s = SUM(emp_no % 5), c = COUNT(emp_no % 5) BY l = languages + 20
+| SORT l
+;
+
+s:long | c:long | l : i
+39     | 15     | 21  
+36     | 19     | 22  
+30     | 17     | 23  
+32     | 18     | 24  
+43     | 21     | 25  
+20     | 10     | null
+;

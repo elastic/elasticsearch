@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -2758,6 +2759,89 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(agg.aggregates()), contains("c", "w", "g"));
         var eval = as(agg.child(), Eval.class);
         var from = as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no%2{r}#6],[COUNT(salary{f}#12) AS c, emp_no%2{r}#6]]
+     *   \_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no%2]]
+     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testNestedExpressionsInGroups() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary) by emp_no % 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        var aggs = agg.aggregates();
+        var ref = as(groupings.get(0), ReferenceAttribute.class);
+        assertThat(aggs.get(1), is(ref));
+        var eval = as(agg.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).toAttribute(), is(ref));
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no{f}#6],[COUNT(__c_COUNT@1bd45f36{r}#16) AS c, emp_no{f}#6]]
+     *   \_Eval[[salary{f}#11 + 1[INTEGER] AS __c_COUNT@1bd45f36]]
+     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testNestedExpressionsInAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary + 1) by emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        var count = aliased(aggs.get(0), Count.class);
+        var ref = as(count.field(), ReferenceAttribute.class);
+        var eval = as(agg.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).toAttribute(), is(ref));
+        var add = aliased(fields.get(0), Add.class);
+        assertThat(Expressions.name(add.left()), is("salary"));
+    }
+
+    /**
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no%2{r}#7],[COUNT(__c_COUNT@fb7855b0{r}#18) AS c, emp_no%2{r}#7]]
+     *   \_Eval[[emp_no{f}#8 % 2[INTEGER] AS emp_no%2, 100[INTEGER] / languages{f}#11 + salary{f}#13 + 1[INTEGER] AS __c_COUNT
+     * @fb7855b0]]
+     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testNestedExpressionsInBothAggsAndGroups() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary + 1 + 100 / languages) by emp_no % 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        var aggs = agg.aggregates();
+        var gRef = as(groupings.get(0), ReferenceAttribute.class);
+        assertThat(aggs.get(1), is(gRef));
+
+        var count = aliased(aggs.get(0), Count.class);
+        var aggRef = as(count.field(), ReferenceAttribute.class);
+        var eval = as(agg.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(fields, hasSize(2));
+        assertThat(fields.get(0).toAttribute(), is(gRef));
+        assertThat(fields.get(1).toAttribute(), is(aggRef));
+
+        var mod = aliased(fields.get(0), Mod.class);
+        assertThat(Expressions.name(mod.left()), is("emp_no"));
+        assertThat(Expressions.names(Expressions.references(singletonList(fields.get(1)))), contains("salary", "languages"));
     }
 
     private LogicalPlan optimizedPlan(String query) {

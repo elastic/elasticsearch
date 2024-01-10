@@ -66,6 +66,10 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     protected Map<String, Object> downloadElserBlocking() throws IOException {
         String endpoint = "_ml/trained_models/.elser_model_2?wait_for_completion=true";
+        if (System.getProperty("os.arch").contains("amd64")) {
+            System.out.println("os.arch:" + System.getProperty("os.arch"));
+            endpoint = "_ml/trained_models/.elser_model_2_linux-x86_64?wait_for_completion=true";
+        }
         String body = """
             {
                 "input": {

@@ -37,10 +37,12 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
     @FunctionInfo(returnType = "date", description = "Rounds down a date to the closest interval.")
     public DateTrunc(
         Source source,
+        // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
+        // used in the CSVTests and fixing it is not trivial
         @Param(
             name = "interval",
             type = { "keyword" },
-            description = "Interval, expressed using the timespan literal syntax."
+            description = "Interval; expressed using the timespan literal syntax."
         ) Expression interval,
         @Param(name = "date", type = { "date" }, description = "Date expression") Expression field
     ) {

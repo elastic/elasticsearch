@@ -21,7 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Controls how to deal with the backing indices of data streams. Currently, it handles normal backing indices and the failure
+ * Controls which indices associated with a data stream to include. Currently, it handles backing indices and the failure
  * store indices.
  */
 public record DataStreamOptions(FailureStore failureStore) implements ToXContentFragment, Writeable {
@@ -93,7 +93,7 @@ public record DataStreamOptions(FailureStore failureStore) implements ToXContent
      * Returns true if the name represents a valid name for one of the indices option
      * false otherwise
      */
-    public static boolean isDataStreamOptions(String name) {
+    public static boolean isDataStreamOption(String name) {
         return "failure_store".equals(name);
     }
 

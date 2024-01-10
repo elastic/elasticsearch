@@ -31,8 +31,9 @@ public interface IndicesRequest {
     IndicesOptions indicesOptions();
 
     /**
-     * Returns the data stream options used to resolve indices. They tell for instance whether we need to only expand
-     * to the normal backing indices or also to the failure store.
+     * Returns the data stream options used to resolve indices. They tell for instance whether we need to include only
+     * the backing indices and/or only the failure store indices as well.
+     * By default, the failure store indices are excluded.
      */
     default DataStreamOptions dataStreamOptions() {
         return DataStreamOptions.EXCLUDE_FAILURE_STORE;

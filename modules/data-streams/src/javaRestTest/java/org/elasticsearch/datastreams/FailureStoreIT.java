@@ -10,11 +10,11 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import org.hamcrest.MatcherAssert;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

@@ -37,7 +37,6 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     private final SearchUsageHolder searchUsageHolder;
     private final SearchRestMetrics searchRestMetrics;
 
-
     public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, SearchRestMetrics searchRestMetrics) {
         this.searchUsageHolder = searchUsageHolder;
         this.searchRestMetrics = searchRestMetrics;
@@ -83,12 +82,16 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         }
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, new RestRefCountedChunkedToXContentInstrumentedListener<>(channel, searchRestMetrics) {
-                @Override
-                protected RestStatus getRestStatus(AsyncSearchResponse asyncSearchResponse) {
-                    return asyncSearchResponse.status();
+            cancelClient.execute(
+                SubmitAsyncSearchAction.INSTANCE,
+                submit,
+                new RestRefCountedChunkedToXContentInstrumentedListener<>(channel, searchRestMetrics) {
+                    @Override
+                    protected RestStatus getRestStatus(AsyncSearchResponse asyncSearchResponse) {
+                        return asyncSearchResponse.status();
+                    }
                 }
-            });
+            );
         };
     }
 

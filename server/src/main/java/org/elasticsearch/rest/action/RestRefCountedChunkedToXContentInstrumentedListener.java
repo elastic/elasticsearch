@@ -17,8 +17,8 @@ import org.elasticsearch.rest.action.search.SearchRestMetrics;
 /**
  * Same as {@link RestRefCountedChunkedToXContentListener} but recordings metrics of timing data of classes that implement ReportsTookTime.
  */
-public class RestRefCountedChunkedToXContentInstrumentedListener<Response extends ChunkedToXContent & RefCounted & ReportsTookTime>
-    extends RestRefCountedChunkedToXContentListener<Response> {
+public class RestRefCountedChunkedToXContentInstrumentedListener<Response extends ChunkedToXContent & RefCounted & ReportsTookTime> extends
+    RestRefCountedChunkedToXContentListener<Response> {
     SearchRestMetrics searchRestMetrics;
 
     public RestRefCountedChunkedToXContentInstrumentedListener(RestChannel channel, SearchRestMetrics searchRestMetrics) {
@@ -34,4 +34,3 @@ public class RestRefCountedChunkedToXContentInstrumentedListener<Response extend
         super.onResponse(response);
     }
 }
-

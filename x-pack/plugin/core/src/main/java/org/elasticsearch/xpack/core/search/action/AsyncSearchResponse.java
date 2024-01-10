@@ -31,7 +31,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * A response of an async search request.
  */
-public class AsyncSearchResponse extends ActionResponse implements ChunkedToXContentObject, AsyncResponse<AsyncSearchResponse>, ReportsTookTime {
+public class AsyncSearchResponse extends ActionResponse
+    implements
+        ChunkedToXContentObject,
+        AsyncResponse<AsyncSearchResponse>,
+        ReportsTookTime {
     private static final String MetricIdentifier = "AsyncSearchResponse";
 
     @Nullable

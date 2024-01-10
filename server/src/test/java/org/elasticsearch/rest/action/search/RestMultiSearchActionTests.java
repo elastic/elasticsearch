@@ -33,7 +33,11 @@ public final class RestMultiSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestMultiSearchAction(Settings.EMPTY, new UsageService().getSearchUsageHolder(), new SearchRestMetrics(TelemetryProvider.NOOP.getMeterRegistry()));
+        action = new RestMultiSearchAction(
+            Settings.EMPTY,
+            new UsageService().getSearchUsageHolder(),
+            new SearchRestMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+        );
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));

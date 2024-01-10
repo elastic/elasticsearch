@@ -798,7 +798,8 @@ class NodeConstruction {
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
         final SearchRestMetrics searchRestMetrics = new SearchRestMetrics(telemetryProvider.getMeterRegistry());
-        ActionModule actionModule = new ActionModule( // here
+        ActionModule actionModule = new ActionModule(
+            // here
             settings,
             clusterModule.getIndexNameExpressionResolver(),
             settingsModule.getIndexScopedSettings(),

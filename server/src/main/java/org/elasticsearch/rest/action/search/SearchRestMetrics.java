@@ -7,7 +7,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -37,7 +36,11 @@ public class SearchRestMetrics {
         );
     }
 
-    SearchRestMetrics(LongCounter searchRequestCount, LongCounter searchDurationTotalMillisCount, LongHistogram searchDurationsMillisHistogram) {
+    SearchRestMetrics(
+        LongCounter searchRequestCount,
+        LongCounter searchDurationTotalMillisCount,
+        LongHistogram searchDurationsMillisHistogram
+    ) {
         this.searchRequestCount = searchRequestCount;
         this.searchDurationTotalMillisCount = searchDurationTotalMillisCount;
         this.searchDurationsMillisHistogram = searchDurationsMillisHistogram;

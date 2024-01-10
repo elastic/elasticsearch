@@ -40,7 +40,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * A multi search response.
  */
-public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ChunkedToXContentObject, ReportsTookTime {
+public class MultiSearchResponse extends ActionResponse
+    implements
+        Iterable<MultiSearchResponse.Item>,
+        ChunkedToXContentObject,
+        ReportsTookTime {
     private static final String MetricIdentifier = "MultiSearchResponse";
 
     private static final ParseField RESPONSES = new ParseField(Fields.RESPONSES);

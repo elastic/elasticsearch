@@ -33,7 +33,6 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
     private final SearchRestMetrics searchRestMetrics;
 
-
     public RestSearchScrollAction(SearchRestMetrics searchRestMetrics) {
         this.searchRestMetrics = searchRestMetrics;
     }
@@ -73,7 +72,10 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 }
             }
         });
-        return channel -> client.searchScroll(searchScrollRequest, new RestRefCountedChunkedToXContentInstrumentedListener<>(channel, searchRestMetrics));
+        return channel -> client.searchScroll(
+            searchScrollRequest,
+            new RestRefCountedChunkedToXContentInstrumentedListener<>(channel, searchRestMetrics)
+        );
     }
 
     @Override

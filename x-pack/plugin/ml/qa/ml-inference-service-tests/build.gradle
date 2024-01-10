@@ -4,6 +4,10 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('ml'))))
   javaRestTestImplementation project(path: xpackModule('inference'))
+  javaRestTestImplementation(testArtifact(project(':x-pack:plugin:ml:qa:native-multi-node-tests'), "javaRestTest"))
+  javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
+
+
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }
 

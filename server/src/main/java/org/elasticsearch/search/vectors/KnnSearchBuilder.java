@@ -18,7 +18,6 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -120,6 +119,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     final List<QueryBuilder> filterQueries;
     float boost = AbstractQueryBuilder.DEFAULT_BOOST;
     InnerHitBuilder innerHitBuilder;
+
+    Integer requestSize = DEFAULT_SIZE;
 
     /**
      * Defines a kNN search.
@@ -246,7 +247,13 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     public Integer k() {
-        return k;
+        return k == null ? requestSize : k;
+    }
+
+    public void requestSize(int requestSize) {
+        if (requestSize > 0) {
+            this.requestSize = requestSize;
+        }
     }
 
     public QueryVectorBuilder getQueryVectorBuilder() {
@@ -334,17 +341,12 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return this;
     }
 
-    public KnnVectorQueryBuilder toQueryBuilder(SearchExecutionContext context) {
+    public KnnVectorQueryBuilder toQueryBuilder() {
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        Integer requestSize = context.requestSize();
-        int size = requestSize == null || requestSize < 0 ? DEFAULT_SIZE : requestSize;
-        int adjustedK = k == null ? size : k;
-        int adjustedNumCands = numCands == null
-            ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK, NUM_CANDS_LIMIT))
-            : numCands;
-        if (adjustedNumCands < adjustedK) {
+        int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k(), NUM_CANDS_LIMIT)) : numCands;
+        if (adjustedNumCands < k()) {
             throw new IllegalArgumentException(
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
             );

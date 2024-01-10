@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -195,6 +196,7 @@ public class KnnSearchRequestParser {
 
     // visible for testing
     static class KnnSearch {
+        private static final float MULTIPLICATIVE_FACTOR = 1.5f;
         private static final int NUM_CANDS_LIMIT = 10000;
         static final ParseField FIELD_FIELD = new ParseField("field");
         static final ParseField K_FIELD = new ParseField("k");
@@ -238,8 +240,8 @@ public class KnnSearchRequestParser {
         KnnSearch(String field, float[] queryVector, Integer k, Integer numCands) {
             this.field = field;
             this.queryVector = queryVector;
-            this.k = k;
-            this.numCands = numCands;
+            this.k = k == null ? DEFAULT_SIZE : k;
+            this.numCands = numCands == null ? Math.round(Math.min(MULTIPLICATIVE_FACTOR * this.k, NUM_CANDS_LIMIT)) : numCands;
         }
 
         public KnnVectorQueryBuilder toQueryBuilder() {

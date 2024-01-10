@@ -1277,6 +1277,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         );
                     } else {
                         size(parsedSize);
+                        adjustKnnSizeParam();
                     }
                 } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
@@ -1338,6 +1339,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     searchUsage.trackSectionUsage(POST_FILTER_FIELD.getPreferredName());
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
+                    adjustKnnSizeParam();
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (RANK_SUPPORTED == false) {
@@ -1581,6 +1583,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         searchUsageConsumer.accept(searchUsage);
         return this;
+    }
+
+    private void adjustKnnSizeParam() {
+        if (size > 0) knnSearch.forEach(knn -> knn.requestSize(size));
     }
 
     private static void throwUnknownKey(XContentParser parser, XContentParser.Token token, String currentFieldName)

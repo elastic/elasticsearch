@@ -163,9 +163,7 @@ public final class SearchPhaseController {
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
-            Integer topK = source.knnSearch().get(i).k();
-            int size = source.size() == -1 ? DEFAULT_SIZE : source.size();
-            TopDocs mergedTopDocs = TopDocs.merge(topK == null ? size : topK, topDocsLists.get(i).toArray(new TopDocs[0]));
+            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
             mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }
         return mergedResults;

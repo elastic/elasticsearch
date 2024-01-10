@@ -10,7 +10,6 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
@@ -653,10 +652,13 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
-    private static boolean matchWithRange(String nodeVersionString, List<VersionRange> acceptedVersionRanges, XContentLocation location) {
+    private static boolean matchWithRange(
+        String nodeVersionString,
+        List<Predicate<Set<String>>> acceptedVersionRanges,
+        XContentLocation location
+    ) {
         try {
-            Version version = Version.fromString(nodeVersionString);
-            return acceptedVersionRanges.stream().anyMatch(v -> v.contains(version));
+            return acceptedVersionRanges.stream().anyMatch(v -> v.test(Set.of(nodeVersionString)));
         } catch (IllegalArgumentException e) {
             throw new XContentParseException(
                 location,
@@ -671,16 +673,9 @@ public class DoSection implements ExecutableSection {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
 
-        final Predicate<String> nodeMatcher;
-        final String versionSelectorString;
-        if (parser.text().equals("current")) {
-            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
-            versionSelectorString = "version is " + Build.current().version() + " (current)";
-        } else {
-            var acceptedVersionRange = SkipSection.parseVersionRanges(parser.text());
-            nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
-            versionSelectorString = "version ranges " + acceptedVersionRange;
-        }
+        var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
+        final Predicate<String> nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
+        final String versionSelectorString = "version ranges " + acceptedVersionRange;
 
         return new NodeSelector() {
             @Override

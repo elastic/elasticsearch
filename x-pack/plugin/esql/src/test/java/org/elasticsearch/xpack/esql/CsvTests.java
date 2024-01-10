@@ -412,7 +412,7 @@ public class CsvTests extends ESTestCase {
             }));
             return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
-            Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
+            Releasables.close(() -> Releasables.close(drivers));
         }
     }
 

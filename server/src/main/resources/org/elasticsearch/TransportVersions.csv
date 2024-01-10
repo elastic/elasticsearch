@@ -36,6 +36,8 @@
 8.7.1,8070199
 8.8.0,8080099
 8.8.1,8080199
+# First release using separated version numbers
 8.9.0,8500020
 8.10.0,8500061
+# version format changed
 8.11.0,8512001

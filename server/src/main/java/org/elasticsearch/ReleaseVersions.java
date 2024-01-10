@@ -62,20 +62,24 @@ public class ReleaseVersions {
 
                 var matcher = VERSION_LINE.matcher(line);
                 if (matcher.matches() == false) {
-                    Log.warn("Incorrect format for line [{}] in [{}]", line, versionsFile);
-                    continue;
+                    Log.error("Incorrect format for line [{}] in [{}]", line, versionsFile);
+                    // something is wrong with the file - don't assume anything, just return nothing
+                    return Collections.emptyNavigableMap();
                 }
                 try {
                     Integer id = Integer.valueOf(matcher.group(2));
                     String version = matcher.group(1);
                     String existing = versions.putIfAbsent(id, version);
                     if (existing != null) {
-                        Log.warn("Duplicate id [{}] for versions [{}, {}] in [{}]", id, existing, version, versionsFile);
+                        Log.error("Duplicate id [{}] for versions [{}, {}] in [{}]", id, existing, version, versionsFile);
+                        // something is wrong with the file - we can't trust it
+                        return Collections.emptyNavigableMap();
                     }
                 } catch (NumberFormatException e) {
                     // cannot happen??? regex is wrong...
                     assert false : "Regex allowed non-integer id through: " + e;
-                    Log.warn("Incorrect format for line [{}] in [{}]", line, versionsFile, e);
+                    Log.error("Incorrect format for line [{}] in [{}]", line, versionsFile, e);
+                    return Collections.emptyNavigableMap();
                 }
             }
 
@@ -102,7 +106,7 @@ public class ReleaseVersions {
         // go for a range
         if (versions.isEmpty()) {
             // uh oh, something went wrong reading the file
-            return "<" + id + ">";
+            return "[" + id + "]";
         }
 
         StringBuilder range = new StringBuilder();

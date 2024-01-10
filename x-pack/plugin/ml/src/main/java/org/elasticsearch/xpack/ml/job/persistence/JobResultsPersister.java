@@ -351,7 +351,7 @@ public class JobResultsPersister {
         // - if the document did exist, update it in the index where it resides (not necessarily the current write index)
         ActionListener<SearchResponse> searchFormerQuantilesDocListener = ActionListener.wrap(searchResponse -> {
             String indexOrAlias = searchResponse.getHits().getHits().length > 0
-                ? searchResponse.getHits().getAt(0).getIndex()
+                ? searchResponse.getHits().getHits()[0].getIndex()
                 : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
 
             Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);

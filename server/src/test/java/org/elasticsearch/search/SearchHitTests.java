@@ -163,18 +163,14 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         try {
             boolean humanReadable = randomBoolean();
             BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-            final SearchHit parsed;
+            SearchHit parsed;
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
                 parsed = SearchHit.fromXContent(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
-            try {
-                assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
-            } finally {
-                parsed.decRef();
-            }
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
         } finally {
             searchHit.decRef();
         }
@@ -209,11 +205,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
-            try {
-                assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, true), xContentType);
-            } finally {
-                parsed.decRef();
-            }
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, true), xContentType);
         } finally {
             searchHit.decRef();
         }
@@ -231,13 +223,9 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
-        try {
-            assertEquals("my_index", parsed.getIndex());
-            assertEquals(1, parsed.getScore(), Float.MIN_VALUE);
-            assertNull(parsed.getId());
-        } finally {
-            parsed.decRef();
-        }
+        assertEquals("my_index", parsed.getIndex());
+        assertEquals(1, parsed.getScore(), Float.MIN_VALUE);
+        assertNull(parsed.getId());
     }
 
     public void testToXContent() throws IOException {
@@ -354,16 +342,12 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                   }
                 }""");
             SearchHit searchHit = SearchHit.fromXContent(parser);
-            try {
-                Map<String, DocumentField> fields = searchHit.getFields();
-                assertEquals(1, fields.size());
-                DocumentField result = fields.get("result");
-                assertNotNull(result);
-                assertEquals(1, result.getValues().size());
-                assertNull(result.getValues().get(0));
-            } finally {
-                searchHit.decRef();
-            }
+            Map<String, DocumentField> fields = searchHit.getFields();
+            assertEquals(1, fields.size());
+            DocumentField result = fields.get("result");
+            assertNotNull(result);
+            assertEquals(1, result.getValues().size());
+            assertNull(result.getValues().get(0));
         }
         {
             XContentParser parser = createParser(XContentType.JSON.xContent(), """
@@ -377,19 +361,15 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                 }""");
 
             SearchHit searchHit = SearchHit.fromXContent(parser);
-            try {
-                Map<String, DocumentField> fields = searchHit.getFields();
-                assertEquals(1, fields.size());
-                DocumentField result = fields.get("result");
-                assertNotNull(result);
-                assertEquals(1, result.getValues().size());
-                Object value = result.getValues().get(0);
-                assertThat(value, instanceOf(Map.class));
-                Map<?, ?> map = (Map<?, ?>) value;
-                assertEquals(0, map.size());
-            } finally {
-                searchHit.decRef();
-            }
+            Map<String, DocumentField> fields = searchHit.getFields();
+            assertEquals(1, fields.size());
+            DocumentField result = fields.get("result");
+            assertNotNull(result);
+            assertEquals(1, result.getValues().size());
+            Object value = result.getValues().get(0);
+            assertThat(value, instanceOf(Map.class));
+            Map<?, ?> map = (Map<?, ?>) value;
+            assertEquals(0, map.size());
         }
         {
             XContentParser parser = createParser(JsonXContent.jsonXContent, """
@@ -405,19 +385,15 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                 }""");
 
             SearchHit searchHit = SearchHit.fromXContent(parser);
-            try {
-                Map<String, DocumentField> fields = searchHit.getFields();
-                assertEquals(1, fields.size());
-                DocumentField result = fields.get("result");
-                assertNotNull(result);
-                assertEquals(1, result.getValues().size());
-                Object value = result.getValues().get(0);
-                assertThat(value, instanceOf(List.class));
-                List<?> list = (List<?>) value;
-                assertEquals(0, list.size());
-            } finally {
-                searchHit.decRef();
-            }
+            Map<String, DocumentField> fields = searchHit.getFields();
+            assertEquals(1, fields.size());
+            DocumentField result = fields.get("result");
+            assertNotNull(result);
+            assertEquals(1, result.getValues().size());
+            Object value = result.getValues().get(0);
+            assertThat(value, instanceOf(List.class));
+            List<?> list = (List<?>) value;
+            assertEquals(0, list.size());
         }
     }
 
@@ -459,16 +435,12 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
-            try {
-                assertThat(parsed.getFields().size(), equalTo(1));
-                assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
-            } finally {
-                parsed.decRef();
-            }
-
-            Map<String, DocumentField> metadata = new HashMap<>();
-            metadata.put("_routing", new DocumentField("_routing", Collections.emptyList()));
+            assertThat(parsed.getFields().size(), equalTo(1));
+            assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
         }
+
+        Map<String, DocumentField> metadata = new HashMap<>();
+        metadata.put("_routing", new DocumentField("_routing", Collections.emptyList()));
         hit = SearchHit.unpooled(0, "_id");
         hit.addDocumentFields(fields, Collections.emptyMap());
         {
@@ -480,13 +452,9 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
-            try {
-                assertThat(parsed.getFields().size(), equalTo(1));
-                assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
-                assertNull(parsed.getFields().get("_routing"));
-            } finally {
-                parsed.decRef();
-            }
+            assertThat(parsed.getFields().size(), equalTo(1));
+            assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
+            assertNull(parsed.getFields().get("_routing"));
         }
     }
 

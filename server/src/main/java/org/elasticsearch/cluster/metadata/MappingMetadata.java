@@ -18,13 +18,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
@@ -44,15 +42,10 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
 
     private final boolean routingRequired;
 
-    private final Map<String, Set<String>> fieldsForModels;
-
     public MappingMetadata(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routingRequired = docMapper.routingFieldMapper().required();
-
-        MappingLookup mappingLookup = docMapper.mappers();
-        this.fieldsForModels = mappingLookup != null ? mappingLookup.getFieldsForModels() : Map.of();
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })
@@ -64,7 +57,6 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         }
         this.type = mappingMap.keySet().iterator().next();
         this.routingRequired = routingRequired((Map<String, Object>) mappingMap.get(this.type));
-        this.fieldsForModels = Map.of();
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })
@@ -80,7 +72,6 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
-        this.fieldsForModels = Map.of();
     }
 
     public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {
@@ -167,19 +158,12 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         return source.getSha256();
     }
 
-    public Map<String, Set<String>> getFieldsForModels() {
-        return fieldsForModels;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type());
         source().writeTo(out);
         // routing
         out.writeBoolean(routingRequired);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
-            out.writeMap(fieldsForModels, StreamOutput::writeStringCollection);
-        }
     }
 
     @Override
@@ -192,25 +176,19 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         if (Objects.equals(this.routingRequired, that.routingRequired) == false) return false;
         if (source.equals(that.source) == false) return false;
         if (type.equals(that.type) == false) return false;
-        if (Objects.equals(this.fieldsForModels, that.fieldsForModels) == false) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, source, routingRequired, fieldsForModels);
+        return Objects.hash(type, source, routingRequired);
     }
 
     public MappingMetadata(StreamInput in) throws IOException {
         type = in.readString();
         source = CompressedXContent.readCompressedString(in);
         routingRequired = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
-            fieldsForModels = in.readMap(StreamInput::readString, i -> i.readCollectionAsImmutableSet(StreamInput::readString));
-        } else {
-            fieldsForModels = Map.of();
-        }
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {

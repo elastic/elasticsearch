@@ -25,15 +25,10 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -65,9 +60,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -76,7 +68,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -85,8 +76,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -114,10 +105,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
-
-    public static final String ROOT_RESULT_FIELD = "_ml_inference";
-    public static final String INFERENCE_FIELD = "result";
-    public static final String TEXT_FIELD = "text";
 
     @Inject
     public TransportBulkAction(
@@ -357,7 +344,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // Step 1: collect all the indices in the request
         final Map<String, Boolean> indices = bulkRequest.requests.stream()
             // delete requests should not attempt to create the index (if the index does not
-            // exist), unless an external versioning is used
+            // exists), unless an external versioning is used
             .filter(
                 request -> request.opType() != DocWriteRequest.OpType.DELETE
                     || request.versionType() == VersionType.EXTERNAL
@@ -378,28 +365,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        // Step 3: Collect all the data streams that need to be rolled over before writing
-        Set<String> dataStreamsToBeRolledOver = indices.keySet().stream().filter(target -> {
-            DataStream dataStream = state.metadata().dataStreams().get(target);
-            return dataStream != null && dataStream.rolloverOnWrite();
-        }).collect(Collectors.toSet());
-
-        // Step 4: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
+        // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
         createMissingIndicesAndIndexData(
             task,
             bulkRequest,
             executorName,
             listener,
             autoCreateIndices,
-            dataStreamsToBeRolledOver,
             indicesThatCannotBeCreated,
             startTime
         );
     }
 
     /*
-     * This method is responsible for creating any missing indices, rolling over a data stream when needed and then
-     *  indexing the data in the BulkRequest
+     * This method is responsible for creating any missing indices and indexing the data in the BulkRequest
      */
     protected void createMissingIndicesAndIndexData(
         Task task,
@@ -407,27 +386,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         String executorName,
         ActionListener<BulkResponse> listener,
         Set<String> autoCreateIndices,
-        Set<String> dataStreamsToBeRolledOver,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
-        // Optimizing when there are no prerequisite actions
-        if (autoCreateIndices.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
+        if (autoCreateIndices.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
-            return;
-        }
-        Runnable executeBulkRunnable = () -> threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
-            }
-        });
-        try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
+        } else {
+            final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
             for (String index : autoCreateIndices) {
-                createIndex(index, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+                createIndex(index, bulkRequest.timeout(), new ActionListener<>() {
                     @Override
-                    public void onResponse(CreateIndexResponse createIndexResponse) {}
+                    public void onResponse(CreateIndexResponse result) {
+                        if (counter.decrementAndGet() == 0) {
+                            forkExecuteBulk(listener);
+                        }
+                    }
 
                     @Override
                     public void onFailure(Exception e) {
@@ -438,47 +412,30 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                         } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
-                            failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
+                            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                    bulkRequest.requests.set(i, null);
+                                }
+                            }
+                        }
+                        if (counter.decrementAndGet() == 0) {
+                            forkExecuteBulk(ActionListener.wrap(listener::onResponse, inner -> {
+                                inner.addSuppressed(e);
+                                listener.onFailure(inner);
+                            }));
                         }
                     }
-                }, refs.acquire()));
-            }
-            for (String dataStream : dataStreamsToBeRolledOver) {
-                rolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
 
-                    @Override
-                    public void onResponse(RolloverResponse result) {
-                        // A successful response has rolled_over false when in the following cases:
-                        // - A request had the parameter lazy or dry_run enabled
-                        // - A request had conditions that were not met
-                        // Since none of the above apply, getting a response with rolled_over false is considered a bug
-                        // that should be caught here and inform the developer.
-                        assert result.isRolledOver()
-                            : "An successful unconditional rollover should always result in a rolled over data stream";
+                    private void forkExecuteBulk(ActionListener<BulkResponse> finalListener) {
+                        threadPool.executor(executorName).execute(new ActionRunnable<>(finalListener) {
+                            @Override
+                            protected void doRun() {
+                                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+                            }
+                        });
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        failRequestsWhenPrerequisiteActionFailed(dataStream, bulkRequest, responses, e);
-                    }
-                }, refs.acquire()));
-            }
-        }
-    }
-
-    /**
-     * Fails all requests involving this index or data stream because the prerequisite action failed too.
-     */
-    private static void failRequestsWhenPrerequisiteActionFailed(
-        String target,
-        BulkRequest bulkRequest,
-        AtomicArray<BulkItemResponse> responses,
-        Exception error
-    ) {
-        for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            DocWriteRequest<?> request = bulkRequest.requests.get(i);
-            if (request != null && setResponseFailureIfIndexMatches(responses, i, request, target, error)) {
-                bulkRequest.requests.set(i, null);
+                });
             }
         }
     }
@@ -581,12 +538,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
-    void rolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
-        RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
-        rolloverRequest.masterNodeTimeout(timeout);
-        client.execute(RolloverAction.INSTANCE, rolloverRequest, listener);
-    }
-
     private static boolean setResponseFailureIfIndexMatches(
         AtomicArray<BulkItemResponse> responses,
         int idx,
@@ -682,7 +633,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     if (ia.getParentDataStream() != null &&
                     // avoid valid cases when directly indexing into a backing index
                     // (for example when directly indexing into .ds-logs-foobar-000001)
-                        ia.getName().equals(docWriteRequest.index()) == false && docWriteRequest.opType() != OpType.CREATE) {
+                        ia.getName().equals(docWriteRequest.index()) == false
+                        && docWriteRequest.opType() != OpType.CREATE) {
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     }
 
@@ -722,219 +674,29 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return;
             }
 
+            final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
             String nodeId = clusterService.localNode().getId();
-            Runnable onBulkItemsComplete = () -> {
-                listener.onResponse(
-                    new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-                );
-                // Allow memory for bulk shard request items to be reclaimed before all items have been completed
-                bulkRequest = null;
-            };
-
-            try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onBulkItemsComplete)) {
-                for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
-                    final ShardId shardId = entry.getKey();
-                    final List<BulkItemRequest> requests = entry.getValue();
-
-                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                        shardId,
-                        bulkRequest.getRefreshPolicy(),
-                        requests.toArray(new BulkItemRequest[0])
-                    );
-                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                    bulkShardRequest.timeout(bulkRequest.timeout());
-                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                    if (task != null) {
-                        bulkShardRequest.setParentTask(nodeId, task.getId());
-                    }
-
-                    performInferenceAndExecute(bulkShardRequest, clusterState, bulkItemRequestCompleteRefCount.acquire());
-                }
-            }
-        }
-
-        private void performInferenceAndExecute(BulkShardRequest bulkShardRequest, ClusterState clusterState, Releasable releaseOnFinish) {
-
-            Map<String, Set<String>> fieldsForModels = clusterState.metadata()
-                .index(bulkShardRequest.shardId().getIndex())
-                .getFieldsForModels();
-            // No inference fields? Just execute the request
-            if (fieldsForModels.isEmpty()) {
-                executeBulkShardRequest(bulkShardRequest, releaseOnFinish);
-                return;
-            }
-
-            Runnable onInferenceComplete = () -> {
-                // We need to remove items that have had an inference error, as the response will have been updated already
-                // and we don't need to process them further
-                BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
-                    bulkShardRequest.shardId(),
+            for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+                final ShardId shardId = entry.getKey();
+                final List<BulkItemRequest> requests = entry.getValue();
+                BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                    shardId,
                     bulkRequest.getRefreshPolicy(),
-                    Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
+                    requests.toArray(new BulkItemRequest[0])
                 );
-                executeBulkShardRequest(errorsFilteredShardRequest, releaseOnFinish);
-            };
-
-            try (var bulkItemReqRef = new RefCountingRunnable(onInferenceComplete)) {
-                for (BulkItemRequest request : bulkShardRequest.items()) {
-                    performInferenceOnBulkItemRequest(bulkShardRequest, request, fieldsForModels, bulkItemReqRef.acquire());
+                bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+                bulkShardRequest.timeout(bulkRequest.timeout());
+                bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+                if (task != null) {
+                    bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
+
+                executeBulkShardRequest(bulkShardRequest, requests, counter);
             }
+            bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
         }
 
-        private void performInferenceOnBulkItemRequest(
-            BulkShardRequest bulkShardRequest,
-            BulkItemRequest request,
-            Map<String, Set<String>> fieldsForModels,
-            Releasable releaseOnFinish
-        ) {
-            DocWriteRequest<?> docWriteRequest = request.request();
-            Map<String, Object> sourceMap = null;
-            if (docWriteRequest instanceof IndexRequest indexRequest) {
-                sourceMap = indexRequest.sourceAsMap();
-            } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
-                sourceMap = updateRequest.docAsUpsert() ? updateRequest.upsertRequest().sourceAsMap() : updateRequest.doc().sourceAsMap();
-            }
-            if (sourceMap == null || sourceMap.isEmpty()) {
-                releaseOnFinish.close();
-                return;
-            }
-            final Map<String, Object> docMap = new ConcurrentHashMap<>(sourceMap);
-
-            // When a document completes processing, update the source with the inference
-            try (var docRef = new RefCountingRunnable(() -> {
-                if (docWriteRequest instanceof IndexRequest indexRequest) {
-                    indexRequest.source(docMap);
-                } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
-                    if (updateRequest.docAsUpsert()) {
-                        updateRequest.upsertRequest().source(docMap);
-                    } else {
-                        updateRequest.doc().source(docMap);
-                    }
-                }
-                releaseOnFinish.close();
-            })) {
-
-                for (Map.Entry<String, Set<String>> fieldModelsEntrySet : fieldsForModels.entrySet()) {
-                    String modelId = fieldModelsEntrySet.getKey();
-
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> rootInferenceFieldMap = (Map<String, Object>) docMap.computeIfAbsent(
-                        ROOT_RESULT_FIELD,
-                        k -> new HashMap<String, Object>()
-                    );
-
-                    List<String> inferenceFieldNames = getFieldNamesForInference(fieldModelsEntrySet, docMap);
-
-                    if (inferenceFieldNames.isEmpty()) {
-                        continue;
-                    }
-
-                    docRef.acquire();
-
-                    InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-                        TaskType.SPARSE_EMBEDDING, // TODO Change when task type doesn't need to be specified
-                        modelId,
-                        inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
-                        Map.of()
-                    );
-
-                    client.execute(InferenceAction.INSTANCE, inferenceRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(InferenceAction.Response response) {
-                            // Transform into two subfields, one with the actual text and other with the inference
-                            InferenceServiceResults results = response.getResults();
-                            if (results == null) {
-                                throw new IllegalArgumentException(
-                                    "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
-                                );
-                            }
-
-                            int i = 0;
-                            for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
-                                String fieldName = inferenceFieldNames.get(i++);
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(
-                                    fieldName,
-                                    k -> new HashMap<String, Object>()
-                                );
-
-                                inferenceFieldMap.put(INFERENCE_FIELD, inferenceResults.asMap("output").get("output"));
-                                inferenceFieldMap.put(TEXT_FIELD, docMap.get(fieldName));
-                            }
-
-                            docRef.close();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-
-                            final String indexName = request.index();
-                            DocWriteRequest<?> docWriteRequest = request.request();
-                            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
-                                indexName,
-                                docWriteRequest.id(),
-                                new IllegalArgumentException("Error performing inference: " + e.getMessage(), e)
-                            );
-                            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
-                            // make sure the request gets never processed again
-                            bulkShardRequest.items()[request.id()] = null;
-
-                            docRef.close();
-                        }
-                    });
-                }
-            }
-        }
-
-        private static List<String> getFieldNamesForInference(
-            Map.Entry<String, Set<String>> fieldModelsEntrySet,
-            Map<String, Object> docMap
-        ) {
-            List<String> inferenceFieldNames = new ArrayList<>();
-            for (String inferenceField : fieldModelsEntrySet.getValue()) {
-                Object fieldValue = docMap.get(inferenceField);
-
-                // Perform inference on string, non-null values
-                if (fieldValue instanceof String fieldStringValue) {
-
-                    // Only do inference if the previous text value doesn't match the new one
-                    String previousValue = findMapValue(docMap, ROOT_RESULT_FIELD, inferenceField, TEXT_FIELD);
-                    if (fieldStringValue.equals(previousValue) == false) {
-                        inferenceFieldNames.add(inferenceField);
-                    }
-                }
-            }
-            return inferenceFieldNames;
-        }
-
-        @SuppressWarnings("unchecked")
-        private static String findMapValue(Map<String, Object> map, String... path) {
-            Map<String, Object> currentMap = map;
-            for (int i = 0; i < path.length - 1; i++) {
-                Object value = currentMap.get(path[i]);
-
-                if (value instanceof Map) {
-                    currentMap = (Map<String, Object>) value;
-                } else {
-                    // Invalid path or non-Map value encountered
-                    return null;
-                }
-            }
-
-            // Retrieve the final value in the map, if it's a String
-            Object finalValue = currentMap.get(path[path.length - 1]);
-
-            return (finalValue instanceof String) ? (String) finalValue : null;
-        }
-
-        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
-            if (bulkShardRequest.items().length == 0) {
-                // No requests to execute due to previous errors, terminate early
-                releaseOnFinish.close();
-                return;
-            }
-
+        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, List<BulkItemRequest> requests, AtomicInteger counter) {
             client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
@@ -945,19 +707,30 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         }
                         responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
-                    releaseOnFinish.close();
+                    maybeFinishHim();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     // create failures for all relevant requests
-                    for (BulkItemRequest request : bulkShardRequest.items()) {
+                    for (BulkItemRequest request : requests) {
                         final String indexName = request.index();
                         DocWriteRequest<?> docWriteRequest = request.request();
                         BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                         responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
                     }
-                    releaseOnFinish.close();
+                    maybeFinishHim();
+                }
+
+                private void maybeFinishHim() {
+                    if (counter.decrementAndGet() == 0) {
+                        listener.onResponse(
+                            new BulkResponse(
+                                responses.toArray(new BulkItemResponse[responses.length()]),
+                                buildTookInMillis(startTimeNanos)
+                            )
+                        );
+                    }
                 }
             });
         }

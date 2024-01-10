@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.results;
 
-import org.elasticsearch.action.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -15,6 +14,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;

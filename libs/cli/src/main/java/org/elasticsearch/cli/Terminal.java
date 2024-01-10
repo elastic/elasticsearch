@@ -325,9 +325,18 @@ public abstract class Terminal {
                 // at the end of each character based read, so that switching to using getInputStream() returns binary data
                 // right after the last character based input (newline)
                 new InputStreamReader(System.in, Charset.defaultCharset()),
-                new JsonPrintWriter(System.out, true),
-                new JsonPrintWriter(System.err, true)
+                printWriter(System.out),
+                printWriter(System.err)
             );
+        }
+
+        private static PrintWriter printWriter(OutputStream out) {
+            // If running in a container, use Json print writer (to match the log4j2 layout typically used there)
+            return isElasticContainer() ? new JsonPrintWriter(out, true) : new PrintWriter(out, true);
+        }
+
+        private static boolean isElasticContainer() {
+            return "true".equals(System.getenv("ELASTIC_CONTAINER"));
         }
 
         @Override

@@ -105,11 +105,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     @Override
     protected void doClose() {
-        try {
-            super.doClose();
-        } finally {
-            pendingMerges.close();
-        }
+        pendingMerges.close();
     }
 
     @Override

@@ -50,16 +50,17 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testShortcutQueryAndFetchOptimization() {
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            1,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                1,
+                exc -> {}
+            )
+        ) {
             boolean hasHits = randomBoolean();
             boolean profiled = hasHits && randomBoolean();
             final int numHits;
@@ -126,7 +127,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
@@ -144,16 +144,17 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFetchTwoDocument() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            2,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
             int resultSetSize = randomIntBetween(2, 10);
             boolean profiled = randomBoolean();
 
@@ -258,23 +259,23 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
     public void testFailFetchOneDoc() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            2,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
             int resultSetSize = randomIntBetween(2, 10);
             boolean profiled = randomBoolean();
 
@@ -386,7 +387,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
@@ -397,16 +397,17 @@ public class FetchSearchPhaseTests extends ESTestCase {
         boolean profiled = randomBoolean();
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            numHits,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                numHits,
+                exc -> {}
+            )
+        ) {
             SearchShardTarget[] shardTargets = new SearchShardTarget[numHits];
             for (int i = 0; i < numHits; i++) {
                 shardTargets[i] = new SearchShardTarget("node1", new ShardId("test", "na", i), null);
@@ -505,23 +506,23 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
     public void testExceptionFailsPhase() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            2,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
             int resultSetSize = randomIntBetween(2, 10);
             boolean profiled = randomBoolean();
 
@@ -620,23 +621,23 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
     public void testCleanupIrrelevantContexts() { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            2,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
             int resultSetSize = 1;
             boolean profiled = randomBoolean();
 
@@ -740,7 +741,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
 
     }

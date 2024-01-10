@@ -36,6 +36,9 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -109,7 +112,12 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
     public static final String TEXT_SUBFIELD_NAME = "text";
     public static final TypeParser PARSER = new FixedTypeParser(c -> new SemanticTextInferenceResultFieldMapper());
 
-    private static final Set<String> REQUIRED_SUBFIELDS = Set.of(SPARSE_VECTOR_SUBFIELD_NAME, TEXT_SUBFIELD_NAME);
+    private static final Map<List<String>, Set<String>> REQUIRED_SUBFIELDS_MAP = Map.of(
+        List.of(),
+        Set.of(SPARSE_VECTOR_SUBFIELD_NAME, TEXT_SUBFIELD_NAME),
+        List.of(SPARSE_VECTOR_SUBFIELD_NAME),
+        Set.of(SparseEmbeddingResults.Embedding.EMBEDDING)
+    );
 
     private static final Logger logger = LogManager.getLogger(SemanticTextInferenceResultFieldMapper.class);
 
@@ -194,14 +202,14 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
 
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
                 DocumentParserContext nestedContext = context.createNestedContext(nestedObjectMapper);
-                parseObject(nestedContext, nestedObjectMapper, REQUIRED_SUBFIELDS);
+                parseObject(nestedContext, nestedObjectMapper, new LinkedList<>());
             }
         } finally {
             context.path().remove();
         }
     }
 
-    private static void parseObject(DocumentParserContext context, ObjectMapper objectMapper, Set<String> requiredSubfields)
+    private static void parseObject(DocumentParserContext context, ObjectMapper objectMapper, LinkedList<String> subfieldPath)
         throws IOException {
         XContentParser parser = context.parser();
         DocumentParserContext childContext = context.createChildContext(objectMapper);
@@ -231,7 +239,9 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
                 ((FieldMapper) childMapper).parse(childContext);
             } else if (childMapper instanceof ObjectMapper) {
                 parser.nextToken();
-                parseObject(childContext, (ObjectMapper) childMapper, null);
+                subfieldPath.push(currentName);
+                parseObject(childContext, (ObjectMapper) childMapper, subfieldPath);
+                subfieldPath.pop();
             } else {
                 // This should never happen, but fail parsing if it does so that it's not a silent failure
                 throw new DocumentParsingException(
@@ -241,6 +251,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             }
         }
 
+        Set<String> requiredSubfields = REQUIRED_SUBFIELDS_MAP.get(subfieldPath);
         if (requiredSubfields != null && visitedSubfields.containsAll(requiredSubfields) == false) {
             Set<String> missingSubfields = requiredSubfields.stream()
                 .filter(s -> visitedSubfields.contains(s) == false)

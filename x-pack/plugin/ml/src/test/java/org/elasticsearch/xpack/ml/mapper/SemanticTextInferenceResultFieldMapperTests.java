@@ -53,6 +53,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     }
 
     private record VisitedChildDocInfo(String path, int sparseVectorDims) {}
+    private record SparseVectorSubfieldOptions(boolean include, boolean includeEmbedding, boolean includeIsTruncated) {}
 
     @Override
     protected String fieldName() {
@@ -160,7 +161,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                         b -> addSemanticTextInferenceResults(
                             b,
                             List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
-                            false,
+                            new SparseVectorSubfieldOptions(false, true, true),
                             true,
                             null
                         )
@@ -172,7 +173,6 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 containsString("Missing required subfields: [" + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME + "]")
             );
         }
-
         {
             DocumentParsingException ex = expectThrows(
                 DocumentParsingException.class,
@@ -182,7 +182,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                         b -> addSemanticTextInferenceResults(
                             b,
                             List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
-                            true,
+                            new SparseVectorSubfieldOptions(true, true, true),
                             false,
                             null
                         )
@@ -194,7 +194,6 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 containsString("Missing required subfields: [" + SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME + "]")
             );
         }
-
         {
             DocumentParsingException ex = expectThrows(
                 DocumentParsingException.class,
@@ -204,7 +203,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                         b -> addSemanticTextInferenceResults(
                             b,
                             List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
-                            false,
+                            new SparseVectorSubfieldOptions(false, true, true),
                             false,
                             null
                         )
@@ -222,8 +221,31 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 )
             );
         }
-
-        // TODO: Check for missing subfields in sparse_embedding object
+        {
+            DocumentParsingException ex = expectThrows(
+                DocumentParsingException.class,
+                DocumentParsingException.class,
+                () -> documentMapper.parse(
+                    source(
+                        b -> addSemanticTextInferenceResults(
+                            b,
+                            List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
+                            new SparseVectorSubfieldOptions(true, false, false),
+                            false,
+                            null
+                        )
+                    )
+                )
+            );
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "Missing required subfields: ["
+                        + SparseEmbeddingResults.Embedding.EMBEDDING
+                        + "]"
+                )
+            );
+        }
     }
 
     public void testExtraSubfields() throws IOException {
@@ -252,7 +274,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     b -> addSemanticTextInferenceResults(
                         b,
                         semanticTextInferenceResultsList,
-                        true,
+                        new SparseVectorSubfieldOptions(true, true, true),
                         true,
                         Map.of("extra_key", "extra_value")
                     )
@@ -269,7 +291,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     b -> addSemanticTextInferenceResults(
                         b,
                         semanticTextInferenceResultsList,
-                        true,
+                        new SparseVectorSubfieldOptions(true, true, true),
                         true,
                         Map.of("extra_key", Map.of("k1", "v1"))
                     )
@@ -286,7 +308,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     b -> addSemanticTextInferenceResults(
                         b,
                         semanticTextInferenceResultsList,
-                        true,
+                        new SparseVectorSubfieldOptions(true, true, true),
                         true,
                         Map.of("extra_key", List.of("v1"))
                     )
@@ -302,7 +324,15 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             extraSubfields.put("extra_key", null);
 
             ParsedDocument doc = documentMapper.parse(
-                source(b -> addSemanticTextInferenceResults(b, semanticTextInferenceResultsList, true, true, extraSubfields))
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        b,
+                        semanticTextInferenceResultsList,
+                        new SparseVectorSubfieldOptions(true, true, true),
+                        true,
+                        extraSubfields
+                    )
+                )
             );
 
             checkParsedDocument.accept(doc);
@@ -336,13 +366,19 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         XContentBuilder sourceBuilder,
         List<SemanticTextInferenceResults> semanticTextInferenceResults
     ) throws IOException {
-        addSemanticTextInferenceResults(sourceBuilder, semanticTextInferenceResults, true, true, null);
+        addSemanticTextInferenceResults(
+            sourceBuilder,
+            semanticTextInferenceResults,
+            new SparseVectorSubfieldOptions(true, true, true),
+            true,
+            null
+        );
     }
 
     private static void addSemanticTextInferenceResults(
         XContentBuilder sourceBuilder,
         List<SemanticTextInferenceResults> semanticTextInferenceResults,
-        boolean includeSparseVectorSubfield,
+        SparseVectorSubfieldOptions sparseVectorSubfieldOptions,
         boolean includeTextSubfield,
         Map<String, Object> extraSubfields
     ) throws IOException {
@@ -360,8 +396,15 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 String text = textIterator.next();
 
                 Map<String, Object> subfieldMap = new HashMap<>();
-                if (includeSparseVectorSubfield) {
-                    subfieldMap.put(SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME, embedding.asMap());
+                if (sparseVectorSubfieldOptions.include()) {
+                    Map<String, Object> embeddingMap = embedding.asMap();
+                    if (sparseVectorSubfieldOptions.includeIsTruncated() == false) {
+                        embeddingMap.remove(SparseEmbeddingResults.Embedding.IS_TRUNCATED);
+                    }
+                    if (sparseVectorSubfieldOptions.includeEmbedding() == false) {
+                        embeddingMap.remove(SparseEmbeddingResults.Embedding.EMBEDDING);
+                    }
+                    subfieldMap.put(SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME, embeddingMap);
                 }
                 if (includeTextSubfield) {
                     subfieldMap.put(SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME, text);

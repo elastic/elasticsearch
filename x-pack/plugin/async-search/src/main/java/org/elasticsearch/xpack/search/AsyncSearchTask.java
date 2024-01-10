@@ -484,9 +484,17 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase, true);
         }
 
+        /**
+         * Indicates that a cluster has finished a search operation. Used for CCS minimize_roundtrips=true only.
+         *
+         * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
+         *                     The cluster alias for the local cluster is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
+         * @param clusterResponse SearchResponse from cluster 'clusterAlias'
+         */
         @Override
-        protected void onClusterResponseMinimizeRoundtrips(String clusterAlias) {
-            searchResponse.get().onClusterResponseMinimizeRoundtrips(clusterAlias);
+        public void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
+            // no need to call the delegate progress listener, since this method is only called for minimize_roundtrips=true
+            searchResponse.get().updateResponseMinimizeRoundtrips(clusterAlias, clusterResponse);
         }
 
         @Override

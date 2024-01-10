@@ -63,10 +63,12 @@ class MutableSearchResponse {
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
-
     // for CCS minimize_roundtrips=true, true indicates that the local cluster has completed
-    // returning a final SearchResponse to the SearchResponseMerger
-    private volatile boolean localClusterComplete;
+    // having returned a final SearchResponse to the SearchResponseMerger
+    private boolean localClusterComplete;
+    // used for CCS minimize_roundtrips=true in order to provide
+    // partial results before all clusters have reported back results
+    private List<SearchResponse> clusterResponses;  // used for CCS minimize_roundtrips=true only
 
     /**
      * Set to true when the final SearchResponse has been received
@@ -140,7 +142,18 @@ class MutableSearchResponse {
         this.frozen = true;
     }
 
-    public void onClusterResponseMinimizeRoundtrips(String clusterAlias) {
+    /**
+     * Indicates that a cluster has finished a search operation. Used for CCS minimize_roundtrips=true only.
+     *
+     * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
+     *                     The cluster alias for the local cluster is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
+     * @param clusterResponse SearchResponse from cluster 'clusterAlias'
+     */
+    synchronized void updateResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
+        if (clusterResponses == null) {
+            clusterResponses = new ArrayList<>();
+        }
+        clusterResponses.add(clusterResponse);
         if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             localClusterComplete = true;
         }
@@ -218,33 +231,39 @@ class MutableSearchResponse {
             searchResponse = null;
         } else {
             // partial results branch
-            SearchResponseMerger searchResponseMerger = task.getSearchResponseMerger();
-            if (searchResponseMerger == null) { // local-only search or CCS MRT=false
-                /*
-                 * Build the response, reducing aggs if we haven't already and
-                 * storing the result of the reduction, so we won't have to reduce
-                 * the same aggregation results a second time if nothing has changed.
-                 * This does cost memory because we have a reference to the finally
-                 * reduced aggs sitting around which can't be GCed until we get an update.
-                 */
-                InternalAggregations reducedAggs = reducedAggsSource.get();
-                reducedAggsSource = () -> reducedAggs;
-                searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
-            } else if (localClusterComplete == false) {
-                /*
-                 * For CCS MRT=true and the local cluster has reported back only partial results
-                 * (subset of shards), so use SearchResponseMerger to do a merge of any full results that
-                 * have come in from remote clusters and the partial results of the local cluster
-                 */
-                InternalAggregations reducedAggs = reducedAggsSource.get();
-                reducedAggsSource = () -> reducedAggs;
-                searchResponse = searchResponseMerger.getMergedResponse(clusters, buildResponse(task.getStartTimeNanos(), reducedAggs));
-            } else {
-                /*
-                 * For CCS MRT=true and the local cluster has reported back only full results (final reduce),
-                 * which are held in the SearchResponseMerger, so just use those results
-                 */
-                searchResponse = searchResponseMerger.getMergedResponse(clusters);
+            SearchResponseMerger searchResponseMerger = createSearchResponseMerger(task);
+            try {
+                if (searchResponseMerger == null) { // local-only search or CCS MRT=false
+                    /*
+                     * Build the response, reducing aggs if we haven't already and
+                     * storing the result of the reduction, so we won't have to reduce
+                     * the same aggregation results a second time if nothing has changed.
+                     * This does cost memory because we have a reference to the finally
+                     * reduced aggs sitting around which can't be GCed until we get an update.
+                     */
+                    InternalAggregations reducedAggs = reducedAggsSource.get();
+                    reducedAggsSource = () -> reducedAggs;
+                    searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
+                } else if (localClusterComplete == false) {
+                    /*
+                     * For CCS MRT=true and the local cluster has reported back only partial results
+                     * (subset of shards), so use SearchResponseMerger to do a merge of any full results that
+                     * have come in from remote clusters and the partial results of the local cluster
+                     */
+                    InternalAggregations reducedAggs = reducedAggsSource.get();
+                    reducedAggsSource = () -> reducedAggs;
+                    searchResponse = searchResponseMerger.getMergedResponse(clusters, buildResponse(task.getStartTimeNanos(), reducedAggs));
+                } else {
+                    /*
+                     * For CCS MRT=true and the local cluster has reported back only full results (final reduce),
+                     * which are held in the SearchResponseMerger, so just use those results
+                     */
+                    searchResponse = searchResponseMerger.getMergedResponse(clusters);
+                }
+            } finally {
+                if (searchResponseMerger != null) {
+                    searchResponseMerger.close();
+                }
             }
         }
         return new AsyncSearchResponse(
@@ -256,6 +275,31 @@ class MutableSearchResponse {
             task.getStartTime(),
             expirationTime
         );
+    }
+
+    /**
+     * Creates a SearchResponseMerger from the Supplier of {@link SearchResponseMerger} held by the AsyncSearchTask.
+     * The supplier will be null for local-only searches and CCS minimize_roundtrips=true. In those cases,
+     * this method returns null.
+     *
+     * Otherwise, it creates a new SearchResponseMerger and populates it with all the SearchResponses
+     * received so far (via the updateResponseMinimizeRoundtrips method).
+     *
+     * @param task holds the Supplier of SearchResponseMerger
+     * @return SearchResponseMerger with all responses collected to so far or null
+     *         (for local-only/CCS minimize_roundtrips=false)
+     */
+    private SearchResponseMerger createSearchResponseMerger(AsyncSearchTask task) {
+        if (task.getSearchResponseMergerSupplier() == null) {
+            return null; // local search and CCS minimize_roundtrips=false
+        }
+        SearchResponseMerger merger = task.getSearchResponseMergerSupplier().get();
+        if (clusterResponses != null) {
+            for (SearchResponse response : clusterResponses) {
+                merger.add(response);
+            }
+        }
+        return merger;
     }
 
     /**

@@ -98,7 +98,7 @@ public final class SearchResponseMerger implements Releasable {
      * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
-    void add(SearchResponse searchResponse) {
+    public void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
         searchResponse.mustIncRef();
         searchResponses.add(searchResponse);

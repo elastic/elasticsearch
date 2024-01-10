@@ -21,7 +21,7 @@ public class SearchTask extends CancellableTask {
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
-    private SearchResponseMerger searchResponseMerger;  // used for CCS minimize_roundtrips=true
+    private Supplier<SearchResponseMerger> searchResponseMergerSupplier;  // used for CCS minimize_roundtrips=true
 
     public SearchTask(
         long id,
@@ -55,18 +55,18 @@ public class SearchTask extends CancellableTask {
     }
 
     /**
-     * @return the {@link SearchResponseMerger} attached to this task. Will be null
+     * @return the Supplier of {@link SearchResponseMerger} attached to this task. Will be null
      * for local-only search and cross-cluster searches with minimize_roundtrips=false.
      */
-    public SearchResponseMerger getSearchResponseMerger() {
-        return searchResponseMerger;
+    public Supplier<SearchResponseMerger> getSearchResponseMergerSupplier() {
+        return searchResponseMergerSupplier;
     }
 
     /**
-     * @param searchResponseMerger Attach a {@link SearchResponseMerger} to this task.
-     *                             For use with CCS minimize_roundtrips=true
+     * @param supplier Attach a Supplier of {@link SearchResponseMerger} to this task.
+     *                 For use with CCS minimize_roundtrips=true
      */
-    public void setSearchResponseMerger(SearchResponseMerger searchResponseMerger) {
-        this.searchResponseMerger = searchResponseMerger;
+    public void setSearchResponseMergerSupplier(Supplier<SearchResponseMerger> supplier) {
+        this.searchResponseMergerSupplier = supplier;
     }
 }

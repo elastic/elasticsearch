@@ -109,8 +109,9 @@ public abstract class SearchProgressListener {
      *
      * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
      *                     The cluster alias for the local cluster is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
+     * @param searchResponse SearchResponse from cluster 'clusterAlias'
      */
-    protected void onClusterResponseMinimizeRoundtrips(String clusterAlias) {}
+    protected void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse searchResponse) {}
 
     final void notifyListShards(
         List<SearchShard> shards,
@@ -175,11 +176,11 @@ public abstract class SearchProgressListener {
         }
     }
 
-    final void notifyClusterResponseMinimizeRoundtrips(String clusterAlias) {
+    final void notifyClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse searchResponse) {
         try {
-            onClusterResponseMinimizeRoundtrips(clusterAlias);
+            onClusterResponseMinimizeRoundtrips(clusterAlias, searchResponse);
         } catch (Exception e) {
-            logger.warn(() -> "[" + clusterAlias + "] Failed to execute progress listener onClusterResponseMinimizeRoundtrips", e);
+            logger.warn(() -> "[" + clusterAlias + "] Failed to execute progress listener onResponseMinimizeRoundtrips", e);
         }
     }
 

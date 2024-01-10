@@ -581,7 +581,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider,
                 aggReduceContextBuilder
             );
-            task.setSearchResponseMerger(searchResponseMerger);
+            task.setSearchResponseMergerSupplier(
+                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder)
+            );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
             final CountDown countDown = new CountDown(totalClusters);
@@ -778,7 +780,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             void innerOnResponse(SearchResponse searchResponse) {
                 ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, skipUnavailable);
                 searchResponseMerger.add(searchResponse);
-                progressListener.notifyClusterResponseMinimizeRoundtrips(clusterAlias);
+                progressListener.notifyClusterResponseMinimizeRoundtrips(clusterAlias, searchResponse);
             }
 
             @Override

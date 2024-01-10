@@ -17,13 +17,12 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
+import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import org.elasticsearch.xpack.security.metric.SecurityMetrics;
 
 import java.util.Map;
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener.wrapForAuthc;
 
 class OAuth2TokenAuthenticator implements Authenticator {
 
@@ -67,7 +66,7 @@ class OAuth2TokenAuthenticator implements Authenticator {
             return;
         }
         final BearerToken bearerToken = (BearerToken) authenticationToken;
-        doAuthenticate(context, bearerToken, wrapForAuthc(authenticationMetrics, bearerToken, listener));
+        doAuthenticate(context, bearerToken, InstrumentedSecurityActionListener.wrapForAuthc(authenticationMetrics, bearerToken, listener));
     }
 
     private void doAuthenticate(Context context, BearerToken bearerToken, ActionListener<AuthenticationResult<Authentication>> listener) {

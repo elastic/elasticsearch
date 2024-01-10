@@ -17,7 +17,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -143,11 +143,11 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
         searchRequest.source(searchSourceBuilder);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
-            SearchHits hits = searchResponse.getHits();
-            if (hits.getHits().length == 0) {
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            if (hits.length == 0) {
                 listener.onFailure(new ResourceNotFoundException("No model could be found to perform inference"));
             } else {
-                listener.onResponse(hits.getAt(0).getId());
+                listener.onResponse(hits[0].getId());
             }
         }, listener::onFailure));
     }

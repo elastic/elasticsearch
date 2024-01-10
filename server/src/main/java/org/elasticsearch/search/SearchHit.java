@@ -1130,8 +1130,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             String name = parser.currentName();
             ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), SearchHits.Fields.HITS);
-            var hits = SearchHits.fromXContent(parser);
-            innerHits.put(name, hits);
+            innerHits.put(name, SearchHits.fromXContent(parser));
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
         return innerHits;

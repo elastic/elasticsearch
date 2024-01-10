@@ -82,14 +82,14 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastS
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
-import org.elasticsearch.xpack.application.connector.secrets.SecretsFeature;
-import org.elasticsearch.xpack.application.connector.secrets.SecretsIndexService;
-import org.elasticsearch.xpack.application.connector.secrets.action.GetSecretAction;
-import org.elasticsearch.xpack.application.connector.secrets.action.PostSecretAction;
-import org.elasticsearch.xpack.application.connector.secrets.action.RestGetSecretAction;
-import org.elasticsearch.xpack.application.connector.secrets.action.RestPostSecretAction;
-import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetSecretAction;
-import org.elasticsearch.xpack.application.connector.secrets.action.TransportPostSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsFeature;
+import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsIndexService;
+import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.RestGetConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.RestPostConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.TransportPostConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
@@ -260,11 +260,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             );
         }
 
-        if (SecretsFeature.isEnabled()) {
+        if (ConnectorSecretsFeature.isEnabled()) {
             actionHandlers.addAll(
                 List.of(
-                    new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class),
-                    new ActionHandler<>(PostSecretAction.INSTANCE, TransportPostSecretAction.class)
+                    new ActionHandler<>(GetConnectorSecretAction.INSTANCE, TransportGetConnectorSecretAction.class),
+                    new ActionHandler<>(PostConnectorSecretAction.INSTANCE, TransportPostConnectorSecretAction.class)
                 )
             );
         }
@@ -344,8 +344,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             );
         }
 
-        if (SecretsFeature.isEnabled()) {
-            restHandlers.addAll(List.of(new RestGetSecretAction(), new RestPostSecretAction()));
+        if (ConnectorSecretsFeature.isEnabled()) {
+            restHandlers.addAll(List.of(new RestGetConnectorSecretAction(), new RestPostConnectorSecretAction()));
         }
 
         return Collections.unmodifiableList(restHandlers);
@@ -385,7 +385,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         return Arrays.asList(
             SearchApplicationIndexService.getSystemIndexDescriptor(),
             QueryRulesIndexService.getSystemIndexDescriptor(),
-            SecretsIndexService.getSystemIndexDescriptor()
+            ConnectorSecretsIndexService.getSystemIndexDescriptor()
         );
     }
 

@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 @ServerlessScope(Scope.INTERNAL)
-public class RestPostSecretAction extends BaseRestHandler {
+public class RestPostConnectorSecretAction extends BaseRestHandler {
 
     @Override
     public String getName() {
@@ -28,14 +28,14 @@ public class RestPostSecretAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.POST, "/_connector/secret"));
+        return List.of(new Route(RestRequest.Method.POST, "/_connector/_secret"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            PostSecretRequest postSecretRequest = PostSecretRequest.fromXContent(parser);
-            return restChannel -> client.execute(PostSecretAction.INSTANCE, postSecretRequest, new RestToXContentListener<>(restChannel));
+            PostConnectorSecretRequest postSecretRequest = PostConnectorSecretRequest.fromXContent(parser);
+            return restChannel -> client.execute(PostConnectorSecretAction.INSTANCE, postSecretRequest, new RestToXContentListener<>(restChannel));
         }
     }
 }

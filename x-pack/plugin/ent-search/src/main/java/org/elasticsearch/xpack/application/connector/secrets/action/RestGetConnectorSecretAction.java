@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 
 @ServerlessScope(Scope.INTERNAL)
-public class RestGetSecretAction extends BaseRestHandler {
+public class RestGetConnectorSecretAction extends BaseRestHandler {
 
     @Override
     public String getName() {
@@ -27,12 +27,12 @@ public class RestGetSecretAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_connector/secret/{id}"));
+        return List.of(new Route(RestRequest.Method.GET, "/_connector/_secret/{id}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String id = request.param("id");
-        return restChannel -> client.execute(GetSecretAction.INSTANCE, new GetSecretRequest(id), new RestToXContentListener<>(restChannel));
+        return restChannel -> client.execute(GetConnectorSecretAction.INSTANCE, new GetConnectorSecretRequest(id), new RestToXContentListener<>(restChannel));
     }
 }

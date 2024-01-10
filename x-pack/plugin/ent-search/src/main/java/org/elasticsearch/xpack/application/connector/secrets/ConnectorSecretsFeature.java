@@ -12,7 +12,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 /**
  * Connector Secrets feature flag. When the feature is complete, this flag will be removed.
  */
-public class SecretsFeature {
+public class ConnectorSecretsFeature {
 
     private static final FeatureFlag SECRETS_FEATURE_FLAG = new FeatureFlag("connector_secrets");
 

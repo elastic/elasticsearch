@@ -9,21 +9,24 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetSecretRequest extends ActionRequest {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+public class GetConnectorSecretRequest extends ActionRequest {
 
     private final String id;
 
-    public GetSecretRequest(String id) {
+    public GetConnectorSecretRequest(String id) {
         this.id = Objects.requireNonNull(id);
     }
 
-    public GetSecretRequest(StreamInput in) throws IOException {
+    public GetConnectorSecretRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readString();
     }
@@ -40,14 +43,20 @@ public class GetSecretRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+
+        if (Strings.isNullOrEmpty(id)) {
+            validationException = addValidationError("id missing", validationException);
+        }
+
+        return validationException;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        GetSecretRequest that = (GetSecretRequest) o;
+        GetConnectorSecretRequest that = (GetConnectorSecretRequest) o;
         return Objects.equals(id, that.id);
     }
 

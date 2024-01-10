@@ -41,7 +41,7 @@ public class ConnectorSecretsSystemIndexIT extends ESRestTestCase {
     public void testConnectorSecretsCRUD() throws Exception {
         // post secret
         final String secretJson = getPostSecretJson();
-        Request postRequest = new Request("POST", "/_connector/secret/");
+        Request postRequest = new Request("POST", "/_connector/_secret/");
         postRequest.setJsonEntity(secretJson);
         Response postResponse = client().performRequest(postRequest);
         assertThat(postResponse.getStatusLine().getStatusCode(), is(200));
@@ -51,7 +51,7 @@ public class ConnectorSecretsSystemIndexIT extends ESRestTestCase {
         final String id = responseMap.get("id").toString();
 
         // get secret
-        Request getRequest = new Request("GET", "/_connector/secret/" + id);
+        Request getRequest = new Request("GET", "/_connector/_secret/" + id);
         Response getResponse = client().performRequest(getRequest);
         assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
         responseMap = getResponseMap(getResponse);
@@ -62,7 +62,7 @@ public class ConnectorSecretsSystemIndexIT extends ESRestTestCase {
     }
 
     public void testPostInvalidSecretBody() throws Exception {
-        Request postRequest = new Request("POST", "/_connector/secret/");
+        Request postRequest = new Request("POST", "/_connector/_secret/");
         postRequest.setJsonEntity("""
             {"something":"else"}""");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(postRequest));
@@ -71,7 +71,7 @@ public class ConnectorSecretsSystemIndexIT extends ESRestTestCase {
     }
 
     public void testGetNonExistingSecret() {
-        Request getRequest = new Request("GET", "/_connector/secret/123");
+        Request getRequest = new Request("GET", "/_connector/_secret/123");
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
         Response getResponse = re.getResponse();
         assertThat(getResponse.getStatusLine().getStatusCode(), is(404));

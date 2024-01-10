@@ -17,17 +17,20 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PostSecretResponse extends ActionResponse implements ToXContentObject {
+public class GetConnectorSecretResponse extends ActionResponse implements ToXContentObject {
 
-    private String id;
+    private final String id;
+    private final String value;
 
-    public PostSecretResponse(String id) {
-        this.id = id;
+    public GetConnectorSecretResponse(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        value = in.readString();
     }
 
-    public PostSecretResponse(StreamInput in) throws IOException {
-        super(in);
-        this.id = in.readString();
+    public GetConnectorSecretResponse(String id, String value) {
+        this.id = id;
+        this.value = value;
     }
 
     public String id() {
@@ -37,12 +40,14 @@ public class PostSecretResponse extends ActionResponse implements ToXContentObje
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
+        out.writeString(value);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("id", id);
+        builder.field("value", value);
         return builder.endObject();
     }
 
@@ -50,12 +55,12 @@ public class PostSecretResponse extends ActionResponse implements ToXContentObje
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PostSecretResponse that = (PostSecretResponse) o;
-        return Objects.equals(id, that.id);
+        GetConnectorSecretResponse that = (GetConnectorSecretResponse) o;
+        return Objects.equals(id, that.id) && Objects.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(id, value);
     }
 }

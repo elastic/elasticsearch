@@ -313,18 +313,15 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
             List<String> texts = (List<String>) invocation.getArguments()[1];
             var listener = (ActionListener<List<InferenceResults>>) invocation.getArguments()[2];
             listener.onResponse(
-                        texts
-                            .stream()
-                            .map(
-                                text -> new TestInferenceResults(
-                                    "test_field",
-                                    randomMap(
-                                        1,
-                                        10,
-                                        () -> new Tuple<>(randomAlphaOfLengthBetween(1, 10), randomFloat())
-                                    )
-                                )
-                            ).collect(Collectors.toList()));
+                texts.stream()
+                    .map(
+                        text -> new TestInferenceResults(
+                            "test_field",
+                            randomMap(1, 10, () -> new Tuple<>(randomAlphaOfLengthBetween(1, 10), randomFloat()))
+                        )
+                    )
+                    .collect(Collectors.toList())
+            );
             return Void.TYPE;
         }).when(inferenceProvider)
             .textInference(eq(modelId), argThat(texts -> texts.containsAll(Arrays.stream(inferenceTexts).toList())), any());

@@ -253,7 +253,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
                 relativeTimeProvider,
-                null);
+                null
+            );
         }
     }
 }

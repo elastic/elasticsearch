@@ -157,7 +157,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider,
-        InferenceProvider inferenceProvider) {
+        InferenceProvider inferenceProvider
+    ) {
         this(
             BulkAction.INSTANCE,
             BulkRequest::new,
@@ -849,45 +850,46 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             @Override
                             public void onResponse(List<InferenceResults> results) {
 
-                            if (results == null) {
-                                throw new IllegalArgumentException(
-                                    "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
-                                );
+                                if (results == null) {
+                                    throw new IllegalArgumentException(
+                                        "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
+                                    );
+                                }
+
+                                int i = 0;
+                                for (InferenceResults inferenceResults : results) {
+                                    String fieldName = inferenceFieldNames.get(i++);
+                                    @SuppressWarnings("unchecked")
+                                    Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(
+                                        fieldName,
+                                        k -> new HashMap<String, Object>()
+                                    );
+
+                                    inferenceFieldMap.put(INFERENCE_FIELD, inferenceResults.asMap("output").get("output"));
+                                    inferenceFieldMap.put(TEXT_FIELD, docMap.get(fieldName));
+                                }
+
+                                docRef.close();
                             }
 
-                            int i = 0;
-                            for (InferenceResults inferenceResults : results) {
-                                String fieldName = inferenceFieldNames.get(i++);
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(
-                                    fieldName,
-                                    k -> new HashMap<String, Object>()
+                            @Override
+                            public void onFailure(Exception e) {
+
+                                final String indexName = request.index();
+                                DocWriteRequest<?> docWriteRequest = request.request();
+                                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
+                                    indexName,
+                                    docWriteRequest.id(),
+                                    new IllegalArgumentException("Error performing inference: " + e.getMessage(), e)
                                 );
+                                responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                                // make sure the request gets never processed again
+                                bulkShardRequest.items()[request.id()] = null;
 
-                                inferenceFieldMap.put(INFERENCE_FIELD, inferenceResults.asMap("output").get("output"));
-                                inferenceFieldMap.put(TEXT_FIELD, docMap.get(fieldName));
+                                docRef.close();
                             }
-
-                            docRef.close();
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-
-                            final String indexName = request.index();
-                            DocWriteRequest<?> docWriteRequest = request.request();
-                            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
-                                indexName,
-                                docWriteRequest.id(),
-                                new IllegalArgumentException("Error performing inference: " + e.getMessage(), e)
-                            );
-                            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
-                            // make sure the request gets never processed again
-                            bulkShardRequest.items()[request.id()] = null;
-
-                            docRef.close();
-                        }
-                    });
+                    );
                 }
             }
         }

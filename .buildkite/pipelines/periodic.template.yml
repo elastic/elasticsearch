@@ -37,8 +37,6 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - java11
-              - openjdk17
-              - openjdk18
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

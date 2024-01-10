@@ -35,9 +35,6 @@ e                        |double e()                                            
 ends_with                |"boolean ends_with(str:keyword|text, suffix:keyword|text)"                             |[str, suffix]             |["keyword|text", "keyword|text"]            |["", ""]                                            |boolean                    | "Returns a boolean that indicates whether a keyword string ends with another string"                      | [false, false]       | false | false
 floor                    |"double|integer|long|unsigned_long floor(n:double|integer|long|unsigned_long)"    |n                        |"double|integer|long|unsigned_long"    | ""                                                 |"double|integer|long|unsigned_long"                    | "Round a number down to the nearest integer."                      | false                | false | false
 greatest                 |"integer|long|double|boolean|keyword|text|ip|version greatest(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        |[first, rest]            |["integer|long|double|boolean|keyword|text|ip|version", "integer|long|double|boolean|keyword|text|ip|version"]            |["", ""]                                            |"integer|long|double|boolean|keyword|text|ip|version"                    | "Returns the maximum value from many columns."                      | [false, false]       | true | false
-is_finite                |boolean is_finite(n:double)                             |n                        |double            | "A floating-point value"                                                 |boolean              | "Returns true if the argument is a finite floating-point value."                      | false                | false | false
-is_infinite              |boolean is_infinite(n:double)                           |n                        |double            | "A floating-point value"                                                 |boolean             | "Returns true if the specified floating-point value is infinitely large in magnitude."                      | false                | false | false
-is_nan                   |boolean is_nan(n:double)                                |n                        |double            | "A floating-point value"                                                 |boolean              | "Returns true if the argument is a Not-a-Number (NaN) value."                      | false                | false | false
 least                    |"integer|long|double|boolean|keyword|text|ip|version least(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        |[first, rest]            |["integer|long|double|boolean|keyword|text|ip|version", "integer|long|double|boolean|keyword|text|ip|version"]            |["", ""]                                            |"integer|long|double|boolean|keyword|text|ip|version"                    | "Returns the minimum value from many columns."                      | [false, false]       | true | false
 left                     |"keyword left(str:keyword|text, length:integer)"                |[str, length]         |["keyword", "integer"]            |["", ""]                                            |keyword                    | "Return the substring that extracts length chars from the string starting from the left."                      | [false, false]       | false | false
 length                   |"integer length(str:keyword|text)"                                        |str                     |"keyword|text"                 | ""                                                 |?                    | "Returns the character length of a string."                      | false                | false | false
@@ -77,13 +74,13 @@ tanh                     |"double tanh(n:double|integer|long|unsigned_long)"    
 tau                      |double tau()                                                 | null                    | null             | null                                               |double                    | "The ratio of a circle’s circumference to its radius."                      | null                 | false | false
 to_bool                  |"boolean to_bool(v:boolean|keyword|text|double|long|unsigned_long|integer)"                      |v   |"boolean|keyword|text|double|long|unsigned_long|integer"                                                   |                                                    |boolean                          |                                                                                       |false                       |false           | false
 to_boolean               |"boolean to_boolean(v:boolean|keyword|text|double|long|unsigned_long|integer)"                   |v   |"boolean|keyword|text|double|long|unsigned_long|integer"                                                   |                                                    |boolean                          |                                                                                       |false                       |false           | false
-to_cartesianpoint        |"cartesian_point to_cartesianpoint(v:cartesian_point|long|keyword|text)"                         |v   |"cartesian_point|long|keyword|text"                              |                                                    |cartesian_point                  |                         |false                 |false | false
+to_cartesianpoint        |"cartesian_point to_cartesianpoint(v:cartesian_point|keyword|text)"                         |v   |"cartesian_point|keyword|text"                              |                                                    |cartesian_point                  |                         |false                 |false | false
 to_datetime              |"date to_datetime(v:date|keyword|text|double|long|unsigned_long|integer)"                        |v   |"date|keyword|text|double|long|unsigned_long|integer"                                                      |                                                    |date                             |                                                                                       |false                       |false           | false
 to_dbl                   |"double to_dbl(v:boolean|date|keyword|text|double|long|unsigned_long|integer)"                   |v   |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                              |                                                    |double                           |                                                                                       |false                       |false           | false
 to_degrees               |"double to_degrees(v:double|integer|long|unsigned_long)"                                         |v   |"double|long|unsigned_long|integer"                                                                        |                                                    |double                           |                                                                                       |false                       |false           | false
 to_double                |"double to_double(v:boolean|date|keyword|text|double|long|unsigned_long|integer)"                |v   |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                              |                                                    |double                           |                                                                                       |false                       |false           | false
 to_dt                    |"date to_dt(v:date|keyword|text|double|long|unsigned_long|integer)"                              |v   |"date|keyword|text|double|long|unsigned_long|integer"                                                      |                                                    |date                             |                                                                                       |false                       |false           | false
-to_geopoint              |"geo_point to_geopoint(v:geo_point|long|keyword|text)"                                           |v   |"geo_point|long|keyword|text"                                                                              |                                                    |geo_point                        |                                                                                       |false                       |false           | false
+to_geopoint              |"geo_point to_geopoint(v:geo_point|keyword|text)"                                           |v   |"geo_point|keyword|text"                                                                              |                                                    |geo_point                        |                                                                                       |false                       |false           | false
 to_int                   |"integer to_int(v:boolean|date|keyword|text|double|long|unsigned_long|integer)"                  |v   |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                              |                                                    |integer                          |                                                                                       |false                       |false           | false
 to_integer               |"integer to_integer(v:boolean|date|keyword|text|double|long|unsigned_long|integer)"              |v   |"boolean|date|keyword|text|double|long|unsigned_long|integer"                                              |                                                    |integer                          |                                                                                       |false                       |false           | false
 to_ip                    |"ip to_ip(v:ip|keyword|text)"                                                                    |v   |"ip|keyword|text"                                                                                          |                                                    |ip                               |                                                                                       |false                       |false           | false
@@ -129,9 +126,6 @@ double e()
 "boolean ends_with(str:keyword|text, suffix:keyword|text)"
 "double|integer|long|unsigned_long floor(n:double|integer|long|unsigned_long)"
 "integer|long|double|boolean|keyword|text|ip|version greatest(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"
-boolean is_finite(n:double)
-boolean is_infinite(n:double)
-boolean is_nan(n:double)
 "integer|long|double|boolean|keyword|text|ip|version least(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"
 "keyword left(str:keyword|text, length:integer)"
 "integer length(str:keyword|text)"
@@ -171,13 +165,13 @@ double pi()
 double tau()
 "boolean to_bool(v:boolean|keyword|text|double|long|unsigned_long|integer)"
 "boolean to_boolean(v:boolean|keyword|text|double|long|unsigned_long|integer)"
-"cartesian_point to_cartesianpoint(v:cartesian_point|long|keyword|text)"                                                                  
+"cartesian_point to_cartesianpoint(v:cartesian_point|keyword|text)"                                                                  
 "date to_datetime(v:date|keyword|text|double|long|unsigned_long|integer)"
 "double to_dbl(v:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "double to_degrees(v:double|integer|long|unsigned_long)"
 "double to_double(v:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "date to_dt(v:date|keyword|text|double|long|unsigned_long|integer)"
-"geo_point to_geopoint(v:geo_point|long|keyword|text)"                                                                  
+"geo_point to_geopoint(v:geo_point|keyword|text)"                                                                  
 "integer to_int(v:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "integer to_integer(v:boolean|date|keyword|text|double|long|unsigned_long|integer)"
 "ip to_ip(v:ip|keyword|text)"
@@ -197,15 +191,14 @@ double tau()
 showFunctionsFiltered#[skip:-8.12.99]
 // tag::showFunctionsFiltered[]
 SHOW functions 
-| WHERE STARTS_WITH(name, "is_")
+| WHERE STARTS_WITH(name, "sin")
 // end::showFunctionsFiltered[]
 ;
 
 // tag::showFunctionsFiltered-result[]
-       name:keyword      |                        synopsis:keyword                |       argNames:keyword  | argTypes:keyword |             argDescriptions:keyword                |  returnType:keyword   |  description:keyword  |   optionalArgs:boolean |  variadic:boolean | isAggregation:boolean
-is_finite                |boolean is_finite(n:double)                             |n                        |double            |  "A floating-point value"                                                  |boolean        | "Returns true if the argument is a finite floating-point value."                      | false                | false | false
-is_infinite              |boolean is_infinite(n:double)                           |n                        |double            |  "A floating-point value"                                                  |boolean        | "Returns true if the specified floating-point value is infinitely large in magnitude."                      | false                | false | false
-is_nan                   |boolean is_nan(n:double)                                |n                        |double            |  "A floating-point value"                                                  |boolean        | "Returns true if the argument is a Not-a-Number (NaN) value."                      | false                | false | false
+       name:keyword      |                        synopsis:keyword                |       argNames:keyword  | argTypes:keyword |  argDescriptions:keyword | returnType:keyword |   description:keyword  |   optionalArgs:boolean |  variadic:boolean | isAggregation:boolean
+sin                      | "double sin(n:double|integer|long|unsigned_long)"      |n      |"double|integer|long|unsigned_long" | "An angle, in radians"   | double             | "Returns the trigonometric sine of an angle" | false | false | false
+sinh                     | "double sinh(n:double|integer|long|unsigned_long)"     |n      |"double|integer|long|unsigned_long" | "The number to return the hyperbolic sine of" | "double" | "Returns the hyperbolic sine of a number" | false | false | false
 // end::showFunctionsFiltered-result[]
 ;
 
@@ -215,5 +208,5 @@ countFunctions#[skip:-8.12.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-87     | 87     | 87
+84     | 84     | 84
 ;

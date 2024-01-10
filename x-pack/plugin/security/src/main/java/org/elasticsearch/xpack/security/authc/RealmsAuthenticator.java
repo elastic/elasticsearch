@@ -48,7 +48,7 @@ public class RealmsAuthenticator implements Authenticator {
 
     public static final String ATTRIBUTE_REALM_NAME = "es.security.realm_name";
     public static final String ATTRIBUTE_REALM_TYPE = "es.security.realm_type";
-    public static final String ATTRIBUTE_REALMS_AUTHC_FAILURE_REASON = "es.security.realm_authc_failure_reason";
+    public static final String ATTRIBUTE_REALM_AUTHC_FAILURE_REASON = "es.security.realm_authc_failure_reason";
 
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 
@@ -397,7 +397,7 @@ public class RealmsAuthenticator implements Authenticator {
         attributes.put(ATTRIBUTE_REALM_NAME, realm.name());
         attributes.put(ATTRIBUTE_REALM_TYPE, realm.type());
         if (failureReason != null) {
-            attributes.put(ATTRIBUTE_REALMS_AUTHC_FAILURE_REASON, failureReason);
+            attributes.put(ATTRIBUTE_REALM_AUTHC_FAILURE_REASON, failureReason);
         }
         return attributes;
     }

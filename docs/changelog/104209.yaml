@@ -1,0 +1,13 @@
+pr: 104209
+summary: '`DesiredNode:` deprecate `node_version` field and make it optional (unused)
+  in current parser'
+area: Distributed
+type: deprecation
+issues: []
+deprecation:
+  title: '`DesiredNode:` deprecate `node_version` field and make it optional (unused)
+    in current parser'
+  area: Distributed
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

@@ -235,6 +235,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     @Override
+    protected AbstractQueryBuilder<?> rewriteForInnerHits() {
+        return new ExactKnnQueryBuilder(queryVector, fieldName).boost(boost).queryName(queryName);
+    }
+
+    @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {

@@ -300,16 +300,28 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             }
 
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
-            InnerHitContextBuilder.extractInnerHits(query, children);
+            QueryBuilder rewritten = InnerHitContextBuilder.rewriteQueryForInnerHits(query);
+            InnerHitContextBuilder.extractInnerHits(rewritten, children);
             InnerHitContextBuilder innerHitContextBuilder = new ParentChildInnerHitContextBuilder(
                 parentType,
                 false,
-                query,
+                rewritten,
                 innerHitBuilder,
                 children
             );
             innerHits.put(name, innerHitContextBuilder);
         }
+    }
+
+    @Override
+    protected HasParentQueryBuilder rewriteForInnerHits() {
+        QueryBuilder rewrittenQuery = InnerHitContextBuilder.rewriteQueryForInnerHits(query);
+        if (rewrittenQuery != query) {
+            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(parentType, rewrittenQuery, score, innerHitBuilder);
+            hasParentQueryBuilder.ignoreUnmapped(ignoreUnmapped);
+            return hasParentQueryBuilder;
+        }
+        return this;
     }
 
     @Override

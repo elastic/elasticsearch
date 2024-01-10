@@ -27,10 +27,10 @@ import java.util.Map;
  * A query that retrieves all documents with a {@link ValueSource}. Ensures that the document
  * exists within the score function.
  */
-public class BruteForceKnnQuery extends Query {
+public class ExactKnnQuery extends Query {
     final ValueSource func;
 
-    public BruteForceKnnQuery(ValueSource func) {
+    public ExactKnnQuery(ValueSource func) {
         this.func = func;
     }
 
@@ -53,7 +53,7 @@ public class BruteForceKnnQuery extends Query {
     /** Returns true if <code>o</code> is equal to this. */
     @Override
     public boolean equals(Object other) {
-        return sameClassAs(other) && func.equals(((BruteForceKnnQuery) other).func);
+        return sameClassAs(other) && func.equals(((ExactKnnQuery) other).func);
     }
 
     @Override
@@ -66,7 +66,7 @@ public class BruteForceKnnQuery extends Query {
         protected final Map<Object, Object> context;
 
         BruteForceWeight(IndexSearcher searcher, float boost) throws IOException {
-            super(BruteForceKnnQuery.this);
+            super(ExactKnnQuery.this);
             this.context = ValueSource.newContext(searcher);
             func.createWeight(context, searcher);
             this.boost = boost;

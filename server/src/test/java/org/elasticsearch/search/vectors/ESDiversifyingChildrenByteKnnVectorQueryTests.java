@@ -24,7 +24,7 @@ public class ESDiversifyingChildrenByteKnnVectorQueryTests extends AbstractESDiv
     Query getParentJoinKnnQuery(String fieldName, float[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
         return new ESDiversifyingChildrenKnnVectorQuery(
             new DiversifyingChildrenByteKnnVectorQuery(fieldName, fromFloat(queryVector), childFilter, k, parentBitSet),
-            new BruteForceKnnQuery(
+            new ExactKnnQuery(
                 new ByteVectorSimilarityFunction(
                     VectorSimilarityFunction.EUCLIDEAN,
                     new ByteKnnVectorFieldSource(fieldName),

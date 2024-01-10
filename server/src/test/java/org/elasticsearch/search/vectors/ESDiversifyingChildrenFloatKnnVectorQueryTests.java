@@ -24,7 +24,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQueryTests extends AbstractESDi
     Query getParentJoinKnnQuery(String fieldName, float[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
         return new ESDiversifyingChildrenKnnVectorQuery(
             new DiversifyingChildrenFloatKnnVectorQuery(fieldName, queryVector, childFilter, k, parentBitSet),
-            new BruteForceKnnQuery(
+            new ExactKnnQuery(
                 new FloatVectorSimilarityFunction(
                     VectorSimilarityFunction.EUCLIDEAN,
                     new FloatKnnVectorFieldSource(fieldName),

@@ -64,7 +64,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.vectors.BruteForceKnnQuery;
+import org.elasticsearch.search.vectors.ExactKnnQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenKnnVectorQuery;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenFloatKnnVectorQuery;
@@ -1176,17 +1176,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         if (nestedVectorSearchParams.innerHitBuilder == null || nestedVectorSearchParams.innerHitBuilder.getSize() == 1) {
                             yield innerQuery;
                         } else {
-                            yield new ESDiversifyingChildrenKnnVectorQuery(
-                                innerQuery,
-                                new BruteForceKnnQuery(
-                                    new ByteVectorSimilarityFunction(
-                                        vectorSimilarityFunction,
-                                        new ByteKnnVectorFieldSource(name()),
-                                        new ConstKnnByteVectorValueSource(bytes)
-                                    )
-                                ),
-                                nestedVectorSearchParams.parentFilter
-                            );
+                            yield innerQuery;
                         }
                     }
                     yield new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
@@ -1205,7 +1195,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         } else {
                             yield new ESDiversifyingChildrenKnnVectorQuery(
                                 innerQuery,
-                                new BruteForceKnnQuery(
+                                new ExactKnnQuery(
                                     new FloatVectorSimilarityFunction(
                                         vectorSimilarityFunction,
                                         new FloatKnnVectorFieldSource(name()),

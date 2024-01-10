@@ -202,6 +202,19 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     }
 
     @Override
+    protected ScriptScoreQueryBuilder rewriteForInnerHits() {
+        QueryBuilder newQuery = InnerHitContextBuilder.rewriteQueryForInnerHits(this.query);
+        if (newQuery != query) {
+            ScriptScoreQueryBuilder newQueryBuilder = new ScriptScoreQueryBuilder(newQuery, script);
+            if (minScore != null) {
+                newQueryBuilder.setMinScore(minScore);
+            }
+            return newQueryBuilder;
+        }
+        return this;
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }

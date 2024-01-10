@@ -351,6 +351,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {}
 
     /**
+     * For internal usage only!
+     * @return a rewritten form of the query optimized for inner hit extraction
+     */
+    protected AbstractQueryBuilder<?> rewriteForInnerHits() {
+        return this;
+    }
+
+    /**
      * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries

@@ -21,8 +21,8 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
-import org.elasticsearch.search.vectors.NestedKnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -155,8 +155,7 @@ final class DfsQueryPhase extends SearchPhase {
             QueryBuilder query = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
             if (nestedPath != null) {
                 if (source.knnSearch().get(i).innerHit() != null && source.knnSearch().get(i).innerHit().getSize() > 1) {
-                    query = new NestedKnnScoreDocQueryBuilder(
-                        query,
+                    query = new ExactKnnQueryBuilder(
                         source.knnSearch().get(i).getQueryVector(),
                         source.knnSearch().get(i).getField()
                     );

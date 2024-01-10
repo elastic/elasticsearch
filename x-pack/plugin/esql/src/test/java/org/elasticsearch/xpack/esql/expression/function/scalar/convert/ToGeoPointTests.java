@@ -39,15 +39,6 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_POINT, v -> v, List.of());
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            evaluatorName.apply("FromLong"),
-            EsqlDataTypes.GEO_POINT,
-            GEO::longAsWKB,
-            Long.MIN_VALUE,
-            Long.MAX_VALUE,
-            List.of()
-        );
         // random strings that don't look like a geo point
         TestCaseSupplier.forUnaryStrings(
             suppliers,

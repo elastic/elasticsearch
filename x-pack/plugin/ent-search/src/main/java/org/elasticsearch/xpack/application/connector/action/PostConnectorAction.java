@@ -142,7 +142,7 @@ public class PostConnectorAction extends ActionType<PostConnectorAction.Response
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(getIndexName())) {
-                validationException = addValidationError("index_name cannot be null or empty", validationException);
+                validationException = addValidationError("[index_name] cannot be [null] or [\"\"]", validationException);
             }
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);

@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
@@ -158,7 +159,39 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
-        })));
+        }),
+            // exact math arithmetic exceptions
+            arithmeticExceptionOverflowCase(
+                DataTypes.INTEGER,
+                () -> Integer.MIN_VALUE,
+                () -> randomIntBetween(1, Integer.MAX_VALUE),
+                "SubIntsEvaluator"
+            ),
+            arithmeticExceptionOverflowCase(
+                DataTypes.INTEGER,
+                () -> randomIntBetween(Integer.MIN_VALUE, -2),
+                () -> Integer.MAX_VALUE,
+                "SubIntsEvaluator"
+            ),
+            arithmeticExceptionOverflowCase(
+                DataTypes.LONG,
+                () -> Long.MIN_VALUE,
+                () -> randomLongBetween(1L, Long.MAX_VALUE),
+                "SubLongsEvaluator"
+            ),
+            arithmeticExceptionOverflowCase(
+                DataTypes.LONG,
+                () -> randomLongBetween(Long.MIN_VALUE, -2L),
+                () -> Long.MAX_VALUE,
+                "SubLongsEvaluator"
+            ),
+            arithmeticExceptionOverflowCase(
+                DataTypes.UNSIGNED_LONG,
+                () -> ZERO_AS_UNSIGNED_LONG,
+                () -> randomLongBetween(-Long.MAX_VALUE, Long.MAX_VALUE),
+                "SubUnsignedLongsEvaluator"
+            )
+        ));
     }
 
     @Override

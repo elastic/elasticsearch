@@ -78,6 +78,9 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                         .setSource("title", "This is a random document");
                 }
                 indexRandom(true, indexRequestBuilders);
+                for (IndexRequestBuilder builder : indexRequestBuilders) {
+                    builder.request().decRef();
+                }
             }
 
             // start the monitoring service so that /_monitoring/bulk is not ignored

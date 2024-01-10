@@ -75,20 +75,26 @@ public class SnapshotHistoryStore {
         }
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             item.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            IndexRequest request = new IndexRequest(SLM_HISTORY_DATA_STREAM).opType(DocWriteRequest.OpType.CREATE).source(builder);
-            client.index(request, ActionListener.wrap(indexResponse -> {
-                logger.debug(
-                    "successfully indexed snapshot history item with id [{}] in data stream [{}]: [{}]",
-                    indexResponse.getId(),
-                    SLM_HISTORY_DATA_STREAM,
-                    item
-                );
-            }, exception -> {
-                logger.error(
-                    () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
-                    exception
-                );
-            }));
+            IndexRequest request = new IndexRequest(SLM_HISTORY_DATA_STREAM);
+            try {
+                request.opType(DocWriteRequest.OpType.CREATE).source(builder);
+                client.index(request, ActionListener.runAfter(ActionListener.wrap(indexResponse -> {
+                    logger.debug(
+                        "successfully indexed snapshot history item with id [{}] in data stream [{}]: [{}]",
+                        indexResponse.getId(),
+                        SLM_HISTORY_DATA_STREAM,
+                        item
+                    );
+                }, exception -> {
+                    logger.error(
+                        () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
+                        exception
+                    );
+                }), request::decRef));
+            } catch (Exception e) {
+                request.decRef();
+                throw e;
+            }
         } catch (IOException exception) {
             logger.error(
                 () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),

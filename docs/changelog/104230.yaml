@@ -1,0 +1,5 @@
+pr: 104230
+summary: Undeploy elser when inference model deleted
+area: Machine Learning
+type: bug
+issues: []

@@ -126,8 +126,9 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public int[] getPositions() {
         int[] result = new int[positions.size()];
-        for (int i = 0; i < positions.size(); i++)
+        for (int i = 0; i < positions.size(); i++) {
             result[i] = positions.get(i);
+        }
         return result;
     }
 

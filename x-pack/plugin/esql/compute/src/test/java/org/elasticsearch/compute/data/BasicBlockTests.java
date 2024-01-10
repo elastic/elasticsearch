@@ -447,11 +447,11 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testBytesRefBlockOnGeoPoints() {
-        testBytesRefBlock(() -> GEO.pointAsWKB(GeometryTestUtils.randomPoint()), false, GEO::wkbAsString);
+        testBytesRefBlock(() -> GEO.asWkb(GeometryTestUtils.randomPoint()), false, GEO::wkbToWkt);
     }
 
     public void testBytesRefBlockOnCartesianPoints() {
-        testBytesRefBlock(() -> CARTESIAN.pointAsWKB(ShapeTestUtils.randomPoint()), false, CARTESIAN::wkbAsString);
+        testBytesRefBlock(() -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), false, CARTESIAN::wkbToWkt);
     }
 
     public void testBytesRefBlockBuilderWithNulls() {
@@ -930,7 +930,7 @@ public class BasicBlockTests extends ESTestCase {
                         }
                         case BYTES_REF -> {
                             BytesRef b = bytesRefFromPoints
-                                ? GEO.pointAsWKB(pointSupplier.get())
+                                ? GEO.asWkb(pointSupplier.get())
                                 : new BytesRef(randomRealisticUnicodeOfLength(4));
                             valuesAtPosition.add(b);
                             ((BytesRefBlock.Builder) builder).appendBytesRef(b);

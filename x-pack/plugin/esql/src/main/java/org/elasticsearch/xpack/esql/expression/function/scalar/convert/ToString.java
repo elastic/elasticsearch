@@ -141,11 +141,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromGeoPoint")
     static BytesRef fromGeoPoint(BytesRef wkb) {
-        return new BytesRef(GEO.wkbAsString(wkb));
+        return new BytesRef(GEO.wkbToWkt(wkb));
     }
 
     @ConvertEvaluator(extraName = "FromCartesianPoint")
     static BytesRef fromCartesianPoint(BytesRef wkb) {
-        return new BytesRef(CARTESIAN.wkbAsString(wkb));
+        return new BytesRef(CARTESIAN.wkbToWkt(wkb));
     }
 }

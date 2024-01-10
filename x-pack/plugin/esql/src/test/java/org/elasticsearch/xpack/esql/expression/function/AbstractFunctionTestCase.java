@@ -127,8 +127,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
-            case "geo_point" -> GEO.pointAsWKB(GeometryTestUtils.randomPoint());
-            case "cartesian_point" -> CARTESIAN.pointAsWKB(ShapeTestUtils.randomPoint());
+            case "geo_point" -> GEO.asWkb(GeometryTestUtils.randomPoint());
+            case "cartesian_point" -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
             case "null" -> null;
             case "_source" -> {
                 try {
@@ -903,14 +903,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
-        Map.entry(
-            Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.NULL),
-            "geo_point or long or string"
-        ),
-        Map.entry(
-            Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.NULL),
-            "cartesian_point or long or string"
-        )
+        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
+        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?

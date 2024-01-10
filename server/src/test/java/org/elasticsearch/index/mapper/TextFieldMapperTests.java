@@ -97,6 +97,30 @@ public class TextFieldMapperTests extends MapperTestCase {
         return "value";
     }
 
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromColumnReader() throws IOException {
+        super.testBlockLoaderFromColumnReader();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromRowStrideReader() throws IOException {
+        super.testBlockLoaderFromRowStrideReader();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromColumnReaderWithSyntheticSource() throws IOException {
+        super.testBlockLoaderFromColumnReaderWithSyntheticSource();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
+        super.testBlockLoaderFromRowStrideReaderWithSyntheticSource();
+    }
+
     public final void testExistsQueryIndexDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

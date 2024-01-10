@@ -189,7 +189,12 @@ public class RestTestBasePlugin implements Plugin<Project> {
             // Wire up integ-test distribution by default for all test tasks
             FileCollection extracted = integTestDistro.getExtracted();
             nonInputSystemProperties.systemProperty(INTEG_TEST_DISTRIBUTION_SYSPROP, () -> extracted.getSingleFile().getPath());
-            nonInputSystemProperties.systemProperty(TESTS_RUNTIME_JAVA_SYSPROP, BuildParams.getRuntimeJavaHome());
+
+            // Pass the current test task runtime java home to test framework via system property
+            nonInputSystemProperties.systemProperty(
+                TESTS_RUNTIME_JAVA_SYSPROP,
+                task.getJavaLauncher().map(l -> l.getMetadata().getInstallationPath().getAsFile().getPath())
+            );
 
             // Add `usesDefaultDistribution()` extension method to test tasks to indicate they require the default distro
             task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {

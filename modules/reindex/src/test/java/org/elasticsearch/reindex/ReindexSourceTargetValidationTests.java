@@ -164,14 +164,19 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     }
 
     private void succeeds(RemoteInfo remoteInfo, String target, String... sources) {
-        ReindexValidator.validateAgainstAliases(
-            new SearchRequest(sources),
-            new IndexRequest(target),
-            remoteInfo,
-            INDEX_NAME_EXPRESSION_RESOLVER,
-            AUTO_CREATE_INDEX,
-            STATE
-        );
+        IndexRequest indexRequest = new IndexRequest(target);
+        try {
+            ReindexValidator.validateAgainstAliases(
+                new SearchRequest(sources),
+                indexRequest,
+                remoteInfo,
+                INDEX_NAME_EXPRESSION_RESOLVER,
+                AUTO_CREATE_INDEX,
+                STATE
+            );
+        } finally {
+            indexRequest.decRef();
+        }
     }
 
     private static IndexMetadata index(String name, String... aliases) {

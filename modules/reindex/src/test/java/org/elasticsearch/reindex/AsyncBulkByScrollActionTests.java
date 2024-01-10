@@ -632,7 +632,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setScroll(scrollId());
         BulkRequest request = new BulkRequest();
         for (int i = 0; i < size + 1; i++) {
-            request.add(new IndexRequest("index").id("id" + i));
+            IndexRequest indexRequest = new IndexRequest("index").id("id" + i);
+            request.add(indexRequest);
+            indexRequest.decRef();
         }
         if (failWithRejection) {
             action.sendBulkRequest(request, Assert::fail, request::close);

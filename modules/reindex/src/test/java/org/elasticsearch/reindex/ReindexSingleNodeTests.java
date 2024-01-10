@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -29,7 +30,9 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
     public void testDeprecatedSort() {
         int max = between(2, 20);
         for (int i = 0; i < max; i++) {
-            prepareIndex("source").setId(Integer.toString(i)).setSource("foo", i).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("source").setId(Integer.toString(i)).setSource("foo", i);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         indicesAdmin().prepareRefresh("source").get();
@@ -41,6 +44,7 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
         copy.maxDocs(subsetSize);
         copy.request().addSortField("foo", SortOrder.DESC);
         assertThat(copy.get(), matcher().created(subsetSize));
+        copy.request().decRef();
 
         assertHitCount(client().prepareSearch("dest").setSize(0), subsetSize);
         assertHitCount(client().prepareSearch("dest").setQuery(new RangeQueryBuilder("foo").gte(0).lt(max - subsetSize)), 0);

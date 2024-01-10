@@ -36,6 +36,9 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
             }
         }
         indexRandom(true, true, true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         final CountDownLatch start = new CountDownLatch(1);
         for (int t = 0; t < threads.length; t++) {
@@ -76,6 +79,9 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
             builders.add(prepareIndex("test").setId(String.valueOf(i)).setSource("foo", "bar"));
         }
         indexRandom(true, true, true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         final Thread[] threads = new Thread[scaledRandomIntBetween(2, 9)];
 

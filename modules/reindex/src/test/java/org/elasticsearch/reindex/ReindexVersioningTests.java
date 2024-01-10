@@ -9,6 +9,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 
@@ -80,8 +81,13 @@ public class ReindexVersioningTests extends ReindexTestCase {
      */
     private BulkByScrollResponse reindexExternal() {
         ReindexRequestBuilder reindex = reindex().source("source").destination("dest").abortOnVersionConflict(false);
-        reindex.destination().setVersionType(EXTERNAL);
-        return reindex.get();
+        try {
+            reindex.destination().setVersionType(EXTERNAL);
+            return reindex.get();
+        } finally {
+            reindex.request().decRef();
+
+        }
     }
 
     /**
@@ -89,8 +95,12 @@ public class ReindexVersioningTests extends ReindexTestCase {
      */
     private BulkByScrollResponse reindexInternal() {
         ReindexRequestBuilder reindex = reindex().source("source").destination("dest").abortOnVersionConflict(false);
-        reindex.destination().setVersionType(INTERNAL);
-        return reindex.get();
+        try {
+            reindex.destination().setVersionType(INTERNAL);
+            return reindex.get();
+        } finally {
+            reindex.request().decRef();
+        }
     }
 
     /**
@@ -98,22 +108,33 @@ public class ReindexVersioningTests extends ReindexTestCase {
      */
     private BulkByScrollResponse reindexCreate() {
         ReindexRequestBuilder reindex = reindex().source("source").destination("dest").abortOnVersionConflict(false);
-        reindex.destination().setOpType(CREATE);
-        return reindex.get();
+        try {
+            reindex.destination().setOpType(CREATE);
+            return reindex.get();
+        } finally {
+            reindex.request().decRef();
+        }
     }
 
     private void setupSourceAbsent() throws Exception {
-        indexRandom(
-            true,
-            prepareIndex("source").setId("test").setVersionType(EXTERNAL).setVersion(SOURCE_VERSION).setSource("foo", "source")
-        );
+        IndexRequestBuilder builder = prepareIndex("source").setId("test")
+            .setVersionType(EXTERNAL)
+            .setVersion(SOURCE_VERSION)
+            .setSource("foo", "source");
+        indexRandom(true, builder);
+        builder.request().decRef();
 
         assertEquals(SOURCE_VERSION, client().prepareGet("source", "test").get().getVersion());
     }
 
     private void setupDest(int version) throws Exception {
         setupSourceAbsent();
-        indexRandom(true, prepareIndex("dest").setId("test").setVersionType(EXTERNAL).setVersion(version).setSource("foo", "dest"));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("dest").setId("test")
+            .setVersionType(EXTERNAL)
+            .setVersion(version)
+            .setSource("foo", "dest");
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
 
         assertEquals(version, client().prepareGet("dest", "test").get().getVersion());
     }

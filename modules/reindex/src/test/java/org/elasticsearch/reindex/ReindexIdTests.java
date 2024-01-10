@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -35,23 +36,23 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<ReindexRequest, BulkByScrollResponse> {
     public void testEmptyStateCopiesId() throws Exception {
-        assertThat(action(ClusterState.EMPTY_STATE).buildRequest(doc()).getId(), equalTo(doc().getId()));
+        testReindexId(ClusterState.EMPTY_STATE, false);
     }
 
     public void testStandardIndexCopiesId() throws Exception {
-        assertThat(action(stateWithIndex(standardSettings())).buildRequest(doc()).getId(), equalTo(doc().getId()));
+        testReindexId(stateWithIndex(standardSettings()), false);
     }
 
     public void testTsdbIndexClearsId() throws Exception {
-        assertThat(action(stateWithIndex(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
+        testReindexId(stateWithIndex(tsdbSettings()), true);
     }
 
     public void testMissingIndexWithStandardTemplateCopiesId() throws Exception {
-        assertThat(action(stateWithTemplate(standardSettings())).buildRequest(doc()).getId(), equalTo(doc().getId()));
+        testReindexId(stateWithTemplate(standardSettings()), false);
     }
 
     public void testMissingIndexWithTsdbTemplateClearsId() throws Exception {
-        assertThat(action(stateWithTemplate(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
+        testReindexId(stateWithTemplate(tsdbSettings()), true);
     }
 
     private ClusterState stateWithTemplate(Settings.Builder settings) {
@@ -70,10 +71,12 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
     }
 
     private ClusterState stateWithIndex(Settings.Builder settings) {
-        IndexMetadata.Builder meta = IndexMetadata.builder(request().getDestination().index())
+        ReindexRequest reindexRequest = request();
+        IndexMetadata.Builder meta = IndexMetadata.builder(reindexRequest.getDestination().index())
             .settings(settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfReplicas(0)
             .numberOfShards(1);
+        reindexRequest.decRef();
         return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta)).build();
     }
 
@@ -101,5 +104,24 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
 
     private Reindexer.AsyncIndexBySearchAction action(ClusterState state) {
         return new Reindexer.AsyncIndexBySearchAction(task, logger, null, null, threadPool, null, state, null, request(), listener());
+    }
+
+    private void testReindexId(ClusterState state, boolean nullValueExpected) {
+        Reindexer.AsyncIndexBySearchAction action = action(state);
+        try {
+            AbstractAsyncBulkByScrollAction.RequestWrapper<IndexRequest> indexRequest = action.buildRequest(doc());
+            try {
+                String id = indexRequest.getId();
+                if (nullValueExpected) {
+                    assertThat(id, nullValue());
+                } else {
+                    assertThat(id, equalTo(doc().getId()));
+                }
+            } finally {
+                indexRequest.self().decRef();
+            }
+        } finally {
+            action.mainRequest.decRef();
+        }
     }
 }

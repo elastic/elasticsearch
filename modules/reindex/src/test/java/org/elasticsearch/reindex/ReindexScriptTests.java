@@ -29,6 +29,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         Object dest = randomFrom(new Object[] { 234, 234L, "pancake" });
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_index", dest));
         assertEquals(dest.toString(), index.index());
+        index.decRef();
     }
 
     public void testSettingIndexToNullIsError() throws Exception {
@@ -47,6 +48,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         } else {
             assertEquals(id.toString(), index.id());
         }
+        index.decRef();
     }
 
     public void testSetVersion() throws Exception {
@@ -57,6 +59,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         } else {
             assertEquals(version.longValue(), index.version());
         }
+        index.decRef();
     }
 
     public void testSettingVersionToJunkIsAnError() throws Exception {
@@ -77,6 +80,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_routing", routing));
         assertEquals(routing, index.routing());
+        index.decRef();
     }
 
     @Override

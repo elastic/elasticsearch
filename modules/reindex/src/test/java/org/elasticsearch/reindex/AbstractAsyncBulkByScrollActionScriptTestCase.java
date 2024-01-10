@@ -72,9 +72,23 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
                 }
             }
         );
-        AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
-        RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
-        return (result != null) ? (T) result.self() : null;
+        Request request = request();
+        try {
+            AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request.setScript(mockScript("")));
+            RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
+            if (result.self() == null) {
+                return null;
+            }
+            if (result.self() != index) {
+                index.decRef();
+            }
+            return (T) result.self();
+        } catch (Exception e) {
+            index.decRef();
+            throw e;
+        } finally {
+            request.decRef();
+        }
     }
 
     public void testScriptAddingJunkToCtxIsError() {
@@ -93,6 +107,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             source.put("bar", "cat");
         });
         assertEquals("cat", index.sourceAsMap().get("bar"));
+        index.decRef();
     }
 
     public void testSetOpTypeDelete() throws Exception {

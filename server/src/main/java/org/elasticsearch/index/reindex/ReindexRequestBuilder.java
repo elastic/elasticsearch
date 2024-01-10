@@ -17,6 +17,7 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
 
     public ReindexRequestBuilder(ElasticsearchClient client) {
         this(client, new SearchRequestBuilder(client), new IndexRequestBuilder(client));
+        request.getDestination().decRef();
     }
 
     private ReindexRequestBuilder(ElasticsearchClient client, SearchRequestBuilder search, IndexRequestBuilder destination) {

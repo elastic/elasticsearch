@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -178,7 +179,9 @@ public class RetryTests extends ESIntegTestCase {
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
         try (BulkRequestBuilder bulk = client().prepareBulk()) {
             for (int i = 0; i < DOC_COUNT; i++) {
-                bulk.add(prepareIndex("source").setSource("foo", "bar " + i));
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("source").setSource("foo", "bar " + i);
+                bulk.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
 
             Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
@@ -214,6 +217,7 @@ public class RetryTests extends ESIntegTestCase {
             }
             assertThat(response.getSearchFailures(), empty());
             assertThat(response.getBulkFailures(), empty());
+            builder.request().decRef();
         }
     }
 

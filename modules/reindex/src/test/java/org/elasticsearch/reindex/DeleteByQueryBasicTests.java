@@ -51,7 +51,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testBasics() throws Exception {
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("foo", "a"),
             prepareIndex("test").setId("2").setSource("foo", "a"),
@@ -90,7 +90,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         for (int i = 0; i < docs; i++) {
             builders.add(prepareIndex("test").setId(String.valueOf(i)).setSource("fields1", 1));
         }
-        indexRandom(true, true, true, builders);
+        indexRandomAndDecRefRequests(true, true, true, builders);
 
         assertThat(deleteByQuery().source("t*").filter(QueryBuilders.matchAllQuery()).refresh(true).get(), matcher().deleted(docs));
         assertHitCount(prepareSearch("test").setSize(0), 0);
@@ -116,7 +116,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                 builders.add(prepareIndex("test-" + i).setId(String.valueOf(j)).setSource("candidate", candidate));
             }
         }
-        indexRandom(true, true, true, builders);
+        indexRandomAndDecRefRequests(true, true, true, builders);
 
         // Deletes all the documents with candidate=true
         assertThat(deleteByQuery().source("test-*").filter(termQuery("candidate", true)).refresh(true).get(), matcher().deleted(deletions));
@@ -130,7 +130,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryWithMissingIndex() throws Exception {
-        indexRandom(true, prepareIndex("test").setId("1").setSource("foo", "a"));
+        indexRandomAndDecRefRequests(true, prepareIndex("test").setId("1").setSource("foo", "a"));
         assertHitCount(prepareSearch().setSize(0), 1);
 
         try {
@@ -152,7 +152,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         for (int i = 0; i < docs; i++) {
             builders.add(prepareIndex("test").setId(String.valueOf(i)).setRouting(String.valueOf(i)).setSource("field1", 1));
         }
-        indexRandom(true, true, true, builders);
+        indexRandomAndDecRefRequests(true, true, true, builders);
 
         logger.info("--> counting documents with no routing, should be equal to [{}]", docs);
         assertHitCount(prepareSearch().setSize(0), docs);
@@ -181,7 +181,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                 prepareIndex("test").setId(Integer.toString(i)).setRouting(randomAlphaOfLengthBetween(1, 5)).setSource("foo", "bar")
             );
         }
-        indexRandom(true, true, true, builders);
+        indexRandomAndDecRefRequests(true, true, true, builders);
 
         int n = between(0, docs - 1);
         assertHitCount(prepareSearch("test").setSize(0).setQuery(matchQuery("_id", Integer.toString(n))), 1);
@@ -194,7 +194,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryWithDateMath() throws Exception {
-        indexRandom(true, prepareIndex("test").setId("1").setSource("d", "2013-01-01"));
+        indexRandomAndDecRefRequests(true, prepareIndex("test").setId("1").setSource("d", "2013-01-01"));
 
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("test").filter(rangeQuery("d").to("now-1h"));
         assertThat(delete.refresh(true).get(), matcher().deleted(1L));
@@ -210,7 +210,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         for (int i = 0; i < docs; i++) {
             builders.add(prepareIndex("test").setId(Integer.toString(i)).setSource("field", 1));
         }
-        indexRandom(true, true, true, builders);
+        indexRandomAndDecRefRequests(true, true, true, builders);
 
         try {
             enableIndexBlock("test", SETTING_READ_ONLY);
@@ -233,7 +233,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         for (int i = 0; i < docs; i++) {
             builders.add(prepareIndex("test").setId(Integer.toString(i)).setSource("field", 1));
         }
-        indexRandom(true, true, true, builders);
+        indexRandomAndDecRefRequests(true, true, true, builders);
 
         // Because the index level read_only_allow_delete block can be automatically released by disk allocation decider,
         // so we should test both case of disk allocation decider is enabled and disabled
@@ -285,7 +285,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testSlices() throws Exception {
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("foo", "a"),
             prepareIndex("test").setId("2").setSource("foo", "a"),
@@ -329,7 +329,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         }
 
         List<IndexRequestBuilder> allDocs = docs.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
-        indexRandom(true, allDocs);
+        indexRandomAndDecRefRequests(true, true, true, allDocs);
         for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
             assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
@@ -364,5 +364,30 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             ? Settings.builder().putNull(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())
             : Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false);
         updateClusterSettings(settings);
+    }
+
+    private void indexRandomAndDecRefRequests(
+        boolean forceRefresh,
+        boolean dummyDocuments,
+        boolean autoFlush,
+        List<IndexRequestBuilder> builders
+    ) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, dummyDocuments, autoFlush, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

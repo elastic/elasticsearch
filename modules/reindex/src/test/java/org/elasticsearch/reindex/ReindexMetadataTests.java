@@ -20,8 +20,11 @@ import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadataTestCase<ReindexRequest, BulkByScrollResponse> {
     public void testRoutingCopiedByDefault() throws Exception {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
+        TestAction action = action();
+        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
+        index.decRef();
+        action.mainRequest().decRef();
     }
 
     public void testRoutingCopiedIfRequested() throws Exception {
@@ -30,6 +33,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         IndexRequest index = new IndexRequest();
         action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
+        index.decRef();
+        action.mainRequest().decRef();
     }
 
     public void testRoutingDiscardedIfRequested() throws Exception {
@@ -38,6 +43,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         IndexRequest index = new IndexRequest();
         action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals(null, index.routing());
+        index.decRef();
+        action.mainRequest().decRef();
     }
 
     public void testRoutingSetIfRequested() throws Exception {
@@ -46,6 +53,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         IndexRequest index = new IndexRequest();
         action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("cat", index.routing());
+        index.decRef();
+        action.mainRequest().decRef();
     }
 
     public void testRoutingSetIfWithDegenerateValue() throws Exception {
@@ -54,6 +63,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         IndexRequest index = new IndexRequest();
         action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("=]", index.routing());
+        index.decRef();
+        action.mainRequest().decRef();
     }
 
     @Override

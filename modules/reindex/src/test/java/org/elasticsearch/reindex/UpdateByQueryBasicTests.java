@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testBasics() throws Exception {
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("foo", "a"),
             prepareIndex("test").setId("2").setSource("foo", "a"),
@@ -67,7 +67,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testSlices() throws Exception {
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("foo", "a"),
             prepareIndex("test").setId("2").setSource("foo", "a"),
@@ -123,6 +123,9 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> allDocs = docs.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
         indexRandom(true, allDocs);
+        for (IndexRequestBuilder doc : allDocs) {
+            doc.request().decRef();
+        }
         for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
             assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
@@ -148,5 +151,15 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
             .get();
         assertThat(response, matcher().updated(0).slices(hasSize(0)));
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

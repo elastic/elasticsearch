@@ -82,6 +82,8 @@ public class RoundTripTests extends ESTestCase {
         reindex.setSlices(between(1, Integer.MAX_VALUE));
         tripped = new ReindexRequest(toInputByteStream(reindex));
         assertRequestEquals(reindex, tripped);
+        reindex.decRef();
+        tripped.decRef();
     }
 
     public void testUpdateByQueryRequest() throws IOException {

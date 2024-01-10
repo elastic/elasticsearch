@@ -37,7 +37,9 @@ public class ReindexFailureTests extends ReindexTestCase {
          * Create the destination index such that the copy will cause a mapping
          * conflict on every request.
          */
-        indexRandom(true, prepareIndex("dest").setId("test").setSource("test", 10) /* Its a string in the source! */);
+        IndexRequestBuilder builder = prepareIndex("dest").setId("test").setSource("test", 10); /* Its a string in the source! */
+        indexRandom(true, builder);
+        builder.request().decRef();
 
         indexDocs(100);
 
@@ -50,6 +52,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         copy.source().setSize(1);
 
         BulkByScrollResponse response = copy.get();
+        copy.request().decRef();
         assertThat(response, matcher().batches(1).failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
         for (Failure failure : response.getBulkFailures()) {
             assertThat(failure.getCause().getCause(), instanceOf(IllegalArgumentException.class));
@@ -59,7 +62,9 @@ public class ReindexFailureTests extends ReindexTestCase {
 
     public void testAbortOnVersionConflict() throws Exception {
         // Just put something in the way of the copy.
-        indexRandom(true, prepareIndex("dest").setId("1").setSource("test", "test"));
+        IndexRequestBuilder builder = prepareIndex("dest").setId("1").setSource("test", "test");
+        indexRandom(true, builder);
+        builder.request().decRef();
 
         indexDocs(100);
 
@@ -68,6 +73,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         copy.destination().setOpType(CREATE);
 
         BulkByScrollResponse response = copy.get();
+        copy.request().decRef();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure : response.getBulkFailures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException: ["));
@@ -113,6 +119,8 @@ public class ReindexFailureTests extends ReindexTestCase {
                         .or(containsString("Partial shards failure"))
                 );
                 return;
+            } finally {
+                copy.request().decRef();
             }
         }
         assumeFalse("Wasn't able to trigger a reindex failure in " + attempt + " attempts.", true);
@@ -121,20 +129,28 @@ public class ReindexFailureTests extends ReindexTestCase {
     public void testDateMathResolvesSameIndexName() throws Exception {
         String sourceIndexName = "datemath-2001-01-01-14";
         String destIndexName = "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex(sourceIndexName).setId("1").setSource("foo", "a"),
             prepareIndex(sourceIndexName).setId("2").setSource("foo", "a"),
             prepareIndex(sourceIndexName).setId("3").setSource("foo", "b"),
             prepareIndex(sourceIndexName).setId("4").setSource("foo", "c")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         assertHitCount(prepareSearch(sourceIndexName).setSize(0), 4);
 
-        ActionRequestValidationException e = expectThrows(
-            ActionRequestValidationException.class,
-            () -> reindex().source(sourceIndexName).destination(destIndexName).get()
-        );
-        assertThat(e.getMessage(), containsString("reindex cannot write into an index its reading from [datemath-2001-01-01-14]"));
+        ReindexRequestBuilder requestBuilder = reindex();
+        try {
+            ActionRequestValidationException e = expectThrows(
+                ActionRequestValidationException.class,
+                () -> requestBuilder.source(sourceIndexName).destination(destIndexName).get()
+            );
+            assertThat(e.getMessage(), containsString("reindex cannot write into an index its reading from [datemath-2001-01-01-14]"));
+        } finally {
+            requestBuilder.request().decRef();
+        }
     }
 
     private void indexDocs(int count) throws Exception {
@@ -143,5 +159,8 @@ public class ReindexFailureTests extends ReindexTestCase {
             docs.add(prepareIndex("source").setId(Integer.toString(i)).setSource("test", "words words"));
         }
         indexRandom(true, docs);
+        for (IndexRequestBuilder builder : docs) {
+            builder.request().decRef();
+        }
     }
 }

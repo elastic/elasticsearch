@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +41,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -92,14 +95,13 @@ public class CancelTests extends ReindexTestCase {
         ALLOWED_OPERATIONS.release(numDocs);
 
         logger.debug("setting up [{}] docs", numDocs);
-        indexRandom(
-            true,
-            false,
-            true,
-            IntStream.range(0, numDocs)
-                .mapToObj(i -> prepareIndex(INDEX).setId(String.valueOf(i)).setSource("n", i))
-                .collect(Collectors.toList())
-        );
+        List<IndexRequestBuilder> builders = IntStream.range(0, numDocs)
+            .mapToObj(i -> prepareIndex(INDEX).setId(String.valueOf(i)).setSource("n", i))
+            .collect(Collectors.toList());
+        indexRandom(true, false, true, builders);
+        for (IndexRequestBuilder indexRequestBuilder : builders) {
+            indexRequestBuilder.request().decRef();
+        }
 
         // Checks that the all documents have been indexed and correctly counted
         assertHitCount(prepareSearch(INDEX).setSize(0), numDocs);
@@ -221,12 +223,14 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testReindexCancel() throws Exception {
-        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest"), (response, total, modified) -> {
+        ReindexRequestBuilder builder = reindex();
+        testCancel(ReindexAction.NAME, builder.source(INDEX).destination("dest"), (response, total, modified) -> {
             assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
 
             refresh("dest");
             assertHitCount(prepareSearch("dest").setSize(0), modified);
         }, equalTo("reindex from [" + INDEX + "] to [dest]"));
+        builder.request().decRef();
     }
 
     public void testUpdateByQueryCancel() throws Exception {
@@ -260,9 +264,10 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testReindexCancelWithWorkers() throws Exception {
+        ReindexRequestBuilder builder = reindex();
         testCancel(
             ReindexAction.NAME,
-            reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest").setSlices(5),
+            builder.source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest").setSlices(5),
             (response, total, modified) -> {
                 assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                 refresh("dest");
@@ -270,6 +275,7 @@ public class CancelTests extends ReindexTestCase {
             },
             equalTo("reindex from [" + INDEX + "] to [dest]")
         );
+        builder.request().decRef();
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {

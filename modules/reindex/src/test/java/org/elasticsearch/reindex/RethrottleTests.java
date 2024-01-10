@@ -20,6 +20,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.tasks.TaskId;
 
@@ -47,7 +48,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class RethrottleTests extends ReindexTestCase {
 
     public void testReindex() throws Exception {
-        testCase(reindex().source("test").destination("dest"), ReindexAction.NAME);
+        ReindexRequestBuilder requestBuilder = reindex();
+        testCase(requestBuilder.source("test").destination("dest"), ReindexAction.NAME);
+        requestBuilder.request().decRef();
     }
 
     public void testUpdateByQuery() throws Exception {
@@ -59,7 +62,9 @@ public class RethrottleTests extends ReindexTestCase {
     }
 
     public void testReindexWithWorkers() throws Exception {
-        testCase(reindex().source("test").destination("dest").setSlices(randomSlices()), ReindexAction.NAME);
+        ReindexRequestBuilder builder = reindex();
+        testCase(builder.source("test").destination("dest").setSlices(randomSlices()), ReindexAction.NAME);
+        builder.request().decRef();
     }
 
     public void testUpdateByQueryWithWorkers() throws Exception {
@@ -84,6 +89,9 @@ public class RethrottleTests extends ReindexTestCase {
             docs.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", "bar"));
         }
         indexRandom(true, docs);
+        for (IndexRequestBuilder doc : docs) {
+            doc.request().decRef();
+        }
 
         // Start a request that will never finish unless we rethrottle it
         request.setRequestsPerSecond(.000001f);  // Throttle "forever"

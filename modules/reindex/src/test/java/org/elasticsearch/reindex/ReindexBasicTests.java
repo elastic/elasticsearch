@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ReindexBasicTests extends ReindexTestCase {
     public void testFiltering() throws Exception {
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("source").setId("1").setSource("foo", "a"),
             prepareIndex("source").setId("2").setSource("foo", "a"),
@@ -40,22 +40,26 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         assertThat(copy.get(), matcher().created(4));
+        copy.request().decRef();
         assertHitCount(prepareSearch("dest").setSize(0), 4);
 
         // Now none of them
         createIndex("none");
         copy = reindex().source("source").destination("none").filter(termQuery("foo", "no_match")).refresh(true);
         assertThat(copy.get(), matcher().created(0));
+        copy.request().decRef();
         assertHitCount(prepareSearch("none").setSize(0), 0);
 
         // Now half of them
         copy = reindex().source("source").destination("dest_half").filter(termQuery("foo", "a")).refresh(true);
         assertThat(copy.get(), matcher().created(2));
+        copy.request().decRef();
         assertHitCount(prepareSearch("dest_half").setSize(0), 2);
 
         // Limit with maxDocs
         copy = reindex().source("source").destination("dest_size_one").maxDocs(1).refresh(true);
         assertThat(copy.get(), matcher().created(1));
+        copy.request().decRef();
         assertHitCount(prepareSearch("dest_size_one").setSize(0), 1);
     }
 
@@ -66,7 +70,7 @@ public class ReindexBasicTests extends ReindexTestCase {
             docs.add(prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
         assertHitCount(prepareSearch("source").setSize(0), max);
 
         // Copy all the docs
@@ -74,6 +78,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(max, 5));
+        copy.request().decRef();
         assertHitCount(prepareSearch("dest").setSize(0), max);
 
         // Copy some of the docs
@@ -83,6 +88,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.source().setSize(5);
         copy.maxDocs(half);
         assertThat(copy.get(), matcher().created(half).batches(half, 5));
+        copy.request().decRef();
         assertHitCount(prepareSearch("dest_half").setSize(0), half);
     }
 
@@ -93,7 +99,7 @@ public class ReindexBasicTests extends ReindexTestCase {
             docs.add(prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
         assertHitCount(prepareSearch("source").setSize(0), max);
 
         int slices = randomSlices();
@@ -104,6 +110,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(expectedSlices)));
+        copy.request().decRef();
         assertHitCount(prepareSearch("dest").setSize(0), max);
 
         // Copy some of the docs
@@ -113,6 +120,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.source().setSize(5);
         copy.maxDocs(half);
         BulkByScrollResponse response = copy.get();
+        copy.request().decRef();
         assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(expectedSlices)));
         assertHitCount(prepareSearch("dest_half").setSize(0), response.getCreated());
     }
@@ -132,7 +140,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         }
 
         List<IndexRequestBuilder> allDocs = docs.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
-        indexRandom(true, allDocs);
+        indexRandomAndDecRefRequests(true, allDocs);
         for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
             assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
@@ -144,6 +152,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         ReindexRequestBuilder request = reindex().source(sourceIndexNames).destination("dest").refresh(true).setSlices(slices);
 
         BulkByScrollResponse response = request.get();
+        request.request().decRef();
         assertThat(response, matcher().created(allDocs.size()).slices(hasSize(expectedSlices)));
         assertHitCount(prepareSearch("dest").setSize(0), allDocs.size());
     }
@@ -159,7 +168,7 @@ public class ReindexBasicTests extends ReindexTestCase {
     public void testReindexFromComplexDateMathIndexName() throws Exception {
         String sourceIndexName = "datemath-2001-01-01-14";
         String destIndexName = "<reindex-datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex(sourceIndexName).setId("1").setSource("foo", "a"),
             prepareIndex(sourceIndexName).setId("2").setSource("foo", "a"),
@@ -171,7 +180,27 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source(sourceIndexName).destination(destIndexName).refresh(true);
         assertThat(copy.get(), matcher().created(4));
+        copy.request().decRef();
         assertHitCount(prepareSearch(destIndexName).setSize(0), 4);
     }
 
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
@@ -80,7 +81,12 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Before
     public void setupSourceIndex() {
-        prepareIndex("source").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        IndexRequestBuilder builder = prepareIndex("source");
+        try {
+            builder.setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        } finally {
+            builder.request().decRef();
+        }
     }
 
     @Before
@@ -112,33 +118,46 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("Aladdin", "open sesame", emptyMap()));
         assertThat(request.get(), matcher().created(1));
+        request.request().decRef();
     }
 
     public void testReindexSendsHeaders() throws Exception {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
-        assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertThat(e.getMessage(), containsString("Hurray! Sent the header!"));
+        try {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+            assertThat(e.getMessage(), containsString("Hurray! Sent the header!"));
+        } finally {
+            request.request().decRef();
+        }
     }
 
     public void testReindexWithoutAuthenticationWhenRequired() throws Exception {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo(null, null, emptyMap()));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
-        assertEquals(RestStatus.UNAUTHORIZED, e.status());
-        assertThat(e.getMessage(), containsString("\"reason\":\"Authentication required\""));
-        assertThat(e.getMessage(), containsString("\"WWW-Authenticate\":\"Basic realm=auth-realm\""));
+        try {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+            assertEquals(RestStatus.UNAUTHORIZED, e.status());
+            assertThat(e.getMessage(), containsString("\"reason\":\"Authentication required\""));
+            assertThat(e.getMessage(), containsString("\"WWW-Authenticate\":\"Basic realm=auth-realm\""));
+        } finally {
+            request.request().decRef();
+        }
     }
 
     public void testReindexWithBadAuthentication() throws Exception {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
-        assertThat(e.getMessage(), containsString("\"reason\":\"Bad Authorization\""));
+        try {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+            assertThat(e.getMessage(), containsString("\"reason\":\"Bad Authorization\""));
+        } finally {
+            request.request().decRef();
+        }
     }
 
     /**

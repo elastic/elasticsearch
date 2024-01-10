@@ -81,6 +81,9 @@ public class UnsignedLongTests extends ESIntegTestCase {
             builders.add(prepareIndex("idx-sort").setSource(jsonBuilder().startObject().field("ul_field", values[i]).endObject()));
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         prepareCreate("idx2").setMapping("ul_field", "type=long").setSettings(settings).get();
         List<IndexRequest> indexRequests = new ArrayList<>();

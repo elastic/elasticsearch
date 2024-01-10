@@ -32,7 +32,9 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
 
     public void testUpdateWhileReindexing() throws Exception {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
-        indexRandom(true, prepareIndex("test").setId("test").setSource("test", value.get()));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("test").setSource("test", value.get());
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicBoolean keepUpdating = new AtomicBoolean(true);
@@ -67,6 +69,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                     attempts++;
                     try {
                         index.setIfSeqNo(get.getSeqNo()).setIfPrimaryTerm(get.getPrimaryTerm()).get();
+                        index.request().decRef();
                         break;
                     } catch (VersionConflictEngineException e) {
                         if (attempts >= MAX_ATTEMPTS) {

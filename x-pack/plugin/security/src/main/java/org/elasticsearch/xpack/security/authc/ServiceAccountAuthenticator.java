@@ -17,14 +17,13 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import org.elasticsearch.xpack.security.metric.SecurityMetrics;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener.wrapForAuthc;
 
 class ServiceAccountAuthenticator implements Authenticator {
 
@@ -80,7 +79,11 @@ class ServiceAccountAuthenticator implements Authenticator {
             return;
         }
         final ServiceAccountToken serviceAccountToken = (ServiceAccountToken) authenticationToken;
-        doAuthenticate(context, serviceAccountToken, wrapForAuthc(authenticationMetrics, serviceAccountToken, listener));
+        doAuthenticate(
+            context,
+            serviceAccountToken,
+            InstrumentedSecurityActionListener.wrapForAuthc(authenticationMetrics, serviceAccountToken, listener)
+        );
     }
 
     private void doAuthenticate(

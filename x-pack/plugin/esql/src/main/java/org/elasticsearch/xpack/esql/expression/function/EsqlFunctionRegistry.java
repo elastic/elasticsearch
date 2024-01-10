@@ -50,9 +50,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -67,6 +64,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
@@ -132,9 +131,6 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(E.class, E::new, "e"),
                 def(Floor.class, Floor::new, "floor"),
                 def(Greatest.class, Greatest::new, "greatest"),
-                def(IsFinite.class, IsFinite::new, "is_finite"),
-                def(IsInfinite.class, IsInfinite::new, "is_infinite"),
-                def(IsNaN.class, IsNaN::new, "is_nan"),
                 def(Log10.class, Log10::new, "log10"),
                 def(Least.class, Least::new, "least"),
                 def(Pi.class, Pi::new, "pi"),
@@ -194,6 +190,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(MvConcat.class, MvConcat::new, "mv_concat"),
                 def(MvCount.class, MvCount::new, "mv_count"),
                 def(MvDedupe.class, MvDedupe::new, "mv_dedupe"),
+                def(MvFirst.class, MvFirst::new, "mv_first"),
+                def(MvLast.class, MvLast::new, "mv_last"),
                 def(MvMax.class, MvMax::new, "mv_max"),
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMin.class, MvMin::new, "mv_min"),

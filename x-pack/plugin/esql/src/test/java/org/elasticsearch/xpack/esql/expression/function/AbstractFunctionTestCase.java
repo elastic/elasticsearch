@@ -127,8 +127,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
-            case "geo_point" -> GEO.pointAsWKB(GeometryTestUtils.randomPoint());
-            case "cartesian_point" -> CARTESIAN.pointAsWKB(ShapeTestUtils.randomPoint());
+            case "geo_point" -> GEO.asWkb(GeometryTestUtils.randomPoint());
+            case "cartesian_point" -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
             case "null" -> null;
             case "_source" -> {
                 try {

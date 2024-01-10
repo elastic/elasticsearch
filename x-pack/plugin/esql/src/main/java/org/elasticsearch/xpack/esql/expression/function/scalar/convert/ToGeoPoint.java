@@ -59,6 +59,6 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return GEO.stringAsWKB(in.utf8ToString());
+        return GEO.wktToWkb(in.utf8ToString());
     }
 }

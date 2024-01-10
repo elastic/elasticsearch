@@ -6,6 +6,13 @@
  * Side Public License, v 1.
  */
 
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 package org.elasticsearch.action.inference.results;
 
 import org.elasticsearch.common.Strings;
@@ -89,7 +96,7 @@ public class TextExpansionResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    void doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(resultsField);
         for (var weightedToken : weightedTokens) {
             weightedToken.toXContent(builder, params);
@@ -112,13 +119,13 @@ public class TextExpansionResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(resultsField);
         out.writeCollection(weightedTokens);
     }
 
     @Override
-    public void addMapFields(Map<String, Object> map) {
+    void addMapFields(Map<String, Object> map) {
         map.put(resultsField, weightedTokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight)));
     }
 

@@ -49,10 +49,10 @@ public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyT
     public void testAsMap() {
         PyTorchPassThroughResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
-        int size = testInstance.isTruncated() ? 2 : 1;
+        int size = testInstance.isTruncated ? 2 : 1;
         assertThat(asMap.keySet(), hasSize(size));
         assertArrayEquals(testInstance.getInference(), (double[][]) asMap.get(DEFAULT_RESULTS_FIELD));
-        if (testInstance.isTruncated()) {
+        if (testInstance.isTruncated) {
             assertThat(asMap.get("is_truncated"), is(true));
         }
     }

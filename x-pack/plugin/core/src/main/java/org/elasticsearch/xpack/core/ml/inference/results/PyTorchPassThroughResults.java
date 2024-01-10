@@ -41,7 +41,7 @@ public class PyTorchPassThroughResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, inference);
     }
 
@@ -51,7 +51,7 @@ public class PyTorchPassThroughResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeDoubleArray, inference);
         out.writeString(resultsField);
     }
@@ -62,7 +62,7 @@ public class PyTorchPassThroughResults extends NlpInferenceResults {
     }
 
     @Override
-    protected void addMapFields(Map<String, Object> map) {
+    void addMapFields(Map<String, Object> map) {
         map.put(resultsField, inference);
     }
 

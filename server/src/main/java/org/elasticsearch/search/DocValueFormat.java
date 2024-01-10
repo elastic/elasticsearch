@@ -697,8 +697,11 @@ public interface DocValueFormat extends NamedWriteable {
                 // NOTE: if the tsid is a map of dimension key/value pairs (as it was before introducing
                 // tsid hashing) we just decode the map and return it.
                 return TimeSeriesIdFieldMapper.decodeTsidAsMap(value);
-            } catch (Exception e) {
+            } catch (Throwable t) {
                 // NOTE: otherwise the _tsid field is just a hash and we can't decode it
+                // We need to catch a Throwable to be able to catch an AssertionError which is thrown
+                // if decoding of the tsid fails in UnicodeUtil#UTF8toUTF16 which happens if we try to decode
+                // a tsid hash as a map.
                 return TimeSeriesIdFieldMapper.encodeTsid(value);
             }
         }

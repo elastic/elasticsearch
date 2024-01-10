@@ -43,7 +43,10 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         "api_key_invalidated",
         "invalidation_time",
         "creation_time",
-        "expiration_time"
+        "expiration_time",
+        "metadata_flattened",
+        "creator.principal",
+        "creator.realm"
     );
 
     private ApiKeyBoolQueryBuilder() {}
@@ -184,9 +187,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     }
 
     static boolean isIndexFieldNameAllowed(String fieldName) {
-        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName)
-            || fieldName.startsWith("metadata_flattened.")
-            || fieldName.startsWith("creator.");
+        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName) || fieldName.startsWith("metadata_flattened.");
     }
 
 }

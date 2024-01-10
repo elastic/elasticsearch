@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
@@ -359,6 +360,23 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertQueryError(authHeader, 400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
     }
 
+    public void testSimpleQueryStringQuery() throws IOException {
+        final List<String> apiKeyIds = new ArrayList<>(9);
+        apiKeyIds.add(createApiKey("key1-user", "1ms", null, Map.of("label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key1-admin", "1ms", null, Map.of("label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key2-user", "1d", null, Map.of("value", 42, "label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key2-admin", "1d", null, Map.of("value", 42, "label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key3-user", null, null, Map.of("value", 42), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key3-admin", null, null, Map.of("value", 42), API_KEY_ADMIN_AUTH_HEADER).v1());
+
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "key*" }}}""",
+            apiKeys -> assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray()))
+        );
+    }
+
     public void testExistsQuery() throws IOException, InterruptedException {
         final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
 
@@ -598,10 +616,16 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return tuple.v1();
     }
 
-    private void createUser(String name) throws IOException {
-        final Request request = new Request("POST", "/_security/user/" + name);
-        request.setJsonEntity("""
-            {"password":"super-strong-password","roles":[]}""");
-        assertOK(adminClient().performRequest(request));
+    private String createUser(String username) throws IOException {
+        return createUser(username, new String[0]);
+    }
+
+    private String createUser(String username, String[] roles) throws IOException {
+        final Request request = new Request("POST", "/_security/user/" + username);
+        Map<String, Object> body = Map.ofEntries(Map.entry("roles", roles), Map.entry("password", "super-strong-password".toString()));
+        request.setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+        return basicAuthHeaderValue(username, new SecureString("super-strong-password".toCharArray()));
     }
 }

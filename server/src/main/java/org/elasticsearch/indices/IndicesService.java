@@ -94,6 +94,7 @@ import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -647,8 +648,8 @@ public class IndicesService extends AbstractLifecycleComponent
             public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
                 Engine engine = indexShard.getEngineOrNull();
                 if (engine == null) {
-                    listener.onResponse(null);
-                    return; // TODO-MP log?
+                    listener.onFailure(new EngineException(indexShard.shardId(), "Engine not available after recovery"));
+                    return;
                 }
                 try (Engine.Searcher hasValueSearcher = engine.acquireSearcher("field_has_value")) {
                     IndexReader hasValueReader = hasValueSearcher.getIndexReader();
@@ -657,10 +658,10 @@ public class IndicesService extends AbstractLifecycleComponent
                             for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
                                 indexShard.setFieldHasValue(fieldInfo.getName());
                             }
-                        } catch (IOException ignore) {
-                            // TODO-MP log?
                         }
                     }
+                } catch (IOException ignore) {
+                    // TODO-MP should we ignore this?
                 }
                 listener.onResponse(null);
             }

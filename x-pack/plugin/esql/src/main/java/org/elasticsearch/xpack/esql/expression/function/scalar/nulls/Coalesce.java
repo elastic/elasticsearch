@@ -44,55 +44,19 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = {
-            "boolean",
-            "cartesian_point",
-            "date",
-            "double",
-            "geo_point",
-            "integer",
-            "ip",
-            "keyword",
-            "long",
-            "text",
-            "unsigned_long",
-            "version" },
+        returnType = { "boolean", "text", "integer", "keyword", "long" },
         description = "Returns the first of its arguments that is not null."
     )
     public Coalesce(
         Source source,
         @Param(
             name = "expression",
-            type = {
-                "boolean",
-                "cartesian_point",
-                "date",
-                "double",
-                "geo_point",
-                "integer",
-                "ip",
-                "keyword",
-                "long",
-                "text",
-                "unsigned_long",
-                "version" },
+            type = { "boolean", "text", "integer", "keyword", "long" },
             description = "Expression to evaluate"
         ) Expression first,
         @Param(
             name = "expressionX",
-            type = {
-                "boolean",
-                "cartesian_point",
-                "date",
-                "double",
-                "geo_point",
-                "integer",
-                "ip",
-                "keyword",
-                "long",
-                "text",
-                "unsigned_long",
-                "version" },
+            type = { "boolean", "text", "integer", "keyword", "long" },
             description = "Other expression to evaluate"
         ) List<Expression> rest
     ) {

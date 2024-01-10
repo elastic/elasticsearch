@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cli.internal;
 
-import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -91,13 +89,5 @@ public class JsonPrintWriterTests extends ESTestCase {
     private static String jsonMessage(String msg) {
         // timestamp according to fixed clock
         return "{\"@timestamp\":\"2024-01-08T11:06:54.000Z\", \"message\":\"" + msg + "\"}";
-    }
-
-    private static class WhitespaceGenerator extends CodepointSetGenerator {
-        static final CodepointSetGenerator INSTANCE = new WhitespaceGenerator();
-
-        WhitespaceGenerator() {
-            super(new char[] { ' ', '\n', '\f', '\r', '\t' });
-        }
     }
 }

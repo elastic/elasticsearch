@@ -17,7 +17,17 @@ import org.testcontainers.containers.GenericContainer;
 public class TestContainerUtils {
 
     public static void pushForArch(GenericContainer<?> container, String repository) {
-        tagAndPush(container, repository, System.getProperty("os.arch"));
+        tagAndPush(container, repository, getArchTag());
+    }
+
+    public static String getArchTag() {
+        String archSysProp = System.getProperty("os.arch");
+        switch(archSysProp) {
+            case "amd64":
+                return "x86_64";
+            default:
+                return archSysProp;
+        }
     }
 
     public static void tagAndPush(GenericContainer<?> container, String repository, String tag) {

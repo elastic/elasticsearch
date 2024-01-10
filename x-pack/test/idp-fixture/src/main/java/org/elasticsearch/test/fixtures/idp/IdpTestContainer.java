@@ -22,12 +22,13 @@ import java.nio.file.Path;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
+import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.getArchTag;
 import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.pushForArch;
 
 public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer {
 
     public static final String OPENJDK_BASE_IMAGE = "openjdk:11.0.16-jre";
-    private static final String PRE_BAKED_IMAGE = "breskeby/test-fixture-idp:" + System.getProperty("os.arch");
+    private static final String PRE_BAKED_IMAGE = "breskeby/test-fixture-idp:" + getArchTag();
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Path certsPath;

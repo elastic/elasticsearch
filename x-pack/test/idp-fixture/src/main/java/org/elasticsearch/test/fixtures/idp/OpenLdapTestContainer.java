@@ -19,11 +19,13 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.pushForArch;
+import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.getArchTag;
 
 public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestContainer {
 
     public static final String OPENLDAP_BASE_IMAGE = "osixia/openldap:1.4.0";
-    private static final String PRE_BAKED_IMAGE = "breskeby/test-fixture-openldap:" + System.getProperty("os.arch");
+    private static final String PRE_BAKED_IMAGE = "breskeby/test-fixture-openldap:" + getArchTag();
+
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Path certsPath;

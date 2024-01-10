@@ -16,7 +16,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
@@ -47,7 +46,6 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
     private TransportClearRealmCacheAction action;
     private TestCachingRealm nativeRealm;
     private TestCachingRealm fileRealm;
-    private TransportChannel channel = mock(TransportChannel.class);
 
     @Before
     public void setup() {

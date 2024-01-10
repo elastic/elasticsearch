@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ToXContent;
@@ -48,7 +47,6 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
     private TransportService transportService;
     private ClusterService clusterService;
     private ThreadPool threadPool;
-    private TransportChannel channel = mock(TransportChannel.class);
 
     @Before
     public void setup() {

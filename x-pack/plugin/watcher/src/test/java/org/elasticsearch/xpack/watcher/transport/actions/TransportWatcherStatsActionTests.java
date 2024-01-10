@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,7 +45,6 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private TransportWatcherStatsAction action;
-    private TransportChannel channel = mock(TransportChannel.class);
 
     @Before
     public void setupTransportAction() {

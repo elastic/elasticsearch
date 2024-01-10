@@ -8,21 +8,24 @@
 
 package org.elasticsearch.cli.internal;
 
-import co.elastic.logging.EcsJsonSerializer;
-
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.util.Locale;
 
 /**
- * {@link PrintWriter} formatting lines as JSON using a subset of fields written by {@link EcsJsonSerializer}.
+ * {@link PrintWriter} formatting lines as JSON using a subset of fields written by ECSJsonLayout.
  * Anything that looks like a JSON object is immediately passed through and written as is.
  */
 public class JsonPrintWriter extends PrintWriter {
     private static final int INITIAL_BUFFER_SIZE = 256;
     private static final int MAX_BUFFER_SIZE = 4 * INITIAL_BUFFER_SIZE;
+    private static final DateTimeFormatter ISO_INSTANT_FORMATTER = new DateTimeFormatterBuilder().appendInstant(3).toFormatter(Locale.ROOT);
 
     private final StringBuilder buffer = new StringBuilder(INITIAL_BUFFER_SIZE);
     private final Clock clock;
@@ -57,7 +60,7 @@ public class JsonPrintWriter extends PrintWriter {
         } else {
             // Don't mind if another thread might miss a none-empty buffer.
             // It's highly unlikely this is meant to be concatenated into the same line.
-            json = toJson(buffer.isEmpty() ? msg : getAndClearBuffer(msg), clock.millis());
+            json = toJson(buffer.isEmpty() ? msg : getAndClearBuffer(msg), clock.instant());
         }
         super.write(json);
         super.println();
@@ -73,7 +76,7 @@ public class JsonPrintWriter extends PrintWriter {
     public void flush() {
         synchronized (buffer) {
             if (buffer.isEmpty() == false) {
-                super.write(toJson(getAndClearBuffer(), clock.millis()));
+                super.write(toJson(getAndClearBuffer(), clock.instant()));
             }
         }
         super.flush();
@@ -86,43 +89,23 @@ public class JsonPrintWriter extends PrintWriter {
     }
 
     /**
-     * Converts {@code msg} to JSON using the {@link EcsJsonSerializer}.
+     * Converts {@code msg} to JSON mimicking the ECSJsonLayout.
      */
-    protected static String toJson(String msg, long timeMillis) {
+    protected static String toJson(String msg, Instant instant) {
         StringBuilder builder = new StringBuilder(INITIAL_BUFFER_SIZE);
-        EcsJsonSerializer.serializeObjectStart(builder, timeMillis);
-        EcsJsonSerializer.serializeFormattedMessage(builder, msg);
-        stripTrailing(builder, ' ');
-        stripTrailing(builder, ',');
-        EcsJsonSerializer.serializeObjectEnd(builder);
-        stripTrailing(builder, '\n');
+        builder.append("{\"@timestamp\":\"");
+        ISO_INSTANT_FORMATTER.formatTo(instant, builder);
+        builder.append("\", \"message\":\"");
+        JsonUtils.quoteAsString(msg, builder);
+        builder.append("\"}");
         return builder.toString();
     }
 
-    private static void stripTrailing(StringBuilder builder, char c) {
-        if (builder.length() > 0 && builder.charAt(builder.length() - 1) == c) {
-            builder.setLength(builder.length() - 1);
-        }
-    }
-
     /**
-     * Checks if {@code str} is likely a JSON object surrounded by `{` and `}` without any further validation.
-     * Leading and trailing whitespaces are ignored.
+     * Checks if {@code str} is likely a JSON object starting with `{` without any further validation.
      */
     protected static boolean isJsonObject(String str) {
-        if (str == null) return false;
-
-        int i = 0;
-        while (i < str.length() && Character.isWhitespace(str.charAt(i))) {
-            i++;
-        }
-        if (i == str.length() || str.charAt(i) != '{') return false;
-
-        i = str.length() - 1;
-        while (i > 0 && Character.isWhitespace(str.charAt(i))) {
-            i--;
-        }
-        return str.charAt(i) == '}';
+        return str != null && str.length() > 0 && str.charAt(0) == '{';
     }
 
     private String getAndClearBuffer(String... parts) {

@@ -84,20 +84,8 @@ public class JsonPrintWriterTests extends ESTestCase {
     }
 
     public void testToJsonHelper() {
-        assertEquals(jsonMessage(null), JsonPrintWriter.toJson(null, FIXED_CLOCK.millis()));
-        assertEquals(jsonMessage("some \\\"quoted\\\" text"), JsonPrintWriter.toJson("some \"quoted\" text", FIXED_CLOCK.millis()));
-    }
-
-    public void testIsJsonObject() {
-        String ignore = randomUnicodeOfCodepointLengthBetween(10, 20);
-
-        String prefix = WhitespaceGenerator.INSTANCE.ofCodePointsLength(random(), 0, 10);
-        String suffix = WhitespaceGenerator.INSTANCE.ofCodePointsLength(random(), 0, 10);
-        assertTrue(JsonPrintWriter.isJsonObject(prefix + "{" + ignore + "}" + suffix));
-
-        String prefixOrSuffix = randomAsciiAlphanumOfLengthBetween(random(), 1, 5);
-        assertFalse(JsonPrintWriter.isJsonObject(prefixOrSuffix + "{" + ignore + "}"));
-        assertFalse(JsonPrintWriter.isJsonObject("{" + ignore + "}" + prefixOrSuffix));
+        assertEquals(jsonMessage(null), JsonPrintWriter.toJson(null, FIXED_CLOCK.instant()));
+        assertEquals(jsonMessage("some \\\"quoted\\\" text"), JsonPrintWriter.toJson("some \"quoted\" text", FIXED_CLOCK.instant()));
     }
 
     private static String jsonMessage(String msg) {

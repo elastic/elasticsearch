@@ -227,7 +227,7 @@ public class APMAgentSettings {
             final String key = parts[parts.length - 1];
             return new Setting<>(qualifiedKey, "", (value) -> {
                 if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(key) == false) {
-                    throw new IllegalArgumentException("Explicitly configuring [" + qualifiedKey + "] is prohibited");
+                    throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");
                 }
                 return value;
             }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic);

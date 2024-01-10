@@ -33,6 +33,10 @@ public class RestGetConnectorSecretAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String id = request.param("id");
-        return restChannel -> client.execute(GetConnectorSecretAction.INSTANCE, new GetConnectorSecretRequest(id), new RestToXContentListener<>(restChannel));
+        return restChannel -> client.execute(
+            GetConnectorSecretAction.INSTANCE,
+            new GetConnectorSecretRequest(id),
+            new RestToXContentListener<>(restChannel)
+        );
     }
 }

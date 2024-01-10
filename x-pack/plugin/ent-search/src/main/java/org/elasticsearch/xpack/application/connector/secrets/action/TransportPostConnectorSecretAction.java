@@ -27,7 +27,13 @@ public class TransportPostConnectorSecretAction extends HandledTransportAction<P
 
     @Inject
     public TransportPostConnectorSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PostConnectorSecretAction.NAME, transportService, actionFilters, PostConnectorSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            PostConnectorSecretAction.NAME,
+            transportService,
+            actionFilters,
+            PostConnectorSecretRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 
@@ -36,7 +42,9 @@ public class TransportPostConnectorSecretAction extends HandledTransportAction<P
             client.prepareIndex(CONNECTOR_SECRETS_INDEX_NAME)
                 .setSource(request.toXContent(jsonBuilder()))
                 .execute(
-                    listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(new PostConnectorSecretResponse(indexResponse.getId())))
+                    listener.delegateFailureAndWrap(
+                        (l, indexResponse) -> l.onResponse(new PostConnectorSecretResponse(indexResponse.getId()))
+                    )
                 );
         } catch (Exception e) {
             listener.onFailure(e);

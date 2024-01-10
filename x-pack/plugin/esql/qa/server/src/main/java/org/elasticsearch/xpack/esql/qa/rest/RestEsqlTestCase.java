@@ -138,8 +138,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static final String DOCUMENT_TEMPLATE = """
         {"index":{"_id":"%s"}}
-        {"boolean": %b, "byte": %s, "date": %s, "double": %f, "float": %f, "half_float": %f, "integer": %s, "ip": "127.0.0.%s",""" + """
-         "keyword": "keyword%s", "long": %s, "short": %s, "text": "text%s", "version": "1.2.%s", "wildcard": "wildcard%s"}
+        {"boolean": %b, "byte": %s, "date": %s, "double": %f, "float": %f, "half_float": %f, "scaled_float": %f, "integer": %s,""" + """
+        "ip": "127.0.0.%s", "keyword": "keyword%s", "long": %s, "unsigned_long": %s, "short": %s, "text": "text%s",""" + """
+         "version": "1.2.%s", "wildcard": "wildcard%s"}
         """;
 
     public static boolean shouldLog() {
@@ -887,8 +888,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             (i + 0.1),
             (i + 0.1),
             (i + 0.1),
+            (i + 0.1),
             i,
             (i % 256),
+            i,
             i,
             i,
             (i % Short.MAX_VALUE),

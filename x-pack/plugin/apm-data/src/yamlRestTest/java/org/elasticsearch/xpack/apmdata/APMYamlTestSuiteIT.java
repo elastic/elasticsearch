@@ -24,6 +24,7 @@ public class APMYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("ingest-common")
         .module("ingest-geoip")
         .module("ingest-user-agent")
+        .module("lang-mustache")
         .module("mapper-extras")
         .module("wildcard")
         .module("x-pack-analytics")

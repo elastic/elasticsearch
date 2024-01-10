@@ -274,6 +274,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104195")
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);

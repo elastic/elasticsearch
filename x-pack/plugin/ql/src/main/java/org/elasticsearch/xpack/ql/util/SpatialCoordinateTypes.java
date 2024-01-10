@@ -62,18 +62,6 @@ public enum SpatialCoordinateTypes {
 
     public abstract long pointAsLong(double x, double y);
 
-    public String pointAsString(Point point) {
-        return WellKnownText.toWKT(point);
-    }
-
-    public BytesRef pointAsWKB(Point point) {
-        return new BytesRef(WellKnownBinary.toWKB(point, ByteOrder.LITTLE_ENDIAN));
-    }
-
-    public BytesRef longAsWKB(long encoded) {
-        return pointAsWKB(longAsPoint(encoded));
-    }
-
     public long wkbAsLong(BytesRef wkb) {
         Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
         if (geometry instanceof Point point) {
@@ -83,18 +71,30 @@ public enum SpatialCoordinateTypes {
         }
     }
 
-    public BytesRef stringAsWKB(String string) {
+    public BytesRef longAsWkb(long encoded) {
+        return asWkb(longAsPoint(encoded));
+    }
+
+    public String asWkt(Geometry geometry) {
+        return WellKnownText.toWKT(geometry);
+    }
+
+    public BytesRef asWkb(Geometry geometry) {
+        return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+    }
+
+    public BytesRef wktToWkb(String wkt) {
         // TODO: we should be able to transform WKT to WKB without building the geometry
         // we should as well use different validator for cartesian and geo?
         try {
-            Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, string);
+            Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
             return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
         }
     }
 
-    public String wkbAsString(BytesRef wkb) {
+    public String wkbToWkt(BytesRef wkb) {
         return WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length);
     }
 }

@@ -11,6 +11,9 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractInternalProfileTree;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.Timer;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This class tracks the dependency tree for queries (scoring and rewriting) and
@@ -20,8 +23,7 @@ import org.elasticsearch.search.profile.ProfileResult;
 final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryProfileBreakdown, Query> {
 
     /** Rewrite time */
-    private long rewriteTime;
-    private long rewriteScratch;
+    private final AtomicLong rewriteTime = new AtomicLong(0L);
 
     @Override
     protected QueryProfileBreakdown createProfileBreakdown() {
@@ -44,11 +46,12 @@ final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryPr
     }
 
     /**
-     * Begin timing a query for a specific Timing context
+     * Begin timing a query for a specific Timing context and return the running timer
      */
-    public void startRewriteTime() {
-        assert rewriteScratch == 0;
-        rewriteScratch = System.nanoTime();
+    public Timer startRewriteTime() {
+        Timer timer = new Timer();
+        timer.start();
+        return timer;
     }
 
     /**
@@ -59,14 +62,15 @@ final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryPr
      *
      * @return          The elapsed time
      */
-    public long stopAndAddRewriteTime() {
-        long time = Math.max(1, System.nanoTime() - rewriteScratch);
-        rewriteTime += time;
-        rewriteScratch = 0;
-        return time;
+    public long stopAndAddRewriteTime(Timer timer) {
+        timer.stop();
+        assert timer.getCount() == 1L : "stopAndAddRewriteTime() called without a matching startRewriteTime()";
+        long time = Math.max(1, timer.getApproximateTiming());
+        return rewriteTime.addAndGet(time);
     }
 
     public long getRewriteTime() {
-        return rewriteTime;
+        return rewriteTime.get();
     }
+
 }

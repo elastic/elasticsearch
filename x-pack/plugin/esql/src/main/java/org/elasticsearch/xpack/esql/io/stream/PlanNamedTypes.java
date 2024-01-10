@@ -722,7 +722,7 @@ public final class PlanNamedTypes {
 
     static Enrich readEnrich(PlanStreamInput in) throws IOException {
         Enrich.Mode m = Enrich.Mode.ANY;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQL_MODE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQ_MODE)) {
             m = in.readEnum(Enrich.Mode.class);
         }
         return new Enrich(
@@ -737,7 +737,7 @@ public final class PlanNamedTypes {
     }
 
     static void writeEnrich(PlanStreamOutput out, Enrich enrich) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQL_MODE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQ_MODE)) {
             out.writeEnum(enrich.mode());
         }
 
@@ -1651,7 +1651,7 @@ public final class PlanNamedTypes {
     }
 
     private static BytesRef longAsWKB(DataType dataType, long encoded) {
-        return dataType == GEO_POINT ? GEO.longAsWKB(encoded) : CARTESIAN.longAsWKB(encoded);
+        return dataType == GEO_POINT ? GEO.longAsWkb(encoded) : CARTESIAN.longAsWkb(encoded);
     }
 
     private static long wkbAsLong(DataType dataType, BytesRef wkb) {

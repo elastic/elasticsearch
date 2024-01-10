@@ -113,7 +113,6 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
 
     private static final Logger logger = LogManager.getLogger(SemanticTextInferenceResultFieldMapper.class);
 
-    // TODO: Need to query this as a nested field type?
     static class SemanticTextInferenceFieldType extends MappedFieldType {
         private static final MappedFieldType INSTANCE = new SemanticTextInferenceFieldType();
 

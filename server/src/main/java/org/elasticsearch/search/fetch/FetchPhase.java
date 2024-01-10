@@ -67,8 +67,8 @@ public final class FetchPhase {
 
         if (docIdsToLoad == null || docIdsToLoad.length == 0) {
             // no individual hits to process, so we shortcut
-            SearchHits hits = new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
-            context.fetchResult().shardResult(hits, null);
+            context.fetchResult()
+                .shardResult(SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()), null);
             return;
         }
 

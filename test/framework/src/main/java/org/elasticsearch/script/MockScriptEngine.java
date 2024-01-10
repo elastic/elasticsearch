@@ -397,7 +397,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
-            return context.factoryClazz.cast(compiler.compile(script::apply, params));
+            return context.factoryClazz.cast(compiler.compile(script, params));
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }

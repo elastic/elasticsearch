@@ -124,6 +124,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(
             settings,
             clusterService,
+            services.featureService(),
             threadPool,
             client,
             services.xContentRegistry()
@@ -214,7 +215,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
                 new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
                 new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
-                new ActionHandler<>(SLMGetExpiredSnapshotsAction.INSTANCE, SLMGetExpiredSnapshotsAction.LocalAction.class),
+                new ActionHandler<>(TransportSLMGetExpiredSnapshotsAction.INSTANCE, TransportSLMGetExpiredSnapshotsAction.class),
                 new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
                 new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
                 new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)

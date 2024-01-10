@@ -25,6 +25,7 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
@@ -471,6 +472,11 @@ public class AuthorizationService {
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
+                if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
+                    var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
+                    resolvedIndicesListener.onResponse(resolvedIndices);
+                    return;
+                }
                 final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);

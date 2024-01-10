@@ -71,6 +71,11 @@ the sensitive nature of the information.
 (<<static-cluster-setting,Static>>)
 Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM. For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
+`xpack.security.fips_mode.required_providers`::
+(<<static-cluster-setting,Static>>)
+Optionally enforce specific Java JCE/JSSE security providers. For example, set this to `["BCFIPS", "BCJSSE"]` (case-insensitive) to require
+the Bouncy Castle FIPS JCE and JSSE security providers. Only applicable when `xpack.security.fips_mode.enabled` is set to `true`.
+
 [discrete]
 [[password-hashing-settings]]
 ==== Password hashing settings
@@ -1010,8 +1015,10 @@ the following settings:
 `username_pattern`::
 (<<static-cluster-setting,Static>>)
 The regular expression pattern used to extract the username from the
-certificate DN. The first match group is the used as the username.
-Defaults to `CN=(.*?)(?:,\|$)`.
+certificate DN. The username is used for auditing and logging. The username can also be used
+with the <<role-mapping-resources, role mapping API>> and <<configuring-authorization-delegation, authorization delegation>>.
+The first match group is the used as the username.
+Defaults to `CN=(.*?)(?:,|$)`.
 
 `certificate_authorities`::
 (<<static-cluster-setting,Static>>)

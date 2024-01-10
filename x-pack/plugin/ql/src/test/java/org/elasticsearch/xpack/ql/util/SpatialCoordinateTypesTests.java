@@ -55,7 +55,7 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
             for (int i = 0; i < 10; i++) {
                 SpatialCoordinateTypes coordType = type.getKey();
                 Point point = type.getValue().randomPoint.get();
-                assertEquals(coordType.wkbAsString(coordType.pointAsWKB(point)), coordType.pointAsString(point));
+                assertEquals(coordType.wkbToWkt(coordType.asWkb(point)), coordType.asWkt(point));
             }
         }
     }

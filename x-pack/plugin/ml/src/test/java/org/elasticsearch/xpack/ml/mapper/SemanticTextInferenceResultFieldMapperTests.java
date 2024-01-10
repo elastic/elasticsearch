@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.mapper;
 
 import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -333,6 +334,30 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             LuceneDocument childDoc = doc.docs().get(0);
             assertEquals(0, childDoc.getFields(childDoc.getPath() + ".extra_key").size());
         }
+    }
+
+    public void testMissingSemanticTextMapping() throws IOException {
+        final String fieldName = randomAlphaOfLengthBetween(5, 15);
+
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> {}));
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            DocumentParsingException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        b,
+                        List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b")))
+                    )
+                )
+            )
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                Strings.format("Field [%s] is not registered as a %s field type", fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
+            )
+        );
     }
 
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {

@@ -11,19 +11,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsIndexService.CONNECTOR_SECRETS_INDEX_NAME;
-import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
+import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsIndexService;
 
 public class TransportPostConnectorSecretAction extends HandledTransportAction<PostConnectorSecretRequest, PostConnectorSecretResponse> {
 
-    private final Client client;
+    private final ConnectorSecretsIndexService connectorSecretsIndexService;
 
     @Inject
     public TransportPostConnectorSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
@@ -34,20 +30,10 @@ public class TransportPostConnectorSecretAction extends HandledTransportAction<P
             PostConnectorSecretRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.client = new OriginSettingClient(client, CONNECTORS_ORIGIN);
+        this.connectorSecretsIndexService = new ConnectorSecretsIndexService(client);
     }
 
     protected void doExecute(Task task, PostConnectorSecretRequest request, ActionListener<PostConnectorSecretResponse> listener) {
-        try {
-            client.prepareIndex(CONNECTOR_SECRETS_INDEX_NAME)
-                .setSource(request.toXContent(jsonBuilder()))
-                .execute(
-                    listener.delegateFailureAndWrap(
-                        (l, indexResponse) -> l.onResponse(new PostConnectorSecretResponse(indexResponse.getId()))
-                    )
-                );
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        connectorSecretsIndexService.postSecret(request, listener);
     }
 }

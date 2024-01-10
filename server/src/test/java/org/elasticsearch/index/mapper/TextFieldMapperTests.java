@@ -1347,7 +1347,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         String parentName = mapper.mappingLookup().parentField(ft.name());
         if (parentName == null) {
             TextFieldMapper.TextFieldType text = (TextFieldType) ft;
-            return text.syntheticSourceDelegate() != null && text.syntheticSourceDelegate().hasDocValues();
+            return text.syntheticSourceDelegate() != null
+                && text.syntheticSourceDelegate().hasDocValues()
+                && text.canUseSyntheticSourceDelegateForQuerying();
         }
         MappedFieldType parent = mapper.fieldType(parentName);
         if (false == parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {

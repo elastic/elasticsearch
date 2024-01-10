@@ -298,30 +298,4 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             return this;
         }
     }
-
-    private static SearchExecutionContext createSearchExecutionContext(int requestSize) {
-        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
-        return new SearchExecutionContext(
-            0,
-            0,
-            new IndexSettings(IndexMetadata.builder("knn_test_index").settings(indexSettings).build(), indexSettings),
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            System::currentTimeMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            Collections.emptyMap(),
-            requestSize
-        );
-    }
 }

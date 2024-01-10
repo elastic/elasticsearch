@@ -114,7 +114,7 @@ synopsis:keyword
 "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version case(condition:boolean, rest...:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
 "double|integer|long|unsigned_long ceil(n:double|integer|long|unsigned_long)"
 boolean cidr_match(ip:ip, blockX...:keyword) 
-"boolean|date|keyword|text|double|long|unsigned_long|integer|geo_point|cartesian_point|version coalesce(expression:boolean|date|keyword|text|double|long|unsigned_long|integer|geo_point|cartesian_point|version, expressionX...:boolean|date|keyword|text|double|long|unsigned_long|integer|geo_point|cartesian_point|version)"
+"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version coalesce(expression:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version, expressionX...:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
 "keyword concat(first:keyword|text, rest...:keyword|text)"
 "double cos(n:double|integer|long|unsigned_long)"
 "double cosh(n:double|integer|long|unsigned_long)"

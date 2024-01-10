@@ -46,15 +46,16 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
     @FunctionInfo(
         returnType = {
             "boolean",
-            "date",
-            "keyword",
-            "text",
-            "double",
-            "long",
-            "unsigned_long",
-            "integer",
-            "geo_point",
             "cartesian_point",
+            "date",
+            "double",
+            "geo_point",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "text",
+            "unsigned_long",
             "version" },
         description = "Returns the first of its arguments that is not null."
     )

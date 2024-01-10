@@ -72,6 +72,8 @@ class S3Service implements Closeable {
 
     static final Setting<TimeValue> WEB_IDENTITY_TOKEN_REFRESH_CREDENTIALS_SETTING = Setting.timeSetting(
         "repository_s3.web_identity_token_refresh_credentials_interval",
+        // The default duration of security credentials is 1 hour:
+        // https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
         TimeValue.timeValueHours(1),
         Setting.Property.NodeScope
     );
@@ -401,6 +403,7 @@ class S3Service implements Closeable {
                     roleSessionName,
                     webIdentityTokenFileSymlink.toString()
                 ).withStsClient(stsClient).build();
+                // Proactively refresh credentials periodically to make sure we pick up a new web identity token that's rotated every 24 hours
                 threadPool.scheduleWithFixedDelay(
                     credentialsProvider::refresh,
                     credentialsRefreshInterval,

@@ -236,8 +236,9 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             threads[j].start();
         }
 
-        for (Thread t : threads)
+        for (Thread t : threads) {
             t.join();
+        }
 
         if (threadException.get() != null) {
             throw threadException.get();

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -38,23 +39,6 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, EsqlDataTypes.CARTESIAN_POINT, v -> v, List.of());
-        TestCaseSupplier.forUnaryLong(suppliers, evaluatorName.apply("FromLong"), EsqlDataTypes.CARTESIAN_POINT, l -> {
-            try {
-                return CARTESIAN.longAsWKB(l);
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }, Long.MIN_VALUE, Long.MAX_VALUE, l -> {
-            try {
-                CARTESIAN.longAsWKB(l.longValue());
-                return List.of();
-            } catch (IllegalArgumentException exception) {
-                return List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: " + exception
-                );
-            }
-        });
         // random strings that don't look like a cartesian point
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -76,7 +60,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<cartesian point as string>",
-                    () -> new BytesRef(CARTESIAN.pointAsString(randomCartesianPoint())),
+                    () -> new BytesRef(CARTESIAN.pointAsString(ShapeTestUtils.randomPoint())),
                     DataTypes.KEYWORD
                 )
             ),

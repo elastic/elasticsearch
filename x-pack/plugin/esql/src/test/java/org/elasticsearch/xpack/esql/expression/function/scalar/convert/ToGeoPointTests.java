@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -38,15 +39,6 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_POINT, v -> v, List.of());
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            evaluatorName.apply("FromLong"),
-            EsqlDataTypes.GEO_POINT,
-            GEO::longAsWKB,
-            Long.MIN_VALUE,
-            Long.MAX_VALUE,
-            List.of()
-        );
         // random strings that don't look like a geo point
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -68,7 +60,7 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<geo point as string>",
-                    () -> new BytesRef(GEO.pointAsString(randomGeoPoint())),
+                    () -> new BytesRef(GEO.pointAsString(GeometryTestUtils.randomPoint())),
                     DataTypes.KEYWORD
                 )
             ),

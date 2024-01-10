@@ -485,6 +485,11 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         }
 
         @Override
+        protected void onClusterResponseMinimizeRoundtrips(String clusterAlias) {
+            searchResponse.get().onClusterResponseMinimizeRoundtrips(clusterAlias);
+        }
+
+        @Override
         public void onResponse(SearchResponse response) {
             searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
             executeCompletionListeners();

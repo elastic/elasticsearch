@@ -604,6 +604,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     clusters,
+                    task.getProgressListener(),
                     listener
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
@@ -621,6 +622,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     clusters,
+                    task.getProgressListener(),
                     listener
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
@@ -761,6 +763,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AtomicReference<Exception> exceptions,
         SearchResponseMerger searchResponseMerger,
         SearchResponse.Clusters clusters,
+        SearchProgressListener progressListener,
         ActionListener<SearchResponse> originalListener
     ) {
         return new CCSActionListener<>(
@@ -775,6 +778,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             void innerOnResponse(SearchResponse searchResponse) {
                 ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, skipUnavailable);
                 searchResponseMerger.add(searchResponse);
+                progressListener.notifyClusterResponseMinimizeRoundtrips(clusterAlias);
             }
 
             @Override

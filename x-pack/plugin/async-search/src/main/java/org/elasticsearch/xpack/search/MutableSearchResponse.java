@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
@@ -54,11 +55,6 @@ class MutableSearchResponse {
      */
     private Supplier<InternalAggregations> reducedAggsSource = () -> null;
     private int reducePhase;
-    // tracks whether the local cluster results have completed (undergone a final reduce)
-    // this is needed since we do partial aggs reductions even for CCS with minimize_roundtrips=true
-    // and in that case we need to know whether to use the partial aggs reduction result or if the
-    // local full cluster results are present (in the SearchResponseMerger)
-    private boolean localFinalReduce;
     /**
      * The response produced by the search API. Once we receive it we stop
      * building our own {@linkplain SearchResponse}s when get async search
@@ -67,6 +63,10 @@ class MutableSearchResponse {
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
+
+    // for CCS minimize_roundtrips=true, true indicates that the local cluster has completed
+    // returning a final SearchResponse to the SearchResponseMerger
+    private volatile boolean localClusterComplete;
 
     /**
      * Set to true when the final SearchResponse has been received
@@ -91,6 +91,7 @@ class MutableSearchResponse {
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = EMPTY_TOTAL_HITS;
+        this.localClusterComplete = false;
     }
 
     /**
@@ -121,7 +122,6 @@ class MutableSearchResponse {
         this.totalHits = totalHits;
         this.reducedAggsSource = reducedAggs;
         this.reducePhase = reducePhase;
-        this.localFinalReduce = finalReduce;
     }
 
     /**
@@ -138,6 +138,12 @@ class MutableSearchResponse {
         this.finalResponse = response;
         this.isPartial = isPartialResponse(response);
         this.frozen = true;
+    }
+
+    public void onClusterResponseMinimizeRoundtrips(String clusterAlias) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            localClusterComplete = true;
+        }
     }
 
     private boolean isPartialResponse(SearchResponse response) {
@@ -224,7 +230,7 @@ class MutableSearchResponse {
                 InternalAggregations reducedAggs = reducedAggsSource.get();
                 reducedAggsSource = () -> reducedAggs;
                 searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
-            } else if (localFinalReduce == false) {
+            } else if (localClusterComplete == false) {
                 /*
                  * For CCS MRT=true and the local cluster has reported back only partial results
                  * (subset of shards), so use SearchResponseMerger to do a merge of any full results that

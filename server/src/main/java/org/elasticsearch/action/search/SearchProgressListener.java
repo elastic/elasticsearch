@@ -104,6 +104,14 @@ public abstract class SearchProgressListener {
      */
     protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
+    /**
+     * Indicates that a cluster has finished a search operation. Used for CCS minimize_roundtrips=true only.
+     *
+     * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
+     *                     The cluster alias for the local cluster is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
+     */
+    protected void onClusterResponseMinimizeRoundtrips(String clusterAlias) {}
+
     final void notifyListShards(
         List<SearchShard> shards,
         List<SearchShard> skippedShards,
@@ -164,6 +172,14 @@ public abstract class SearchProgressListener {
             onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
             logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on fetch failure", e);
+        }
+    }
+
+    final void notifyClusterResponseMinimizeRoundtrips(String clusterAlias) {
+        try {
+            onClusterResponseMinimizeRoundtrips(clusterAlias);
+        } catch (Exception e) {
+            logger.warn(() -> "[" + clusterAlias + "] Failed to execute progress listener onClusterResponseMinimizeRoundtrips", e);
         }
     }
 

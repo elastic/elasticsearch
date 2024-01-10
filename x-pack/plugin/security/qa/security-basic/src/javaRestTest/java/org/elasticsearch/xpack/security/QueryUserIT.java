@@ -151,11 +151,11 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             final List<Map<String, Object>> userInfoPage = collectUsers(request, randomUserCount);
 
             if (userInfoPage.isEmpty() && allUserInfos.size() < remaining) {
-                fail("fail to retrieve all Users, expect [" + remaining + "] keys, got [" + allUserInfos + "]");
+                fail("fail to retrieve all Users, expect [" + remaining + "], got [" + allUserInfos + "]");
             }
             allUserInfos.addAll(userInfoPage);
 
-            // Before all keys are retrieved, each page should be a full page
+            // Before all users are retrieved, each page should be a full page
             if (allUserInfos.size() < remaining) {
                 assertThat(userInfoPage.size(), equalTo(size));
             }
@@ -170,7 +170,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         // Assert that all users match the created users and that they're sorted correctly
         assertUsers(users, allUserInfos, sortField, from);
 
-        // size can be zero, but total should still reflect the number of keys matched
+        // size can be zero, but total should still reflect the number of users matched
         final Request request = queryUserRequestWithAuth();
         request.setJsonEntity("{\"size\":0}");
         final Response response = client().performRequest(request);

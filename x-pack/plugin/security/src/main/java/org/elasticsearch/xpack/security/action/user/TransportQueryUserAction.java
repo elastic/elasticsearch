@@ -50,9 +50,7 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
             searchSourceBuilder.size(request.getSize());
         }
 
-        final UserBoolQueryBuilder userKeyBoolQueryBuilder = UserBoolQueryBuilder.build(request.getQueryBuilder());
-
-        searchSourceBuilder.query(userKeyBoolQueryBuilder);
+        searchSourceBuilder.query(UserBoolQueryBuilder.build(request.getQueryBuilder()));
 
         if (request.getFieldSortBuilders() != null) {
             translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);

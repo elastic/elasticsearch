@@ -1177,7 +1177,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         if (nestedVectorSearchParams.innerHitBuilder == null || nestedVectorSearchParams.innerHitBuilder.getSize() == 1) {
                             yield innerQuery;
                         } else {
-                            yield innerQuery;
+                            yield new ESDiversifyingChildrenKnnVectorQuery(
+                                innerQuery,
+                                new ExactKnnQuery(
+                                    new ByteVectorSimilarityFunction(
+                                        vectorSimilarityFunction,
+                                        new ByteKnnVectorFieldSource(name()),
+                                        new ConstKnnByteVectorValueSource(bytes)
+                                    )
+                                ),
+                                nestedVectorSearchParams.parentFilter
+                            );
                         }
                     }
                     yield new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);

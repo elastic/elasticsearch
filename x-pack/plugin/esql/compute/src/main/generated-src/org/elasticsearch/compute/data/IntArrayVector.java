@@ -17,7 +17,9 @@ import java.util.Arrays;
  */
 final class IntArrayVector extends AbstractVector implements IntVector {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance(IntVectorBlock.class);
 
     private final int[] values;
 

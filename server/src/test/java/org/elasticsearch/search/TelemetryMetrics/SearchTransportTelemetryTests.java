@@ -68,6 +68,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
         resetMeter();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104184")
     public void testSearchTransportMetricsQueryThenFetch() throws InterruptedException {
         var indexName = "test2";
         createIndex(indexName);

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -76,7 +77,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<cartesian point as string>",
-                    () -> new BytesRef(CARTESIAN.pointAsString(randomCartesianPoint())),
+                    () -> new BytesRef(CARTESIAN.pointAsString(ShapeTestUtils.randomPoint())),
                     DataTypes.KEYWORD
                 )
             ),

@@ -42,6 +42,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY;
@@ -153,6 +154,53 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     .withNode("node-1", new DiskUsageBuilder(1000, 900))
                     .withShard(existingPrimary, 100)
                     .withShard(newReplica, 100)
+                    .build()
+            )
+        );
+    }
+
+    public void testInitializeNewReplicaWithReservedSpace() {
+
+        var recoveredSize = 70;
+        var remainingSize = 30;
+        var totalShardSize = recoveredSize + remainingSize;
+
+        var indexMetadata = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        var existingPrimary = newShardRouting(new ShardId(indexMetadata.getIndex(), 0), "node-0", true, STARTED);
+        var newReplica = newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "node-1",
+            false,
+            INITIALIZING,
+            RecoverySource.PeerRecoverySource.INSTANCE
+        );
+
+        var initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode("node-0", new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
+            .withNode("node-1", new DiskUsageBuilder("/data", 1000, 1000 - recoveredSize))
+            .withShard(existingPrimary, totalShardSize)
+            .withReservedSpace("node-1", "/data", remainingSize, newReplica.shardId())
+            .build();
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(existingPrimary).addShard(newReplica))
+            )
+            .build();
+        var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
+        var simulator = new ClusterInfoSimulator(allocation);
+        simulator.simulateShardStarted(newReplica);
+
+        assertThat(
+            simulator.getClusterInfo(),
+            equalTo(
+                new ClusterInfoTestBuilder() //
+                    .withNode("node-0", new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
+                    .withNode("node-1", new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
+                    .withShard(existingPrimary, totalShardSize)
+                    .withShard(newReplica, totalShardSize)
                     .build()
             )
         );
@@ -628,6 +676,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         public ClusterInfoTestBuilder withShard(ShardRouting shard, long size) {
             shardSizes.put(shardIdentifierFromRouting(shard), size);
+            return this;
+        }
+
+        public ClusterInfoTestBuilder withReservedSpace(String nodeId, String path, long size, ShardId... shardIds) {
+            reservedSpace.put(new NodeAndPath(nodeId, nodeId + path), new ReservedSpace(size, Set.of(shardIds)));
             return this;
         }
 

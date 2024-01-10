@@ -18,7 +18,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -194,10 +193,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 new IllegalArgumentException()
             );
         }
-        action.sendSearchResponse(
-            new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1),
-            phaseResults.results
-        );
+        action.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, phaseResults.results);
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);

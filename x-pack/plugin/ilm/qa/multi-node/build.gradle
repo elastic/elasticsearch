@@ -38,6 +38,7 @@ testClusters.configureEach {
    * cached time. So the policy's action date is always after the snapshot's start.
    */
   setting 'thread_pool.estimated_time_interval', '0'
+  setting 'time_series.poll_interval', '10m'
 }
 
 if (BuildParams.inFipsJvm){

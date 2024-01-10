@@ -33,6 +33,8 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -148,8 +150,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
                 );
                 case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
-                case "geo_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.pointAsWKB(randomGeoPoint()));
-                case "cartesian_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.pointAsWKB(randomCartesianPoint()));
+                case "geo_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
+                case "cartesian_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
                 case "null" -> builder.appendNull();
                 case "_source" -> {
                     try {

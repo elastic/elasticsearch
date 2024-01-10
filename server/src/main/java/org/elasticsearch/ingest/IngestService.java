@@ -670,12 +670,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private record IngestPipelinesExecutionResult(boolean success, boolean kept, Exception exception, String failedIndex) {}
+
     private static IngestPipelinesExecutionResult successResult() {
         return new IngestPipelinesExecutionResult(true, true, null, null);
     }
+
     private static IngestPipelinesExecutionResult discardResult() {
         return new IngestPipelinesExecutionResult(true, false, null, null);
     }
+
     private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
         return new IngestPipelinesExecutionResult(false, true, e, index);
     }
@@ -726,43 +729,40 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         final IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
-                        final ActionListener<IngestPipelinesExecutionResult> documentListener = ActionListener.runAfter(new ActionListener<>() {
-                            @Override
-                            public void onResponse(IngestPipelinesExecutionResult result) {
-                                assert result != null;
-                                if (result.success) {
-                                    if (result.kept == false) {
-                                        onDropped.accept(slot);
+                        final ActionListener<IngestPipelinesExecutionResult> documentListener = ActionListener.runAfter(
+                            new ActionListener<>() {
+                                @Override
+                                public void onResponse(IngestPipelinesExecutionResult result) {
+                                    assert result != null;
+                                    if (result.success) {
+                                        if (result.kept == false) {
+                                            onDropped.accept(slot);
+                                        }
+                                    } else {
+                                        // We were given a failure result in the onResponse method, so we must store the failure
+                                        // Recover the original document state, track a failed ingest, and pass it along
+                                        updateIndexRequestMetadata(indexRequest, ingestDocument.getOriginalMetadata());
+                                        totalMetrics.ingestFailed();
+                                        onStoreFailure.apply(slot, result.failedIndex, result.exception);
                                     }
-                                } else {
-                                    // We were given a failure result in the onResponse method, so we must store the failure
-                                    // Recover the original document state, track a failed ingest, and pass it along
-                                    updateIndexRequestMetadata(indexRequest, ingestDocument.getOriginalMetadata());
-                                    totalMetrics.ingestFailed();
-                                    onStoreFailure.apply(slot, result.failedIndex, result.exception);
                                 }
-                            }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                totalMetrics.ingestFailed();
-                                onFailure.accept(slot, e);
+                                @Override
+                                public void onFailure(Exception e) {
+                                    totalMetrics.ingestFailed();
+                                    onFailure.accept(slot, e);
+                                }
+                            },
+                            () -> {
+                                // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
+                                // that we're finished with this document
+                                final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                                totalMetrics.postIngest(ingestTimeInNanos);
+                                ref.close();
                             }
-                        }, () -> {
-                            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
-                            // that we're finished with this document
-                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-                            totalMetrics.postIngest(ingestTimeInNanos);
-                            ref.close();
-                        });
-
-                        executePipelines(
-                            pipelines,
-                            indexRequest,
-                            ingestDocument,
-                            shouldStoreFailure,
-                            documentListener
                         );
+
+                        executePipelines(pipelines, indexRequest, ingestDocument, shouldStoreFailure, documentListener);
                         indexRequest.setPipelinesHaveRun();
 
                         assert actionRequest.index() != null;

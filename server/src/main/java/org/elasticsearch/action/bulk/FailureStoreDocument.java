@@ -43,8 +43,7 @@ public class FailureStoreDocument {
         // up that the parent data stream needs to be created.
         // One option is to make use of the eventual flag to perform an operation on the failure store. Ughh who would have thought the
         // dependencies would be swapped like that...
-        return new IndexRequest()
-            .index(targetIndexName)
+        return new IndexRequest().index(targetIndexName)
             .source(createSource())
             .opType(DocWriteRequest.OpType.CREATE)
             .setWriteToFailureStore(true);

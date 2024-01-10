@@ -24,14 +24,9 @@ import static org.hamcrest.CoreMatchers.startsWith;
 public class FailureStoreDocumentTests extends ESTestCase {
 
     public void testFailureStoreDocumentConverstion() throws Exception {
-        IndexRequest source = new IndexRequest("original_index")
-            .routing("fake_routing")
+        IndexRequest source = new IndexRequest("original_index").routing("fake_routing")
             .id("1")
-            .source(JsonXContent.contentBuilder()
-                .startObject()
-                .field("key", "value")
-                .endObject()
-            );
+            .source(JsonXContent.contentBuilder().startObject().field("key", "value").endObject());
 
         // The exception will be wrapped for the test to make sure the converter correctly unwraps it
         Exception exception = new ElasticsearchException("Test exception please ignore");
@@ -64,8 +59,8 @@ public class FailureStoreDocumentTests extends ESTestCase {
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
             startsWith(
-                "org.elasticsearch.ElasticsearchException: Test exception please ignore\n" +
-                "\tat org.elasticsearch.action.bulk.FailureStoreDocumentTests.testFailureStoreDocumentConverstion"
+                "org.elasticsearch.ElasticsearchException: Test exception please ignore\n"
+                    + "\tat org.elasticsearch.action.bulk.FailureStoreDocumentTests.testFailureStoreDocumentConverstion"
             )
         );
 

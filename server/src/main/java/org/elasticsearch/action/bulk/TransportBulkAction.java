@@ -969,21 +969,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         );
     }
 
-    static boolean shouldStoreFailure(
-        String indexName,
-        Metadata metadata,
-        long epochMillis
-    ) {
-        return DataStream.isFailureStoreEnabled() && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis)
-            .or(() -> resolveFailureStoreFromTemplate(indexName, metadata))
-            .orElse(false);
+    static boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis) {
+        return DataStream.isFailureStoreEnabled()
+            && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
+                () -> resolveFailureStoreFromTemplate(indexName, metadata)
+            ).orElse(false);
     }
 
-    private static Optional<Boolean> resolveFailureStoreFromMetadata(
-        String indexName,
-        Metadata metadata,
-        long epochMillis
-    ) {
+    private static Optional<Boolean> resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
         if (indexName == null) {
             return Optional.empty();
         }
@@ -1009,10 +1002,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return Optional.of(targetDataStream != null && targetDataStream.isFailureStore());
     }
 
-    private static Optional<Boolean> resolveFailureStoreFromTemplate(
-        String indexName,
-        Metadata metadata
-    ) {
+    private static Optional<Boolean> resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
         if (indexName == null) {
             return Optional.empty();
         }

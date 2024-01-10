@@ -28,6 +28,8 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
@@ -125,8 +127,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
-            case "geo_point" -> GEO.pointAsLong(randomGeoPoint());
-            case "cartesian_point" -> CARTESIAN.pointAsLong(randomCartesianPoint());
+            case "geo_point" -> GEO.pointAsWKB(GeometryTestUtils.randomPoint());
+            case "cartesian_point" -> CARTESIAN.pointAsWKB(ShapeTestUtils.randomPoint());
             case "null" -> null;
             case "_source" -> {
                 try {
@@ -677,13 +679,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     if (newSignature) {
                         suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
                             TestCaseSupplier.TestCase oc = original.get();
-                            List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
-                                TestCaseSupplier.TypedData od = oc.getData().get(i);
-                                if (i == finalNullPosition) {
-                                    return new TestCaseSupplier.TypedData(null, DataTypes.NULL, od.name());
-                                }
-                                return od;
-                            }).toList();
+                            List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size())
+                                .mapToObj(i -> i == finalNullPosition ? TestCaseSupplier.TypedData.NULL : oc.getData().get(i))
+                                .toList();
                             return new TestCaseSupplier.TestCase(
                                 data,
                                 "LiteralsEvaluator[lit=null]",
@@ -905,21 +903,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
-        Map.entry(
-            Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.UNSIGNED_LONG, DataTypes.NULL),
-            "geo_point or long or string or unsigned_long"
-        ),
-        Map.entry(
-            Set.of(
-                EsqlDataTypes.CARTESIAN_POINT,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
-            ),
-            "cartesian_point or long or string or unsigned_long"
-        )
+        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
+        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?

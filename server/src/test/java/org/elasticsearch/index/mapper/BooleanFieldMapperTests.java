@@ -264,7 +264,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
         // Just assert that we expect a boolean. Otherwise no munging.
         return v -> (Boolean) v;
     }

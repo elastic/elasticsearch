@@ -39,6 +39,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -389,10 +391,10 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             "creator.principal",
             "creator.realm"
         );
-        assertTrue(predicate.test(allowedField));
+        assertThat(predicate, trueWith(allowedField));
 
         final String disallowedField = randomBoolean() ? (randomAlphaOfLengthBetween(1, 3) + allowedField) : (allowedField.substring(1));
-        assertFalse(predicate.test(disallowedField));
+        assertThat(predicate, falseWith(disallowedField));
     }
 
     private void assertCommonFilterQueries(ApiKeyBoolQueryBuilder qb, Authentication authentication) {

@@ -12,6 +12,8 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.test.BreakerTestUtil;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,10 +64,26 @@ public class DocVectorTests extends ComputeTestCase {
         docs.close();
     }
 
-    private static int MAX_BUILD_BREAKS_LIMIT = 1391;
+    private static long MAX_BUILD_BREAKS_LIMIT = -1;
+    private static long MAX_SHARD_SEGMENT_DOC_MAP_BREAKS = -1;
+
+    @Before
+    public void calculateBreakLimit() {
+        if (MAX_BUILD_BREAKS_LIMIT == -1) {
+            MAX_BUILD_BREAKS_LIMIT = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> buildDocBlock(limit).close())
+                .getBytes();
+        }
+        if (MAX_SHARD_SEGMENT_DOC_MAP_BREAKS == -1) {
+            MAX_SHARD_SEGMENT_DOC_MAP_BREAKS = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
+                try (DocBlock docBlock = buildDocBlock(limit)) {
+                    docBlock.asVector().shardSegmentDocMapForwards();
+                }
+            }).getBytes();
+        }
+    }
 
     public void testBuildBreaks() {
-        testBuildBreaks(ByteSizeValue.ofBytes(between(0, MAX_BUILD_BREAKS_LIMIT)));
+        testBuildBreaks(ByteSizeValue.ofBytes(randomLongBetween(0, MAX_BUILD_BREAKS_LIMIT)));
     }
 
     public void testBuildBreaksMax() {
@@ -73,21 +91,24 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     private void testBuildBreaks(ByteSizeValue limit) {
-        int size = 100;
         BlockFactory blockFactory = blockFactory(limit);
-        Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, size)) {
-                for (int r = 0; r < size; r++) {
-                    builder.appendShard(3 - size % 4);
-                    builder.appendSegment(size % 10);
-                    builder.appendDoc(size);
-                }
-                builder.build().close();
-            }
-        });
+        Exception e = expectThrows(CircuitBreakingException.class, () -> buildDocBlock(limit).close());
         assertThat(e.getMessage(), equalTo("over test limit"));
         logger.info("break position", e);
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private DocBlock buildDocBlock(ByteSizeValue limit) {
+        int size = 100;
+        BlockFactory blockFactory = blockFactory(limit);
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, size)) {
+            for (int r = 0; r < size; r++) {
+                builder.appendShard(3 - r % 4);
+                builder.appendSegment(r % 10);
+                builder.appendDoc(size);
+            }
+            return builder.build();
+        }
     }
 
     public void testShardSegmentDocMap() {
@@ -171,12 +192,10 @@ public class DocVectorTests extends ComputeTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
-    // TODO these are really difficult to maintain. can we figure these out of the fly?
-    private static final int MAX_SHARD_SEGMENT_DOC_MAP_BREAKS = 2220;
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104191")
     public void testShardSegmentDocMapBreaks() {
-        testShardSegmentDocMapBreaks(ByteSizeValue.ofBytes(between(MAX_BUILD_BREAKS_LIMIT + 1, MAX_SHARD_SEGMENT_DOC_MAP_BREAKS)));
+        testShardSegmentDocMapBreaks(
+            ByteSizeValue.ofBytes(randomLongBetween(MAX_BUILD_BREAKS_LIMIT + 1, MAX_SHARD_SEGMENT_DOC_MAP_BREAKS))
+        );
     }
 
     public void testShardSegmentDocMapBreaksMax() {
@@ -188,8 +207,8 @@ public class DocVectorTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory(limit);
         try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, size)) {
             for (int r = 0; r < size; r++) {
-                builder.appendShard(3 - size % 4);
-                builder.appendSegment(size % 10);
+                builder.appendShard(3 - r % 4);
+                builder.appendSegment(r % 10);
                 builder.appendDoc(size);
             }
             try (DocBlock docBlock = builder.build()) {

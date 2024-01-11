@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
+import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
@@ -20,6 +22,7 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.search.vectors.ExactKnnQuery;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -167,6 +170,50 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 new DenseVectorFieldMapper.NestedVectorSearchParams(null, producer)
             );
             assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
+        }
+    }
+
+    public void testExactKnnQuery() {
+        int dims = randomIntBetween(2, 2048);
+        {
+            DenseVectorFieldType field = new DenseVectorFieldType(
+                "f",
+                IndexVersion.current(),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                dims,
+                true,
+                VectorSimilarity.COSINE,
+                Collections.emptyMap()
+            );
+            float[] queryVector = new float[dims];
+            for (int i = 0; i < dims; i++) {
+                queryVector[i] = randomFloat();
+            }
+            Query query = field.createExactKnnQuery(queryVector);
+            assertTrue(query instanceof ExactKnnQuery);
+            ExactKnnQuery knnQuery = (ExactKnnQuery) query;
+            assertTrue(knnQuery.getFunc() instanceof FloatVectorSimilarityFunction);
+        }
+        {
+            DenseVectorFieldType field = new DenseVectorFieldType(
+                "f",
+                IndexVersion.current(),
+                DenseVectorFieldMapper.ElementType.BYTE,
+                dims,
+                true,
+                VectorSimilarity.COSINE,
+                Collections.emptyMap()
+            );
+            byte[] queryVector = new byte[dims];
+            float[] floatQueryVector = new float[dims];
+            for (int i = 0; i < dims; i++) {
+                queryVector[i] = randomByte();
+                floatQueryVector[i] = queryVector[i];
+            }
+            Query query = field.createExactKnnQuery(floatQueryVector);
+            assertTrue(query instanceof ExactKnnQuery);
+            ExactKnnQuery knnQuery = (ExactKnnQuery) query;
+            assertTrue(knnQuery.getFunc() instanceof ByteVectorSimilarityFunction);
         }
     }
 

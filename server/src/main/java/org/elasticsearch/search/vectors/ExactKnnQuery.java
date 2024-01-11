@@ -40,7 +40,7 @@ public class ExactKnnQuery extends Query {
         return new BruteForceWeight(searcher, boost);
     }
 
-    VectorSimilarityFunction getFunc() {
+    public VectorSimilarityFunction getFunc() {
         return func;
     }
 

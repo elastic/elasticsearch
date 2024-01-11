@@ -287,7 +287,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
 
         final Authenticator.Context context = createAuthenticatorContext();
         context.addAuthenticationToken(authenticationToken);
-        
+
         final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
         realmsAuthenticator.authenticate(context, future);
         final AuthenticationResult<Authentication> result = future.actionGet();

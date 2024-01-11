@@ -10,6 +10,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 
@@ -67,14 +67,11 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
     @Override
     public Boolean fold() {
-        if (left().dataType() == DataTypes.TEXT || left().dataType() == DataTypes.KEYWORD) {
-            BytesRef leftVal = (BytesRef) left().fold();
-            BytesRef rightVal = (BytesRef) right().fold();
-            if (leftVal == null || rightVal == null) {
-                return null;
-            }
-            return process(leftVal, rightVal);
+        BytesRef leftVal = BytesRefs.toBytesRef(left().fold());
+        BytesRef rightVal = BytesRefs.toBytesRef(right().fold());
+        if (leftVal == null || rightVal == null) {
+            return null;
         }
-        return new Equals(source(), left(), right()).fold();
+        return process(leftVal, rightVal);
     }
 }

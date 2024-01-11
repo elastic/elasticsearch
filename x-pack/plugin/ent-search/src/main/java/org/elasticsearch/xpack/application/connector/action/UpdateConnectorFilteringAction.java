@@ -70,11 +70,11 @@ public class UpdateConnectorFilteringAction extends ActionType<ConnectorUpdateAc
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
             if (filtering == null) {
-                validationException = addValidationError("[filtering] cannot be null.", validationException);
+                validationException = addValidationError("[filtering] cannot be [null].", validationException);
             }
 
             return validationException;

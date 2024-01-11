@@ -35,7 +35,7 @@ public class FeatureData {
         this.nodeFeatures = nodeFeatures;
     }
 
-    public static FeatureData createFromSpecifications(List<? extends FeatureSpecification> specs) {
+    public static FeatureData createFromSpecifications(List<? extends FeatureSpecification> specs, boolean allowAllHistoricalFeatures) {
         Map<String, FeatureSpecification> allFeatures = new HashMap<>();
 
         NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>();
@@ -50,7 +50,7 @@ public class FeatureData {
                     );
                 }
 
-                if (hfe.getValue().after(CLUSTER_FEATURES_ADDED_VERSION)) {
+                if (allowAllHistoricalFeatures == false && hfe.getValue().after(CLUSTER_FEATURES_ADDED_VERSION)) {
                     throw new IllegalArgumentException(
                         Strings.format(
                             "Historical feature [%s] declared by [%s] for version [%s] is not a historical version",

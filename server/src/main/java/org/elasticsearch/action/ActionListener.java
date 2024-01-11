@@ -349,7 +349,7 @@ public interface ActionListener<Response> {
     /**
      * Execute the given action in a {@code try/catch} block which feeds all exceptions to the given listener's {@link #onFailure} method.
      */
-    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, Exception> action) {
+    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, ? extends Exception> action) {
         try {
             action.accept(listener);
         } catch (Exception e) {
@@ -358,8 +358,8 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Execute the given action in a {@code try-with-resources} block which closes the supplied resource on completion, and feeds all
-     * exceptions to the given listener's {@link #onFailure} method.
+     * Execute the given action in an (async equivalent of a) try-with-resources block which closes the supplied resource on completion, and
+     * feeds all exceptions to the given listener's {@link #onFailure} method.
      */
     static <T, R extends AutoCloseable> void runWithResource(
         ActionListener<T> listener,

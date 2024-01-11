@@ -477,11 +477,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         throw new IllegalStateException("unexpected projection: " + proj);
                     }
                     for (Attribute attr : resolved) {
-                        Integer previousPrio = priorities.get(attr);
-                        if (previousPrio == null || previousPrio >= priority) {
-                            priorities.remove(attr);
-                            priorities.put(attr, priority);
-                        }
+                        priorities.compute(attr, (k, prevPriority) -> {
+                            if (prevPriority == null || prevPriority >= priority) {
+                                return priority;
+                            } else {
+                                return prevPriority;
+                            }
+                        });
                     }
                 }
                 resolvedProjections = new ArrayList<>(priorities.keySet());

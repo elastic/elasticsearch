@@ -21,7 +21,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -126,13 +125,37 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
                 REMOTE_CLUSTER_2 + ":" + remoteIndex2 };
             ResolveClusterActionRequest request = new ResolveClusterActionRequest(indexExpressions);
 
-            Exception e = expectThrows(
-                ExecutionException.class,
-                () -> client(LOCAL_CLUSTER).admin().indices().execute(TransportResolveClusterAction.TYPE, request).get()
-            );
+            ActionFuture<ResolveClusterActionResponse> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(TransportResolveClusterAction.TYPE, request);
+            ResolveClusterActionResponse response = future.actionGet(10, TimeUnit.SECONDS);
+            assertNotNull(response);
 
-            Throwable cause = ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
-            assertNotNull(cause);
+            Map<String, ResolveClusterInfo> clusterInfo = response.getResolveClusterInfo();
+            assertEquals(3, clusterInfo.size());
+            Set<String> expectedClusterNames = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
+            assertThat(clusterInfo.keySet(), equalTo(expectedClusterNames));
+
+            ResolveClusterInfo remote1 = clusterInfo.get(REMOTE_CLUSTER_1);
+            assertThat(remote1.isConnected(), equalTo(true));
+            assertThat(remote1.getSkipUnavailable(), equalTo(skipUnavailable1));
+            assertThat(remote1.getMatchingIndices(), equalTo(true));
+            assertNotNull(remote1.getBuild().version());
+            assertNull(remote1.getError());
+
+            ResolveClusterInfo remote2 = clusterInfo.get(REMOTE_CLUSTER_2);
+            assertThat(remote2.isConnected(), equalTo(true));
+            assertThat(remote2.getSkipUnavailable(), equalTo(skipUnavailable2));
+            assertThat(remote2.getMatchingIndices(), equalTo(true));
+            assertNotNull(remote2.getBuild().version());
+            assertNull(remote2.getError());
+
+            ResolveClusterInfo local = clusterInfo.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertThat(local.isConnected(), equalTo(true));
+            assertThat(local.getSkipUnavailable(), equalTo(false));
+            assertNull(local.getMatchingIndices());
+            assertNull(local.getBuild());
+            assertThat(local.getError(), containsString("no such index [doesnotexist]"));
         }
 
         // only remote clusters have matching indices

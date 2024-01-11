@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionReques
 import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionResponse;
 import org.elasticsearch.action.admin.indices.resolve.ResolveClusterInfo;
 import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -440,7 +440,7 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
 
     void putComposableIndexTemplate(Client client, String id, List<String> patterns, @Nullable Map<String, AliasMetadata> aliases)
         throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
@@ -448,7 +448,7 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client.execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client.execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     void indexDataStreamDocs(Client client, String dataStream, int numDocs) {

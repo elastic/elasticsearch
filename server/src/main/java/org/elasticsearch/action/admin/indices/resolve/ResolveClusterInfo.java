@@ -36,12 +36,17 @@ public class ResolveClusterInfo implements Writeable {
         this(connected, skipUnavailable, matchingIndices, build, null);
     }
 
+    public ResolveClusterInfo(ResolveClusterInfo copyFrom, boolean skipUnavailable) {
+        this(copyFrom.isConnected(), skipUnavailable, copyFrom.getMatchingIndices(), copyFrom.getBuild(), copyFrom.getError());
+    }
+
     private ResolveClusterInfo(boolean connected, Boolean skipUnavailable, Boolean matchingIndices, Build build, String error) {
         this.connected = connected;
         this.skipUnavailable = skipUnavailable;
         this.matchingIndices = matchingIndices;
         this.build = build;
         this.error = error;
+        System.err.printf("ERROR: %s ; matchingIndices: %s; connected: %s\n", error, matchingIndices, connected);
         assert error != null || matchingIndices != null || connected == false : "If matchingIndices is null, connected must be false";
     }
 

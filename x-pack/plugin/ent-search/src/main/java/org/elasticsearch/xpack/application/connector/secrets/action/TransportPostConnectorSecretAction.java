@@ -34,6 +34,6 @@ public class TransportPostConnectorSecretAction extends HandledTransportAction<P
     }
 
     protected void doExecute(Task task, PostConnectorSecretRequest request, ActionListener<PostConnectorSecretResponse> listener) {
-        connectorSecretsIndexService.postSecret(request, listener);
+        connectorSecretsIndexService.createSecret(request, listener);
     }
 }

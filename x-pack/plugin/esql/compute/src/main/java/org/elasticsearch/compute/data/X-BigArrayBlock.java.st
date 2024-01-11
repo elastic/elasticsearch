@@ -8,14 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.$if(boolean)$Bit$else$$Type$$endif$Array;
+import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link $Type$BigArrayVector}. Does not take ownership of the given
- * {@link $if(boolean)$Bit$else$$Type$$endif$Array} and does not adjust circuit breakers to account for it.
+ * {@link $Array$} and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {
@@ -24,7 +24,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
     private final $Type$BigArrayVector vector;
 
     public $Type$BigArrayBlock(
-        $if(boolean)$Bit$else$$Type$$endif$Array values,
+        $Array$ values,
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,

@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -34,7 +35,7 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * creating an async response concurrently. This limits the number of final reduction that can
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
-class MutableSearchResponse {
+class MutableSearchResponse implements Releasable {
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
@@ -117,7 +118,12 @@ class MutableSearchResponse {
             : getShardsInResponseMismatchInfo(response, ccsMinimizeRoundtrips);
 
         this.responseHeaders = threadContext.getResponseHeaders();
+        response.mustIncRef();
+        var existing = this.finalResponse;
         this.finalResponse = response;
+        if (existing != null) {
+            existing.decRef();
+        }
         this.isPartial = isPartialResponse(response);
         this.frozen = true;
     }
@@ -188,6 +194,7 @@ class MutableSearchResponse {
         if (finalResponse != null) {
             // We have a final response, use it.
             searchResponse = finalResponse;
+            searchResponse.mustIncRef();
         } else if (clusters == null) {
             // An error occurred before we got the shard list
             searchResponse = null;
@@ -203,15 +210,21 @@ class MutableSearchResponse {
             reducedAggsSource = () -> reducedAggs;
             searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
         }
-        return new AsyncSearchResponse(
-            task.getExecutionId().getEncoded(),
-            searchResponse,
-            failure,
-            isPartial,
-            frozen == false,
-            task.getStartTime(),
-            expirationTime
-        );
+        try {
+            return new AsyncSearchResponse(
+                task.getExecutionId().getEncoded(),
+                searchResponse,
+                failure,
+                isPartial,
+                frozen == false,
+                task.getStartTime(),
+                expirationTime
+            );
+        } finally {
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
+        }
     }
 
     /**
@@ -356,6 +369,13 @@ class MutableSearchResponse {
                 );
             }
             throw new IllegalStateException("assert method hit unexpected case for ccsMinimizeRoundtrips=false");
+        }
+    }
+
+    @Override
+    public void close() {
+        if (finalResponse != null) {
+            finalResponse.decRef();
         }
     }
 }

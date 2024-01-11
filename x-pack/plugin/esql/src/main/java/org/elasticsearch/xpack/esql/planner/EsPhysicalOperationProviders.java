@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
@@ -62,6 +61,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+        // TODO: see if we can get the FieldExtractExec to know if spatial types need to be read from source or doc values, and capture
+        // that information in the BlockReaderFactories.loaders method so it is passed in the BlockLoaderContext
+        // to GeoPointFieldMapper.blockLoader
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
         List<ValuesSourceReaderOperator.ShardContext> readers = searchContexts.stream()
@@ -70,9 +72,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            if (attr instanceof FieldAttribute fa && fa.getExactInfo().hasExact()) {
-                attr = fa.exactAttribute();
-            }
             layout.append(attr);
             DataType dataType = attr.dataType();
             ElementType elementType = PlannerUtils.toElementType(dataType);

@@ -57,7 +57,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         includeUnmapped = in.readBoolean();
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readOptionalLong();
-        runtimeFields = in.readMap();
+        runtimeFields = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             filters = in.readStringArray();
             types = in.readStringArray();

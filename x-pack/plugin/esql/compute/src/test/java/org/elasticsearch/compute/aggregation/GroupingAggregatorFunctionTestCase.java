@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -142,11 +141,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             }
             assertSimpleGroup(input, result, i, group);
         }
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofBytes(100);
     }
 
     public final void testNullGroupsAndValues() {

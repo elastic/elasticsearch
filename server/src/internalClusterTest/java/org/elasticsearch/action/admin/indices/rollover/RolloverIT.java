@@ -53,6 +53,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
@@ -270,6 +271,34 @@ public class RolloverIT extends ESIntegTestCase {
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
         final IndexMetadata newIndex = state.metadata().index("test_index-000002");
         assertNull(newIndex);
+    }
+
+    public void testRolloverLazy() throws Exception {
+        if (randomBoolean()) {
+            PutIndexTemplateRequestBuilder putTemplate = indicesAdmin().preparePutTemplate("test_index")
+                .setPatterns(List.of("test_index-*"))
+                .setOrder(-1)
+                .setSettings(Settings.builder().put(AutoExpandReplicas.SETTING.getKey(), "0-all"));
+            assertAcked(putTemplate.get());
+        }
+        assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
+        indexDoc("test_index-1", "1", "field", "value");
+        flush("test_index-1");
+        ensureGreen();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            RolloverConditions.Builder rolloverConditionsBuilder = RolloverConditions.newBuilder();
+            if (randomBoolean()) {
+                rolloverConditionsBuilder.addMaxIndexDocsCondition(1L);
+            }
+            indicesAdmin().prepareRolloverIndex("test_alias")
+                .dryRun(randomBoolean())
+                .lazy(true)
+                .setConditions(rolloverConditionsBuilder)
+                .get();
+        });
+        assertThat(exception.getMessage(), containsString("can be applied only on a data stream"));
+
     }
 
     public void testRolloverConditionsNotMet() throws Exception {

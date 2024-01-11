@@ -8,6 +8,21 @@
         "@timestamp": {
           "type": "date"
         },
+        "cluster_settings": {
+          "properties": {
+            "cluster": {
+              "properties": {
+                "metadata": {
+                  "properties": {
+                    "display_name": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "elasticsearch": {
           "properties": {
             "cluster": {
@@ -1469,9 +1484,6 @@
                 },
                 "hidden": {
                   "type": "boolean"
-                },
-                "created": {
-                  "type": "long"
                 },
                 "name": {
                   "ignore_above": 1024,

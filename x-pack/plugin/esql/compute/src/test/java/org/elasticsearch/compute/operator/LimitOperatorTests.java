@@ -50,7 +50,7 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue memoryLimitForSimple() {
+    protected ByteSizeValue enoughMemoryForSimple() {
         assumeFalse("doesn't allocate, just filters", true);
         return null;
     }

@@ -96,7 +96,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue memoryLimitForSimple() {
+    protected ByteSizeValue enoughMemoryForSimple() {
         assumeTrue("doesn't allocate", false);
         return null;
     }

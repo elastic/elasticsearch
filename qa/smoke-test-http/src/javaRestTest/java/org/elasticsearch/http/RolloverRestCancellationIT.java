@@ -9,12 +9,21 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.settings.Settings;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class RolloverRestCancellationIT extends BlockedSearcherRestCancellationTestCase {
 
     public void testRolloverRestCancellation() throws Exception {
-        runTest(new Request(HttpPost.METHOD_NAME, "test/_rollover"), RolloverAction.NAME);
+        assertAcked(
+            prepareCreate("test-000001").addAlias(new Alias("test-alias").writeIndex(true))
+                .setSettings(Settings.builder().put(BLOCK_SEARCHER_SETTING.getKey(), true))
+        );
+        ensureGreen("test-000001");
+        runTest(new Request(HttpPost.METHOD_NAME, "test-alias/_rollover"), RolloverAction.NAME);
     }
 }

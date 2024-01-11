@@ -10,7 +10,6 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
@@ -267,7 +266,7 @@ public class DoSection implements ExecutableSection {
         return apiCallSection;
     }
 
-    void setApiCallSection(ApiCallSection apiCallSection) {
+    public void setApiCallSection(ApiCallSection apiCallSection) {
         this.apiCallSection = apiCallSection;
     }
 
@@ -276,7 +275,7 @@ public class DoSection implements ExecutableSection {
      * If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
-    List<String> getExpectedWarningHeaders() {
+    public List<String> getExpectedWarningHeaders() {
         return expectedWarningHeaders;
     }
 
@@ -285,7 +284,7 @@ public class DoSection implements ExecutableSection {
      * If the headers don't match this request is considered to have failed.
      * Defaults to emptyList.
      */
-    List<Pattern> getExpectedWarningHeadersRegex() {
+    public List<Pattern> getExpectedWarningHeadersRegex() {
         return expectedWarningHeadersRegex;
     }
 
@@ -293,7 +292,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. If the headers don't match exactly this request is considered to have
      * failed. Defaults to emptyList.
      */
-    void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
+    public void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
     }
 
@@ -301,7 +300,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers patterns that we expect from this response. If the headers don't match this request is considered to have
      * failed. Defaults to emptyList.
      */
-    void setExpectedWarningHeadersRegex(List<Pattern> expectedWarningHeadersRegex) {
+    public void setExpectedWarningHeadersRegex(List<Pattern> expectedWarningHeadersRegex) {
         this.expectedWarningHeadersRegex = expectedWarningHeadersRegex;
     }
 
@@ -309,7 +308,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we allow from this response. These warning
      * headers don't cause the test to fail. Defaults to emptyList.
      */
-    List<String> getAllowedWarningHeaders() {
+    public List<String> getAllowedWarningHeaders() {
         return allowedWarningHeaders;
     }
 
@@ -317,7 +316,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we allow from this response. These warning
      * headers don't cause the test to fail. Defaults to emptyList.
      */
-    List<Pattern> getAllowedWarningHeadersRegex() {
+    public List<Pattern> getAllowedWarningHeadersRegex() {
         return allowedWarningHeadersRegex;
     }
 
@@ -325,7 +324,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. These
      * warning headers don't cause the test to fail. Defaults to emptyList.
      */
-    void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
+    public void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
         this.allowedWarningHeaders = allowedWarningHeaders;
     }
 
@@ -333,7 +332,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers pattern that we expect from this response. These
      * warning headers don't cause the test to fail. Defaults to emptyList.
      */
-    void setAllowedWarningHeadersRegex(List<Pattern> allowedWarningHeadersRegex) {
+    public void setAllowedWarningHeadersRegex(List<Pattern> allowedWarningHeadersRegex) {
         this.allowedWarningHeadersRegex = allowedWarningHeadersRegex;
     }
 
@@ -653,10 +652,13 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
-    private static boolean matchWithRange(String nodeVersionString, List<VersionRange> acceptedVersionRanges, XContentLocation location) {
+    private static boolean matchWithRange(
+        String nodeVersionString,
+        List<Predicate<Set<String>>> acceptedVersionRanges,
+        XContentLocation location
+    ) {
         try {
-            Version version = Version.fromString(nodeVersionString);
-            return acceptedVersionRanges.stream().anyMatch(v -> v.contains(version));
+            return acceptedVersionRanges.stream().anyMatch(v -> v.test(Set.of(nodeVersionString)));
         } catch (IllegalArgumentException e) {
             throw new XContentParseException(
                 location,
@@ -671,16 +673,9 @@ public class DoSection implements ExecutableSection {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
 
-        final Predicate<String> nodeMatcher;
-        final String versionSelectorString;
-        if (parser.text().equals("current")) {
-            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
-            versionSelectorString = "version is " + Build.current().version() + " (current)";
-        } else {
-            var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
-            nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
-            versionSelectorString = "version ranges " + acceptedVersionRange;
-        }
+        var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
+        final Predicate<String> nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
+        final String versionSelectorString = "version ranges " + acceptedVersionRange;
 
         return new NodeSelector() {
             @Override

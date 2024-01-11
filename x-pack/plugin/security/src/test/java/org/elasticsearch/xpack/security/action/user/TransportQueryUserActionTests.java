@@ -23,7 +23,6 @@ public class TransportQueryUserActionTests extends ESTestCase {
     private static final String[] allowedIndexFieldNames = new String[] {
         "username",
         "roles",
-        "metadata",
         "full_name",
         "email",
         "enabled" };

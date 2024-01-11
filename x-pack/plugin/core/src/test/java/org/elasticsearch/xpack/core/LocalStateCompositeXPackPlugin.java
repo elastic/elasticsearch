@@ -232,6 +232,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -242,6 +243,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<RestHandler> handlers = new ArrayList<>(
             super.getRestHandlers(
                 settings,
+                namedWriteableRegistry,
                 restController,
                 clusterSettings,
                 indexScopedSettings,
@@ -254,6 +256,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             p -> handlers.addAll(
                 p.getRestHandlers(
                     settings,
+                    namedWriteableRegistry,
                     restController,
                     clusterSettings,
                     indexScopedSettings,

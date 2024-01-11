@@ -811,7 +811,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         replica.prepareForIndexRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
+        final long startingSeqNo = recoverLocallyUpToGlobalCheckpoint(recoveryTarget.indexShard());
         final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger,
             rNode,
@@ -1157,5 +1157,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 }
             }
         };
+    }
+
+    public static long recoverLocallyUpToGlobalCheckpoint(IndexShard indexShard) {
+        return indexShard.recoverLocallyUpToGlobalCheckpoint();
     }
 }

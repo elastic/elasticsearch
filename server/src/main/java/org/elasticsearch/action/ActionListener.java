@@ -364,7 +364,7 @@ public interface ActionListener<Response> {
     static <T, R extends AutoCloseable> void runWithResource(
         ActionListener<T> listener,
         CheckedSupplier<R, ? extends Exception> resourceSupplier,
-        CheckedBiConsumer<ActionListener<T>, R, Exception> action
+        CheckedBiConsumer<ActionListener<T>, R, ? extends Exception> action
     ) {
         R resource;
         try {

@@ -1,0 +1,5 @@
+pr: 104246
+summary: Speed up resolving keep command
+area: ES|QL
+type: bug
+issues: []

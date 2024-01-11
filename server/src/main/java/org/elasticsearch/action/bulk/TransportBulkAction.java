@@ -1017,15 +1017,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 );
             } else {
                 return actionListener.map(response -> {
-                    BulkItemResponse[] items = response.getItems();
-                    for (int i = 0; i < items.length; i++) {
-                        itemResponses.add(originalSlots.get(i), response.getItems()[i]);
+                    // these items are the responses from the subsequent bulk request, their 'slots'
+                    // are not correct for this response we're building
+                    final BulkItemResponse[] bulkResponses = response.getItems();
+
+                    final BulkItemResponse[] allResponses = new BulkItemResponse[bulkResponses.length + itemResponses.size()];
+
+                    // the item responses are from the original request, so their slots are correct.
+                    // these are the responses for requests that failed early and were not passed on to the subsequent bulk.
+                    for (BulkItemResponse item : itemResponses) {
+                        allResponses[item.getItemId()] = item;
                     }
-                    return new BulkResponse(
-                        itemResponses.toArray(new BulkItemResponse[0]),
-                        response.getTook().getMillis(),
-                        ingestTookInMillis
-                    );
+
+                    // use the original slots for the responses from the bulk
+                    for (int i = 0; i < bulkResponses.length; i++) {
+                        allResponses[originalSlots.get(i)] = bulkResponses[i];
+                    }
+
+                    return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis);
                 });
             }
         }

@@ -357,4 +357,24 @@ public interface ActionListener<Response> {
         }
     }
 
+    /**
+     * Execute the given action in a {@code try-with-resources} block which closes the supplied resource on completion, and feeds all
+     * exceptions to the given listener's {@link #onFailure} method.
+     */
+    static <T, R extends AutoCloseable> void runWithResource(
+        ActionListener<T> listener,
+        CheckedSupplier<R, ? extends Exception> resourceSupplier,
+        CheckedBiConsumer<ActionListener<T>, R, Exception> action
+    ) {
+        R resource;
+        try {
+            resource = resourceSupplier.get();
+        } catch (Exception e) {
+            safeOnFailure(listener, e);
+            return;
+        }
+
+        ActionListener.run(ActionListener.runBefore(listener, resource::close), l -> action.accept(l, resource));
+    }
+
 }

@@ -35,7 +35,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.inference.InferenceProvider;
-import org.elasticsearch.inference.InferenceProviderException;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TestInferenceResults;
 import org.elasticsearch.ingest.IngestService;
@@ -137,7 +136,7 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<List<InferenceResults>>) invocation.getArguments()[2];
-            listener.onFailure(new InferenceProviderException("Unexpected invocation", null));
+            listener.onFailure(new Exception("Unexpected invocation"));
             return Void.TYPE;
         }).when(inferenceProvider).textInference(any(), any(), any());
         when(nodeClient.executeLocally(eq(TransportShardBulkAction.TYPE), any(), any())).thenAnswer(invocation -> {
@@ -332,7 +331,7 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<List<InferenceResults>>) invocation.getArguments()[2];
-            listener.onFailure(new InferenceProviderException("Inference failed", null));
+            listener.onFailure(new Exception("Inference failed"));
             return Void.TYPE;
         }).when(inferenceProvider)
             .textInference(eq(modelId), argThat(texts -> texts.containsAll(Arrays.stream(inferenceTexts).toList())), any());

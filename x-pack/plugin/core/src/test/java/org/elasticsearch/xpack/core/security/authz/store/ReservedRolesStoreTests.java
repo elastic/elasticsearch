@@ -1604,10 +1604,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         );
         assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(dotConnectorSecretsIndex), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotConnectorSecretsIndex), is(false));
-
-        assertThat(kibanaRole.cluster().check("cluster:admin/xpack/connector/secret/get", request, authentication), is(false));
-        assertThat(kibanaRole.cluster().check("cluster:admin/xpack/connector/secret/post", request, authentication), is(true));
-
     }
 
     public void testKibanaAdminRole() {

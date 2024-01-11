@@ -460,8 +460,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             @Override
             public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
                 logger.info("--> got task: [source: {}]: {}", source, updateTask);
-                if (updateTask instanceof OperationModeUpdateTask) {
-                    task.set((OperationModeUpdateTask) updateTask);
+                if (updateTask instanceof OperationModeUpdateTask operationModeUpdateTask) {
+                    task.set(operationModeUpdateTask);
                 }
             }
         };

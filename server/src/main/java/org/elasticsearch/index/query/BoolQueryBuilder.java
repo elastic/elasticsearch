@@ -390,37 +390,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
     }
 
-    @Override
-    protected BoolQueryBuilder rewriteForInnerHits() {
-        BoolQueryBuilder newBuilder = new BoolQueryBuilder();
-        boolean changed = false;
-        changed |= rewriteInnerHitsClauses(mustClauses, newBuilder::must);
-        changed |= rewriteInnerHitsClauses(mustNotClauses, newBuilder::mustNot);
-        changed |= rewriteInnerHitsClauses(filterClauses, newBuilder::filter);
-        changed |= rewriteInnerHitsClauses(shouldClauses, newBuilder::should);
-
-        if (changed) {
-            newBuilder.adjustPureNegative = adjustPureNegative;
-            newBuilder.minimumShouldMatch = minimumShouldMatch;
-            newBuilder.boost(boost());
-            newBuilder.queryName(queryName());
-            return newBuilder;
-        }
-        return this;
-    }
-
-    private static boolean rewriteInnerHitsClauses(List<QueryBuilder> builders, Consumer<QueryBuilder> consumer) {
-        boolean changed = false;
-        for (QueryBuilder builder : builders) {
-            QueryBuilder result = InnerHitContextBuilder.rewriteQueryForInnerHits(builder);
-            if (result != builder) {
-                changed = true;
-            }
-            consumer.accept(result);
-        }
-        return changed;
-    }
-
     private static boolean rewriteClauses(
         QueryRewriteContext queryRewriteContext,
         List<QueryBuilder> builders,

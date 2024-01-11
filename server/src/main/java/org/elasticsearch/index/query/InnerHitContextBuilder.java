@@ -23,8 +23,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.index.query.Rewriteable.MAX_REWRITE_ROUNDS;
-
 /**
  * A builder for {@link InnerHitsContext.InnerHitSubContext}
  */
@@ -67,29 +65,6 @@ public abstract class InnerHitContextBuilder {
     public static void extractInnerHits(QueryBuilder query, Map<String, InnerHitContextBuilder> innerHitBuilders) {
         if (query instanceof AbstractQueryBuilder) {
             ((AbstractQueryBuilder<?>) query).extractInnerHitBuilders(innerHitBuilders);
-        } else {
-            throw new IllegalStateException(
-                "provided query builder [" + query.getClass() + "] class should inherit from AbstractQueryBuilder, but it doesn't"
-            );
-        }
-    }
-
-    public static QueryBuilder rewriteQueryForInnerHits(QueryBuilder query) {
-        if (query instanceof AbstractQueryBuilder<?> original) {
-            AbstractQueryBuilder<?> builder = original;
-            int iteration = 0;
-            for (AbstractQueryBuilder<?> rewrittenBuilder = builder.rewriteForInnerHits(); rewrittenBuilder != builder; rewrittenBuilder =
-                builder.rewriteForInnerHits()) {
-                builder = rewrittenBuilder;
-                if (iteration++ >= MAX_REWRITE_ROUNDS) {
-                    // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
-                    // and then we fail to prevent infinite loops
-                    throw new IllegalStateException(
-                        "too many rewrite rounds, rewriteable might return new objects even if they are not rewritten"
-                    );
-                }
-            }
-            return builder;
         } else {
             throw new IllegalStateException(
                 "provided query builder [" + query.getClass() + "] class should inherit from AbstractQueryBuilder, but it doesn't"

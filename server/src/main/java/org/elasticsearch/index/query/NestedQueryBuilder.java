@@ -322,22 +322,10 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             }
 
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
-            QueryBuilder rewritten = InnerHitContextBuilder.rewriteQueryForInnerHits(query);
-            InnerHitContextBuilder.extractInnerHits(rewritten, children);
-            InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, rewritten, innerHitBuilder, children);
+            InnerHitContextBuilder.extractInnerHits(query, children);
+            InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, query, innerHitBuilder, children);
             innerHits.put(name, innerHitContextBuilder);
         }
-    }
-
-    @Override
-    protected NestedQueryBuilder rewriteForInnerHits() {
-        QueryBuilder rewrittenQuery = InnerHitContextBuilder.rewriteQueryForInnerHits(query);
-        if (rewrittenQuery != query) {
-            NestedQueryBuilder nestedQuery = new NestedQueryBuilder(path, rewrittenQuery, scoreMode, innerHitBuilder);
-            nestedQuery.ignoreUnmapped(ignoreUnmapped);
-            return nestedQuery;
-        }
-        return this;
     }
 
     static class NestedInnerHitContextBuilder extends InnerHitContextBuilder {

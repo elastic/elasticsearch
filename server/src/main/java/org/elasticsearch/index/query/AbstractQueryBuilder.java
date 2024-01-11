@@ -296,6 +296,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (queryRewriteContext == null) {
             return this;
         }
+        final InnerHitsRewriteContext ihrc = queryRewriteContext.convertToInnerHitsRewriteContext();
+        if (ihrc != null) {
+            return doInnerHitsRewrite(ihrc);
+        }
         final CoordinatorRewriteContext crc = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (crc != null) {
             return doCoordinatorRewrite(crc);
@@ -343,20 +347,22 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     /**
+     * Optional rewrite logic that allows for optimization for extracting inner hits
+     * @param context an {@link InnerHitsRewriteContext} instance
+     * @return A {@link QueryBuilder} representing the rewritten query optimized for inner hit extraction
+     * @throws IOException if an error occurs while rewriting the query
+     */
+    protected QueryBuilder doInnerHitsRewrite(final InnerHitsRewriteContext context) throws IOException {
+        return this;
+    }
+
+    /**
      * For internal usage only!
      *
      * Extracts the inner hits from the query tree.
      * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
      */
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {}
-
-    /**
-     * For internal usage only!
-     * @return a rewritten form of the query optimized for inner hit extraction
-     */
-    protected AbstractQueryBuilder<?> rewriteForInnerHits() {
-        return this;
-    }
 
     /**
      * Parses and returns a query (excluding the query field that wraps it). To be called by API that support

@@ -224,27 +224,6 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    protected DisMaxQueryBuilder rewriteForInnerHits() {
-        DisMaxQueryBuilder newBuilder = new DisMaxQueryBuilder();
-        boolean changed = false;
-        for (QueryBuilder query : queries) {
-            QueryBuilder result = InnerHitContextBuilder.rewriteQueryForInnerHits(query);
-            if (result != query) {
-                changed = true;
-            }
-            newBuilder.add(result);
-        }
-        if (changed) {
-            newBuilder.queryName(queryName);
-            newBuilder.boost(boost);
-            newBuilder.tieBreaker(tieBreaker);
-            return newBuilder;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }

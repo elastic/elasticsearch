@@ -44,6 +44,14 @@ public class ESDiversifyingChildrenKnnVectorQuery extends Query {
         this.parentsFilter = parentsFilter;
     }
 
+    Query getNearestChildren() {
+        return nearestChildren;
+    }
+
+    Query getExactKnnQuery() {
+        return exactKnnQuery;
+    }
+
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         Query nearestChildren = this.nearestChildren.rewrite(indexSearcher);

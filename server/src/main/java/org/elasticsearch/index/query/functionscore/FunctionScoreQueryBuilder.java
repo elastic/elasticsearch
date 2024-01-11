@@ -433,20 +433,6 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         InnerHitContextBuilder.extractInnerHits(query(), innerHits);
     }
 
-    @Override
-    protected FunctionScoreQueryBuilder rewriteForInnerHits() {
-        QueryBuilder queryBuilder = InnerHitContextBuilder.rewriteQueryForInnerHits(this.query);
-        if (queryBuilder != query) {
-            FunctionScoreQueryBuilder newQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
-            newQueryBuilder.scoreMode = scoreMode;
-            newQueryBuilder.minScore = minScore;
-            newQueryBuilder.maxBoost = maxBoost;
-            newQueryBuilder.boostMode = boostMode;
-            return newQueryBuilder;
-        }
-        return this;
-    }
-
     public static FunctionScoreQueryBuilder fromXContent(XContentParser parser) throws IOException {
         QueryBuilder query = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

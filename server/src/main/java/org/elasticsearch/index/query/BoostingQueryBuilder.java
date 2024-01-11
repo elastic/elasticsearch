@@ -230,18 +230,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    protected BoostingQueryBuilder rewriteForInnerHits() {
-        QueryBuilder positiveQuery = InnerHitContextBuilder.rewriteQueryForInnerHits(this.positiveQuery);
-        QueryBuilder negativeQuery = InnerHitContextBuilder.rewriteQueryForInnerHits(this.negativeQuery);
-        if (positiveQuery != this.positiveQuery || negativeQuery != this.negativeQuery) {
-            BoostingQueryBuilder newQueryBuilder = new BoostingQueryBuilder(positiveQuery, negativeQuery);
-            newQueryBuilder.negativeBoost = negativeBoost;
-            return newQueryBuilder;
-        }
-        return this;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }

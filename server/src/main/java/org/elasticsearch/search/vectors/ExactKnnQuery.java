@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.ValueSourceScorer;
+import org.apache.lucene.queries.function.valuesource.VectorSimilarityFunction;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -28,15 +29,19 @@ import java.util.Map;
  * exists within the score function.
  */
 public class ExactKnnQuery extends Query {
-    final ValueSource func;
+    final VectorSimilarityFunction func;
 
-    public ExactKnnQuery(ValueSource func) {
+    public ExactKnnQuery(VectorSimilarityFunction func) {
         this.func = func;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new BruteForceWeight(searcher, boost);
+    }
+
+    VectorSimilarityFunction getFunc() {
+        return func;
     }
 
     @Override

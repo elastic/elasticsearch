@@ -161,15 +161,6 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    protected ConstantScoreQueryBuilder rewriteForInnerHits() {
-        QueryBuilder rewrite = InnerHitContextBuilder.rewriteQueryForInnerHits(filterBuilder);
-        if (rewrite != filterBuilder) {
-            return new ConstantScoreQueryBuilder(rewrite);
-        }
-        return this;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }

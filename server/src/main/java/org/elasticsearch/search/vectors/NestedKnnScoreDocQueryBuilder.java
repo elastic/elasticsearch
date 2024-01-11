@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -56,6 +58,10 @@ public class NestedKnnScoreDocQueryBuilder extends AbstractQueryBuilder<NestedKn
         this.kNNQuery = in.readNamedWriteable(QueryBuilder.class);
         this.query = in.readFloatArray();
         this.field = in.readString();
+    }
+
+    QueryBuilder getKNNQuery() {
+        return kNNQuery;
     }
 
     @Override
@@ -130,11 +136,18 @@ public class NestedKnnScoreDocQueryBuilder extends AbstractQueryBuilder<NestedKn
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        return super.doRewrite(queryRewriteContext);
+        QueryBuilder rewritten = kNNQuery.rewrite(queryRewriteContext);
+        if (rewritten instanceof MatchNoneQueryBuilder) {
+            return rewritten;
+        }
+        if (rewritten != kNNQuery) {
+            return new NestedKnnScoreDocQueryBuilder(rewritten, query, field);
+        }
+        return this;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current();
+        return TransportVersions.NESTED_KNN_MORE_INNER_HITS;
     }
 }

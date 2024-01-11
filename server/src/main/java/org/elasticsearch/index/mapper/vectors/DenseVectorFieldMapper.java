@@ -29,7 +29,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.queries.function.FunctionQuery;
 import org.apache.lucene.queries.function.valuesource.ByteKnnVectorFieldSource;
 import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
 import org.apache.lucene.queries.function.valuesource.ConstKnnByteVectorValueSource;
@@ -1107,7 +1106,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     for (int i = 0; i < queryVector.length; i++) {
                         bytes[i] = (byte) queryVector[i];
                     }
-                    yield new FunctionQuery(
+                    yield new ExactKnnQuery(
                         new ByteVectorSimilarityFunction(
                             vectorSimilarityFunction,
                             new ByteKnnVectorFieldSource(name()),
@@ -1115,7 +1114,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         )
                     );
                 }
-                case FLOAT -> new FunctionQuery(
+                case FLOAT -> new ExactKnnQuery(
                     new FloatVectorSimilarityFunction(
                         vectorSimilarityFunction,
                         new FloatKnnVectorFieldSource(name()),

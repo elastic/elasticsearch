@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
@@ -185,6 +186,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         ClusterState state,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
+        // Just to see whether ESQL stuff is available here.
+        new EsqlQueryResponse(null, null, null, false, false);
+
         StartDatafeedAction.DatafeedParams params = request.getParams();
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

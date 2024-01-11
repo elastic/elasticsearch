@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;

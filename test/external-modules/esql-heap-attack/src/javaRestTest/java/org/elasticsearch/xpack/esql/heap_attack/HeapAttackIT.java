@@ -219,6 +219,7 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * Hits a circuit breaker by building many moderately long strings.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/104241")
     public void testHugeManyConcat() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> manyConcat(2000));

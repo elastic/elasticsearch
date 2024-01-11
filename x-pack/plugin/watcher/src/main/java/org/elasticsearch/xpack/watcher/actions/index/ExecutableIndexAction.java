@@ -88,44 +88,51 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             data = mutableMap(data);
         }
 
+        DocWriteResponse response;
         IndexRequest indexRequest = new IndexRequest();
-        if (action.refreshPolicy != null) {
-            indexRequest.setRefreshPolicy(action.refreshPolicy);
-        }
+        try {
+            if (action.refreshPolicy != null) {
+                indexRequest.setRefreshPolicy(action.refreshPolicy);
+            }
 
-        indexRequest.index(getField(actionId, ctx.id().watchId(), "index", data, INDEX_FIELD, action.index));
-        indexRequest.id(getField(actionId, ctx.id().watchId(), "id", data, ID_FIELD, action.docId));
-        if (action.opType != null) {
-            indexRequest.opType(action.opType);
-        }
+            indexRequest.index(getField(actionId, ctx.id().watchId(), "index", data, INDEX_FIELD, action.index));
+            indexRequest.id(getField(actionId, ctx.id().watchId(), "id", data, ID_FIELD, action.docId));
+            if (action.opType != null) {
+                indexRequest.opType(action.opType);
+            }
 
-        data = addTimestampToDocument(data, ctx.executionTime());
-        BytesReference bytesReference;
-        try (XContentBuilder builder = jsonBuilder()) {
-            indexRequest.source(builder.prettyPrint().map(data));
-        }
+            data = addTimestampToDocument(data, ctx.executionTime());
 
-        if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Simulated(
-                indexRequest.index(),
-                indexRequest.id(),
-                action.refreshPolicy,
-                new XContentSource(indexRequest.source(), XContentType.JSON)
+            try (XContentBuilder builder = jsonBuilder()) {
+                indexRequest.source(builder.prettyPrint().map(data));
+            }
+
+            if (ctx.simulateAction(actionId)) {
+                return new IndexAction.Simulated(
+                    indexRequest.index(),
+                    indexRequest.id(),
+                    action.refreshPolicy,
+                    new XContentSource(indexRequest.source(), XContentType.JSON)
+                );
+            }
+
+            ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
+            response = ClientHelper.executeWithHeaders(
+                ctx.watch().status().getHeaders(),
+                ClientHelper.WATCHER_ORIGIN,
+                client,
+                () -> client.index(indexRequest).actionGet(indexDefaultTimeout)
             );
+        } finally {
+            indexRequest.decRef();
         }
-
-        ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
-        DocWriteResponse response = ClientHelper.executeWithHeaders(
-            ctx.watch().status().getHeaders(),
-            ClientHelper.WATCHER_ORIGIN,
-            client,
-            () -> client.index(indexRequest).actionGet(indexDefaultTimeout)
-        );
+        BytesReference bytesReference;
         try (XContentBuilder builder = jsonBuilder()) {
             indexResponseToXContent(builder, response);
             bytesReference = BytesReference.bytes(builder);
         }
         return new IndexAction.Result(Status.SUCCESS, new XContentSource(bytesReference, XContentType.JSON));
+
     }
 
     Action.Result indexBulk(Iterable<?> list, String actionId, WatchExecutionContext ctx) throws Exception {
@@ -155,17 +162,21 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 }
 
                 IndexRequest indexRequest = new IndexRequest();
-                indexRequest.index(getField(actionId, ctx.id().watchId(), "index", doc, INDEX_FIELD, action.index));
-                indexRequest.id(getField(actionId, ctx.id().watchId(), "id", doc, ID_FIELD, action.docId));
-                if (action.opType != null) {
-                    indexRequest.opType(action.opType);
-                }
+                try {
+                    indexRequest.index(getField(actionId, ctx.id().watchId(), "index", doc, INDEX_FIELD, action.index));
+                    indexRequest.id(getField(actionId, ctx.id().watchId(), "id", doc, ID_FIELD, action.docId));
+                    if (action.opType != null) {
+                        indexRequest.opType(action.opType);
+                    }
 
-                doc = addTimestampToDocument(doc, ctx.executionTime());
-                try (XContentBuilder builder = jsonBuilder()) {
-                    indexRequest.source(builder.prettyPrint().map(doc));
+                    doc = addTimestampToDocument(doc, ctx.executionTime());
+                    try (XContentBuilder builder = jsonBuilder()) {
+                        indexRequest.source(builder.prettyPrint().map(doc));
+                    }
+                    bulkRequest.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
                 }
-                bulkRequest.add(indexRequest);
             }
 
             if (ctx.simulateAction(actionId)) {

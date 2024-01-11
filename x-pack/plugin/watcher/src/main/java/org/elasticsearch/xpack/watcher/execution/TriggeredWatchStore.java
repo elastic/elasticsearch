@@ -98,13 +98,18 @@ public class TriggeredWatchStore {
     private static BulkRequest createBulkRequest(final List<TriggeredWatch> triggeredWatches) throws IOException {
         BulkRequest request = new BulkRequest();
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
-            IndexRequest indexRequest = new IndexRequest(TriggeredWatchStoreField.INDEX_NAME).id(triggeredWatch.id().value());
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                triggeredWatch.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                indexRequest.source(builder);
+            IndexRequest indexRequest = new IndexRequest(TriggeredWatchStoreField.INDEX_NAME);
+            try {
+                indexRequest.id(triggeredWatch.id().value());
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    triggeredWatch.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    indexRequest.source(builder);
+                }
+                indexRequest.opType(IndexRequest.OpType.CREATE);
+                request.add(indexRequest);
+            } finally {
+                indexRequest.decRef();
             }
-            indexRequest.opType(IndexRequest.OpType.CREATE);
-            request.add(indexRequest);
         }
         return request;
     }

@@ -392,15 +392,19 @@ public class ExecutionService {
             .endObject();
 
         UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, watch.id());
-        updateRequest.doc(source);
-        updateRequest.setIfSeqNo(watch.getSourceSeqNo());
-        updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
-        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
-            client.update(updateRequest).actionGet(indexDefaultTimeout);
-        } catch (DocumentMissingException e) {
-            // do not rethrow this exception, otherwise the watch history will contain an exception
-            // even though the execution might have been fine
-            // TODO should we really just drop this exception on the floor?
+        try {
+            updateRequest.doc(source);
+            updateRequest.setIfSeqNo(watch.getSourceSeqNo());
+            updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+                client.update(updateRequest).actionGet(indexDefaultTimeout);
+            } catch (DocumentMissingException e) {
+                // do not rethrow this exception, otherwise the watch history will contain an exception
+                // even though the execution might have been fine
+                // TODO should we really just drop this exception on the floor?
+            }
+        } finally {
+            updateRequest.decRef();
         }
     }
 
@@ -480,10 +484,13 @@ public class ExecutionService {
                 ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)
             ) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
-                IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value())
-                    .source(builder)
-                    .opType(IndexRequest.OpType.CREATE);
-                client.index(request).get(30, TimeUnit.SECONDS);
+                IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM);
+                try {
+                    request.id(watchRecord.id().value()).source(builder).opType(IndexRequest.OpType.CREATE);
+                    client.index(request).get(30, TimeUnit.SECONDS);
+                } finally {
+                    request.decRef();
+                }
                 logger.debug("indexed watch history record [{}]", watchRecord.id().value());
             } catch (VersionConflictEngineException vcee) {
                 watchRecord = new WatchRecord.MessageWatchRecord(
@@ -495,9 +502,13 @@ public class ExecutionService {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
                     ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)
                 ) {
-                    IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value())
-                        .source(xContentBuilder.value(watchRecord));
-                    client.index(request).get(30, TimeUnit.SECONDS);
+                    IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM);
+                    try {
+                        request.id(watchRecord.id().value()).source(xContentBuilder.value(watchRecord));
+                        client.index(request).get(30, TimeUnit.SECONDS);
+                    } finally {
+                        request.decRef();
+                    }
                 }
                 logger.debug("overwrote watch history record [{}]", watchRecord.id().value());
             }

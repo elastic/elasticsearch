@@ -9,6 +9,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -46,7 +47,12 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
     private int indexDocs(Client client, String index) {
         int numDocs = between(1, 100);
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource("f", "v").get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index).setSource("f", "v");
+            try {
+                indexRequestBuilder.get();
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;
@@ -57,7 +63,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         final int docsNumber = indexDocs(client(REMOTE_CLUSTER), "source-index-001");
 
         final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "source-index-001";
-        new ReindexRequestBuilder(client(LOCAL_CLUSTER)).source(sourceIndexInRemote).destination("desc-index-001").get();
+        reindex(sourceIndexInRemote, "desc-index-001");
 
         assertTrue("Number of documents in source and desc indexes does not match", waitUntil(() -> {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
@@ -72,7 +78,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         final int docsNumber = indexDocs(client(REMOTE_CLUSTER), "test-index-001");
 
         final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "test-index-001";
-        new ReindexRequestBuilder(client(LOCAL_CLUSTER)).source(sourceIndexInRemote).destination("test-index-001").get();
+        reindex(sourceIndexInRemote, "test-index-001");
 
         assertTrue("Number of documents in source and desc indexes does not match", waitUntil(() -> {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
@@ -91,9 +97,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         int N = randomIntBetween(2, 10);
         for (int attempt = 0; attempt < N; attempt++) {
 
-            BulkByScrollResponse response = new ReindexRequestBuilder(client(LOCAL_CLUSTER)).source(sourceIndexInRemote)
-                .destination("test-index-001")
-                .get();
+            BulkByScrollResponse response = reindex(sourceIndexInRemote, "test-index-001");
 
             if (attempt == 0) {
                 assertThat(response.getCreated(), equalTo(docsNumber));
@@ -115,10 +119,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
     public void testReindexFromRemoteThrowOnUnavailableIndex() throws Exception {
 
         final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "no-such-source-index-001";
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> new ReindexRequestBuilder(client(LOCAL_CLUSTER)).source(sourceIndexInRemote).destination("desc-index-001").get()
-        );
+        expectThrows(IndexNotFoundException.class, () -> reindex(sourceIndexInRemote, "desc-index-001"));
 
         // assert that local index was not created either
         final IndexNotFoundException e = expectThrows(
@@ -133,7 +134,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         final int docsNumber = indexDocs(client(REMOTE_CLUSTER), "datemath-2001-01-02");
 
         final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "<datemath-{2001-01-01||+1d{yyyy-MM-dd}}>";
-        new ReindexRequestBuilder(client(LOCAL_CLUSTER)).source(sourceIndexInRemote).destination("desc-index-001").get();
+        reindex(sourceIndexInRemote, "desc-index-001");
 
         assertTrue("Number of documents in source and desc indexes does not match", waitUntil(() -> {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
@@ -149,7 +150,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
 
         // Remote name contains `:` symbol twice
         final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
-        new ReindexRequestBuilder(client(LOCAL_CLUSTER)).source(sourceIndexInRemote).destination("desc-index-001").get();
+        reindex(sourceIndexInRemote, "desc-index-001");
 
         assertTrue("Number of documents in source and desc indexes does not match", waitUntil(() -> {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
@@ -159,4 +160,12 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         }));
     }
 
+    private BulkByScrollResponse reindex(String source, String destination) {
+        ReindexRequestBuilder builder = new ReindexRequestBuilder(client(LOCAL_CLUSTER));
+        try {
+            return builder.source(source).destination(destination).get();
+        } finally {
+            builder.request().decRef();
+        }
+    }
 }

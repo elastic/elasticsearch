@@ -126,13 +126,18 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         @Override
         protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
-            index.index(doc.getIndex());
-            index.id(doc.getId());
-            index.source(doc.getSource(), doc.getXContentType());
-            index.setIfSeqNo(doc.getSeqNo());
-            index.setIfPrimaryTerm(doc.getPrimaryTerm());
-            index.setPipeline(mainRequest.getPipeline());
-            return wrap(index);
+            try {
+                index.index(doc.getIndex());
+                index.id(doc.getId());
+                index.source(doc.getSource(), doc.getXContentType());
+                index.setIfSeqNo(doc.getSeqNo());
+                index.setIfPrimaryTerm(doc.getPrimaryTerm());
+                index.setPipeline(mainRequest.getPipeline());
+                return wrap(index);
+            } catch (Exception e) {
+                index.decRef();
+                throw e;
+            }
         }
 
         static class UpdateByQueryScriptApplier extends ScriptApplier<UpdateByQueryMetadata> {

@@ -146,6 +146,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                     );
                 } else {
                     IndexRequest indexRequest = new IndexRequest(Watch.INDEX).id(request.getId());
+                    System.out.println("I am here");
                     try {
                         indexRequest.source(builder);
                         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -154,6 +155,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                             WATCHER_ORIGIN,
                             indexRequest,
                             ActionListener.runAfter(ActionListener.<DocWriteResponse>wrap(response -> {
+                                System.out.println("I am here2");
                                 boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
                                 listener.onResponse(
                                     new PutWatchResponse(

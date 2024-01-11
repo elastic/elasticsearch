@@ -273,10 +273,22 @@ public abstract class AbstractAsyncBulkByScrollAction<
         try {
             for (ScrollableHitSource.Hit doc : docs) {
                 if (accept(doc)) {
-                    RequestWrapper<?> request = scriptApplier.apply(copyMetadata(buildRequest(doc), doc), doc);
-                    if (request != null) {
-                        bulkRequest.add(request.self());
-                        if (request.self() instanceof RefCounted refCounted) {
+                    RequestWrapper<?> originalRequest = buildRequest(doc);
+                    try {
+                        RequestWrapper<?> request = scriptApplier.apply(copyMetadata(originalRequest, doc), doc);
+                        if (request != null) {
+                            try {
+                                bulkRequest.add(request.self());
+                            } finally {
+                                if (originalRequest.self() != request.self()) {
+                                    if (request.self() instanceof RefCounted refCounted) {
+                                        refCounted.decRef();
+                                    }
+                                }
+                            }
+                        }
+                    } finally {
+                        if (originalRequest.self() instanceof RefCounted refCounted) {
                             refCounted.decRef();
                         }
                     }

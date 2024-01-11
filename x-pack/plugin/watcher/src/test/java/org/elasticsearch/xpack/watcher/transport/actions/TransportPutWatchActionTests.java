@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -60,6 +61,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
     private ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setupAction() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -70,6 +72,12 @@ public class TransportPutWatchActionTests extends ESTestCase {
         when(parser.parseWithSecrets(eq("_id"), eq(false), any(), any(), any(), anyBoolean(), anyLong(), anyLong())).thenReturn(watch);
 
         Client client = mock(Client.class);
+        doAnswer(invocation -> {
+            ActionListener<DocWriteResponse> listener = (ActionListener<DocWriteResponse>) invocation.getArguments()[1];
+            IndexResponse response = new IndexResponse(new ShardId(new Index("test-index", "uuid"), 0), "1", 1, 1, 1, true);
+            listener.onResponse(response);
+            return null;
+        }).when(client).index(any(), any());
         when(client.threadPool()).thenReturn(threadPool);
         // mock an index response that calls the listener
         doAnswer(invocation -> {

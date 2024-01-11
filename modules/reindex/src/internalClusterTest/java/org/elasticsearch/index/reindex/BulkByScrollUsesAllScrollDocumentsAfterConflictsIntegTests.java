@@ -135,6 +135,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount));
             }
         );
+        reindexRequestBuilder.request().decRef();
     }
 
     public void testDeleteByQuery() throws Exception {
@@ -184,6 +185,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             indexRequests.add(prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, indexRequests);
+        for (IndexRequestBuilder builder : indexRequests) {
+            builder.request().decRef();
+        }
 
         final ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
 
@@ -218,7 +222,12 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 if (scriptEnabled && searchHit.getSourceAsMap().containsKey(RETURN_NOOP_FIELD)) {
                     conflictingOps--;
                 }
-                conflictingUpdatesBulkRequest.add(createUpdatedIndexRequest(searchHit, targetIndex, useOptimisticConcurrency));
+                IndexRequest indexRequest = createUpdatedIndexRequest(searchHit, targetIndex, useOptimisticConcurrency);
+                try {
+                    conflictingUpdatesBulkRequest.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
 
             // The bulk request is enqueued before the update by query

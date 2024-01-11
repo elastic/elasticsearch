@@ -11,6 +11,7 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
@@ -41,6 +42,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -69,12 +71,17 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
     public void testReindex() {
         Client client = client();
         // tag::reindex1
-        BulkByScrollResponse response =
-          new ReindexRequestBuilder(client)
-            .source("source_index")
-            .destination("target_index")
-            .filter(QueryBuilders.matchQuery("category", "xzy")) // <1>
-            .get();
+        ReindexRequestBuilder requestBuilder = new ReindexRequestBuilder(client);
+        try {
+            BulkByScrollResponse response =
+                requestBuilder
+                    .source("source_index")
+                    .destination("target_index")
+                    .filter(QueryBuilders.matchQuery("category", "xzy")) // <1>
+                    .get();
+        } finally {
+            requestBuilder.request().decRef();
+        }
         // end::reindex1
     }
 
@@ -224,6 +231,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
 
         // unblocking the blocked update
         ALLOWED_OPERATIONS.release(builder.request().getSlices());
+        builder.request().decRef();
     }
 
     @SuppressWarnings("unused")
@@ -266,14 +274,13 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         final int numDocs = randomIntBetween(10, 100);
         ALLOWED_OPERATIONS.release(numDocs);
 
-        indexRandom(
-            true,
-            false,
-            true,
-            IntStream.range(0, numDocs)
-                .mapToObj(i -> prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
-                .collect(Collectors.toList())
-        );
+        List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, numDocs)
+            .mapToObj(i -> prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
+            .collect(Collectors.toList());
+        indexRandom(true, false, true, indexRequestBuilders);
+        for (IndexRequestBuilder builder : indexRequestBuilders) {
+            builder.request().decRef();
+        }
 
         // Checks that the all documents have been indexed and correctly counted
         assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numDocs);

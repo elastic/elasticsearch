@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.WatchTests;
+import org.junit.After;
 import org.junit.Before;
 
 import java.time.ZoneOffset;
@@ -99,6 +100,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     private Client client;
     private TriggeredWatch.Parser parser;
     private TriggeredWatchStore triggeredWatchStore;
+    private BulkProcessor2 bulkProcessor;
     private final Map<BulkRequest, BulkResponse> bulks = new LinkedHashMap<>();
     private BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
         @Override
@@ -124,8 +126,13 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build();
+        bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build();
         triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
+    }
+
+    @After
+    public void cleanup() {
+        bulkProcessor.close();
     }
 
     public void testFindTriggeredWatchesEmptyCollection() {

@@ -248,7 +248,7 @@ setup:
           fields: [ "name" ]
           knn:
             field: nested.vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 3
             num_candidates: 3
             filter: {term: {name: "cow.jpg"}}
@@ -260,3 +260,22 @@ setup:
   - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
   - match: { hits.hits.0.inner_hits.nested.hits.hits.1.fields.nested.0.paragraph_id.0: "1" }
 
+---
+"nested kNN search inner_hits & profiling":
+  - skip:
+      version: ' - 8.12.99'
+      reason: 'bugfix for inner_hits and profiling in 8.13'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+            inner_hits: {size: 1, fields: ["nested.paragraph_id"], _source: false}
+
+  - match: {hits.total.value: 3}
+  - is_true : profile

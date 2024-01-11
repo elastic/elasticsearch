@@ -469,7 +469,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
         cases.add(new TestCaseSupplier(name + "(" + dataType.typeName() + ")", List.of(dataType), () -> {
-            BytesRef wkb = spatial.pointAsWKB(randomPoint.get());
+            BytesRef wkb = spatial.asWkb(randomPoint.get());
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(List.of(wkb), dataType, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
@@ -479,7 +479,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
             cases.add(new TestCaseSupplier(name + "(<" + dataType.typeName() + "s>) " + ordering, List.of(dataType), () -> {
-                List<BytesRef> mvData = randomList(1, 100, () -> spatial.pointAsWKB(randomPoint.get()));
+                List<BytesRef> mvData = randomList(1, 100, () -> spatial.asWkb(randomPoint.get()));
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(mvData, dataType, "field")),

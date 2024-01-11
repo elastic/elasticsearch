@@ -814,8 +814,15 @@ Now we have filtered based on the top level `"creation_time"` and only one docum
 ----
 // TESTRESPONSE[s/"took": 4/"took" : "$body.took"/]
 
+[discrete]
+[[nested-knn-search-inner-hits]]
+==== Nested kNN Search with Inner hits
+
 Additionally, if you wanted to extract the nearest passage for a matched document, you can supply <<inner-hits, inner_hits>>
 to the `knn` clause.
+
+NOTE: When using `inner_hits` and multiple `knn` clauses, be sure to specify the <<inner-hits-options,`inner_hits.name`>>
+field. Otherwise, a naming clash can occur and fail the search request.
 
 [source,console]
 ----

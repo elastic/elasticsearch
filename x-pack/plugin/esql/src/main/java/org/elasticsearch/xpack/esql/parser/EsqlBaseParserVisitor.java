@@ -466,9 +466,9 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#enrichMode}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#setting}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitEnrichMode(EsqlBaseParser.EnrichModeContext ctx);
+  T visitSetting(EsqlBaseParser.SettingContext ctx);
 }

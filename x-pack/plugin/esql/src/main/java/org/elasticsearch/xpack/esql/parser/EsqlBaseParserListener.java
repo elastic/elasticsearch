@@ -776,13 +776,13 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#enrichMode}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#setting}.
    * @param ctx the parse tree
    */
-  void enterEnrichMode(EsqlBaseParser.EnrichModeContext ctx);
+  void enterSetting(EsqlBaseParser.SettingContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#enrichMode}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#setting}.
    * @param ctx the parse tree
    */
-  void exitEnrichMode(EsqlBaseParser.EnrichModeContext ctx);
+  void exitSetting(EsqlBaseParser.SettingContext ctx);
 }

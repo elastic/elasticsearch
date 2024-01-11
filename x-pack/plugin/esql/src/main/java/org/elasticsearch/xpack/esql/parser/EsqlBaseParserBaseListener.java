@@ -869,13 +869,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterEnrichMode(EsqlBaseParser.EnrichModeContext ctx) { }
+  @Override public void enterSetting(EsqlBaseParser.SettingContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitEnrichMode(EsqlBaseParser.EnrichModeContext ctx) { }
+  @Override public void exitSetting(EsqlBaseParser.SettingContext ctx) { }
 
   /**
    * {@inheritDoc}

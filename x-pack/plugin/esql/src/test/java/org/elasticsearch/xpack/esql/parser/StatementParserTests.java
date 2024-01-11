@@ -688,6 +688,19 @@ public class StatementParserTests extends ESTestCase {
             processingCommand("enrich countries")
         );
 
+        assertEquals(
+            new Enrich(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                null,
+                new Literal(EMPTY, "index-policy", KEYWORD),
+                new UnresolvedAttribute(EMPTY, "field_underscore"),
+                null,
+                List.of()
+            ),
+            processingCommand("enrich index-policy ON field_underscore")
+        );
+
         Enrich.Mode mode = randomFrom(Enrich.Mode.values());
         assertEquals(
             new Enrich(

@@ -279,18 +279,19 @@ RENAME_WS
 // | ENRICH ON key WITH fields
 mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
-ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
-ENRICH_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
+ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
 
-ENRICH_CCQ_MODE : 'ccq.mode';
-
-COLON : ':';
 ON : 'on'     -> pushMode(ENRICH_FIELD_MODE);
 WITH : 'with' -> pushMode(ENRICH_FIELD_MODE);
 
-// use the unquoted pattern to let the parser invalidate fields with *
-ENRICH_POLICY_UNQUOTED_IDENTIFIER
-    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
+// similar to that of an index
+// see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
+fragment ENRICH_POLICY_NAME_BODY
+    : ~[\\/?"<>| ,#\t\r\n:]
+    ;
+
+ENRICH_POLICY_NAME
+    : (LETTER | DIGIT) ENRICH_POLICY_NAME_BODY*
     ;
 
 ENRICH_QUOTED_IDENTIFIER
@@ -298,7 +299,7 @@ ENRICH_QUOTED_IDENTIFIER
     ;
 
 ENRICH_MODE_UNQUOTED_VALUE
-    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
+    : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
     ;
 
 ENRICH_LINE_COMMENT
@@ -386,3 +387,25 @@ SHOW_MULTILINE_COMMENT
 SHOW_WS
     : WS -> channel(HIDDEN)
     ;
+
+mode SETTING_MODE;
+SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
+
+COLON : ':';
+
+SETTING
+    : (ASPERAND | DIGIT| DOT | LETTER | UNDERSCORE)+
+    ;
+
+SETTING_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SETTTING_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SETTING_WS
+    : WS -> channel(HIDDEN)
+    ;
+

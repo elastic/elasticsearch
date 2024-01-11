@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,14 +60,17 @@ public class IndicesOptionsTests extends ESTestCase {
             StreamInput streamInput = output.bytes().streamInput();
             IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
 
-            assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
-            assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
-            assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
-            assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
-            assertThat(indicesOptions2.expandWildcardsHidden(), equalTo(indicesOptions.expandWildcardsHidden()));
+            MatcherAssert.assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
+            MatcherAssert.assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
+            MatcherAssert.assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
+            MatcherAssert.assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
+            MatcherAssert.assertThat(indicesOptions2.expandWildcardsHidden(), equalTo(indicesOptions.expandWildcardsHidden()));
 
-            assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
-            assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
+            MatcherAssert.assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
+            MatcherAssert.assertThat(
+                indicesOptions2.allowAliasesToMultipleIndices(),
+                equalTo(indicesOptions.allowAliasesToMultipleIndices())
+            );
 
             assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
         }
@@ -95,14 +99,14 @@ public class IndicesOptionsTests extends ESTestCase {
             ignoreThrottled
         );
 
-        assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
-        assertThat(indicesOptions.allowNoIndices(), equalTo(allowNoIndices));
-        assertThat(indicesOptions.expandWildcardsOpen(), equalTo(expandToOpenIndices));
-        assertThat(indicesOptions.expandWildcardsClosed(), equalTo(expandToClosedIndices));
-        assertThat(indicesOptions.expandWildcardsHidden(), equalTo(expandToHiddenIndices));
-        assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
-        assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
-        assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
+        MatcherAssert.assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
+        MatcherAssert.assertThat(indicesOptions.allowNoIndices(), equalTo(allowNoIndices));
+        MatcherAssert.assertThat(indicesOptions.expandWildcardsOpen(), equalTo(expandToOpenIndices));
+        MatcherAssert.assertThat(indicesOptions.expandWildcardsClosed(), equalTo(expandToClosedIndices));
+        MatcherAssert.assertThat(indicesOptions.expandWildcardsHidden(), equalTo(expandToHiddenIndices));
+        MatcherAssert.assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
+        MatcherAssert.assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
+        MatcherAssert.assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
         assertEquals(ignoreAliases, indicesOptions.ignoreAliases());
         assertEquals(ignoreThrottled, indicesOptions.ignoreThrottled());
     }

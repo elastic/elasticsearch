@@ -201,6 +201,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         ) {
             SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
                 logger,
+                null,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -350,6 +351,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         final List<Object> responses = new ArrayList<>();
         SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -498,6 +500,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -647,6 +650,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),

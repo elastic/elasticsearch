@@ -95,6 +95,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
             "test",
             logger,
+            null,
             transportService,
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
@@ -202,6 +203,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
+                null,
                 transportService,
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
@@ -314,6 +316,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
+                null,
                 transportService,
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
@@ -438,6 +441,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
+                null,
                 transportService,
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
@@ -545,6 +549,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
+                null,
                 transportService,
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
@@ -644,6 +649,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
             "test",
             logger,
+            null,
             new SearchTransportService(null, null, null),
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;

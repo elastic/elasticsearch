@@ -66,7 +66,6 @@ public class MvSumTests extends AbstractMultivalueFunctionTestCase {
             data.add(asLongUnsigned(UNSIGNED_LONG_MAX));
             return data;
         }));
-
         return parameterSuppliersFromTypedData(cases);
     }
 

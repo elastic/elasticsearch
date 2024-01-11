@@ -73,6 +73,14 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    protected Map<String, Object> deleteModel(String modelId, TaskType taskType) throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        var request = new Request("DELETE", endpoint);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
     protected Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("GET", endpoint);
@@ -83,6 +91,14 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     protected Map<String, Object> getAllModels() throws IOException {
         var endpoint = Strings.format("_inference/_all");
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
+    protected Map<String, Object> getTrainedModel(String modelId) throws IOException {
+        var endpoint = Strings.format("_ml/trained_models/%s/_stats", modelId);
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertOkOrCreated(response);

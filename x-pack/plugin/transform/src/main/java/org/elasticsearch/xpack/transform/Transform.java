@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -166,6 +167,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         final RestController restController,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,

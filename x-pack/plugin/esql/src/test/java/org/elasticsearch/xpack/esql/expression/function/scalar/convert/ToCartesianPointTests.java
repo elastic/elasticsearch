@@ -46,7 +46,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
             EsqlDataTypes.CARTESIAN_POINT,
             bytesRef -> null,
             bytesRef -> {
-                var exception = expectThrows(Exception.class, () -> CARTESIAN.stringAsWKB(bytesRef.utf8ToString()));
+                var exception = expectThrows(Exception.class, () -> CARTESIAN.wktToWkb(bytesRef.utf8ToString()));
                 return List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: " + exception
@@ -60,12 +60,12 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<cartesian point as string>",
-                    () -> new BytesRef(CARTESIAN.pointAsString(ShapeTestUtils.randomPoint())),
+                    () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())),
                     DataTypes.KEYWORD
                 )
             ),
             EsqlDataTypes.CARTESIAN_POINT,
-            bytesRef -> CARTESIAN.stringAsWKB(((BytesRef) bytesRef).utf8ToString()),
+            bytesRef -> CARTESIAN.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
 

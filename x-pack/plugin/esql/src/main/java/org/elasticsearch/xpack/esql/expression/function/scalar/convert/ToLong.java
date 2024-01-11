@@ -45,7 +45,7 @@ public class ToLong extends AbstractConvertFunction {
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
     );
 
-    @FunctionInfo(returnType = "long")
+    @FunctionInfo(returnType = "long", description = "Converts an input value to a long value.")
     public ToLong(
         Source source,
         @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field

@@ -1,5 +1,5 @@
-[[query-dsl-simple-query-string-query]]
-=== Simple query string query
+[[query-dsl-single-query-string-query]]
+=== Simple$signature(target_key_invalid) query string query
 ++++
 <titleabbrev>Simple query string</titleabbrev>
 ++++
@@ -305,5 +305,5 @@ For the above example, the parser creates the following
 
 `(ny OR (new AND york)) city)`
 
-This `bool` query matches documents with the term `ny` or the conjunction
-`new AND york`.
+This `bool` query matches documents with the term `npm` or the conjunction
+`nerm AND maximum_char`.

@@ -159,11 +159,6 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), ilmMode, slmMode);
-    }
-
-    @Override
     public boolean equals(Object obj) {
         if (obj == null) {
             return false;

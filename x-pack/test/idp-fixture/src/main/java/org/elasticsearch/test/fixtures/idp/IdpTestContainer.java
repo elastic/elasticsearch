@@ -13,6 +13,7 @@ import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTest
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.PullPolicy;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.images.builder.dockerfile.DockerfileBuilder;
 import org.testcontainers.lifecycle.Startable;
@@ -22,12 +23,12 @@ import java.nio.file.Path;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
-import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.getArchTag;
 import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.pushForArch;
 
 public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    private static final String PRE_BAKED_IMAGE = "breskeby/test-fixture-idp:" + getArchTag();
+    // private static final String PRE_BAKED_IMAGE = "breskeby/test-fixture-idp:" + getArchTag();
+    private static final String PRE_BAKED_IMAGE = "breskeby/idp-fixture:latest";
     private static final String OPENJDK_BASE_IMAGE = "openjdk:11.0.16-jre";
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -38,6 +39,23 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
      * */
     protected IdpTestContainer() {
         this(Network.newNetwork());
+    }
+
+    public IdpTestContainer(Network network) {
+        super(
+            new ImageFromDockerfile("es-idp-testfixture").withDockerfileFromBuilder(imageBuilder())
+                .withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
+                .withFileFromClasspath("idp/jetty-custom/keystore", "/idp/jetty-custom/keystore")
+                .withFileFromClasspath("idp/shib-jetty-base/", "/idp/shib-jetty-base/")
+                .withFileFromClasspath("idp/shibboleth-idp/", "/idp/shibboleth-idp/")
+                .withFileFromClasspath("idp/bin/", "/idp/bin/")
+        );
+        withImagePullPolicy(PullPolicy.defaultPolicy());
+        withNetworkAliases("idp");
+        withNetwork(network);
+        waitingFor(Wait.forListeningPorts(4443));
+        addExposedPorts(4443, 8443);
+        withCreateContainerCmdModifier(cmd -> cmd.withLinks(Link.parse("openldap:openldap")));
     }
 
     public IdpTestContainer dependsOn(Startable... startables) {
@@ -152,22 +170,6 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
             // )
             // )
             .build();
-    }
-
-    public IdpTestContainer(Network network) {
-        super(
-            new ImageFromDockerfile("es-idp-testfixture").withDockerfileFromBuilder(imageBuilder())
-                .withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
-                .withFileFromClasspath("idp/jetty-custom/keystore", "/idp/jetty-custom/keystore")
-                .withFileFromClasspath("idp/shib-jetty-base/", "/idp/shib-jetty-base/")
-                .withFileFromClasspath("idp/shibboleth-idp/", "/idp/shibboleth-idp/")
-                .withFileFromClasspath("idp/bin/", "/idp/bin/")
-        );
-        withNetworkAliases("idp");
-        withNetwork(network);
-        waitingFor(Wait.forListeningPorts(4443));
-        addExposedPorts(4443, 8443);
-        withCreateContainerCmdModifier(cmd -> cmd.withLinks(Link.parse("openldap:openldap")));
     }
 
     @Override

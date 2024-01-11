@@ -18,4 +18,9 @@ public interface MlTaskState {
      */
     @Nullable
     Instant getLastStateChangeTime();
+
+    /**
+     * @return Is the task in the <code>failed</code> state?
+     */
+    boolean isFailed();
 }

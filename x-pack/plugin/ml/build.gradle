@@ -55,11 +55,7 @@ if (useDra == false) {
 
 configurations {
   nativeBundle {
-    // See https://github.com/elastic/elasticsearch/issues/104193#issuecomment-1885295733
-    // for an example of why we cannot safely cache locally. When all of the ml-cpp files
-    // were in the same zip it was possible, but now they're spread between two zips local
-    // caching can result in an inconsistency that causes hard-to-debug breakages.
-    resolutionStrategy.cacheChangingModulesFor 0, 'hours'
+    resolutionStrategy.cacheChangingModulesFor 2, 'hours'
   }
 }
 

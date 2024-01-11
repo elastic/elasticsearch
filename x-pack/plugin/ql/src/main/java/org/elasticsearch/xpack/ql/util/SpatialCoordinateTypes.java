@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.ql.util;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.XYEncodingUtils;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
@@ -25,8 +23,8 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 
 public enum SpatialCoordinateTypes {
     GEO {
-        public SpatialPoint longAsPoint(long encoded) {
-            return new GeoPoint(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
+        public Point longAsPoint(long encoded) {
+            return new Point(GeoEncodingUtils.decodeLongitude((int) encoded), GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)));
         }
 
         public long pointAsLong(double x, double y) {
@@ -36,14 +34,21 @@ public enum SpatialCoordinateTypes {
         }
     },
     CARTESIAN {
-        public SpatialPoint longAsPoint(long encoded) {
-            try {
-                final double x = XYEncodingUtils.decode((int) (encoded >>> 32));
-                final double y = XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFF));
-                return makePoint(x, y);
-            } catch (Error e) {
+
+        private static final int MAX_VAL_ENCODED = XYEncodingUtils.encode((float) XYEncodingUtils.MAX_VAL_INCL);
+        private static final int MIN_VAL_ENCODED = XYEncodingUtils.encode((float) XYEncodingUtils.MIN_VAL_INCL);
+
+        public Point longAsPoint(long encoded) {
+            final int x = checkCoordinate((int) (encoded >>> 32));
+            final int y = checkCoordinate((int) (encoded & 0xFFFFFFFF));
+            return new Point(XYEncodingUtils.decode(x), XYEncodingUtils.decode(y));
+        }
+
+        private int checkCoordinate(int i) {
+            if (i > MAX_VAL_ENCODED || i < MIN_VAL_ENCODED) {
                 throw new IllegalArgumentException("Failed to convert invalid encoded value to cartesian point");
             }
+            return i;
         }
 
         public long pointAsLong(double x, double y) {
@@ -51,79 +56,11 @@ public enum SpatialCoordinateTypes {
             final long yi = XYEncodingUtils.encode((float) y);
             return (yi & 0xFFFFFFFFL) | xi << 32;
         }
-
-        private SpatialPoint makePoint(double x, double y) {
-            return new SpatialPoint() {
-                @Override
-                public double getX() {
-                    return x;
-                }
-
-                @Override
-                public double getY() {
-                    return y;
-                }
-
-                @Override
-                public int hashCode() {
-                    return 31 * Double.hashCode(x) + Double.hashCode(y);
-                }
-
-                @Override
-                public boolean equals(Object obj) {
-                    if (obj == null) {
-                        return false;
-                    }
-                    if (obj instanceof SpatialPoint other) {
-                        return x == other.getX() && y == other.getY();
-                    }
-                    return false;
-                }
-
-                @Override
-                public String toString() {
-                    return toWKT();
-                }
-            };
-        }
     };
 
-    public abstract SpatialPoint longAsPoint(long encoded);
-
-    public long pointAsLong(SpatialPoint point) {
-        return pointAsLong(point.getX(), point.getY());
-    }
+    public abstract Point longAsPoint(long encoded);
 
     public abstract long pointAsLong(double x, double y);
-
-    public String pointAsString(SpatialPoint point) {
-        return point.toWKT();
-    }
-
-    public Point stringAsPoint(String string) {
-        try {
-            Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, string);
-            if (geometry instanceof Point point) {
-                return point;
-            } else {
-                throw new IllegalArgumentException("Unsupported geometry type " + geometry.type());
-            }
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
-        }
-    }
-
-    public BytesRef pointAsWKB(SpatialPoint point) {
-        return pointAsWKB(new Point(point.getX(), point.getY()));
-    }
-
-    public BytesRef pointAsWKB(Point point) {
-        return new BytesRef(WellKnownBinary.toWKB(point, ByteOrder.LITTLE_ENDIAN));
-    }
-
-    public BytesRef longAsWKB(long encoded) {
-        return pointAsWKB(longAsPoint(encoded));
-    }
 
     public long wkbAsLong(BytesRef wkb) {
         Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
@@ -134,18 +71,30 @@ public enum SpatialCoordinateTypes {
         }
     }
 
-    public BytesRef stringAsWKB(String string) {
+    public BytesRef longAsWkb(long encoded) {
+        return asWkb(longAsPoint(encoded));
+    }
+
+    public String asWkt(Geometry geometry) {
+        return WellKnownText.toWKT(geometry);
+    }
+
+    public BytesRef asWkb(Geometry geometry) {
+        return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+    }
+
+    public BytesRef wktToWkb(String wkt) {
         // TODO: we should be able to transform WKT to WKB without building the geometry
         // we should as well use different validator for cartesian and geo?
         try {
-            Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, string);
+            Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
             return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
         }
     }
 
-    public String wkbAsString(BytesRef wkb) {
+    public String wkbToWkt(BytesRef wkb) {
         return WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length);
     }
 }

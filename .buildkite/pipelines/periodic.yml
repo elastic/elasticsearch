@@ -1123,7 +1123,7 @@ steps:
         env:
           BWC_VERSION: 8.13.0
   - label: concurrent-search-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
     timeout_in_minutes: 420
     agents:
       provider: gcp
@@ -1218,7 +1218,7 @@ steps:
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: single-processor-node-tests
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true functionalTests
     timeout_in_minutes: 420
     agents:
       provider: gcp

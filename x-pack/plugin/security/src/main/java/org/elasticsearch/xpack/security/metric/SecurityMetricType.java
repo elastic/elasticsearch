@@ -19,6 +19,36 @@ public enum SecurityMetricType {
         new SecurityMetricInfo("es.security.authc.api_key.time", "Time it took (in nanoseconds) to execute API key authentication.", "ns")
     ),
 
+    AUTHC_SERVICE_ACCOUNT(
+        SecurityMetricGroup.AUTHC,
+        new SecurityMetricInfo(
+            "es.security.authc.service_account.success.total",
+            "Number of successful service account authentications.",
+            "count"
+        ),
+        new SecurityMetricInfo(
+            "es.security.authc.service_account.failures.total",
+            "Number of failed service account authentications.",
+            "count"
+        ),
+        new SecurityMetricInfo(
+            "es.security.authc.service_account.time",
+            "Time it took (in nanoseconds) to execute service account authentication.",
+            "ns"
+        )
+    ),
+
+    AUTHC_OAUTH2_TOKEN(
+        SecurityMetricGroup.AUTHC,
+        new SecurityMetricInfo("es.security.authc.token.success.total", "Number of successful OAuth2 token authentications.", "count"),
+        new SecurityMetricInfo("es.security.authc.token.failures.total", "Number of failed OAuth2 token authentications.", "count"),
+        new SecurityMetricInfo(
+            "es.security.authc.token.time",
+            "Time it took (in nanoseconds) to execute OAuth2 token authentication.",
+            "ns"
+        )
+    ),
+
     ;
 
     private final SecurityMetricGroup group;

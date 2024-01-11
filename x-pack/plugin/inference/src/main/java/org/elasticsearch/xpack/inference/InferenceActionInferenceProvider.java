@@ -54,4 +54,9 @@ public class InferenceActionInferenceProvider implements InferenceProvider {
             l.onResponse(result);
         }));
     }
+
+    @Override
+    public boolean performsInference() {
+        return true;
+    }
 }

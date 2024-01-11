@@ -46,7 +46,7 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             EsqlDataTypes.GEO_POINT,
             bytesRef -> null,
             bytesRef -> {
-                var exception = expectThrows(Exception.class, () -> GEO.stringAsWKB(bytesRef.utf8ToString()));
+                var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));
                 return List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: " + exception
@@ -60,12 +60,12 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<geo point as string>",
-                    () -> new BytesRef(GEO.pointAsString(GeometryTestUtils.randomPoint())),
+                    () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())),
                     DataTypes.KEYWORD
                 )
             ),
             EsqlDataTypes.GEO_POINT,
-            bytesRef -> GEO.stringAsWKB(((BytesRef) bytesRef).utf8ToString()),
+            bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
 

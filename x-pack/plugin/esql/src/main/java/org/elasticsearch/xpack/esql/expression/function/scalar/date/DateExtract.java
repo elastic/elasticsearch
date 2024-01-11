@@ -74,6 +74,8 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
     }
 
     private ChronoField chronoField() {
+        // chronoField's never checked (the return is). The foldability test is done twice and type is checked in resolveType() already.
+        // TODO: move the slimmed down code here to toEvaluator?
         if (chronoField == null) {
             Expression field = children().get(0);
             if (field.foldable() && field.dataType() == DataTypes.KEYWORD) {

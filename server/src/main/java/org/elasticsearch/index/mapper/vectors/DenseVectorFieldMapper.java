@@ -43,7 +43,6 @@ import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -60,11 +59,9 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.vectors.ESDiversifyingChildrenKnnVectorQuery;
 import org.elasticsearch.search.vectors.ExactKnnQuery;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ProfilingDiversifyingChildrenFloatKnnVectorQuery;
@@ -1129,7 +1126,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int numCands,
             Query filter,
             Float similarityThreshold,
-            NestedVectorSearchParams nestedVectorSearchParams
+            BitSetProducer parentFilter
         ) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
@@ -1143,8 +1140,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             elementType.checkVectorBounds(queryVector);
-            VectorSimilarityFunction vectorSimilarityFunction = similarity.vectorSimilarityFunction(indexVersionCreated, elementType);
-
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
@@ -1165,59 +1160,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     for (int i = 0; i < queryVector.length; i++) {
                         bytes[i] = (byte) queryVector[i];
                     }
-                    if (nestedVectorSearchParams != null) {
-                        Query innerQuery = new ProfilingDiversifyingChildrenByteKnnVectorQuery(
-                            name(),
-                            bytes,
-                            filter,
-                            numCands,
-                            nestedVectorSearchParams.parentFilter
-                        );
-                        if (nestedVectorSearchParams.innerHitBuilder == null || nestedVectorSearchParams.innerHitBuilder.getSize() == 1) {
-                            yield innerQuery;
-                        } else {
-                            yield new ESDiversifyingChildrenKnnVectorQuery(
-                                innerQuery,
-                                new ExactKnnQuery(
-                                    new ByteVectorSimilarityFunction(
-                                        vectorSimilarityFunction,
-                                        new ByteKnnVectorFieldSource(name()),
-                                        new ConstKnnByteVectorValueSource(bytes)
-                                    )
-                                ),
-                                nestedVectorSearchParams.parentFilter
-                            );
-                        }
-                    }
-                    yield new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
+                    yield parentFilter != null
+                        ? new ProfilingDiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter)
+                        : new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
-                case FLOAT -> {
-                    if (nestedVectorSearchParams != null) {
-                        Query innerQuery = new ProfilingDiversifyingChildrenFloatKnnVectorQuery(
-                            name(),
-                            queryVector,
-                            filter,
-                            numCands,
-                            nestedVectorSearchParams.parentFilter
-                        );
-                        if (nestedVectorSearchParams.innerHitBuilder == null || nestedVectorSearchParams.innerHitBuilder.getSize() == 1) {
-                            yield innerQuery;
-                        } else {
-                            yield new ESDiversifyingChildrenKnnVectorQuery(
-                                innerQuery,
-                                new ExactKnnQuery(
-                                    new FloatVectorSimilarityFunction(
-                                        vectorSimilarityFunction,
-                                        new FloatKnnVectorFieldSource(name()),
-                                        new ConstKnnFloatValueSource(queryVector)
-                                    )
-                                ),
-                                nestedVectorSearchParams.parentFilter
-                            );
-                        }
-                    }
-                    yield new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
-                }
+                case FLOAT -> parentFilter != null
+                    ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                    : new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
+
             };
 
             if (similarityThreshold != null) {
@@ -1573,6 +1523,4 @@ public class DenseVectorFieldMapper extends FieldMapper {
             b.endArray();
         }
     }
-
-    public record NestedVectorSearchParams(@Nullable InnerHitBuilder innerHitBuilder, BitSetProducer parentFilter) {}
 }

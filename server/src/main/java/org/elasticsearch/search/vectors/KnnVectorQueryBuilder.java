@@ -284,13 +284,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             if (filterQuery != null) {
                 filterQuery = new ToChildBlockJoinQuery(filterQuery, parentFilter);
             }
-            return vectorFieldType.createKnnQuery(
-                queryVector,
-                numCands,
-                filterQuery,
-                vectorSimilarity,
-                new DenseVectorFieldMapper.NestedVectorSearchParams(context.nestedScope().getInnerHitsBuilder(), parentFilter)
-            );
+            return vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, parentFilter);
         }
         return vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, null);
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.index.query.support;
 
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.InnerHitBuilder;
 
 import java.util.Deque;
 import java.util.LinkedList;
@@ -21,20 +20,12 @@ import java.util.LinkedList;
 public final class NestedScope {
 
     private final Deque<NestedObjectMapper> levelStack = new LinkedList<>();
-    private final Deque<InnerHitBuilder> innerHitBuilders = new LinkedList<>();
 
     /**
      * @return For the current nested level returns the object mapper that belongs to that
      */
     public NestedObjectMapper getObjectMapper() {
         return levelStack.peek();
-    }
-
-    /**
-     * @return For the current nested level returns the inner hit builder that belongs to that
-     */
-    public InnerHitBuilder getInnerHitsBuilder() {
-        return innerHitBuilders.peek();
     }
 
     /**
@@ -47,27 +38,10 @@ public final class NestedScope {
     }
 
     /**
-     * @param innerHitBuilder The inner hit builder to set as current inner hit builder
-     * @return The previous inner hit builder
-     */
-    public InnerHitBuilder nextLevelInnerHits(InnerHitBuilder innerHitBuilder) {
-        InnerHitBuilder previous = innerHitBuilders.peek();
-        innerHitBuilders.push(innerHitBuilder);
-        return previous;
-    }
-
-    /**
      * Sets the previous nested level as current nested level and removes and returns the current nested level.
      */
     public ObjectMapper previousLevel() {
         return levelStack.pop();
-    }
-
-    /**
-     * @return The previous inner hit builder
-     */
-    public InnerHitBuilder previousLevelInnerHits() {
-        return innerHitBuilders.pop();
     }
 
 }

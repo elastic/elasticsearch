@@ -51,6 +51,14 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
         this.field = in.readString();
     }
 
+    String getField() {
+        return field;
+    }
+
+    float[] getQuery() {
+        return query;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;

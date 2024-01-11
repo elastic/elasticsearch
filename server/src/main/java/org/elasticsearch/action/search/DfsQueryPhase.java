@@ -22,7 +22,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
-import org.elasticsearch.search.vectors.NestedKnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -152,18 +151,12 @@ final class DfsQueryPhase extends SearchPhase {
             }
             scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
             String nestedPath = dfsKnnResults.getNestedPath();
-            QueryBuilder query = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+            QueryBuilder query = new KnnScoreDocQueryBuilder(
+                scoreDocs.toArray(new ScoreDoc[0]),
+                source.knnSearch().get(i).getField(),
+                source.knnSearch().get(i).getQueryVector()
+            ).boost(source.knnSearch().get(i).boost());
             if (nestedPath != null) {
-                if (source.knnSearch().get(i).innerHit() != null && source.knnSearch().get(i).innerHit().getSize() > 1) {
-                    // We need to rewrite the query to a nested query to support inner hits
-                    // Specifically one that matches the particular global top-k children docs and allows
-                    // for scoring the other children of the nearest parents.
-                    query = new NestedKnnScoreDocQueryBuilder(
-                        query,
-                        source.knnSearch().get(i).getQueryVector(),
-                        source.knnSearch().get(i).getField()
-                    );
-                }
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
             }
             subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));

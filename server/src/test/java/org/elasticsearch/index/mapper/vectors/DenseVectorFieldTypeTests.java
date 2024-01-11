@@ -134,13 +134,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = field.createKnnQuery(
-                queryVector,
-                10,
-                null,
-                null,
-                new DenseVectorFieldMapper.NestedVectorSearchParams(null, producer)
-            );
+            Query query = field.createKnnQuery(queryVector, 10, null, null, producer);
             assertThat(query, instanceOf(DiversifyingChildrenFloatKnnVectorQuery.class));
         }
         {
@@ -162,13 +156,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             Query query = field.createKnnQuery(queryVector, 10, null, null, producer);
             assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
 
-            query = field.createKnnQuery(
-                floatQueryVector,
-                10,
-                null,
-                null,
-                new DenseVectorFieldMapper.NestedVectorSearchParams(null, producer)
-            );
+            query = field.createKnnQuery(floatQueryVector, 10, null, null, producer);
             assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
         }
     }

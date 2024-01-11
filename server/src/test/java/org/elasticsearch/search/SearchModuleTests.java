@@ -443,7 +443,6 @@ public class SearchModuleTests extends ESTestCase {
         "more_like_this",
         "multi_match",
         "nested",
-        "nested_knn_score_doc",
         "prefix",
         "query_string",
         "range",

@@ -285,11 +285,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         try {
             context.nestedScope().nextLevel(mapper);
-            context.nestedScope().nextLevelInnerHits(innerHitBuilder);
             innerQuery = this.query.toQuery(context);
         } finally {
             context.nestedScope().previousLevel();
-            context.nestedScope().previousLevelInnerHits();
         }
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents
@@ -354,7 +352,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             }
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedMapper.fullPath();
             NestedObjectMapper parentObjectMapper = searchExecutionContext.nestedScope().nextLevel(nestedMapper);
-            searchExecutionContext.nestedScope().nextLevelInnerHits(innerHitBuilder);
             NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
                 name,
                 parentSearchContext,
@@ -363,7 +360,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             );
             setupInnerHitsContext(searchExecutionContext, nestedInnerHits);
             searchExecutionContext.nestedScope().previousLevel();
-            searchExecutionContext.nestedScope().previousLevelInnerHits();
             innerHitsContext.addInnerHitDefinition(nestedInnerHits);
         }
     }

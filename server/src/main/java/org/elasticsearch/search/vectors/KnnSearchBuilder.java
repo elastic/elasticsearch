@@ -271,6 +271,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return this;
     }
 
+    public float boost() {
+        return boost;
+    }
+
     public KnnSearchBuilder innerHit(InnerHitBuilder innerHitBuilder) {
         this.innerHitBuilder = innerHitBuilder;
         return this;

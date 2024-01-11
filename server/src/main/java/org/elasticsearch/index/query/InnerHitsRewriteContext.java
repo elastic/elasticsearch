@@ -16,10 +16,7 @@ import java.util.function.LongSupplier;
  * Context object used to rewrite {@link QueryBuilder} instances into an optimized version for extracting inner_hits.
  */
 public final class InnerHitsRewriteContext extends QueryRewriteContext {
-    public InnerHitsRewriteContext(
-        final XContentParserConfiguration parserConfiguration,
-        final LongSupplier nowInMillis
-    ) {
+    public InnerHitsRewriteContext(final XContentParserConfiguration parserConfiguration, final LongSupplier nowInMillis) {
         super(parserConfiguration, null, nowInMillis);
     }
 

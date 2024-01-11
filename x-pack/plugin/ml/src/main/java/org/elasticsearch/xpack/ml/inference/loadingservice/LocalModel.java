@@ -175,7 +175,7 @@ public class LocalModel implements Closeable {
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;
             }
-            InferenceResults inferenceResults = trainedModelDefinition.infer(flattenedFields, update.apply(inferenceConfig));
+            InferenceResults inferenceResults = trainedModelDefinition.infer(flattenedFields, inferenceConfig.apply(update));
             if (shouldPersistStats) {
                 persistStats(false);
             }

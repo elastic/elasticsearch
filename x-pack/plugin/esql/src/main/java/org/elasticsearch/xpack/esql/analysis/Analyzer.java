@@ -473,7 +473,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved = resolveAgainstList(ua, childOutput);
                         priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
                     } else {
-                        continue;
+                        assert false : "unexpected projection: " + proj;
+                        throw new IllegalStateException("unexpected projection: " + proj);
                     }
                     for (Attribute attr : resolved) {
                         Integer previousPrio = priorities.get(attr);

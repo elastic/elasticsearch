@@ -11,7 +11,6 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -50,7 +49,6 @@ import java.util.Set;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -220,7 +218,7 @@ public class RestSearchAction extends BaseRestHandler {
         validateSearchRequest(request, searchRequest);
 
         if (searchRequest.pointInTimeBuilder() != null) {
-            preparePointInTime(searchRequest, request, namedWriteableRegistry);
+            preparePointInTime(searchRequest, request);
         } else {
             searchRequest.setCcsMinimizeRoundtrips(
                 request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
@@ -373,44 +371,14 @@ public class RestSearchAction extends BaseRestHandler {
         return null;
     }
 
-    static void preparePointInTime(SearchRequest request, RestRequest restRequest, NamedWriteableRegistry namedWriteableRegistry) {
+    static void preparePointInTime(SearchRequest request, RestRequest restRequest) {
         assert request.pointInTimeBuilder() != null;
         ActionRequestValidationException validationException = null;
-        if (request.indices().length > 0) {
-            validationException = addValidationError(
-                "[indices] cannot be used with point in time. Do not specify any index with point in time.",
-                validationException
-            );
-        }
-        if (request.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
-            validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
-        }
-        if (request.routing() != null) {
-            validationException = addValidationError("[routing] cannot be used with point in time", validationException);
-        }
-        if (request.preference() != null) {
-            validationException = addValidationError("[preference] cannot be used with point in time", validationException);
-        }
         if (restRequest.paramAsBoolean("ccs_minimize_roundtrips", false)) {
             validationException = addValidationError("[ccs_minimize_roundtrips] cannot be used with point in time", validationException);
             request.setCcsMinimizeRoundtrips(false);
         }
         ExceptionsHelper.reThrowIfNotNull(validationException);
-
-        final IndicesOptions indicesOptions = request.indicesOptions();
-        final IndicesOptions stricterIndicesOptions = IndicesOptions.fromOptions(
-            indicesOptions.ignoreUnavailable(),
-            indicesOptions.allowNoIndices(),
-            false,
-            false,
-            false,
-            true,
-            true,
-            indicesOptions.ignoreThrottled()
-        );
-        request.indicesOptions(stricterIndicesOptions);
-        final SearchContextId searchContextId = request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
-        request.indices(searchContextId.getActualIndices());
     }
 
     /**

@@ -123,7 +123,7 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameExistingFieldNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        ingestDocument.setFieldValue(fieldName, null);
+        ingestDocument.setFieldValue(fieldName, (Object) null);
         String newFieldName = randomValueOtherThanMany(ingestDocument::hasField, () -> RandomDocumentPicks.randomFieldName(random()));
         Processor processor = createRenameProcessor(fieldName, newFieldName, false);
         processor.execute(ingestDocument);

@@ -261,7 +261,8 @@ public final class DataStreamTestHelper {
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
-            failureIndices
+            failureIndices,
+            randomBoolean()
         );
     }
 

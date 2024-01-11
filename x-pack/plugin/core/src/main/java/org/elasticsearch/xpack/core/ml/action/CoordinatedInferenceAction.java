@@ -125,8 +125,8 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             this.modelId = in.readString();
             this.requestModelType = in.readEnum(RequestModelType.class);
             this.inputs = in.readOptionalStringCollectionAsList();
-            this.taskSettings = in.readMap();
-            this.objectsToInfer = in.readOptionalCollectionAsList(StreamInput::readMap);
+            this.taskSettings = in.readGenericMap();
+            this.objectsToInfer = in.readOptionalCollectionAsList(StreamInput::readGenericMap);
             this.inferenceConfigUpdate = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readOptionalBoolean();
             this.inferenceTimeout = in.readOptionalTimeValue();

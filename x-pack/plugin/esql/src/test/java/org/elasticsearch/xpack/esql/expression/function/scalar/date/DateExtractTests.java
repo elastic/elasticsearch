@@ -11,9 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -66,6 +68,23 @@ public class DateExtractTests extends AbstractScalarFunctionTestCase {
                 is(date.getLong(value))
             );
         }
+    }
+
+    public void testInvalidChrono() {
+        String chrono = randomAlphaOfLength(10);
+        DriverContext driverContext = driverContext();
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> evaluator(
+                new DateExtract(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, new BytesRef(chrono), DataTypes.KEYWORD),
+                    field("str", DataTypes.DATETIME),
+                    null
+                )
+            ).get(driverContext)
+        );
+        assertThat(e.getMessage(), equalTo("invalid date field for []: " + chrono));
     }
 
     @Override

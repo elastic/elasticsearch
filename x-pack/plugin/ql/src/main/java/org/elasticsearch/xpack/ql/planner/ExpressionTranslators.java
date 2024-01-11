@@ -133,7 +133,7 @@ public final class ExpressionTranslators {
             Expression field = e.field();
 
             if (field instanceof FieldAttribute fa) {
-                q = translateField(e, handler.nameOf(fa.exactAttribute()));
+                return handler.wrapFunctionQuery(e, fa, () -> translateField(e, handler.nameOf(fa.exactAttribute())));
             } else if (field instanceof MetadataAttribute ma) {
                 q = translateField(e, handler.nameOf(ma));
             } else {

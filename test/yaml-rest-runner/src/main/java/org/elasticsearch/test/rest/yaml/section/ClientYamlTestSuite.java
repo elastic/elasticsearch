@@ -298,7 +298,7 @@ public class ClientYamlTestSuite {
     }
 
     private static boolean hasSkipFeature(String feature, SkipSection skipSection) {
-        return skipSection != null && skipSection.getFeatures().contains(feature);
+        return skipSection != null && skipSection.yamlRunnerHasFeature(feature);
     }
 
     public List<ClientYamlTestSection> getTestSections() {

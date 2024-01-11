@@ -12,22 +12,21 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -66,13 +65,6 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
         return DataTypes.KEYWORD;
     }
 
-    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
-        String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
-        String delim = ((BytesRef) typedData.get(1).data()).utf8ToString();
-        List<BytesRef> split = Arrays.stream(str.split(Pattern.quote(delim))).map(BytesRef::new).toList();
-        return equalTo(split.size() == 1 ? split.get(0) : split);
-    }
-
     @Override
     protected List<ArgumentSpec> argSpec() {
         return List.of(required(strings()), required(strings()));
@@ -84,10 +76,11 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testConstantDelimiter() {
+        DriverContext driverContext = driverContext();
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
                 new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
-            ).get(driverContext())
+            ).get(driverContext)
         ) {
             /*
              * 58 is ascii for : and appears in the toString below. We don't convert the delimiter to a
@@ -96,9 +89,29 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
              */
             assert ':' == 58;
             assertThat(eval.toString(), equalTo("SplitSingleByteEvaluator[str=Attribute[channel=0], delim=58]"));
-            try (Block block = eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1)))) {
+            BlockFactory blockFactory = driverContext.blockFactory();
+            Page page = new Page(blockFactory.newConstantBytesRefBlockWith(new BytesRef("foo:bar"), 1));
+            try (Block block = eval.eval(page)) {
                 assertThat(toJavaObject(block, 0), equalTo(List.of(new BytesRef("foo"), new BytesRef("bar"))));
+            } finally {
+                page.releaseBlocks();
             }
         }
+    }
+
+    public void testTooLongConstantDelimiter() {
+        String delimiter = randomAlphaOfLength(2);
+        DriverContext driverContext = driverContext();
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> evaluator(
+                new Split(
+                    Source.EMPTY,
+                    field("str", DataTypes.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef(delimiter), DataTypes.KEYWORD)
+                )
+            ).get(driverContext)
+        );
+        assertThat(e.getMessage(), equalTo("delimiter must be single byte for now"));
     }
 }

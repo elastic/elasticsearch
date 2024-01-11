@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -231,7 +232,7 @@ public class DiskThresholdMonitor {
                 }
             }
 
-            final long reservedSpace = info.getReservedSpace(usage.getNodeId(), usage.getPath()).getTotal();
+            final long reservedSpace = info.getReservedSpace(usage.getNodeId(), usage.getPath()).total();
             final DiskUsage usageWithReservedSpace = new DiskUsage(
                 usage.getNodeId(),
                 usage.getNodeName(),
@@ -425,6 +426,7 @@ public class DiskThresholdMonitor {
             true,
             diskUsage.getPath(),
             info,
+            SnapshotShardSizeInfo.EMPTY,
             reroutedClusterState.metadata(),
             reroutedClusterState.routingTable(),
             0L

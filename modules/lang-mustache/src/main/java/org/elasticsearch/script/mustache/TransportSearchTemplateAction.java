@@ -71,18 +71,29 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     @Override
     protected void doExecute(Task task, SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
+        boolean success = false;
         try {
             SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry, searchUsageHolder);
             if (searchRequest != null) {
-                client.search(searchRequest, listener.delegateFailureAndWrap((l, searchResponse) -> {
+                client.search(searchRequest, listener.delegateResponse((l, e) -> {
+                    response.decRef();
+                    l.onFailure(e);
+                }).delegateFailureAndWrap((l, searchResponse) -> {
                     response.setResponse(searchResponse);
-                    l.onResponse(response);
+                    searchResponse.incRef();
+                    ActionListener.respondAndRelease(l, response);
                 }));
+                success = true;
             } else {
-                listener.onResponse(response);
+                success = true;
+                ActionListener.respondAndRelease(listener, response);
             }
         } catch (IOException e) {
             listener.onFailure(e);
+        } finally {
+            if (success == false) {
+                response.decRef();
+            }
         }
     }
 

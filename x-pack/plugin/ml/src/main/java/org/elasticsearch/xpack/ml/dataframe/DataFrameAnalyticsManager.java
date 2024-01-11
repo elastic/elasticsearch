@@ -20,12 +20,16 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -45,7 +49,10 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -72,6 +79,8 @@ public class DataFrameAnalyticsManager {
     /** Indicates whether the node is shutting down. */
     private final AtomicBoolean nodeShuttingDown = new AtomicBoolean();
 
+    private final Map<String, ByteSizeValue> memoryLimitById;
+
     public DataFrameAnalyticsManager(
         Settings settings,
         NodeClient client,
@@ -85,6 +94,37 @@ public class DataFrameAnalyticsManager {
         ModelLoadingService modelLoadingService,
         String[] destIndexAllowedSettings
     ) {
+        this(
+            settings,
+            client,
+            threadPool,
+            clusterService,
+            configProvider,
+            processManager,
+            auditor,
+            expressionResolver,
+            resultsPersisterService,
+            modelLoadingService,
+            destIndexAllowedSettings,
+            new ConcurrentHashMap<>()
+        );
+    }
+
+    // For testing only
+    public DataFrameAnalyticsManager(
+        Settings settings,
+        NodeClient client,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        DataFrameAnalyticsConfigProvider configProvider,
+        AnalyticsProcessManager processManager,
+        DataFrameAnalyticsAuditor auditor,
+        IndexNameExpressionResolver expressionResolver,
+        ResultsPersisterService resultsPersisterService,
+        ModelLoadingService modelLoadingService,
+        String[] destIndexAllowedSettings,
+        Map<String, ByteSizeValue> memoryLimitById
+    ) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -96,11 +136,13 @@ public class DataFrameAnalyticsManager {
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
         this.destIndexAllowedSettings = Objects.requireNonNull(destIndexAllowedSettings);
+        this.memoryLimitById = Objects.requireNonNull(memoryLimitById);
     }
 
     public void execute(DataFrameAnalyticsTask task, ClusterState clusterState, TimeValue masterNodeTimeout) {
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(config -> {
+            memoryLimitById.put(config.getId(), config.getModelMemoryLimit());
             // Check if existing destination index is incompatible.
             // If it is, we delete it and start from reindexing.
             IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
@@ -224,6 +266,7 @@ public class DataFrameAnalyticsManager {
                 case FINAL -> {
                     LOGGER.info("[{}] Marking task completed", config.getId());
                     task.markAsCompleted();
+                    memoryLimitById.remove(config.getId());
                 }
                 default -> task.markAsFailed(ExceptionsHelper.serverError("Unknown step [{}]", step));
             }
@@ -290,5 +333,35 @@ public class DataFrameAnalyticsManager {
 
     public void markNodeAsShuttingDown() {
         nodeShuttingDown.set(true);
+    }
+
+    /**
+     * Get the memory limit for a data frame analytics job if known.
+     * The memory limit will only be known if it is running on the
+     * current node, or has been very recently.
+     * @param id Data frame analytics job ID.
+     * @return The {@link ByteSizeValue} representing the memory limit, if known, otherwise {@link Optional#empty}.
+     */
+    public Optional<ByteSizeValue> getMemoryLimitIfKnown(String id) {
+        return Optional.ofNullable(memoryLimitById.get(id));
+    }
+
+    /**
+     * Finds the memory used by data frame analytics jobs that are active on the current node.
+     * This includes jobs that are in the reindexing state, even though they don't have a running
+     * process, because we want to ensure that when they get as far as needing to run a process
+     * there'll be space for it.
+     * @param tasks Persistent tasks metadata.
+     * @return Memory used by data frame analytics jobs that are active on the current node.
+     */
+    public ByteSizeValue getActiveTaskMemoryUsage(PersistentTasksCustomMetadata tasks) {
+        long memoryUsedBytes = 0;
+        for (Map.Entry<String, ByteSizeValue> entry : memoryLimitById.entrySet()) {
+            DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(entry.getKey(), tasks);
+            if (state.consumesMemory()) {
+                memoryUsedBytes += entry.getValue().getBytes() + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes();
+            }
+        }
+        return ByteSizeValue.ofBytes(memoryUsedBytes);
     }
 }

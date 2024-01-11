@@ -90,10 +90,7 @@ public class FlushIT extends ESIntegTestCase {
             prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
         assertThat(
-            expectThrows(
-                ValidationException.class,
-                () -> indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()
-            ).getMessage(),
+            expectThrows(ValidationException.class, indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(false))).getMessage(),
             containsString("wait_if_ongoing must be true for a force flush")
         );
         assertThat(indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(), emptyArray());

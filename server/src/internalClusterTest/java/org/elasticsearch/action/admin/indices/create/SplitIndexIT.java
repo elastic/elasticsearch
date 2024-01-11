@@ -461,10 +461,9 @@ public class SplitIndexIT extends ESIntegTestCase {
         // check that index sort cannot be set on the target index
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareResizeIndex("source", "target")
+            indicesAdmin().prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(indexSettings(4, 0).put("index.sort.field", "foo").build())
-                .get()
         );
         assertThat(exc.getMessage(), containsString("can't override index sort when resizing an index"));
 

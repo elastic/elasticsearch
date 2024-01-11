@@ -35,8 +35,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
-    public static final SearchHits EMPTY_WITH_TOTAL_HITS = new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
-    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = new SearchHits(EMPTY, null, 0);
+    public static final SearchHits EMPTY_WITH_TOTAL_HITS = SearchHits.empty(new TotalHits(0, Relation.EQUAL_TO), 0);
+    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = SearchHits.empty(null, 0);
 
     private final SearchHit[] hits;
     private final TotalHits totalHits;
@@ -47,6 +47,10 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
     private final String collapseField;
     @Nullable
     private final Object[] collapseValues;
+
+    public static SearchHits empty(@Nullable TotalHits totalHits, float maxScore) {
+        return new SearchHits(EMPTY, totalHits, maxScore);
+    }
 
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
@@ -82,7 +86,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = new SearchHit(in);
+                hits[i] = SearchHit.readFrom(in);
             }
         }
         sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
@@ -235,7 +239,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
                 }
             }
         }
-        return new SearchHits(hits.toArray(new SearchHit[0]), totalHits, maxScore);
+        return new SearchHits(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     @Override

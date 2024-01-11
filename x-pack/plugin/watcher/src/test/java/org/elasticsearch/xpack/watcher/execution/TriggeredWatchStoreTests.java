@@ -46,8 +46,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -210,13 +210,16 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         SearchResponse searchResponse1 = mock(SearchResponse.class);
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
-        BytesArray source = new BytesArray("{}");
-        SearchHit hit = new SearchHit(0, "first_foo");
-        hit.version(1L);
-        hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
-        hit.sourceRef(source);
-        SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-        when(searchResponse1.getHits()).thenReturn(hits);
+        final BytesArray source = new BytesArray("{}");
+        {
+            final SearchHit hit = new SearchHit(0, "first_foo");
+            hit.version(1L);
+            hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
+            hit.sourceRef(source);
+            when(searchResponse1.getHits()).thenReturn(
+                new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
+            );
+        }
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -226,40 +229,36 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new SearchHit(0, "second_foo");
-        hit.version(1L);
-        hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
-        hit.sourceRef(source);
-        hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-        SearchResponse searchResponse2 = new SearchResponse(
-            new InternalSearchResponse(hits, null, null, null, false, null, 1),
-            "_scrollId1",
-            1,
-            1,
-            0,
-            1,
-            null,
-            null
-        );
-        SearchResponse searchResponse3 = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-            "_scrollId2",
-            1,
-            1,
-            0,
-            1,
-            null,
-            null
-        );
-
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             if (request.scrollId().equals("_scrollId")) {
-                listener.onResponse(searchResponse2);
+                final var hit2 = new SearchHit(0, "second_foo");
+                hit2.version(1L);
+                hit2.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
+                hit2.sourceRef(source);
+                ActionListener.respondAndRelease(
+                    listener,
+                    new SearchResponse(
+                        new SearchHits(new SearchHit[] { hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f),
+                        null,
+                        null,
+                        false,
+                        null,
+                        null,
+                        1,
+                        "_scrollId1",
+                        1,
+                        1,
+                        0,
+                        1,
+                        null,
+                        null
+                    )
+                );
             } else if (request.scrollId().equals("_scrollId1")) {
-                listener.onResponse(searchResponse3);
+                ActionListener.respondAndRelease(listener, SearchResponseUtils.emptyWithTotalHits("_scrollId2", 1, 1, 0, 1, null, null));
             } else {
                 listener.onFailure(new ElasticsearchException("test issue"));
             }

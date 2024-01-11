@@ -33,7 +33,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -252,7 +251,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
                                 @Override
                                 protected void doRun() {
-                                    sendSearchResponse(InternalSearchResponse.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
+                                    sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
                                 }
 
                                 @Override

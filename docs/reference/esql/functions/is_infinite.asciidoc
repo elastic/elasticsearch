@@ -1,7 +1,26 @@
 [discrete]
 [[esql-is_infinite]]
 === `IS_INFINITE`
-Returns a boolean that indicates whether its input is infinite.
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/is_infinite.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns a boolean that indicates whether its input is an infinite number.
+
+*Supported types*
+
+include::types/is_infinite.asciidoc[]
+
+*Example*
 
 [source,esql]
 ----

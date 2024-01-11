@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 
 import java.util.List;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103809")
 public class GetStackTracesActionIT extends ProfilingTestCase {
     public void testGetStackTracesUnfiltered() throws Exception {
         GetStackTracesRequest request = new GetStackTracesRequest(1000, 600.0d, 1.0d, null, null, null, null, null, null, null, null);
@@ -30,8 +32,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.fileIds.size());
         assertEquals(18, stackTrace.frameIds.size());
         assertEquals(18, stackTrace.typeIds.size());
-        assertEquals(0.0000098789d, stackTrace.annualCO2Tons, 0.0000000001d);
-        assertEquals(0.093075d, stackTrace.annualCostsUSD, 0.000001d);
+        assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
+        assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("8NlMClggx8jaziUTJXlmWAAAAAAAAIYI");

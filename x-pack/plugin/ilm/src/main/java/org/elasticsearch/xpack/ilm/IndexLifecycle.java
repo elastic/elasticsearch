@@ -58,12 +58,8 @@ import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
-import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction;
-import org.elasticsearch.xpack.core.ilm.action.RetryAction;
-import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.ilm.action.ReservedLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestExplainLifecycleAction;
@@ -147,6 +143,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(
             settings,
             services.clusterService(),
+            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()
@@ -291,15 +288,15 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         actions.addAll(
             Arrays.asList(
                 // add ILM actions
-                new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
+                new ActionHandler<>(ILMActions.PUT, TransportPutLifecycleAction.class),
                 new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
                 new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
                 new ActionHandler<>(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
                 new ActionHandler<>(RemoveIndexLifecyclePolicyAction.INSTANCE, TransportRemoveIndexLifecyclePolicyAction.class),
-                new ActionHandler<>(MoveToStepAction.INSTANCE, TransportMoveToStepAction.class),
-                new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
-                new ActionHandler<>(StartILMAction.INSTANCE, TransportStartILMAction.class),
-                new ActionHandler<>(StopILMAction.INSTANCE, TransportStopILMAction.class),
+                new ActionHandler<>(ILMActions.MOVE_TO_STEP, TransportMoveToStepAction.class),
+                new ActionHandler<>(ILMActions.RETRY, TransportRetryAction.class),
+                new ActionHandler<>(ILMActions.START, TransportStartILMAction.class),
+                new ActionHandler<>(ILMActions.STOP, TransportStopILMAction.class),
                 new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
             )
         );

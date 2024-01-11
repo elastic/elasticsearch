@@ -243,7 +243,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             configManager,
             auditor
         );
-        TransformScheduler scheduler = new TransformScheduler(clock, services.threadPool(), settings);
+        TransformScheduler scheduler = new TransformScheduler(
+            clock,
+            services.threadPool(),
+            settings,
+            getTransformExtension().getMinFrequency()
+        );
         scheduler.start();
 
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));

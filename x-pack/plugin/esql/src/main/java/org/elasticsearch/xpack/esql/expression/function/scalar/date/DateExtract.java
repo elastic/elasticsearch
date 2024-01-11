@@ -12,8 +12,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
@@ -49,7 +49,7 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
             ChronoField chrono = chronoField();
             if (chrono == null) {
                 BytesRef field = (BytesRef) children().get(0).fold();
-                throw new EsqlIllegalArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
+                throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
             return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
         }

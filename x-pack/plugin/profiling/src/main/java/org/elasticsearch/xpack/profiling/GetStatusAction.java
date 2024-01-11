@@ -31,11 +31,11 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private boolean profilingEnabled;
-        private boolean resourceManagementEnabled;
-        private boolean resourcesCreated;
-        private boolean pre891Data;
-        private boolean hasData;
+        private final boolean profilingEnabled;
+        private final boolean resourceManagementEnabled;
+        private final boolean resourcesCreated;
+        private final boolean pre891Data;
+        private final boolean hasData;
         private boolean timedOut;
 
         public Response(StreamInput in) throws IOException {
@@ -68,6 +68,10 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
 
         public boolean isResourcesCreated() {
             return resourcesCreated;
+        }
+
+        public boolean hasData() {
+            return hasData;
         }
 
         @Override

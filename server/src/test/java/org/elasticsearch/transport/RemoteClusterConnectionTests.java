@@ -45,7 +45,6 @@ import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -62,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -153,19 +153,16 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                             1F
                         );
                     } else {
-                        searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                        searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    InternalSearchResponse response = new InternalSearchResponse(
+                    SearchResponse searchResponse = new SearchResponse(
                         searchHits,
                         InternalAggregations.EMPTY,
                         null,
-                        null,
                         false,
                         null,
-                        1
-                    );
-                    SearchResponse searchResponse = new SearchResponse(
-                        response,
+                        null,
+                        1,
                         null,
                         1,
                         1,
@@ -252,7 +249,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 AtomicReference<Exception> exceptionReference = new AtomicReference<>();
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, randomBoolean())) {
+                try (
+                    RemoteClusterConnection connection = new RemoteClusterConnection(
+                        settings,
+                        clusterAlias,
+                        service,
+                        randomFrom(RemoteClusterCredentialsManager.EMPTY, buildCredentialsManager(clusterAlias))
+                    )
+                ) {
                     ActionListener<Void> listener = ActionListener.wrap(x -> {
                         listenerCalled.countDown();
                         fail("expected exception");
@@ -322,7 +326,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, seedNodes);
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, false)) {
+                try (
+                    RemoteClusterConnection connection = new RemoteClusterConnection(
+                        settings,
+                        clusterAlias,
+                        service,
+                        RemoteClusterCredentialsManager.EMPTY
+                    )
+                ) {
                     int numThreads = randomIntBetween(4, 10);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
@@ -470,7 +481,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     settings = Settings.builder().put(settings).setSecureSettings(secureSettings).build();
                 }
                 try (
-                    RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, hasClusterCredentials)
+                    RemoteClusterConnection connection = new RemoteClusterConnection(
+                        settings,
+                        clusterAlias,
+                        service,
+                        hasClusterCredentials ? buildCredentialsManager(clusterAlias) : RemoteClusterCredentialsManager.EMPTY
+                    )
                 ) {
                     // test no nodes connected
                     RemoteConnectionInfo remoteConnectionInfo = assertSerialization(connection.getConnectionInfo());
@@ -662,7 +678,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 }
 
                 try (
-                    RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, hasClusterCredentials)
+                    RemoteClusterConnection connection = new RemoteClusterConnection(
+                        settings,
+                        clusterAlias,
+                        service,
+                        hasClusterCredentials ? buildCredentialsManager(clusterAlias) : RemoteClusterCredentialsManager.EMPTY
+                    )
                 ) {
                     CountDownLatch responseLatch = new CountDownLatch(1);
                     AtomicReference<Function<String, DiscoveryNode>> reference = new AtomicReference<>();
@@ -713,7 +734,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
 
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, false)) {
+                try (
+                    RemoteClusterConnection connection = new RemoteClusterConnection(
+                        settings,
+                        clusterAlias,
+                        service,
+                        RemoteClusterCredentialsManager.EMPTY
+                    )
+                ) {
                     PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
                     connection.ensureConnected(plainActionFuture);
                     plainActionFuture.get(10, TimeUnit.SECONDS);
@@ -779,7 +807,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, seedNodes);
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, randomBoolean())) {
+                try (
+                    RemoteClusterConnection connection = new RemoteClusterConnection(
+                        settings,
+                        clusterAlias,
+                        service,
+                        randomFrom(RemoteClusterCredentialsManager.EMPTY, buildCredentialsManager(clusterAlias))
+                    )
+                ) {
                     final int numGetThreads = randomIntBetween(4, 10);
                     final Thread[] getThreads = new Thread[numGetThreads];
                     final int numModifyingThreads = randomIntBetween(4, 10);
@@ -873,7 +908,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, false)) {
+                try (
+                    RemoteClusterConnection connection = new RemoteClusterConnection(
+                        settings,
+                        clusterAlias,
+                        service,
+                        RemoteClusterCredentialsManager.EMPTY
+                    )
+                ) {
                     PlainActionFuture.get(fut -> connection.ensureConnected(fut.map(x -> null)));
                     for (int i = 0; i < 10; i++) {
                         // always a direct connection as the remote node is already connected
@@ -920,5 +962,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             Strings.collectionToCommaDelimitedString(seedNodes)
         );
         return builder.build();
+    }
+
+    private static RemoteClusterCredentialsManager buildCredentialsManager(String clusterAlias) {
+        Objects.requireNonNull(clusterAlias);
+        final Settings.Builder builder = Settings.builder();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("cluster.remote." + clusterAlias + ".credentials", randomAlphaOfLength(20));
+        builder.setSecureSettings(secureSettings);
+        return new RemoteClusterCredentialsManager(builder.build());
     }
 }

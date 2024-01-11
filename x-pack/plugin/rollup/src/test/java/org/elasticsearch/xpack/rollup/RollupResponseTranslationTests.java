@@ -72,7 +72,6 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -516,15 +515,13 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         // TODO SearchResponse.Clusters is not public, using null for now. Should fix upstream.
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(
             new SearchResponse(
-                new InternalSearchResponse(
-                    null,
-                    InternalAggregations.from(Collections.singletonList(responses.get(0))),
-                    null,
-                    null,
-                    false,
-                    false,
-                    1
-                ),
+                null,
+                InternalAggregations.from(Collections.singletonList(responses.get(0))),
+                null,
+                false,
+                false,
+                null,
+                1,
                 null,
                 1,
                 1,
@@ -537,15 +534,13 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         );
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(
             new SearchResponse(
-                new InternalSearchResponse(
-                    null,
-                    InternalAggregations.from(Collections.singletonList(responses.get(1))),
-                    null,
-                    null,
-                    false,
-                    false,
-                    1
-                ),
+                null,
+                InternalAggregations.from(Collections.singletonList(responses.get(1))),
+                null,
+                false,
+                false,
+                null,
+                1,
                 null,
                 1,
                 1,

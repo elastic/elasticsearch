@@ -51,11 +51,12 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         }
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
-        XContentParser parser = createParser(shuffled);
-        AggregationBuilder newAgg = parse(parser);
-        assertNotSame(newAgg, testAgg);
-        assertEquals(testAgg, newAgg);
-        assertEquals(testAgg.hashCode(), newAgg.hashCode());
+        try (XContentParser parser = createParser(shuffled)) {
+            AggregationBuilder newAgg = parse(parser);
+            assertNotSame(newAgg, testAgg);
+            assertEquals(testAgg, newAgg);
+            assertEquals(testAgg.hashCode(), newAgg.hashCode());
+        }
     }
 
     public void testSupportsConcurrentExecution() {
@@ -85,10 +86,12 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         }
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
-        XContentParser parser = createParser(shuffled);
 
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
+        AggregatorFactories.Builder parsed;
+        try (XContentParser parser = createParser(shuffled)) {
+            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsed = AggregatorFactories.parseAggregators(parser);
+        }
 
         assertThat(parsed.getAggregatorFactories(), hasSize(testAggs.size()));
         assertThat(parsed.getPipelineAggregatorFactories(), hasSize(0));
@@ -127,8 +130,10 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     public void testToString() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         String toString = randomBoolean() ? Strings.toString(testAgg) : testAgg.toString();
-        XContentParser parser = createParser(XContentType.JSON.xContent(), toString);
-        AggregationBuilder newAgg = parse(parser);
+        AggregationBuilder newAgg;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), toString)) {
+            newAgg = parse(parser);
+        }
         assertNotSame(newAgg, testAgg);
         assertEquals(testAgg, newAgg);
         assertEquals(testAgg.hashCode(), newAgg.hashCode());

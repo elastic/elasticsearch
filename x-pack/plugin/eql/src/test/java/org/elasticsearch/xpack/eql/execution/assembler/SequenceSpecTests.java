@@ -14,7 +14,6 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
@@ -217,12 +216,14 @@ public class SequenceSpecTests extends ESTestCase {
 
             EventsAsHits eah = new EventsAsHits(evs);
             SearchHits searchHits = new SearchHits(
-                eah.hits.toArray(new SearchHit[0]),
+                eah.hits.toArray(SearchHits.EMPTY),
                 new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
                 0.0f
             );
-            SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-            ActionListener.respondAndRelease(l, new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY));
+            ActionListener.respondAndRelease(
+                l,
+                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
+            );
         }
 
         @Override

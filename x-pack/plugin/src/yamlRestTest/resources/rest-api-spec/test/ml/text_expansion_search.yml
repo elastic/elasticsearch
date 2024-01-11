@@ -222,12 +222,12 @@ setup:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}]
+                tokens: [{"the": 1.0}, {"comforter":1.0}, {"smells":1.0}, {"bad": 1.0}]
                 pruning_config:
                   tokens_freq_ratio_threshold: 1
                   tokens_weight_threshold: 0.4
                   only_score_pruned_tokens: false
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
@@ -243,9 +243,9 @@ setup:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}]
+                tokens: [{"the": 1.0}, {"comforter":1.0}, {"smells":1.0}, {"bad": 1.0}]
                 pruning_config: {}
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
@@ -261,7 +261,7 @@ setup:
           query:
             weighted_tokens:
               ml.tokens:
-                tokens: [{"the": 1.0}, {"octopus":1.0}, {"comforter":1.0}]
+                tokens: [{"the": 1.0}, {"comforter":1.0}, {"smells":1.0}, {"bad": 1.0}]
                 pruning_config:
                   tokens_freq_ratio_threshold: 4
                   tokens_weight_threshold: 0.4

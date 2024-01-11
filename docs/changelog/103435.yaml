@@ -1,0 +1,5 @@
+pr: 103435
+summary: Dispatch `ClusterStateAction#buildResponse` to executor
+area: Distributed
+type: bug
+issues: []

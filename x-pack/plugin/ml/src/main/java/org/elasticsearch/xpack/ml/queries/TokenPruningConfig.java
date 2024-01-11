@@ -47,8 +47,8 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
             throw new IllegalArgumentException(
                 "["
                     + TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName()
-                    + "] must be between [1.0] and ["
-                    + String.format(Locale.ROOT, "%.1f", MAX_TOKENS_FREQ_RATIO_THRESHOLD)
+                    + "] must be between [1] and ["
+                    + String.format(Locale.ROOT, "%d", (int) MAX_TOKENS_FREQ_RATIO_THRESHOLD)
                     + "], got "
                     + tokensFreqRatioThreshold
             );

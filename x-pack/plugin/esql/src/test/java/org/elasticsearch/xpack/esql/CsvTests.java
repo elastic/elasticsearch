@@ -331,11 +331,16 @@ public class CsvTests extends ESTestCase {
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(between(1, 64), threadPool::relativeTimeInMillis);
         Settings.Builder settings = Settings.builder();
 
+        BlockFactory blockFactory = new BlockFactory(
+            bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
+            bigArrays,
+            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
+        );
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             bigArrays,
-            new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays),
+            blockFactory,
             randomNodeSettings(),
             configuration,
             exchangeSource,
@@ -407,7 +412,7 @@ public class CsvTests extends ESTestCase {
             }));
             return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
-            Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
+            Releasables.close(() -> Releasables.close(drivers));
         }
     }
 

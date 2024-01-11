@@ -31,7 +31,6 @@ public final class HttpProxyTestContainer extends DockerEnvironmentAwareTestCont
         );
         addExposedPort(PORT);
         withNetwork(network);
-
     }
 
     public Integer getProxyPort() {

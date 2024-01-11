@@ -9,6 +9,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.features.FeatureData;
 import org.elasticsearch.features.FeatureSpecification;
@@ -22,6 +23,7 @@ import java.util.function.Predicate;
 class ESRestTestFeatureService implements TestFeatureService {
     private final Predicate<String> historicalFeaturesPredicate;
     private final Set<String> clusterStateFeatures;
+    private final Set<String> allSupportedFeatures;
 
     ESRestTestFeatureService(
         boolean hasHistoricalFeaturesInformation,
@@ -32,7 +34,13 @@ class ESRestTestFeatureService implements TestFeatureService {
         var minNodeVersion = nodeVersions.stream().min(Version::compareTo);
         var featureData = FeatureData.createFromSpecifications(specs);
         var historicalFeatures = featureData.getHistoricalFeatures();
-        var allHistoricalFeatures = historicalFeatures.lastEntry() == null ? Set.of() : historicalFeatures.lastEntry().getValue();
+        Set<String> allHistoricalFeatures = historicalFeatures.lastEntry() == null ? Set.of() : historicalFeatures.lastEntry().getValue();
+
+        this.allSupportedFeatures = Sets.union(clusterStateFeatures,
+            minNodeVersion.<Set<String>>map(v -> {
+                var historicalFeaturesForVersion = historicalFeatures.floorEntry(v);
+                return historicalFeaturesForVersion == null ? Set.of() : historicalFeaturesForVersion.getValue();
+            }).orElse(allHistoricalFeatures));
 
         var errorMessage = Strings.format(
             hasHistoricalFeaturesInformation
@@ -59,10 +67,16 @@ class ESRestTestFeatureService implements TestFeatureService {
         return features != null && features.getValue().contains(featureId);
     }
 
+    @Override
     public boolean clusterHasFeature(String featureId) {
         if (clusterStateFeatures.contains(featureId)) {
             return true;
         }
         return historicalFeaturesPredicate.test(featureId);
+    }
+
+    @Override
+    public Set<String> getAllSupportedFeatures() {
+        return allSupportedFeatures;
     }
 }

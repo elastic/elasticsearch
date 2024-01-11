@@ -57,10 +57,10 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature ML_MEMORY_OVERHEAD_FIXED = new NodeFeature("ml.memory_overhead_fixed");
 
     // QA - rolling upgrade tests
+    public static final NodeFeature DESIRED_NODE_API_SUPPORTED = new NodeFeature("desired_node_supported");
     public static final NodeFeature SECURITY_UPDATE_API_KEY = new NodeFeature("security.api_key_update");
     public static final NodeFeature SECURITY_BULK_UPDATE_API_KEY = new NodeFeature("security.api_key_bulk_update");
     @UpdateForV9
-
     public static final NodeFeature WATCHES_VERSION_IN_META = new NodeFeature("watcher.version_in_meta");
     @UpdateForV9
     public static final NodeFeature SECURITY_ROLE_DESCRIPTORS_OPTIONAL = new NodeFeature("security.role_descriptors_optional");
@@ -103,7 +103,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(TRANSFORM_NEW_API_ENDPOINT, Version.V_7_5_0),
             entry(ML_INDICES_HIDDEN, Version.V_7_7_0),
             entry(ML_ANALYTICS_MAPPINGS, Version.V_7_3_0),
-            entry(REST_ELASTIC_PRODUCT_HEADER_PRESENT, Version.V_8_0_1)
+            entry(REST_ELASTIC_PRODUCT_HEADER_PRESENT, Version.V_8_0_1),
+            entry(DESIRED_NODE_API_SUPPORTED, Version.V_8_1_0)
         );
     }
 }

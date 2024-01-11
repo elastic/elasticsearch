@@ -8,8 +8,22 @@
 
 package org.elasticsearch.test.rest;
 
+import java.util.Set;
+
 public interface TestFeatureService {
     boolean clusterHasFeature(String featureId);
 
-    TestFeatureService ALL_FEATURES = ignored -> true;
+    Set<String> getAllSupportedFeatures();
+
+    TestFeatureService ALL_FEATURES = new TestFeatureService() {
+        @Override
+        public boolean clusterHasFeature(String featureId) {
+            return true;
+        }
+
+        @Override
+        public Set<String> getAllSupportedFeatures() {
+            throw new UnsupportedOperationException("Only available to properly initialized TestFeatureService. See ESRestTestCase#createTestFeatureService");
+        }
+    };
 }

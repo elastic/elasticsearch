@@ -54,6 +54,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -203,6 +204,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
+        Objects.requireNonNull(inferenceProvider);
         this.inferenceProvider = inferenceProvider;
         clusterService.addStateApplier(this.ingestForwarder);
     }
@@ -793,7 +795,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Map<String, Set<String>> fieldsForModels,
             Releasable releaseOnFinish
         ) {
-            if (inferenceProvider == null) {
+            if (inferenceProvider.performsInference() == false) {
                 releaseOnFinish.close();
                 return;
             }

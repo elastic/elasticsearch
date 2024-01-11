@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.inference.InferenceProvider;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.SimulateIngestService;
 import org.elasticsearch.tasks.Task;
@@ -56,7 +57,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
             indexingPressure,
             systemIndices,
             System::nanoTime,
-            null
+            new InferenceProvider.NoopInferenceProvider()
         );
     }
 

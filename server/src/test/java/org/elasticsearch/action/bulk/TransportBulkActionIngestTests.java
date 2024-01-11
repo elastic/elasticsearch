@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.inference.InferenceProvider;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -136,7 +137,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
-                null
+                new InferenceProvider.NoopInferenceProvider()
             );
         }
 

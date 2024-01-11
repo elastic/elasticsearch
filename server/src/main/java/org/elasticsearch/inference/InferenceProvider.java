@@ -25,4 +25,25 @@ public interface InferenceProvider {
      */
     void textInference(String modelId, List<String> texts, ActionListener<List<InferenceResults>> listener)
         throws InferenceProviderException;
+
+    /**
+     * Returns true if this inference provider can perform inference
+     *
+     * @return true if this inference provider can perform inference
+     */
+    boolean performsInference();
+
+    class NoopInferenceProvider implements InferenceProvider {
+
+        @Override
+        public void textInference(String modelId, List<String> texts, ActionListener<List<InferenceResults>> listener)
+            throws InferenceProviderException {
+            throw new InferenceProviderException("No inference provider has been registered", null);
+        }
+
+        @Override
+        public boolean performsInference() {
+            return false;
+        }
+    }
 }

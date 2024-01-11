@@ -19,9 +19,9 @@ import java.util.Map;
 public class TestInferenceResults implements InferenceResults {
 
     private final String resultField;
-    private final Map<Object, Object> inferenceResults;
+    private final Map<String, Object> inferenceResults;
 
-    public TestInferenceResults(String resultField, Map<Object, Object> inferenceResults) {
+    public TestInferenceResults(String resultField, Map<String, Object> inferenceResults) {
         this.resultField = resultField;
         this.inferenceResults = inferenceResults;
     }

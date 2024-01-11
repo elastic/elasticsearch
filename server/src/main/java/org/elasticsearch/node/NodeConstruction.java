@@ -1079,9 +1079,14 @@ class NodeConstruction {
             );
         }
 
-        getSinglePlugin(InferenceProviderPlugin.class).ifPresent(plugin -> {
-            modules.add(b -> b.bind(InferenceProvider.class).toInstance(plugin.getInferenceProvider()));
-        });
+        InferenceProvider inferenceProvider = null;
+        Optional<InferenceProviderPlugin> inferenceProviderPlugin = getSinglePlugin(InferenceProviderPlugin.class);
+        if (inferenceProviderPlugin.isPresent()) {
+            inferenceProvider = inferenceProviderPlugin.get().getInferenceProvider();
+        } else {
+            inferenceProvider = new InferenceProvider.NoopInferenceProvider();
+        }
+        modules.bindToInstance(InferenceProvider.class, inferenceProvider);
 
         injector = modules.createInjector();
 

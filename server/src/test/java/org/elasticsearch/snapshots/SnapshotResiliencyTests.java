@@ -155,6 +155,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
+import org.elasticsearch.inference.InferenceProvider;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -1943,7 +1944,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
                         EmptySystemIndices.INSTANCE,
-                        null
+                        new InferenceProvider.NoopInferenceProvider()
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

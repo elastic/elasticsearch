@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -91,11 +92,24 @@ public class BulkRequestModifierTests extends ESTestCase {
         }
 
         TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
+
+        final List<Integer> failures = new ArrayList<>();
+        // iterate the requests in order, recording that half of them should be failures
         for (int i = 0; modifier.hasNext(); i++) {
             modifier.next();
             if (i % 2 == 0) {
-                modifier.markItemAsFailed(i, new RuntimeException());
+                failures.add(i);
             }
+        }
+
+        // with async processors, the failures can come back 'out of order' so sometimes we'll shuffle the list
+        if (randomBoolean()) {
+            Collections.shuffle(failures, random());
+        }
+
+        // actually mark the failures
+        for (int i : failures) {
+            modifier.markItemAsFailed(i, new RuntimeException());
         }
 
         // So half of the requests have "failed", so only the successful requests are left:

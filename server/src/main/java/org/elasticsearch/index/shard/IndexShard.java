@@ -1746,7 +1746,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                                      can start. This is the first operation after the local checkpoint of the safe commit if exists.
      */
     public void recoverLocallyUpToGlobalCheckpoint(ActionListener<Long> recoveryStartingSeqNoListener) {
-        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
+        assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
         if (state != IndexShardState.RECOVERING) {
             recoveryStartingSeqNoListener.onFailure(new IndexShardNotRecoveringException(shardId, state));
             return;
@@ -1815,10 +1815,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         SubscribableListener
             // First, start a temporary engine, recover the local translog up to the given checkpoint, and then close the engine again.
             .<Void>newForked(l -> ActionListener.runWithResource(ActionListener.assertOnce(l), () -> () -> {
+                assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
                 synchronized (engineMutex) {
                     IOUtils.close(currentEngineReference.getAndSet(null));
                 }
             }, (recoveryCompleteListener, ignoredRef) -> {
+                assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
                 final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
                     recoveryState.getTranslog().totalLocal(snapshot.totalOperations());
                     final int recoveredOps = runTranslogRecovery(
@@ -1840,6 +1842,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // which we can use for the rest of the recovery, so now we load the safe commit and use its local checkpoint as the recovery
             // starting point.
             .andThenApply(ignored -> {
+                assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
                 try {
                     // we need to find the safe commit again as we should have created a new one during the local recovery
                     final Optional<SequenceNumbers.CommitInfo> newSafeCommit = store.findSafeIndexCommit(globalCheckpoint);

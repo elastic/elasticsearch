@@ -14,6 +14,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -23,6 +25,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
@@ -49,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
@@ -90,6 +94,7 @@ public class TestQueryExecutor {
     private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private final ThreadPool threadPool;
+    BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
 
     public TestQueryExecutor(ThreadPool threadPool) {
         this.threadPool = threadPool;
@@ -115,10 +120,9 @@ public class TestQueryExecutor {
 
     public ActualResults executePlan(
         LogicalPlan parsedQuery,
-        TestPhysicalOperationProviders testOperationProviders,
+        AbstractPhysicalOperationProviders testOperationProviders,
         IndexResolution indexResolution,
-        EnrichResolution enrichResolution,
-        BigArrays bigArrays
+        EnrichResolution enrichResolution
     ) {
         String sessionId = "csv-test";
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(
@@ -210,6 +214,10 @@ public class TestQueryExecutor {
         } finally {
             Releasables.close(() -> Releasables.close(drivers));
         }
+    }
+
+    public CircuitBreakerService breakerService() {
+        return bigArrays.breakerService();
     }
 
     private Settings randomNodeSettings() {

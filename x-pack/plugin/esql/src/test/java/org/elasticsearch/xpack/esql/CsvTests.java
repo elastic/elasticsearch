@@ -14,10 +14,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -174,9 +170,8 @@ public class CsvTests extends ESTestCase {
         var testDataset = testsDataset(parsed);
         var indexResolution = loadIndexResolution(testDataset.mappingFileName(), testDataset.indexName());
         var enrichPolicies = loadEnrichPolicies();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
 
-        var actualResults = executor.executePlan(parsed, testOperationProviders(testDataset), indexResolution, enrichPolicies, bigArrays);
+        var actualResults = executor.executePlan(parsed, testOperationProviders(testDataset), indexResolution, enrichPolicies);
         try {
             var expected = loadCsvSpecValues(testCase.expectedResults);
 
@@ -185,7 +180,7 @@ public class CsvTests extends ESTestCase {
             assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
-            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            assertThat(executor.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         }
     }
 

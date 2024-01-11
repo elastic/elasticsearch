@@ -2142,8 +2142,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService.getTaskManager(),
                     () -> clusterService.localNode().getId(),
                     transportService.getLocalNodeConnection(),
-                    transportService.getRemoteClusterService(),
-                    new NamedWriteableRegistry(List.of())
+                    transportService.getRemoteClusterService()
                 );
             }
 

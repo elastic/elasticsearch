@@ -68,6 +68,8 @@ public class HeapAttackIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .build();
 
+    static volatile boolean SUITE_ABORTED = false;
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -219,10 +221,9 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * Hits a circuit breaker by building many moderately long strings.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/104241")
     public void testHugeManyConcat() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyConcat(2000));
+        assertCircuitBreaks(() -> manyConcat(1500));
     }
 
     /**
@@ -319,6 +320,7 @@ public class HeapAttackIT extends ESRestTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
+                    SUITE_ABORTED = true;
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
@@ -550,6 +552,7 @@ public class HeapAttackIT extends ESRestTestCase {
     @Before
     @After
     public void assertRequestBreakerEmpty() throws Exception {
+        assumeFalse("suite was aborted", SUITE_ABORTED);
         assertBusy(() -> {
             HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats")).getEntity();
             Map<?, ?> stats = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);

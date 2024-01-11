@@ -20,7 +20,7 @@ public class APMAgentSettingsTests extends ESTestCase {
     /**
      * Check that when the tracer is enabled, it also sets the APM agent's recording system property to true.
      */
-    public void test_whenTracerEnabled_setsRecordingProperty() {
+    public void testEnableRecording() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
         Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         apmAgentSettings.syncAgentSystemProperties(settings);
@@ -31,7 +31,7 @@ public class APMAgentSettingsTests extends ESTestCase {
     /**
      * Check that when the tracer is disabled, it also sets the APM agent's recording system property to false.
      */
-    public void test_whenTracerDisabled_setsRecordingProperty() {
+    public void testDisableRecording() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
         Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), false).build();
         apmAgentSettings.syncAgentSystemProperties(settings);
@@ -42,7 +42,7 @@ public class APMAgentSettingsTests extends ESTestCase {
     /**
      * Check that when cluster settings are synchronised with the system properties, agent settings are set.
      */
-    public void test_whenTracerCreated_clusterSettingsAlsoApplied() {
+    public void testSetAgentSettings() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
         Settings settings = Settings.builder()
             .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
@@ -56,7 +56,7 @@ public class APMAgentSettingsTests extends ESTestCase {
     /**
      * Check that invalid or forbidden APM agent settings are rejected.
      */
-    public void test_invalidSettingsAreRejected() {
+    public void testRejectForbiddenOrUnknownSettings() {
         Settings settings = Settings.builder()
             .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
             .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "unknown", "true")

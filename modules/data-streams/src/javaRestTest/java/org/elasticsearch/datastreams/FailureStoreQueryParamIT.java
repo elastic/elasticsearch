@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * This should be a yaml tests, but in order to write one we would need to expose in the rest-api-spec the new parameter.
+ * This should be a yaml tests, but in order to write one we would need to expose the new parameter in the rest-api-spec.
  * We do not want to do that until the feature flag is removed. For this reason, we temporarily, test the API here.
  * Please convert this to a yaml test when the feature flag is removed.
  */

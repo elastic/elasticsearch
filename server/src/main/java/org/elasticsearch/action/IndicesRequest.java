@@ -32,7 +32,7 @@ public interface IndicesRequest {
 
     /**
      * Returns the data stream options used to resolve indices. They tell for instance whether we need to include only
-     * the backing indices and/or only the failure store indices as well.
+     * the backing indices and/or/only the failure store indices as well.
      * By default, the failure store indices are excluded.
      */
     default DataStreamOptions dataStreamOptions() {

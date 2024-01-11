@@ -49,15 +49,15 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         createIndex(TEST_INDEX);
         ensureGreen();
 
-        prepareIndex(TEST_INDEX).setId("1").setSource("id", 1, "text", "berlin", "title", "Berlin, Germany", "population", 3670622).get();
-        prepareIndex(TEST_INDEX).setId("2").setSource("id", 2, "text", "amsterdam", "population", 851573).get();
-        prepareIndex(TEST_INDEX).setId("3").setSource("id", 3, "text", "amsterdam", "population", 851573).get();
-        prepareIndex(TEST_INDEX).setId("4").setSource("id", 4, "text", "amsterdam", "population", 851573).get();
-        prepareIndex(TEST_INDEX).setId("5").setSource("id", 5, "text", "amsterdam", "population", 851573).get();
-        prepareIndex(TEST_INDEX).setId("6").setSource("id", 6, "text", "amsterdam", "population", 851573).get();
+        indexDoc(TEST_INDEX, "1", "id", 1, "text", "berlin", "title", "Berlin, Germany", "population", 3670622);
+        indexDoc(TEST_INDEX, "2", "id", 2, "text", "amsterdam", "population", 851573);
+        indexDoc(TEST_INDEX, "3", "id", 3, "text", "amsterdam", "population", 851573);
+        indexDoc(TEST_INDEX, "4", "id", 4, "text", "amsterdam", "population", 851573);
+        indexDoc(TEST_INDEX, "5", "id", 5, "text", "amsterdam", "population", 851573);
+        indexDoc(TEST_INDEX, "6", "id", 6, "text", "amsterdam", "population", 851573);
 
         // add another index for testing closed indices etc...
-        prepareIndex("test2").setId("7").setSource("id", 7, "text", "amsterdam", "population", 851573).get();
+        indexDoc("test2", "7", "id", 7, "text", "amsterdam", "population", 851573);
         refresh();
 
         // set up an alias that can also be used in tests

@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.ArrayList;
@@ -199,6 +200,11 @@ public class MetadataMappingService {
                 DocumentMapper mapper = mapperService.documentMapper();
                 if (mapper != null) {
                     indexMetadataBuilder.putMapping(new MappingMetadata(mapper));
+
+                    MappingLookup mappingLookup = mapper.mappers();
+                    if (mappingLookup != null) {
+                        indexMetadataBuilder.fieldsForModels(mappingLookup.getFieldsForModels());
+                    }
                 }
                 if (updatedMapping) {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion());

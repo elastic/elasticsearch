@@ -1961,10 +1961,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder putMapping(MappingMetadata mappingMd) {
             mapping = mappingMd;
-            if (mappingMd != null) {
-                Map<String, Set<String>> fieldsForModels = mappingMd.getFieldsForModels();
-                processFieldsForModels(this.fieldsForModels, fieldsForModels);
-            }
             return this;
         }
 

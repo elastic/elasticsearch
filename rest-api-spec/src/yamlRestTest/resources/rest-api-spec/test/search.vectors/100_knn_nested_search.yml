@@ -269,6 +269,7 @@ setup:
       search:
         index: test
         body:
+          profile: true
           fields: [ "name" ]
           knn:
             field: nested.vector

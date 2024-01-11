@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQueryBuilder> {
 
@@ -85,7 +86,7 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
         assertTrue(query instanceof ExactKnnQuery);
         ExactKnnQuery exactKnnQuery = (ExactKnnQuery) query;
         VectorSimilarityFunction func = exactKnnQuery.getFunc();
-        String description = func.description().toLowerCase();
+        String description = func.description().toLowerCase(Locale.ROOT);
         assertTrue(description, description.contains("dot_product"));
         assertTrue(func instanceof FloatVectorSimilarityFunction);
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -66,8 +67,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     protected Map<String, Object> downloadElserBlocking() throws IOException {
         String endpoint = "_ml/trained_models/.elser_model_2?wait_for_completion=true";
-        if (System.getProperty("os.arch").contains("amd64")) {
-            System.out.println("os.arch:" + System.getProperty("os.arch"));
+        if ("linux-x86_64".equals(Platforms.PLATFORM_NAME)) {
             endpoint = "_ml/trained_models/.elser_model_2_linux-x86_64?wait_for_completion=true";
         }
         String body = """

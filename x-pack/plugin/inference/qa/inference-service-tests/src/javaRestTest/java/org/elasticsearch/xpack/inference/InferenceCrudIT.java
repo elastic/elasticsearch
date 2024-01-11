@@ -48,13 +48,11 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             String modelId = randomAlphaOfLength(10).toLowerCase();
             putModel(modelId, elserConfig, TaskType.SPARSE_EMBEDDING);
             var models = getModels(modelId, TaskType.SPARSE_EMBEDDING);
-            System.out.println(models);
             assertThat(models.get("models").toString(), containsString("model_id=" + modelId));
             deleteModel(modelId, TaskType.SPARSE_EMBEDDING);
             expectThrows(ResponseException.class, () -> getModels(modelId, TaskType.SPARSE_EMBEDDING));
             models = getTrainedModel("_all");
             assertThat(models.toString(), not(containsString("deployment_id=" + modelId)));
-            System.out.println(models);
         }
     }
 

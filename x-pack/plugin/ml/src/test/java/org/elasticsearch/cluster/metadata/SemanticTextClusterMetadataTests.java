@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class SemanticTextMetadataMappingServiceTests extends MlSingleNodeTestCase {
+public class SemanticTextClusterMetadataTests extends MlSingleNodeTestCase {
     public void testCreateIndexWithSemanticTextField() {
         final IndexService indexService = createIndex(
             "test",

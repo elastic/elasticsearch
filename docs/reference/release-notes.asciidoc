@@ -6,12 +6,9 @@
 
 This section summarizes the changes in each release.
 
-<<<<<<< HEAD
 * <<release-notes-8.13.0>>
 * <<release-notes-8.12.0>>
-=======
 * <<release-notes-8.11.4>>
->>>>>>> 7f6b3d9e80b (Add 8.11.4 release notes (#104276))
 * <<release-notes-8.11.3>>
 * <<release-notes-8.11.2>>
 * <<release-notes-8.11.1>>

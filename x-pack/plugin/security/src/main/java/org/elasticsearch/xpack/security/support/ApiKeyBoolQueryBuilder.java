@@ -183,7 +183,11 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                             translatedField,
                             (k, v) -> (v == null) ? requestedFieldNameOrPattern.getValue() : v * requestedFieldNameOrPattern.getValue()
                         );
+                    fieldNameVisitor.accept(translatedField);
                 }
+            }
+            if (simpleQueryStringBuilder.fields().isEmpty()) {
+                simpleQueryStringBuilder.field("match_nothing_place_holder_field_name_wildcard*");
             }
             return simpleQueryStringBuilder;
         } else {

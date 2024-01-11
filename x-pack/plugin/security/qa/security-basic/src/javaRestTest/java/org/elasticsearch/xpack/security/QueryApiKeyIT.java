@@ -430,7 +430,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     }
 
     public void testSimpleQueryStringQuery() throws IOException {
-        final List<String> apiKeyIds = new ArrayList<>(9);
+        final List<String> apiKeyIds = new ArrayList<>();
         apiKeyIds.add(createApiKey("key1-user", "1ms", null, Map.of("label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key1-admin", "1ms", null, Map.of("label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key2-user", "1d", null, Map.of("value", 42, "label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
@@ -444,6 +444,26 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 {"query": {"simple_query_string": {"query": "key*" }}}""",
             apiKeys -> assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray()))
         );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "-prod", "fields": ["metadata"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(4), apiKeyIds.get(5))
+            )
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "-42", "fields": ["meta*"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(1))
+            )
+        );
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
+            {"query": {"simple_query_string": {"query": "-rest"}}}""", apiKeys -> assertThat(apiKeys.isEmpty(), is(true)));
     }
 
     public void testExistsQuery() throws IOException, InterruptedException {

@@ -54,12 +54,15 @@ public class ApiKeyFieldNameTranslators {
         throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query");
     }
 
-    public static Set<String> translatePattern(String fieldNamePattern) {
+    public static Set<String> translatePattern(String fieldNameOrPattern) {
         Set<String> indexFieldNames = new HashSet<>();
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
-            if (translator.supports(fieldNamePattern)) {
-                indexFieldNames.add(translator.translate(fieldNamePattern));
+            if (translator.supports(fieldNameOrPattern)) {
+                indexFieldNames.add(translator.translate(fieldNameOrPattern));
             }
+        }
+        if (indexFieldNames.isEmpty() && Regex.isSimpleMatchPattern(fieldNameOrPattern) == false) {
+            throw new IllegalArgumentException("Field [" + fieldNameOrPattern + "] is not allowed for API Key query");
         }
         return indexFieldNames;
     }

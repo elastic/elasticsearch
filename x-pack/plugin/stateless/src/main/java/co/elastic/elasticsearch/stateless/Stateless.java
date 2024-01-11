@@ -307,8 +307,9 @@ public class Stateless extends Plugin
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(
+    public Collection<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

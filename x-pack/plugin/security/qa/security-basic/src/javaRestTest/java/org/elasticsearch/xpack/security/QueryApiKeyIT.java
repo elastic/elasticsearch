@@ -432,15 +432,35 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     public void testSimpleQueryStringQuery() throws IOException {
         String batmanUserCredentials = createUser("batman", new String[] { "api_key_user_role" });
         final List<String> apiKeyIds = new ArrayList<>();
-        apiKeyIds.add(createApiKey("key1-user", "1ms", null, Map.of("label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
-        apiKeyIds.add(createApiKey("key1-admin", "1ms", null, Map.of("label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
-        apiKeyIds.add(createApiKey("key2-user", "1d", null, Map.of("value", 42, "label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
-        apiKeyIds.add(createApiKey("key2-admin", "1d", null, Map.of("value", 42, "label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key1-user", null, null, Map.of("label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key1-admin", null, null, Map.of("label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key2-user", null, null, Map.of("value", 42, "label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key2-admin", null, null, Map.of("value", 42, "label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key3-user", null, null, Map.of("value", 42, "hero", true), API_KEY_USER_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key3-admin", null, null, Map.of("value", 42, "hero", true), API_KEY_ADMIN_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key4-batman", null, null, Map.of("hero", true), batmanUserCredentials).v1());
         apiKeyIds.add(createApiKey("key5-batman", null, null, Map.of("hero", true), batmanUserCredentials).v1());
 
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "key*", "fields": ["no_such_field_pattern*"]}}}""",
+            apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "prod 42 true", "fields": ["metadata.*"]}}}""",
+            apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
+        );
+        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
+            {"query": {"simple_query_string": {"query": "ke*", "fields": ["i*", "api_key_hash", "*"]}}}""");
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "prod 42 true", "fields": ["wild*", "metadata"]}}}""",
+            apiKeys -> assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray()))
+        );
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
             """
@@ -496,7 +516,16 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 )
             )
         );
-
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "+prod +42",
+                "fields": ["metadata.label", "metadata.value", "metadata.hero"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(2), apiKeyIds.get(3))
+            )
+        );
         assertQuery(batmanUserCredentials, """
             {"query": {"simple_query_string": {"query": "+prod key*", "fields": ["name", "username", "metadata"],
             "default_operator": "AND"}}}""", apiKeys -> assertThat(apiKeys.isEmpty(), is(true)));
@@ -509,6 +538,13 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 apiKeys.stream().map(k -> (String) k.get("id")).toList(),
                 containsInAnyOrder(apiKeyIds.get(6), apiKeyIds.get(7))
             )
+        );
+        assertQuery(
+            batmanUserCredentials,
+            """
+                {"query": {"bool": {"must": [{"term": {"name": {"value":"key5-batman"}}},
+                {"simple_query_string": {"query": "default_native"}}]}}}""",
+            apiKeys -> assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.get(7)))
         );
     }
 

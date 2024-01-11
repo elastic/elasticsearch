@@ -1053,7 +1053,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             // We hit a error during preprocessing a request, so we:
-            // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
+            // 1) Remember the request item slot from the bulk, so that when we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
             failedSlots.set(slot);

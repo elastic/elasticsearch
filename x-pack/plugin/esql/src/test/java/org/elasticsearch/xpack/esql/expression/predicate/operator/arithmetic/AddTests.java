@@ -115,9 +115,6 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
             )
         );
 
-        // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
-        // Datetime + Period/Duration, since the expression will take the non-null arg's type.
-        suppliers = anyNullIsNull(true, suppliers);
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
@@ -193,6 +190,10 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 )
             );
         }).toList());
+
+        // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
+        // Datetime + Period/Duration, since the expression will take the non-null arg's type.
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers));
 
         // Cases that should generate warnings
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {

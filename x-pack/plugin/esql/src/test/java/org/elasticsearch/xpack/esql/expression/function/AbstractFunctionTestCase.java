@@ -873,6 +873,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "datetime or numeric or string"
         ),
+        // What Add accepts
+        Map.entry(
+            Set.of(
+                EsqlDataTypes.DATE_PERIOD,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.LONG,
+                DataTypes.NULL,
+                EsqlDataTypes.TIME_DURATION,
+                DataTypes.UNSIGNED_LONG
+            ),
+            "datetime or numeric"
+        ),
         Map.entry(
             Set.of(
                 DataTypes.BOOLEAN,

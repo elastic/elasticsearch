@@ -223,7 +223,7 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testHugeManyConcat() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyConcat(1500));
+        assertCircuitBreaks(() -> manyConcat(2000));
     }
 
     /**

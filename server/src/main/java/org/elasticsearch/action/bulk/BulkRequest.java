@@ -9,7 +9,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -55,8 +54,6 @@ public class BulkRequest extends ActionRequest
         WriteRequest<BulkRequest>,
         Accountable,
         RawIndexingDataTransportRequest {
-
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
 
@@ -451,7 +448,7 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        return estimatedSizeInBytes();
     }
 
     public Set<String> getIndices() {

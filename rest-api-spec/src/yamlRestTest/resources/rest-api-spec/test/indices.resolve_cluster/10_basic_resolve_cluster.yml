@@ -59,6 +59,7 @@ setup:
       indices.resolve_cluster:
         # exclude security index for test to work with and without security
         name: '*,-.security*'
+        expand_wildcards: [all]
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
@@ -74,8 +75,8 @@ setup:
 
   - do:
       indices.resolve_cluster:
-        # _resolve/cluster does not match hidden indices
         name: '.security*'
+        expand_wildcards: [all]
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
@@ -91,14 +92,33 @@ setup:
 
   - do:
       indices.resolve_cluster:
-        # _resolve/cluster does not match closed indices
         name: 'test_index2'
+        expand_wildcards: [closed]
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
   - match: {(local).matching_indices: true}  # TODO: this should be false?
   - exists: (local).version.number
 
+  - do:
+      indices.resolve_cluster:
+        name: 'test_index2*'
+        expand_wildcards: [open]
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: false}
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'test_index2*'
+        expand_wildcards: [closed]
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
 
 ---
 "Resolve cluster using alias":
@@ -109,6 +129,7 @@ setup:
   - do:
       indices.resolve_cluster:
         name: 'test_clias'
+        expand_wildcards: [all]
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
@@ -125,6 +146,7 @@ setup:
   - do:
       indices.resolve_cluster:
         name: 'test_clias,doesnotexist*'
+        expand_wildcards: [all]
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}

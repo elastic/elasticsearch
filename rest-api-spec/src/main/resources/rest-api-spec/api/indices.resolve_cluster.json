@@ -1,7 +1,7 @@
 {
   "indices.resolve_cluster":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-resolve-index-api.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-resolve-cluster-api.html",
       "description":"Resolves the specified index expressions to return information about each cluster, including the local cluster, if included."
     },
     "stability":"stable",
@@ -25,6 +25,19 @@
         }
       ]
     },
-    "params":{}
+    "params":{
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default":"open",
+        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      }
+    }
   }
 }

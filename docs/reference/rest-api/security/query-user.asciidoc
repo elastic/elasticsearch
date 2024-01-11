@@ -1,13 +1,15 @@
 [role="xpack"]
-[[security-api-query-api-key]]
-=== Query User information API
+[[security-api-query-user]]
+=== Query User API
 
 ++++
-<titleabbrev>Query User information</titleabbrev>
+<titleabbrev>Query User</titleabbrev>
 ++++
 
-Retrieves information for Users with <<query-dsl,Query DSL>>
-in a <<paginate-search-results,paginated>> fashion.
+Retrieves <<native-realm,users>> with <<query-dsl,Query DSL>> in a <<paginate-search-results,paginated>> fashion.
+
+NOTE: As opposed to the <<security-api-get-user,get user api>>, <<built-in-users,built-in users>> are excluded from the
+result. This API is only for <<native-realm,native users>>.
 
 [[security-api-query-user-request]]
 ==== {api-request-title}
@@ -24,7 +26,7 @@ in a <<paginate-search-results,paginated>> fashion.
 [[security-api-query-user-desc]]
 ==== {api-description-title}
 
-Use this API to retrieve Users managed by the
+Use this API to retrieve users managed by the
 <<native-realm,native realm>> in a paginated manner.
 You can optionally filter the results with a query.
 
@@ -34,13 +36,13 @@ You can optionally filter the results with a query.
 You can specify the following parameters in the request body:
 
 `query`::
-(Optional, string) A <<query-dsl,query>> to filter which Users to return.
+(Optional, string) A <<query-dsl,query>> to filter which users to return.
 The query supports a subset of query types, including
 <<query-dsl-match-all-query,`match_all`>>, <<query-dsl-bool-query,`bool`>>,
 <<query-dsl-term-query,`term`>>, <<query-dsl-terms-query,`terms`>>,
 <<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>> and <<query-dsl-exists-query,`exists`>>.
 +
-You can query the following public values associated with a User.
+You can query the following public values associated with a user.
 +
 .Valid values for `query`
 [%collapsible%open]
@@ -89,18 +91,18 @@ In addition, sort can also be applied to the `_doc` field to sort by index order
 This API returns the following top level fields:
 
 `total`::
-The total number of Users found.
+The total number of users found.
 
 `count`::
-The number of Users returned in the response.
+The number of users returned in the response.
 
 `users`::
-A list of user information.
+A list of users that match the query.
 
 [[security-api-query-user-example]]
 ==== {api-examples-title}
 
-The following request lists all Users, assuming you have the
+The following request lists all users, assuming you have the
 `read_security` privilege:
 
 [source,console]
@@ -109,7 +111,7 @@ GET /_security/_query/user
 ----
 
 A successful call returns a JSON structure that contains the information
-retrieved from one or more API keys:
+retrieved from one or more users:
 
 [source,js]
 ----
@@ -148,9 +150,9 @@ retrieved from one or more API keys:
 ----
 // NOTCONSOLE
 
-<1> The list of Users that were retrieved for this request
+<1> The list of users that were retrieved for this request
 
-If you create a User with the following details:
+If you create a user with the following details:
 
 [source,console]
 ----
@@ -189,7 +191,7 @@ GET /_security/_query/user
 }
 ----
 
-A successful call returns a JSON structure for a User:
+A successful call returns a JSON structure for a user:
 
 [source,js]
 --------------------------------------------------
@@ -220,7 +222,7 @@ Use a `bool` query to issue complex logical conditions and use
 
 [source,js]
 ----
-GET /_security/_query/User
+GET /_security/_query/user
 {
   "query": {
     "bool": {
@@ -256,10 +258,10 @@ GET /_security/_query/User
 
 <1> The email must end with `example.com`
 <2> The user must be enabled
-<3> The user must have a role that contains the substring `other`
-<4> The offset to begin the search result is the 2nd (zero-based index) API key
+<3> The result will be filtered to only contain users with at least one role that contains the substring `other`
+<4> The offset to begin the search result is the 2nd (zero-based index) user
 <5> The page size of the response is 2 users
-<6> The result is first sorted by `username` in descending order
+<6> The result is sorted by `username` in descending order
 
 The response contains a list of matched users along with their sort values:
 

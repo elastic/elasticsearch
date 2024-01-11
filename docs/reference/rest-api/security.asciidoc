@@ -95,6 +95,7 @@ native realm:
 * <<security-api-disable-user,Disable users>>
 * <<security-api-enable-user,Enable users>>
 * <<security-api-get-user,Get users>>
+* <<security-api-query-user,Query users>>
 
 [discrete]
 [[security-service-account-apis]]

@@ -127,7 +127,9 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
             exchange.sendResponseHeaders(200, 0);
             exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
             exchange.close();
-        }, "/latest/api/token", ex -> {})) {
+        }, "/latest/api/token", ex -> {
+            // Intentionally don't close the connection, so the client has to time out
+        })) {
             assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");
         }
     }

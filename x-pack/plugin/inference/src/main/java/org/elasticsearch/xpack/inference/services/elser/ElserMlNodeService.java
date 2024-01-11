@@ -177,7 +177,7 @@ public class ElserMlNodeService implements InferenceService {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     listener.onFailure(
                         new ResourceNotFoundException(
                             "Could not start the ELSER service as the ELSER model for this platform cannot be found."

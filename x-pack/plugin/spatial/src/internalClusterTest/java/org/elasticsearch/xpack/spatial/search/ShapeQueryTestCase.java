@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.spatial.search;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Circle;
@@ -56,10 +57,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
-        prepareIndex(defaultIndexName).setId("aNullshape")
-            .setSource("{\"geo\": null}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(defaultIndexName, "aNullshape", "{\"geo\": null}", XContentType.JSON);
         GetResponse result = client().prepareGet(defaultIndexName, "aNullshape").get();
         assertThat(result.getField("location"), nullValue());
     };
@@ -69,15 +67,17 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
-        prepareIndex(defaultIndexName).setId("1")
-            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "1",
+            jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject()
+        );
 
-        prepareIndex(defaultIndexName).setId("2")
-            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-45 -50)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "2",
+            jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-45 -50)").endObject()
+        );
 
         Rectangle rectangle = new Rectangle(-45, 45, 45, -45);
 
@@ -108,15 +108,17 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
-        prepareIndex(defaultIndexName).setId("1")
-            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "1",
+            jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject()
+        );
 
-        prepareIndex(defaultIndexName).setId("2")
-            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-45 -50)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "2",
+            jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-45 -50)").endObject()
+        );
 
         Circle circle = new Circle(-30, -30, 1);
 
@@ -136,15 +138,9 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
-        prepareIndex(defaultIndexName).setId("1")
-            .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-30 -30)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(defaultIndexName, "1", jsonBuilder().startObject().field(defaultFieldName, "POINT(-30 -30)").endObject());
 
-        prepareIndex(defaultIndexName).setId("2")
-            .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-45 -50)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(defaultIndexName, "2", jsonBuilder().startObject().field(defaultFieldName, "POINT(-45 -50)").endObject());
 
         Polygon polygon = new Polygon(new LinearRing(new double[] { -35, -35, -25, -25, -35 }, new double[] { -35, -25, -25, -35, -35 }));
 
@@ -164,20 +160,23 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
-        prepareIndex(defaultIndexName).setId("1")
-            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "1",
+            jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject()
+        );
 
-        prepareIndex(defaultIndexName).setId("2")
-            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-40 -40)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "2",
+            jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-40 -40)").endObject()
+        );
 
-        prepareIndex(defaultIndexName).setId("3")
-            .setSource(jsonBuilder().startObject().field("name", "Document 3").field(defaultFieldName, "POINT(-50 -50)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "3",
+            jsonBuilder().startObject().field("name", "Document 3").field(defaultFieldName, "POINT(-50 -50)").endObject()
+        );
 
         Polygon encloseDocument1Shape = new Polygon(
             new LinearRing(new double[] { -35, -35, -25, -25, -35 }, new double[] { -35, -25, -25, -35, -35 })
@@ -205,15 +204,17 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
-        prepareIndex(defaultIndexName).setId("1")
-            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "1",
+            jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject()
+        );
 
-        prepareIndex(defaultIndexName).setId("2")
-            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-45 -50)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            defaultIndexName,
+            "2",
+            jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-45 -50)").endObject()
+        );
 
         Rectangle rectangle = new Rectangle(-50, -40, -45, -55);
 
@@ -233,15 +234,9 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
-        prepareIndex(defaultIndexName).setId("point1")
-            .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-30 -30)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(defaultIndexName, "point1", jsonBuilder().startObject().field(defaultFieldName, "POINT(-30 -30)").endObject());
 
-        prepareIndex(defaultIndexName).setId("point2")
-            .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-45 -50)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(defaultIndexName, "point2", jsonBuilder().startObject().field(defaultFieldName, "POINT(-45 -50)").endObject());
 
         String indexedShapeIndex = "indexed_query_shapes";
         String indexedShapePath = "shape";
@@ -258,15 +253,17 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         indicesAdmin().prepareCreate(indexedShapeIndex).setMapping(queryShapesMapping).get();
         ensureGreen();
 
-        prepareIndex(indexedShapeIndex).setId("shape1")
-            .setSource(jsonBuilder().startObject().field(indexedShapePath, "BBOX(-50, -40, -45, -55)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            indexedShapeIndex,
+            "shape1",
+            jsonBuilder().startObject().field(indexedShapePath, "BBOX(-50, -40, -45, -55)").endObject()
+        );
 
-        prepareIndex(indexedShapeIndex).setId("shape2")
-            .setSource(jsonBuilder().startObject().field(indexedShapePath, "BBOX(-60, -50, -50, -60)").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            indexedShapeIndex,
+            "shape2",
+            jsonBuilder().startObject().field(indexedShapePath, "BBOX(-60, -50, -50, -60)").endObject()
+        );
 
         assertNoFailuresAndResponse(
             client().prepareSearch(defaultIndexName)
@@ -299,26 +296,26 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
 
         Circle circle = new Circle(1, 0, 10);
 
-        client().index(
-            new IndexRequest("test_distance").source(
-                jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(2, 2))).endObject()
-            ).setRefreshPolicy(IMMEDIATE)
-        ).actionGet();
-        client().index(
-            new IndexRequest("test_distance").source(
-                jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(3, 1))).endObject()
-            ).setRefreshPolicy(IMMEDIATE)
-        ).actionGet();
-        client().index(
-            new IndexRequest("test_distance").source(
-                jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(-20, -30))).endObject()
-            ).setRefreshPolicy(IMMEDIATE)
-        ).actionGet();
-        client().index(
-            new IndexRequest("test_distance").source(
-                jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(20, 30))).endObject()
-            ).setRefreshPolicy(IMMEDIATE)
-        ).actionGet();
+        indexImmediate(
+            "test_distance",
+            null,
+            jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(2, 2))).endObject()
+        );
+        indexImmediate(
+            "test_distance",
+            null,
+            jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(3, 1))).endObject()
+        );
+        indexImmediate(
+            "test_distance",
+            null,
+            jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(-20, -30))).endObject()
+        );
+        indexImmediate(
+            "test_distance",
+            null,
+            jsonBuilder().startObject().field("location", WellKnownText.toWKT(new Point(20, 30))).endObject()
+        );
 
         assertHitCount(
             client().prepareSearch("test_distance").setQuery(new ShapeQueryBuilder("location", circle).relation(ShapeRelation.WITHIN)),
@@ -339,5 +336,23 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             client().prepareSearch("test_distance").setQuery(new ShapeQueryBuilder("location", circle).relation(ShapeRelation.CONTAINS)),
             0L
         );
+    }
+
+    private DocWriteResponse indexImmediate(String index, String id, XContentBuilder source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private DocWriteResponse indexImmediate(String index, String id, String source, XContentType xContentType) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source, xContentType).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

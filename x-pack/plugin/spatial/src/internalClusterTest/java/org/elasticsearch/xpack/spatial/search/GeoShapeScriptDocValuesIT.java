@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.apache.lucene.geo.Circle;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.BoundingBox;
@@ -249,11 +250,12 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
     private void doTestGeometry(Geometry geometry, GeoShapeValues.GeoShapeValue expectedLabelPosition, boolean fallbackToCentroid)
         throws IOException {
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject().field("name", "TestPosition").field("location", WellKnownText.toWKT(geometry)).endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         indicesAdmin().prepareRefresh("test").get();
 
@@ -308,9 +310,10 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testNullShape() throws Exception {
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("name", "TestPosition").nullField("location").endObject())
-            .get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "TestPosition").nullField("location").endObject());
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         indicesAdmin().prepareRefresh("test").get();
 

@@ -193,10 +193,15 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         try (BulkRequest bulkRequest = new BulkRequest()) {
             for (int i = 0; i < numDocs; i++) {
                 String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-                bulkRequest.add(
-                    new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                        .source(Strings.format("{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
-                );
+                IndexRequest indexRequest = new IndexRequest(dataStream);
+                try {
+                    bulkRequest.add(
+                        indexRequest.opType(DocWriteRequest.OpType.CREATE)
+                            .source(Strings.format("{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+                    );
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             client().bulk(bulkRequest).actionGet();
         }

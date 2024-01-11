@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.spatial.search;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
@@ -91,8 +93,8 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
                 .endObject();
 
             try {
-                prepareIndex(INDEX).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
-                prepareIndex(IGNORE_MALFORMED_INDEX).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
+                indexImmediate(INDEX, null, geoJson);
+                indexImmediate(IGNORE_MALFORMED_INDEX, null, null);
             } catch (Exception e) {
                 // sometimes GeoTestUtil will create invalid geometry; catch and continue:
                 if (queryGeometry == geometry) {
@@ -107,10 +109,11 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
         Rectangle rectangle = new Rectangle(-45, 45, 45, -45);
-        prepareIndex(IGNORE_MALFORMED_INDEX).setId("Big_Rectangle")
-            .setSource(jsonBuilder().startObject().field(FIELD, WellKnownText.toWKT(rectangle)).endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            IGNORE_MALFORMED_INDEX,
+            "Big_Rectangle",
+            jsonBuilder().startObject().field(FIELD, WellKnownText.toWKT(rectangle)).endObject()
+        );
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -130,43 +133,42 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
         String location = """
             "location" : {"type":"polygon", "coordinates":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}""";
 
-        prepareIndex(indexName).setId("1").setSource(Strings.format("""
+        indexImmediate(indexName, "1", Strings.format("""
             { %s, "1" : { %s, "2" : { %s, "3" : { %s } }} }
-            """, location, location, location, location), XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(searchIndex).setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .startObject("location")
-                    .field("type", "polygon")
-                    .startArray("coordinates")
-                    .startArray()
-                    .startArray()
-                    .value(-20)
-                    .value(-20)
-                    .endArray()
-                    .startArray()
-                    .value(20)
-                    .value(-20)
-                    .endArray()
-                    .startArray()
-                    .value(20)
-                    .value(20)
-                    .endArray()
-                    .startArray()
-                    .value(-20)
-                    .value(20)
-                    .endArray()
-                    .startArray()
-                    .value(-20)
-                    .value(-20)
-                    .endArray()
-                    .endArray()
-                    .endArray()
-                    .endObject()
-                    .endObject()
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            """, location, location, location, location), XContentType.JSON);
+        indexImmediate(
+            searchIndex,
+            "1",
+            jsonBuilder().startObject()
+                .startObject("location")
+                .field("type", "polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray()
+                .value(-20)
+                .value(-20)
+                .endArray()
+                .startArray()
+                .value(20)
+                .value(-20)
+                .endArray()
+                .startArray()
+                .value(20)
+                .value(20)
+                .endArray()
+                .startArray()
+                .value(-20)
+                .value(20)
+                .endArray()
+                .startArray()
+                .value(-20)
+                .value(-20)
+                .endArray()
+                .endArray()
+                .endArray()
+                .endObject()
+                .endObject()
+        );
 
         ShapeQueryBuilder filter = new ShapeQueryBuilder("location", "1").relation(ShapeRelation.INTERSECTS)
             .indexedShapeIndex(indexName)
@@ -216,7 +218,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
                 }
             }""", args);
 
-        prepareIndex(INDEX).setId("0").setSource(source, XContentType.JSON).setRouting("ABC").get();
+        indexImmediate(INDEX, "0", "ABC", source, XContentType.JSON);
         indicesAdmin().prepareRefresh(INDEX).get();
 
         assertHitCount(
@@ -227,11 +229,8 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
     public void testNullShape() {
         // index a null shape
-        prepareIndex(INDEX).setId("aNullshape").setSource("{\"" + FIELD + "\": null}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(IGNORE_MALFORMED_INDEX).setId("aNullshape")
-            .setSource("{\"" + FIELD + "\": null}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(INDEX, "aNullshape", "{\"" + FIELD + "\": null}", XContentType.JSON);
+        indexImmediate(IGNORE_MALFORMED_INDEX, "aNullshape", "{\"" + FIELD + "\": null}", XContentType.JSON);
         GetResponse result = client().prepareGet(INDEX, "aNullshape").get();
         assertThat(result.getField(FIELD), nullValue());
     }
@@ -256,7 +255,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
         String doc = """
             {"location" : {"type":"envelope", "coordinates":[ [-100.0, 100.0], [100.0, -100.0]]}}""";
-        prepareIndex("test_contains").setId("1").setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        indexImmediate("test_contains", "1", doc, XContentType.JSON);
 
         // index the mbr of the collection
         Rectangle rectangle = new Rectangle(-50, 50, 50, -50);
@@ -343,6 +342,28 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
                     .setQuery(new ShapeQueryBuilder("geometry", collection).relation(ShapeRelation.DISJOINT)),
                 1L
             );
+        }
+    }
+
+    private DocWriteResponse indexImmediate(String index, String id, XContentBuilder source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private DocWriteResponse indexImmediate(String index, String id, String source, XContentType xContentType) {
+        return indexImmediate(index, id, null, source, xContentType);
+    }
+
+    private DocWriteResponse indexImmediate(String index, String id, String routing, String source, XContentType xContentType) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source, xContentType).setRefreshPolicy(IMMEDIATE).setRouting(routing).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
     }
 }

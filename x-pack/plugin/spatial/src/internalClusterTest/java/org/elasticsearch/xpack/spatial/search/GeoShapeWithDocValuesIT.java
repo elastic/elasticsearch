@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Geometry;
@@ -110,38 +111,38 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
             indicesAdmin().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=geo_shape", "query", "type=percolator")
         );
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("query", geoDistanceQuery("field1").point(52.18, 4.38).distance(50, DistanceUnit.KILOMETERS))
-                    .field("id", "1")
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("query", geoDistanceQuery("field1").point(52.18, 4.38).distance(50, DistanceUnit.KILOMETERS))
+                .field("id", "1")
+                .endObject()
+        );
 
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("query", geoBoundingBoxQuery("field1").setCorners(52.3, 4.4, 52.1, 4.6))
-                    .field("id", "2")
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("query", geoBoundingBoxQuery("field1").setCorners(52.3, 4.4, 52.1, 4.6))
+                .field("id", "2")
+                .endObject()
+        );
 
-        prepareIndex("test").setId("3")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field(
-                        "query",
-                        geoShapeQuery(
-                            "field1",
-                            new Polygon(new LinearRing(new double[] { 4.4, 4.5, 4.6, 4.4 }, new double[] { 52.1, 52.3, 52.1, 52.1 }))
-                        )
+        index(
+            "test",
+            "3",
+            jsonBuilder().startObject()
+                .field(
+                    "query",
+                    geoShapeQuery(
+                        "field1",
+                        new Polygon(new LinearRing(new double[] { 4.4, 4.5, 4.6, 4.4 }, new double[] { 52.1, 52.3, 52.1, 52.1 }))
                     )
-                    .field("id", "3")
-                    .endObject()
-            )
-            .get();
+                )
+                .field("id", "3")
+                .endObject()
+        );
         refresh();
 
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "POINT(4.51 52.20)").endObject());
@@ -172,7 +173,9 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
               "shape": "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
             }""";
 
-        indexRandom(true, prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("0").setSource(source, XContentType.JSON);
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
 
         assertNoFailuresAndResponse(client().prepareSearch("test").setFetchSource(false).addStoredField("shape"), response -> {
             assertThat(response.getHits().getTotalHits().value, equalTo(1L));

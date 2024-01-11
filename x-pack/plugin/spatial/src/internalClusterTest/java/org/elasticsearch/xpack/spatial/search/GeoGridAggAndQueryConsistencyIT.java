@@ -101,13 +101,18 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setMapping(xcb).get();
 
         try (BulkRequestBuilder builder = client().prepareBulk()) {
-            builder.add(
-                new IndexRequest("test").source("{\"geometry\" : \"BBOX (179.99999, 180.0, -11.29550, -11.29552)\"}", XContentType.JSON)
+            IndexRequest indexRequest1 = new IndexRequest("test").source(
+                "{\"geometry\" : \"BBOX (179.99999, 180.0, -11.29550, -11.29552)\"}",
+                XContentType.JSON
             );
-            builder.add(
-                new IndexRequest("test").source("{\"geometry\" : \"BBOX (-180.0, -179.99999, -11.29550, -11.29552)\"}", XContentType.JSON)
+            IndexRequest indexRequest2 = new IndexRequest("test").source(
+                "{\"geometry\" : \"BBOX (-180.0, -179.99999, -11.29550, -11.29552)\"}",
+                XContentType.JSON
             );
-
+            builder.add(indexRequest1);
+            builder.add(indexRequest2);
+            indexRequest1.decRef();
+            indexRequest2.decRef();
             assertFalse(builder.get().hasFailures());
         }
         indicesAdmin().prepareRefresh("test").get();
@@ -150,15 +155,23 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setMapping(xcb).get();
 
         try (BulkRequestBuilder builder = client().prepareBulk()) {
-            builder.add(
-                new IndexRequest("test").source("{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}", XContentType.JSON)
+            IndexRequest indexRequest1 = new IndexRequest("test").source(
+                "{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}",
+                XContentType.JSON
             );
-            builder.add(
-                new IndexRequest("test").source("{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}", XContentType.JSON)
+            IndexRequest indexRequest2 = new IndexRequest("test").source(
+                "{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}",
+                XContentType.JSON
             );
             String mp = "POLYGON ((150.0 70.0, 150.0 85.91811374669217, 168.77544806565834 85.91811374669217, 150.0 70.0))";
-            builder.add(new IndexRequest("test").source("{\"geometry\" : \"" + mp + "\"}", XContentType.JSON));
+            IndexRequest indexRequest3 = new IndexRequest("test").source("{\"geometry\" : \"" + mp + "\"}", XContentType.JSON);
+            builder.add(indexRequest1);
+            builder.add(indexRequest2);
 
+            builder.add(indexRequest3);
+            indexRequest1.decRef();
+            indexRequest2.decRef();
+            indexRequest3.decRef();
             assertFalse(builder.get().hasFailures());
         }
         indicesAdmin().prepareRefresh("test").get();
@@ -264,11 +277,15 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
                 for (int i = 0; i < edgePoints.size(); i++) {
                     String wkt = WellKnownText.toWKT(edgePoints.get(i));
                     String doc = "{\"geometry\" : \"" + wkt + "\"}";
-                    builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
+                    IndexRequest indexRequest = new IndexRequest("test").source(doc, XContentType.JSON);
+                    builder.add(indexRequest);
+                    indexRequest.decRef();
                     multiPoint[i] = "\"" + wkt + "\"";
                 }
                 String doc = "{\"geometry\" : " + Arrays.toString(multiPoint) + "}";
-                builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
+                IndexRequest indexRequest = new IndexRequest("test").source(doc, XContentType.JSON);
+                builder.add(indexRequest);
+                indexRequest.decRef();
 
             }
             assertFalse(builder.get().hasFailures());
@@ -289,7 +306,9 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             for (int id = 0; id < numDocs; id++) {
                 String wkt = WellKnownText.toWKT(randomGeometriesSupplier.get());
                 String doc = "{\"geometry\" : \"" + wkt + "\"}";
-                builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
+                IndexRequest indexRequest = new IndexRequest("test").source(doc, XContentType.JSON);
+                builder.add(indexRequest);
+                indexRequest.decRef();
             }
             assertFalse(builder.get().hasFailures());
         }

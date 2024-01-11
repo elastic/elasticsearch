@@ -8,9 +8,14 @@
 
 package org.elasticsearch.test.cluster.local;
 
+
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.util.HashMap;
+
 public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvider {
+
 
     @Override
     public void apply(LocalClusterSpecBuilder<?> builder) {
@@ -33,7 +38,14 @@ public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvi
                 .setting("xpack.security.fips_mode.enabled", "true")
                 .setting("xpack.license.self_generated.type", "trial")
                 .setting("xpack.security.authc.password_hashing.algorithm", "pbkdf2_stretch")
-                .keystorePassword("keystore-password");
+                .keystorePassword("keystore-password")
+                .settings(node -> {
+                    var settings = new HashMap<String, String>(1);
+                    if(node.getVersion().onOrAfter(Version.fromString("8.13.0"))){
+                        settings.put("xpack.security.fips_mode.required_providers", "[BCFIPS, BCJSSE]");
+                    }
+                    return settings;
+                });
         }
     }
 

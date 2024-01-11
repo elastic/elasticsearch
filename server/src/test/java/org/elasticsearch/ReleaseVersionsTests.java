@@ -10,30 +10,26 @@ package org.elasticsearch;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
-import java.util.NavigableMap;
+import java.util.function.IntFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReleaseVersionsTests extends ESTestCase {
 
-    public void testReadVersions() {
-        NavigableMap<Integer, String> versions = ReleaseVersions.readVersionsFile(ReleaseVersionsTests.class);
+    public void testReleaseVersions() {
+        IntFunction<String> versions = ReleaseVersions.generateVersionsLookup(ReleaseVersionsTests.class);
 
-        assertThat(versions, equalTo(Map.of(10, "8.0.0", 14, "8.1.0", 21, "8.2.0", 22, "8.2.1")));
-    }
-
-    public void testFindsReleaseVersion() {
-        assertThat(ReleaseVersions.findReleaseVersion(ReleaseVersionsTests.class, 14), equalTo("8.1.0"));
+        assertThat(versions.apply(10), equalTo("8.0.0"));
+        assertThat(versions.apply(14), equalTo("8.1.0-8.1.1"));
+        assertThat(versions.apply(21), equalTo("8.2.0"));
+        assertThat(versions.apply(22), equalTo("8.2.1"));
     }
 
     public void testReturnsRange() {
-        assertThat(ReleaseVersions.findReleaseVersion(ReleaseVersionsTests.class, 17), equalTo("8.1.0-8.2.0"));
-        assertThat(ReleaseVersions.findReleaseVersion(ReleaseVersionsTests.class, 9), equalTo("<9>-8.0.0"));
-        assertThat(ReleaseVersions.findReleaseVersion(ReleaseVersionsTests.class, 24), equalTo("8.2.1-<24>"));
-    }
+        IntFunction<String> versions = ReleaseVersions.generateVersionsLookup(ReleaseVersionsTests.class);
 
-    public void testVersionsFileNotFound() {
-        assertThat(ReleaseVersions.findReleaseVersion(ReleaseVersions.class, 100), equalTo("<100>"));
+        assertThat(versions.apply(17), equalTo("8.1.2-8.2.0"));
+        expectThrows(AssertionError.class, () -> versions.apply(9));
+        assertThat(versions.apply(24), equalTo("8.2.2-[24]"));
     }
 }

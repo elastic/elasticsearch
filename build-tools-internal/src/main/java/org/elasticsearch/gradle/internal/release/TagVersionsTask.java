@@ -27,9 +27,13 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -98,8 +102,9 @@ public class TagVersionsTask extends DefaultTask {
         int versionId = readLatestVersion(javaVersionsFile);
 
         List<String> versionRecords = Files.readAllLines(versionRecordsFile);
-        if (addVersionRecord(versionRecords, tagVersion, versionId)) {
-            Files.write(versionRecordsFile, versionRecords, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+        var modified = addVersionRecord(versionRecords, tagVersion, versionId);
+        if (modified.isPresent()) {
+            Files.write(versionRecordsFile, modified.get(), StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         }
         return versionId;
     }
@@ -140,67 +145,34 @@ public class TagVersionsTask extends DefaultTask {
 
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)(\\h*#.*)?");
 
-    static boolean addVersionRecord(List<String> versionRecordLines, Version release, int id) {
-        // find the right place to put this new entry
-        // and see if this version or id is already in the file
-        int lastReleaseLessThan = -1;
-        int firstReleaseGreaterThan = -1;
-        for (int l = 0; l < versionRecordLines.size(); l++) {
-            Matcher m = VERSION_LINE.matcher(versionRecordLines.get(l));
-            if (m.matches()) {
-                Version lineRelease = Version.fromString(m.group(0));
-                int lineId = Integer.parseInt(m.group(2));
-                if (lineRelease.compareTo(release) < 0) {
-                    lastReleaseLessThan = l;
-                } else if (lineRelease.equals(release)) {
-                    if (lineId == id) {
-                        LOGGER.lifecycle("Version id [{}] for release [{}] already recorded", id, release);
-                    } else {
-                        LOGGER.error(
-                            "Release [{}] already recorded with version id [{}], cannot update to version [{}]",
-                            release,
-                            lineId,
-                            id
-                        );
-                    }
-                    return false;
-                } else { // lineVersion > version
-                    if (firstReleaseGreaterThan == -1) {
-                        firstReleaseGreaterThan = l;
-                    }
-                    // continue scanning, the file may be out of order
-                }
+    static Optional<List<String>> addVersionRecord(List<String> versionRecordLines, Version release, int id) {
+        Map<Version, Integer> versions = versionRecordLines.stream().map(l -> {
+            Matcher m = VERSION_LINE.matcher(l);
+            if (m.matches() == false) throw new IllegalArgumentException(String.format("Incorrect format for line [%s]", l));
+            return m;
+        }).collect(Collectors.toMap(m -> Version.fromString(m.group(1)), m -> Integer.parseInt(m.group(2)), (k1, k2) -> {
+            throw new IllegalArgumentException("Duplicate versions " + k1);
+        }, TreeMap::new));
 
-                // check the id too
-                if (lineId == id) {
-                    LOGGER.error(
-                        "Version id [{}] already recorded for release [{}], cannot use id for release [{}]",
-                        id,
-                        lineRelease,
-                        release
-                    );
-                    return false;
-                }
+        Integer existing = versions.putIfAbsent(release, id);
+        if (existing != null) {
+            if (existing.equals(id)) {
+                LOGGER.lifecycle("Version id [{}] for release [{}] already recorded", id, release);
+                return Optional.empty();
+            } else {
+                throw new IllegalArgumentException(
+                    String.format(
+                        "Release [%s] already recorded with version id [%s], cannot update to version [%s]",
+                        release,
+                        existing,
+                        id
+                    )
+                );
             }
         }
 
-        String fileRecord = release + "," + id;
-        if (lastReleaseLessThan == -1) {
-            // no release less than this one, put it at the start
-            versionRecordLines.add(0, fileRecord);
-        } else if (firstReleaseGreaterThan == -1) {
-            // no release greater than this one, put it at the end
-            versionRecordLines.add(fileRecord);
-        } else if (lastReleaseLessThan < firstReleaseGreaterThan) {
-            // put it here, in the middle, right after the release less than (any comments here are likely for the line below)
-            versionRecordLines.add(lastReleaseLessThan + 1, fileRecord);
-        } else {
-            // the file is out of order. Put it at the end and complain a little
-            LOGGER.warn("Versions record file is out of order. It may need manually sorting into order.");
-            versionRecordLines.add(fileRecord);
-        }
         LOGGER.lifecycle("Added version id [{}] record for release [{}]", id, release);
-        return true;
+        return Optional.of(versions.entrySet().stream().map(e -> e.getKey() + "," + e.getValue()).toList());
     }
 
     private static void recordTagInfo(List<String> lines, String recordFile, Version version, int id) {

@@ -8,26 +8,26 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.internal.BuildExtension;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.Map;
 import java.util.NavigableMap;
+import java.util.NavigableSet;
 import java.util.ServiceLoader;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.TreeSet;
+import java.util.function.IntFunction;
 import java.util.regex.Pattern;
 
 public class ReleaseVersions {
-
-    private static final Logger Log = LogManager.getLogger(ReleaseVersions.class);
 
     private static final boolean USES_VERSIONS;
 
@@ -37,96 +37,83 @@ public class ReleaseVersions {
             .orElse(true);
     }
 
-    private static final Map<Class<?>, NavigableMap<Integer, String>> RESOLVED_VERSIONS = new ConcurrentHashMap<>();
+    private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");
 
-    private static final Pattern COMMENT_LINE = Pattern.compile("^\\h*#");
-    private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)(\\h*#.*)?");
+    public static IntFunction<String> generateVersionsLookup(Class<?> versionContainer) {
+        if (USES_VERSIONS == false) return Integer::toString;
 
-    static NavigableMap<Integer, String> readVersionsFile(Class<?> versionContainer) {
-        String versionsFileName = versionContainer.getSimpleName() + ".csv";
-        URL versionsFile = versionContainer.getResource(versionsFileName);
-        if (versionsFile == null) {
-            Log.error("Could not find versions file for class [{}]", versionContainer);
-            return Collections.emptyNavigableMap();
-        }
+        try {
+            String versionsFileName = versionContainer.getSimpleName() + ".csv";
+            URL versionsFile = versionContainer.getResource(versionsFileName);
+            if (versionsFile == null) {
+                throw new FileNotFoundException(Strings.format("Could not find versions file for class [%s]", versionContainer));
+            }
 
-        try (
-            BufferedReader reader = new BufferedReader(
-                new InputStreamReader(versionContainer.getResourceAsStream(versionsFileName), StandardCharsets.UTF_8)
-            )
-        ) {
-            NavigableMap<Integer, String> versions = new TreeMap<>();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (COMMENT_LINE.matcher(line).find()) continue; // a comment
-
-                var matcher = VERSION_LINE.matcher(line);
-                if (matcher.matches() == false) {
-                    Log.error("Incorrect format for line [{}] in [{}]", line, versionsFile);
-                    // something is wrong with the file - don't assume anything, just return nothing
-                    return Collections.emptyNavigableMap();
-                }
-                try {
-                    Integer id = Integer.valueOf(matcher.group(2));
-                    String version = matcher.group(1);
-                    String existing = versions.putIfAbsent(id, version);
-                    if (existing != null) {
-                        Log.error("Duplicate id [{}] for versions [{}, {}] in [{}]", id, existing, version, versionsFile);
-                        // something is wrong with the file - we can't trust it
-                        return Collections.emptyNavigableMap();
+            try (
+                BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(versionContainer.getResourceAsStream(versionsFileName), StandardCharsets.UTF_8)
+                )
+            ) {
+                NavigableMap<Integer, NavigableSet<Version>> versions = new TreeMap<>();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    var matcher = VERSION_LINE.matcher(line);
+                    if (matcher.matches() == false) {
+                        throw new IOException(Strings.format("Incorrect format for line [%s] in [%s]", line, versionsFile));
                     }
-                } catch (NumberFormatException e) {
-                    // cannot happen??? regex is wrong...
-                    assert false : "Regex allowed non-integer id through: " + e;
-                    Log.error("Incorrect format for line [{}] in [{}]", line, versionsFile, e);
-                    return Collections.emptyNavigableMap();
+                    try {
+                        Integer id = Integer.valueOf(matcher.group(2));
+                        Version version = Version.fromString(matcher.group(1));
+                        versions.computeIfAbsent(id, k -> new TreeSet<>()).add(version);
+                    } catch (IllegalArgumentException e) {
+                        // cannot happen??? regex is wrong...
+                        assert false : "Regex allowed non-integer id or incorrect version through: " + e;
+                        throw new IOException(Strings.format("Incorrect format for line [%s] in [%s]", line, versionsFile), e);
+                    }
+                }
+
+                return lookupFunction(versions);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static IntFunction<String> lookupFunction(NavigableMap<Integer, NavigableSet<Version>> versions) {
+        return id -> {
+            NavigableSet<Version> versionRange = versions.get(id);
+
+            String lowerBound, upperBound;
+            if (versionRange != null) {
+                lowerBound = versionRange.first().toString();
+                upperBound = versionRange.last().toString();
+            } else {
+                // infer the bounds from the surrounding entries
+                var lowerRange = versions.lowerEntry(id);
+                if (lowerRange != null) {
+                    // the next version is just a guess - might be a newer revision, might be a newer minor or major...
+                    lowerBound = nextVersion(lowerRange.getValue().last()).toString();
+                } else {
+                    // we know about all preceding versions - how can this version be less than everything else we know about???
+                    assert false : "Could not find preceding version for id " + id;
+                    lowerBound = "[" + id + "]";
+                }
+
+                var upperRange = versions.higherEntry(id);
+                if (upperRange != null) {
+                    // too hard to guess what version this id might be for using the next version - just use it directly
+                    upperBound = upperRange.getValue().first().toString();
+                } else {
+                    // likely a version used after this code was released - ok
+                    upperBound = "[" + id + "]";
                 }
             }
 
-            return Collections.unmodifiableNavigableMap(versions);
-        } catch (Exception e) {
-            Log.error("Could not read versions file [{}]", versionsFile, e);
-            return Collections.emptyNavigableMap();
-        }
+            return lowerBound.equals(upperBound) ? lowerBound : lowerBound + "-" + upperBound;
+        };
     }
 
-    private static NavigableMap<Integer, String> findVersionsMap(Class<?> versionContainer) {
-        return RESOLVED_VERSIONS.computeIfAbsent(versionContainer, ReleaseVersions::readVersionsFile);
-    }
-
-    public static String findReleaseVersion(Class<?> versionContainer, int id) {
-        if (USES_VERSIONS == false) return Integer.toString(id);
-
-        NavigableMap<Integer, String> versions = findVersionsMap(versionContainer);
-        String exactVersion = versions.get(id);
-        if (exactVersion != null) {
-            return exactVersion;
-        }
-
-        // go for a range
-        if (versions.isEmpty()) {
-            // uh oh, something went wrong reading the file
-            return "[" + id + "]";
-        }
-
-        StringBuilder range = new StringBuilder();
-
-        var lowerRange = versions.lowerEntry(id);
-        if (lowerRange != null) {
-            range.append(lowerRange.getValue());
-        } else {
-            range.append('<').append(id).append('>');
-        }
-
-        range.append("-");
-
-        var upperRange = versions.higherEntry(id);
-        if (upperRange != null) {
-            range.append(upperRange.getValue());
-        } else {
-            range.append('<').append(id).append('>');
-        }
-
-        return range.toString();
+    private static Version nextVersion(Version version) {
+        return new Version(version.id + 100);   // +1 to revision
     }
 }

@@ -22,6 +22,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.IntFunction;
 
 @SuppressWarnings("deprecation")
 public class IndexVersions {
@@ -206,7 +207,9 @@ public class IndexVersions {
         return VERSION_IDS.values();
     }
 
+    private static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+
     public static String toReleaseVersion(IndexVersion version) {
-        return ReleaseVersions.findReleaseVersion(IndexVersions.class, version.id());
+        return VERSION_LOOKUP.apply(version.id());
     }
 }

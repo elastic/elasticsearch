@@ -894,7 +894,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             createRequest.getId(),
             updateAccess == null ? "" : ",\"role_descriptors\":" + accessWithSerialization.serialization(),
             updateRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", updateMetadataWithSerialization.serialization()),
-            newExpiration == null ? null : String.format("\"%s\"", newExpiration)
+            newExpiration == null ? null : String.format(Locale.ROOT, "\"%s\"", newExpiration)
         );
 
         output = CapturingLogger.output(logger.getName(), Level.INFO);

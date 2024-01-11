@@ -80,7 +80,7 @@ public class ConnectorSecretsIndexService {
         }));
     }
 
-    public void postSecret(PostConnectorSecretRequest request, ActionListener<PostConnectorSecretResponse> listener) {
+    public void createSecret(PostConnectorSecretRequest request, ActionListener<PostConnectorSecretResponse> listener) {
         try {
             clientWithOrigin.prepareIndex(CONNECTOR_SECRETS_INDEX_NAME)
                 .setSource(request.toXContent(jsonBuilder()))

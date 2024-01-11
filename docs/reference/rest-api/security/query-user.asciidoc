@@ -6,7 +6,7 @@
 <titleabbrev>Query User</titleabbrev>
 ++++
 
-Retrieves <<native-realm,users>> with <<query-dsl,Query DSL>> in a <<paginate-search-results,paginated>> fashion.
+Retrieves <<native-realm,native users>> with <<query-dsl,Query DSL>> in a <<paginate-search-results,paginated>> fashion.
 
 NOTE: As opposed to the <<security-api-get-user,get user api>>, <<built-in-users,built-in users>> are excluded from the
 result. This API is only for <<native-realm,native users>>.

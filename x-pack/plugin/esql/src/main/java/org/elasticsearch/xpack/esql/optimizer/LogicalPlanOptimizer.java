@@ -664,7 +664,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             double doubleValue = value.doubleValue();
             if (Double.isNaN(doubleValue) || Double.isInfinite(doubleValue)) {
-                // This also covers the Double data type, as well as scaled floats (represented as doubles in ESQL).
                 return false;
             }
 
@@ -697,6 +696,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             if (dataType == DataTypes.FLOAT) {
                 minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
+            }
+            if (dataType == DataTypes.DOUBLE) {
+                // Covers scaled floats as well (represented as doubles in ESQL).
+                minValue = BigDecimal.valueOf(-Double.MAX_VALUE);
+                maxValue = BigDecimal.valueOf(Double.MAX_VALUE);
             }
 
             return minValue.compareTo(decimalValue) <= 0 && maxValue.compareTo(decimalValue) >= 0;

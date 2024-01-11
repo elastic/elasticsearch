@@ -372,6 +372,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     // Regression test for issue
     // https://github.com/elastic/elasticsearch/issues/99960
     public void testFilterWithImplicitConversion() throws IOException {
+        // TODO also add (csv?) tests with MVs
         bulkLoadTestData(1);
 
         String sign = randomBoolean() ? "" : "-";

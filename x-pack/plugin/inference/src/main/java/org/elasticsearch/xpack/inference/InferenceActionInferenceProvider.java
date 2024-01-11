@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.inference.InferenceProvider;
-import org.elasticsearch.inference.InferenceProviderException;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
@@ -34,8 +33,7 @@ public class InferenceActionInferenceProvider implements InferenceProvider {
     }
 
     @Override
-    public void textInference(String modelId, List<String> texts, ActionListener<List<InferenceResults>> listener)
-        throws InferenceProviderException {
+    public void textInference(String modelId, List<String> texts, ActionListener<List<InferenceResults>> listener) {
         InferenceAction.Request inferenceRequest = new InferenceAction.Request(
             TaskType.SPARSE_EMBEDDING, // TODO Change when task type doesn't need to be specified
             modelId,

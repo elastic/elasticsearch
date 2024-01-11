@@ -118,6 +118,7 @@ public class TransportBulkActionInferenceTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
 
         inferenceProvider = mock(InferenceProvider.class);
+        when(inferenceProvider.performsInference()).thenReturn(true);
 
         transportBulkAction = new TransportBulkAction(
             threadPool,

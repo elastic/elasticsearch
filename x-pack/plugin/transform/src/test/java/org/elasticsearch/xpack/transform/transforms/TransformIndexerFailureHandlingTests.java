@@ -224,7 +224,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             ActionListener.respondAndRelease(
                 responseListener,
                 new SearchResponse(
-                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                    SearchHits.EMPTY_WITH_TOTAL_HITS,
                     // Simulate completely null aggs
                     null,
                     new Suggest(Collections.emptyList()),
@@ -373,7 +373,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
         SearchResponse searchResponse = new SearchResponse(
-            new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             // Simulate completely null aggs
             null,
             new Suggest(Collections.emptyList()),

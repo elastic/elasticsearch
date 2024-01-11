@@ -183,7 +183,6 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -207,7 +206,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -665,9 +663,8 @@ class NodeConstruction {
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
         modules.add(indicesModule);
 
-        final Map<String, LongCounter> customTripCounters = new TreeMap<>();
         CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
-            new CircuitBreakerMetrics(telemetryProvider, customTripCounters),
+            new CircuitBreakerMetrics(telemetryProvider),
             settingsModule.getSettings(),
             settingsModule.getClusterSettings()
         );
@@ -1300,7 +1297,6 @@ class NodeConstruction {
         pluginBreakers.forEach(t -> {
             final CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(t.v2().getName());
             t.v1().setCircuitBreaker(circuitBreaker);
-            metrics.addCustomCircuitBreaker(circuitBreaker);
         });
 
         return circuitBreakerService;

@@ -141,7 +141,7 @@ identifier
     ;
 
 identifierPattern
-    : PROJECT_UNQUOTED_IDENTIFIER
+    : UNQUOTED_ID_PATTERN
     | QUOTED_IDENTIFIER
     ;
 
@@ -246,9 +246,13 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=fromIdentifier (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH setting* policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
+    ;
+
+setting
+    : OPENING_BRACKET name=SETTING COLON value=SETTING CLOSING_BRACKET
     ;

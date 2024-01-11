@@ -9,8 +9,7 @@ import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -33,29 +32,31 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
 
   @Override
   public Block evalVector(Vector v) {
-    LongVector vector = (LongVector) v;
+    BytesRefVector vector = (BytesRefVector) v;
     int positionCount = v.getPositionCount();
+    BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
-      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0), positionCount);
+      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
     }
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendBytesRef(evalValue(vector, p));
+        builder.appendBytesRef(evalValue(vector, p, scratchPad));
       }
       return builder.build();
     }
   }
 
-  private static BytesRef evalValue(LongVector container, int index) {
-    long value = container.getLong(index);
+  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+    BytesRef value = container.getBytesRef(index, scratchPad);
     return ToString.fromCartesianPoint(value);
   }
 
   @Override
   public Block evalBlock(Block b) {
-    LongBlock block = (LongBlock) b;
+    BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -63,7 +64,7 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          BytesRef value = evalValue(block, i);
+          BytesRef value = evalValue(block, i, scratchPad);
           if (positionOpened == false && valueCount > 1) {
             builder.beginPositionEntry();
             positionOpened = true;
@@ -81,8 +82,8 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
     }
   }
 
-  private static BytesRef evalValue(LongBlock container, int index) {
-    long value = container.getLong(index);
+  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+    BytesRef value = container.getBytesRef(index, scratchPad);
     return ToString.fromCartesianPoint(value);
   }
 

@@ -199,6 +199,27 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
+    public static class GeometriesBlockLoader extends SourceBlockLoader {
+        public GeometriesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+            super(fetcher, lookup);
+        }
+
+        @Override
+        public final Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        protected RowStrideReader rowStrideReader(LeafReaderContext context, DocIdSetIterator iter) {
+            return new Geometries(fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "Geometries";
+        }
+    }
+
     private static class BytesRefs extends BlockSourceReader {
         private final BytesRef scratch = new BytesRef();
 
@@ -214,6 +235,27 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         public String toString() {
             return "BlockSourceReader.Bytes";
+        }
+    }
+
+    private static class Geometries extends BlockSourceReader {
+
+        Geometries(ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            if (v instanceof byte[] wkb) {
+                ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(wkb));
+            } else {
+                throw new IllegalArgumentException("Unsupported source type for spatial geometry: " + v.getClass().getSimpleName());
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.Geometries";
         }
     }
 

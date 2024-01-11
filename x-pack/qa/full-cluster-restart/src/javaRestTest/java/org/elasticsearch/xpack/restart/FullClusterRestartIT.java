@@ -996,6 +996,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104101")
     public void testDisableFieldNameField() throws IOException {
         assumeTrue("can only disable field names field before 8.0", Version.fromString(getOldClusterVersion()).before(Version.V_8_0_0));
         String docLocation = "/nofnf/_doc/1";
@@ -1009,6 +1010,11 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Request createIndex = new Request("PUT", "/nofnf");
             createIndex.setJsonEntity("""
                 {
+                  "settings": {
+                    "index": {
+                      "number_of_replicas": 0
+                    }
+                  },
                   "mappings": {
                     "_field_names": { "enabled": false },
                     "properties": {

@@ -252,13 +252,13 @@ class MutableSearchResponse {
                      */
                     InternalAggregations reducedAggs = reducedAggsSource.get();
                     reducedAggsSource = () -> reducedAggs;
-                    searchResponse = searchResponseMerger.getMergedResponse(clusters, buildResponse(task.getStartTimeNanos(), reducedAggs));
+                    searchResponse = getMergedResponse(searchResponseMerger, buildResponse(task.getStartTimeNanos(), reducedAggs));
                 } else {
                     /*
                      * For CCS MRT=true and the local cluster has reported back only full results (final reduce),
                      * which are held in the SearchResponseMerger, so just use those results
                      */
-                    searchResponse = searchResponseMerger.getMergedResponse(clusters);
+                    searchResponse = getMergedResponse(searchResponseMerger);
                 }
             } finally {
                 if (searchResponseMerger != null) {
@@ -300,6 +300,22 @@ class MutableSearchResponse {
             }
         }
         return merger;
+    }
+
+    private SearchResponse getMergedResponse(SearchResponseMerger merger) {
+        return getMergedResponse(merger, null);
+    }
+
+    private synchronized SearchResponse getMergedResponse(SearchResponseMerger merger, SearchResponse localPartialAggsOnly) {
+        if (clusterResponses != null) {
+            for (SearchResponse response : clusterResponses) {
+                merger.add(response);
+            }
+        }
+        if (localPartialAggsOnly != null) {
+            merger.add(localPartialAggsOnly);
+        }
+        return merger.getMergedResponse(clusters);
     }
 
     /**

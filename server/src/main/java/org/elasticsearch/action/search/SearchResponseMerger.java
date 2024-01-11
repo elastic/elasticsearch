@@ -116,26 +116,9 @@ public final class SearchResponseMerger implements Releasable {
      * @return merged response
      */
     public SearchResponse getMergedResponse(Clusters clusters) {
-        return getMergedResponse(clusters, null);
-    }
-
-    /**
-     * Returns the merged response of all SearchResponses received so far as well as merging in the
-     * additional SearchResponse provided. Can be called at any point, including when only some clusters
-     * have finished, in order to get "incremental" partial results.
-     * @param clusters The Clusters object for the search to report on the status of each cluster
-     *                 involved in the cross-cluster search
-     * @param additionalResponse An additional SearchResponse not held by the SearchResponseMerger to be
-     *                           merged in with all the responses the SearchResponseMerger currently
-     *                           holds (useful for mergining in partial aggs from the local cluster).
-     *                           This additionalResponse will NOT be retained by the SearchResponseMerger.
-     *                           Use 'add' to have it retain the SearchResponse.
-     * @return merged response
-     */
-    public SearchResponse getMergedResponse(Clusters clusters, SearchResponse additionalResponse) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
-        if (searchResponses.size() == 0 && additionalResponse == null) {
+        if (searchResponses.size() == 0) {
             return SearchResponse.empty(searchTimeProvider::buildTookInMillis, clusters);
         }
         int totalShards = 0;
@@ -153,14 +136,7 @@ public final class SearchResponseMerger implements Releasable {
 
         TopDocsStats topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
 
-        List<SearchResponse> responsesToMerge = searchResponses;
-        if (additionalResponse != null) {
-            responsesToMerge = new ArrayList<>(searchResponses.size() + 1);
-            responsesToMerge.addAll(searchResponses);
-            responsesToMerge.add(additionalResponse);
-        }
-
-        for (SearchResponse searchResponse : responsesToMerge) {
+        for (SearchResponse searchResponse : searchResponses) {
             totalShards += searchResponse.getTotalShards();
             skippedShards += searchResponse.getSkippedShards();
             successfulShards += searchResponse.getSuccessfulShards();

@@ -21,6 +21,14 @@ import java.util.Map;
 import java.util.Set;
 
 public class SemanticTextMetadataMappingServiceTests extends MlSingleNodeTestCase {
+    public void testCreateIndexWithSemanticTextField() {
+        final IndexService indexService = createIndex(
+            "test",
+            client().admin().indices().prepareCreate("test").setMapping("field", "type=semantic_text,model_id=test_model")
+        );
+        assertEquals(Map.of("test_model", Set.of("field")), indexService.getMetadata().getFieldsForModels());
+    }
+
     public void testAddSemanticTextField() throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);

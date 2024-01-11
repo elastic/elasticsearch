@@ -64,6 +64,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
@@ -1267,6 +1268,11 @@ public class MetadataCreateIndexService {
         if (mapper != null) {
             MappingMetadata mappingMd = new MappingMetadata(mapper);
             mappingsMetadata.put(mapper.type(), mappingMd);
+
+            MappingLookup mappingLookup = mapper.mappers();
+            if (mappingLookup != null) {
+                indexMetadataBuilder.fieldsForModels(mappingLookup.getFieldsForModels());
+            }
         }
 
         for (MappingMetadata mappingMd : mappingsMetadata.values()) {

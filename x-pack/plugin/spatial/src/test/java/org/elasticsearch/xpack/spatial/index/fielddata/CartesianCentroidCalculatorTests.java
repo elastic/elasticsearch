@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
@@ -14,7 +15,6 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 public class CartesianCentroidCalculatorTests extends CentroidCalculatorTests {
     protected Point randomPoint() {

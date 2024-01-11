@@ -309,7 +309,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
         return v -> ((BytesRef) v).utf8ToString();
     }
 

@@ -174,6 +174,7 @@ public class DocVectorTests extends ComputeTestCase {
     // TODO these are really difficult to maintain. can we figure these out of the fly?
     private static final int MAX_SHARD_SEGMENT_DOC_MAP_BREAKS = 2220;
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104191")
     public void testShardSegmentDocMapBreaks() {
         testShardSegmentDocMapBreaks(ByteSizeValue.ofBytes(between(MAX_BUILD_BREAKS_LIMIT + 1, MAX_SHARD_SEGMENT_DOC_MAP_BREAKS)));
     }

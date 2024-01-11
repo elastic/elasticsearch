@@ -463,7 +463,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // otherwise resolve them
             else {
                 Map<NamedExpression, Integer> priorities = new LinkedHashMap<>();
-                boolean hasUnresolvedProjects = false;
                 for (var proj : projections) {
                     final List<Attribute> resolved;
                     final int priority;
@@ -474,7 +473,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved = resolveAgainstList(ua, childOutput);
                         priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
                     } else {
-                        hasUnresolvedProjects = true;
                         continue;
                     }
                     for (Attribute attr : resolved) {
@@ -483,11 +481,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             priorities.remove(attr);
                             priorities.put(attr, priority);
                         }
-                    }
-                }
-                if (hasUnresolvedProjects) {
-                    for (Attribute attribute : childOutput) {
-                        priorities.putIfAbsent(attribute, 0);
                     }
                 }
                 resolvedProjections = new ArrayList<>(priorities.keySet());

@@ -83,7 +83,8 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                     1238.49922909,
                     ByteSizeValue.ofGb(32),
-                    ByteSizeValue.ofGb(128)
+                    ByteSizeValue.ofGb(128),
+                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_REMOVED) ? null : Version.CURRENT
                 )
             )
             .toList();
@@ -153,7 +154,8 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                         Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                         processorsPrecision == ProcessorsPrecision.DOUBLE ? randomDoubleProcessorCount() : 0.5f,
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                        ByteSizeValue.ofGb(randomIntBetween(128, 256))
+                        ByteSizeValue.ofGb(randomIntBetween(128, 256)),
+                        clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_REMOVED) ? null : Version.CURRENT
                     )
                 )
                 .toList();
@@ -180,7 +182,8 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                     randomIntBetween(1, 24),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                    ByteSizeValue.ofGb(randomIntBetween(128, 256))
+                    ByteSizeValue.ofGb(randomIntBetween(128, 256)),
+                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_REMOVED) ? null : Version.CURRENT
                 )
             )
             .toList();

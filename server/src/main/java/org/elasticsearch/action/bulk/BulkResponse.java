@@ -15,16 +15,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A response of a bulk execution. Holding a response for each item responding (in order) of the
@@ -33,10 +26,10 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
  */
 public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse>, ToXContentObject {
 
-    private static final String ITEMS = "items";
-    private static final String ERRORS = "errors";
-    private static final String TOOK = "took";
-    private static final String INGEST_TOOK = "ingest_took";
+    static final String ITEMS = "items";
+    static final String ERRORS = "errors";
+    static final String TOOK = "took";
+    static final String INGEST_TOOK = "ingest_took";
 
     public static final long NO_INGEST_TOOK = -1L;
 
@@ -148,40 +141,5 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         builder.endArray();
         builder.endObject();
         return builder;
-    }
-
-    public static BulkResponse fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-
-        long took = -1L;
-        long ingestTook = NO_INGEST_TOOK;
-        List<BulkItemResponse> items = new ArrayList<>();
-
-        String currentFieldName = parser.currentName();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (TOOK.equals(currentFieldName)) {
-                    took = parser.longValue();
-                } else if (INGEST_TOOK.equals(currentFieldName)) {
-                    ingestTook = parser.longValue();
-                } else if (ERRORS.equals(currentFieldName) == false) {
-                    throwUnknownField(currentFieldName, parser);
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (ITEMS.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        items.add(BulkItemResponse.fromXContent(parser, items.size()));
-                    }
-                } else {
-                    throwUnknownField(currentFieldName, parser);
-                }
-            } else {
-                throwUnknownToken(token, parser);
-            }
-        }
-        return new BulkResponse(items.toArray(new BulkItemResponse[items.size()]), took, ingestTook);
     }
 }

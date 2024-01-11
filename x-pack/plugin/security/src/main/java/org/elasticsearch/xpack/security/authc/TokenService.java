@@ -2397,7 +2397,6 @@ public class TokenService {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    @SuppressWarnings("this-escape")
     private void initialize(ClusterService clusterService) {
         clusterService.addListener(event -> {
             ClusterState state = event.state();

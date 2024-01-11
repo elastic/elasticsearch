@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
@@ -895,7 +895,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 transportActionsDeduplicator.executeOnce(
                     updateMergePolicySettingsRequest,
                     new ErrorRecordingActionListener(
-                        UpdateSettingsAction.NAME,
+                        TransportUpdateSettingsAction.TYPE.name(),
                         indexName,
                         errorStore,
                         Strings.format(

@@ -58,9 +58,9 @@ DELETE /_enrich/policy/clientip_policy
 
 // tag::demo-env[]
 
-On the demo environment at https://esql.demo.elastic.co/[esql.demo.elastic.co],
+On the demo environment at https://ela.st/ql/[ela.st/ql],
 an enrich policy called `clientip_policy` has already been created an executed.
 The policy links an IP address to an environment ("Development", "QA", or
-"Production")
+"Production").
 
 // end::demo-env[]

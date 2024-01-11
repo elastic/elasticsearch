@@ -16,7 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -58,7 +58,7 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             TransportIndicesShardStoresAction.TYPE,
             indicesShardStoresRequest,
-            new RestChunkedToXContentListener<>(channel)
+            new RestRefCountedChunkedToXContentListener<>(channel)
         );
     }
 }

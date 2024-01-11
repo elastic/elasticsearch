@@ -11,6 +11,7 @@ package org.elasticsearch.test.rest;
 import io.netty.handler.codec.http.HttpMethod;
 
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpDelete;
@@ -126,6 +127,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -156,14 +158,18 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Convert the entity from a {@link Response} into a map of maps.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+        return entityAsMap(response.getEntity());
+    }
+
+    public static Map<String, Object> entityAsMap(HttpEntity entity) throws IOException {
+        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (
             XContentParser parser = xContentType.xContent()
                 .createParser(
                     XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
                         .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
-                    response.getEntity().getContent()
+                    entity.getContent()
                 )
         ) {
             return parser.map();
@@ -222,7 +228,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static EnumSet<ProductFeature> availableFeatures;
     private static Set<String> nodesVersions;
-    private static TestFeatureService testFeatureService;
+    private static TestFeatureService testFeatureService = ALL_FEATURES;
 
     protected static Set<String> getCachedNodesVersions() {
         assert nodesVersions != null;
@@ -257,7 +263,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert availableFeatures == null;
             assert nodesVersions == null;
-            assert testFeatureService == null;
+            assert testFeatureService == ALL_FEATURES;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
@@ -319,7 +325,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }
 
-        assert testFeatureService != null;
+        assert testFeatureService != ALL_FEATURES;
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
@@ -337,7 +343,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
             : List.of(new RestTestLegacyFeatures());
 
-        return new TestFeatureService(
+        return new ESRestTestFeatureService(
             hasHistoricalFeaturesInformation,
             providers,
             semanticNodeVersions,
@@ -516,7 +522,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = null;
             availableFeatures = null;
             nodesVersions = null;
-            testFeatureService = null;
+            testFeatureService = ALL_FEATURES;
         }
     }
 
@@ -721,8 +727,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "logs@lifecycle",
             "metrics",
             "metrics@lifecycle",
-            "profiling",
-            "profiling@lifecycle",
+            "profiling-60-days",
+            "profiling-60-days@lifecycle",
             "synthetics",
             "synthetics@lifecycle",
             "7-days-default",
@@ -2375,8 +2381,24 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
     }
 
+    private static XContentType randomSupportedContentType() {
+        if (clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_TRUE_BINARY_RESPONSES) == false) {
+            // Very old versions encode binary stored fields using base64 in all formats, not just JSON, but we expect to see raw binary
+            // fields in non-JSON formats, so we stick to JSON in these cases.
+            return XContentType.JSON;
+        }
+
+        if (clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES) == false) {
+            // The VND_* formats were introduced part-way through the 7.x series for compatibility with 8.x, but are not supported by older
+            // 7.x versions.
+            return randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE);
+        }
+
+        return randomFrom(XContentType.values());
+    }
+
     public static void addXContentBody(Request request, ToXContent body) throws IOException {
-        final var xContentType = randomFrom(XContentType.values());
+        final var xContentType = randomSupportedContentType();
         final var bodyBytes = XContentHelper.toXContent(body, xContentType, EMPTY_PARAMS, randomBoolean());
         request.setEntity(
             new InputStreamEntity(

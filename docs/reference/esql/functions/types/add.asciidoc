@@ -2,6 +2,7 @@
 |===
 lhs | rhs | result
 date_period | date_period | date_period
+date_period | datetime | datetime
 datetime | date_period | datetime
 datetime | time_duration | datetime
 double | double | double
@@ -13,6 +14,7 @@ integer | long | long
 long | double | double
 long | integer | long
 long | long | long
+time_duration | datetime | datetime
 time_duration | time_duration | time_duration
 unsigned_long | unsigned_long | unsigned_long
 |===

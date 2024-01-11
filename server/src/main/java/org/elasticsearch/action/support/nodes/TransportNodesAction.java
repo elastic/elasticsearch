@@ -209,7 +209,7 @@ public abstract class TransportNodesAction<
         List<FailedNodeException> failures,
         ActionListener<NodesResponse> listener
     ) {
-        ActionListener.completeWith(listener, () -> newResponse(request, responses, failures));
+        ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));
     }
 
     protected abstract NodeRequest newNodeRequest(NodesRequest request);

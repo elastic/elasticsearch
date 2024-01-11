@@ -102,10 +102,13 @@ Here, you'll be able to:
 1. Choose a name for your pipeline.
   - This name will need to be unique across the whole deployment.
   If you want this pipeline to be index-specific, we recommend including the name of your index in the pipeline name.
+  - If you do not set the pipeline name, a default unique name will be provided upon selecting a trained model.
 2. Select the ML trained model you want to use.
+  - The model must be deployed before you can select it.
+  To begin deployment of a model, click the *Deploy* button.
 3. Select one or more source fields as input for the inference processor.
   - If there are no source fields available, your index will need a <<mapping, field mapping>>.
-4. (Optional) Choose a name for your target field.
+4. (Optional) Choose a name for your target field(s).
 This is where the output of the inference model will be stored. Changing the default name is only possible if you have a single source field selected.
 5. Add the source-target field mapping to the configuration by clicking the *Add* button.
 6. Repeat steps 3-5 for each field mapping you want to add.
@@ -123,50 +126,11 @@ These pipelines can also be viewed, edited, and deleted in Kibana via *Stack Man
 You may also use the <<ingest-apis,Ingest pipeline APIs>>.
 If you delete any of these pipelines outside of the *Content* UI in Kibana, make sure to edit the ML inference pipelines that reference them.
 
-[discrete#ingest-pipeline-search-inference-update-mapping]
-==== Update mappings to use ML inference pipelines
-
-After setting up an ML inference pipeline or attaching an existing one, it may be necessary to manually create the field mappings in order to support the referenced trained ML model's output.
-This needs to happen before the pipeline is first used to index some documents, otherwise the model output fields could be inferred with the wrong type.
-
-[NOTE]
-====
-This doesn't apply when you're creating a pipeline with the ELSER model, for which the index mappings are automatically updated in the process. 
-====
-
-The required field name and type depends on the configuration of the pipeline and the trained model it uses.
-For example, if you configure a `text_embedding` model, select `summary` as a source field, and `ml.inference.summary` as the target field, the inference output will be stored in `ml.inference.<source field name>.predicted_value` as a <<dense-vector, dense_vector>> type.
-In order to support semantic search on this field, it must be added to the mapping:
-
-[source,console]
-----
-PUT my-index-0001/_mapping
-{
-  "properties": {
-    "ml.inference.summary.predicted_value": { <1>
-      "type": "dense_vector", <2>
-      "dims": 768, <3>
-      "index": true,
-      "similarity": "dot_product" 
-    }
-  }
-}
-----
-// NOTCONSOLE
-// TEST[skip:TODO]
-
-<1> The output of the ML model is stored in the configured target field suffixed with `predicted_value`.
-<2> Choose a field type that is compatible with the inference output and supports your search use cases.
-<3> Set additional properties as necessary.
-
-[TIP]
-====
-You can check the shape of the generated output before indexing any documents while creating the ML inference pipeline under the *Test* tab.
-Simply provide a sample document, click *Simulate*, and look for the `ml.inference` object in the results.
-====
-
 [discrete#ingest-pipeline-search-inference-test-inference-pipeline]
 ==== Test your ML inference pipeline
+
+You can verify the expected structure of the inference output before indexing any documents while creating the {ml} inference pipeline under the *Test* tab.
+Provide a sample document, click *Simulate*, and look for the `ml.inference` object in the results.
 
 To ensure the ML inference pipeline will be run when ingesting documents, you must make sure the documents you are ingesting have a field named `_run_ml_inference` that is set to `true` and you must set the pipeline to `{index_name}`.
 For connector and crawler indices, this will happen automatically if you've configured the settings appropriately for the pipeline name `{index_name}`.

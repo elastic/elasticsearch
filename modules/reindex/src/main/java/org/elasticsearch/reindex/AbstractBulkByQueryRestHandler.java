@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Map;
@@ -93,13 +95,12 @@ public abstract class AbstractBulkByQueryRestHandler<
                     consumer.getValue().accept(value);
                 }
             }
-            return parser.contentType()
-                .xContent()
-                .createParser(
-                    parser.getXContentRegistry(),
-                    parser.getDeprecationHandler(),
-                    BytesReference.bytes(builder.map(body)).streamInput()
-                );
+            return XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+                    .withDeprecationHandler(parser.getDeprecationHandler()),
+                BytesReference.bytes(builder.map(body)),
+                parser.contentType()
+            );
         }
     }
 

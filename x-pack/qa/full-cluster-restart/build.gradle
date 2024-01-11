@@ -19,5 +19,6 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    maxParallelForks = 1
   }
 }

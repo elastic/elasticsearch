@@ -24,6 +24,7 @@ dependencies {
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:ingest-geoip')
   clusterModules project(':modules:ingest-user-agent')
+  clusterModules project(':modules:lang-mustache')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(xpackModule('analytics'))
   clusterModules project(xpackModule('ilm'))

@@ -11,13 +11,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -57,7 +55,7 @@ public final class ExpressionParser {
      * @param content The XContent (typically JSON) DSL representation of the expression
      */
     public RoleMapperExpression parse(String name, XContentSource content) throws IOException {
-        try (InputStream stream = content.getBytes().streamInput(); var parser = content.parser(NamedXContentRegistry.EMPTY, stream)) {
+        try (var parser = content.parser(content.getBytes())) {
             return parse(name, parser);
         }
     }

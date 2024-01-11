@@ -8,14 +8,15 @@
 
 package org.elasticsearch.common.settings;
 
-import java.io.Closeable;
+import org.elasticsearch.core.Releasable;
+
 import java.util.Arrays;
 import java.util.Objects;
 
 /**
  * A String implementations which allows clearing the underlying char array.
  */
-public final class SecureString implements CharSequence, Closeable {
+public final class SecureString implements CharSequence, Releasable {
 
     private char[] chars;
 

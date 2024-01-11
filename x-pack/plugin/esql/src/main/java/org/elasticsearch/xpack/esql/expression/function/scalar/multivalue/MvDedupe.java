@@ -25,13 +25,14 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  * Removes duplicate values from a multivalued field.
  */
 public class MvDedupe extends AbstractMultivalueFunction {
-    @FunctionInfo(returnType = "?", description = "Remove duplicate values from a multivalued field.")
+    // @TODO: add cartesian_point, geo_point, unsigned_long
+    @FunctionInfo(
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        description = "Remove duplicate values from a multivalued field."
+    )
     public MvDedupe(
         Source source,
-        @Param(
-            name = "v",
-            type = { "boolean", "date", "double", "ip", "text", "integer", "keyword", "version", "long" }  // TODO add unsigned_long
-        ) Expression field
+        @Param(name = "v", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression field
     ) {
         super(source, field);
     }

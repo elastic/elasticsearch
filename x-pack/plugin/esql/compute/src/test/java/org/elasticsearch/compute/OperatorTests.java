@@ -144,7 +144,6 @@ public class OperatorTests extends MapperServiceTestCase {
     public void testGroupingWithOrdinals() throws Exception {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
-        BigArrays bigArrays = driverContext.bigArrays();
 
         final String gField = "g";
         final int numDocs = 2856; // between(100, 10000);
@@ -228,18 +227,17 @@ public class OperatorTests extends MapperServiceTestCase {
                         }
                     },
                         new OrdinalsGroupingOperator(
-                            List.of(new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null)),
+                            shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null),
                             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                             ElementType.BYTES_REF,
                             0,
                             gField,
-                            List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1)).groupingAggregatorFactory(INITIAL)),
+                            List.of(CountAggregatorFunction.supplier(List.of(1)).groupingAggregatorFactory(INITIAL)),
                             randomPageSize(),
-                            bigArrays,
                             driverContext
                         ),
                         new HashAggregationOperator(
-                            List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1, 2)).groupingAggregatorFactory(FINAL)),
+                            List.of(CountAggregatorFunction.supplier(List.of(1, 2)).groupingAggregatorFactory(FINAL)),
                             () -> BlockHash.build(
                                 List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
                                 driverContext,
@@ -347,7 +345,7 @@ public class OperatorTests extends MapperServiceTestCase {
     }
 
     static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, int limit) {
-        final SearchContext searchContext = mockSearchContext(reader);
+        final SearchContext searchContext = mockSearchContext(reader, 0);
         return new LuceneSourceOperator.Factory(
             List.of(searchContext),
             ctx -> query,

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
@@ -98,8 +97,6 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
         assertThat(testSection.getSkipSection(), notNullValue());
-        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
-        assertThat(testSection.getSkipSection().getUpperVersion(), equalTo(Version.fromString("6.2.0")));
         assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);

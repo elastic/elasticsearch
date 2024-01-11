@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,7 +45,7 @@ public class RestFieldUsageStatsAction extends BaseRestHandler {
         fusRequest.fields(request.paramAsStringArray("fields", fusRequest.fields()));
         return channel -> {
             final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(FieldUsageStatsAction.INSTANCE, fusRequest, new RestChunkedToXContentListener<>(channel));
+            cancelClient.execute(FieldUsageStatsAction.INSTANCE, fusRequest, new RestRefCountedChunkedToXContentListener<>(channel));
         };
     }
 }

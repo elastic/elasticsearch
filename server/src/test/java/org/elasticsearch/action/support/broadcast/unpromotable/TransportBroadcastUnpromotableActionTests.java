@@ -379,6 +379,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     public void testNullIndexShardRoutingTable() {
         IndexShardRoutingTable shardRoutingTable = null;
         assertThat(
+
             expectThrows(
                 NullPointerException.class,
                 () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(

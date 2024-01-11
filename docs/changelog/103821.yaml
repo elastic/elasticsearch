@@ -1,0 +1,5 @@
+pr: 103821
+summary: "ESQL: Delay finding field load infrastructure"
+area: ES|QL
+type: enhancement
+issues: []

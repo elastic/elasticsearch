@@ -58,7 +58,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             remoteIndicesPrivileges = in.readCollectionAsList(RoleDescriptor.RemoteIndicesPrivileges::new);
         }

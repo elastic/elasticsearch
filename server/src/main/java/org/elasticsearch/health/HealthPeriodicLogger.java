@@ -204,7 +204,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         this.logWriter = logWriter == null ? logger::info : logWriter;
 
         // create metric for overall level metrics
-        this.redMetrics.put("overall", LongGaugeMetric.create(this.meterRegistry, "es.health.overall.red", "Overall: Red", "{cluster}"));
+        this.redMetrics.put(
+            "overall",
+            LongGaugeMetric.create(this.meterRegistry, "es.health.overall.red.status", "Overall: Red", "{cluster}")
+        );
     }
 
     private void registerListeners() {

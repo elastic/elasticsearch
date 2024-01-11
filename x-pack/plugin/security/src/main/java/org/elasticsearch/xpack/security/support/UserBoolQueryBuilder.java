@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexFieldNameTra
 
 public class UserBoolQueryBuilder extends BoolQueryBuilder {
     public static final SecurityIndexFieldNameTranslator USER_FIELD_NAME_TRANSLATOR = new SecurityIndexFieldNameTranslator(
-        List.of(exact("username"), exact("roles"), exact("metadata"), exact("full_name"), exact("email"), exact("enabled"))
+        List.of(exact("username"), exact("roles"), exact("full_name"), exact("email"), exact("enabled"))
     );
 
     private UserBoolQueryBuilder() {}

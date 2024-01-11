@@ -61,6 +61,7 @@ public final class CsvTestUtils {
     private static final int MAX_WIDTH = 20;
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
     private static final String NULL_VALUE = "null";
+    public static final char ESCAPE_CHAR = '\\';
 
     private CsvTestUtils() {}
 
@@ -237,14 +238,21 @@ public final class CsvTestUtils {
 
         int pos = 0;          // current position in the csv String
         int commaPos;         // current "," character position
+        int previousCommaPos = 0;
         while ((commaPos = csvLine.indexOf(",", pos)) != -1 || pos <= csvLine.length()) {
+            if (commaPos > 0 && csvLine.charAt(commaPos - 1) == ESCAPE_CHAR) {
+                previousCommaPos = pos;
+                pos = commaPos + 1;
+                continue;
+            }
+
             boolean isLastElement = commaPos == -1;
-            String entry = csvLine.substring(pos, isLastElement ? csvLine.length() : commaPos).trim();
+            String entry = csvLine.substring(previousCommaPos, isLastElement ? csvLine.length() : commaPos).trim();
             if (entry.startsWith("[")) {
                 if (previousMvValue != null || (isLastElement && entry.endsWith("]") == false)) {
                     String message = "Error line [{}:{}]: Unexpected start of a multi-value field value; current token [{}], "
                         + (isLastElement ? "no closing point" : "previous token [{}]");
-                    throw new IllegalArgumentException(format(message, lineNumber, pos, entry, previousMvValue));
+                    throw new IllegalArgumentException(format(message, lineNumber, previousCommaPos, entry, previousMvValue));
                 }
                 if (entry.endsWith("]")) {
                     if (entry.length() > 2) {// single-valued multivalue field :shrug:
@@ -263,7 +271,7 @@ public final class CsvTestUtils {
                         format(
                             "Error line [{}:{}]: Unexpected end of a multi-value field value (no previous starting point); found [{}]",
                             lineNumber,
-                            pos,
+                            previousCommaPos,
                             entry
                         )
                     );
@@ -279,8 +287,8 @@ public final class CsvTestUtils {
                             format(
                                 "Error line [{}:{}]: Unexpected missing value in a multi-value column; found [{}]",
                                 lineNumber,
-                                pos,
-                                csvLine.substring(pos - 1)
+                                previousCommaPos,
+                                csvLine.substring(previousCommaPos - 1)
                             )
                         );
                     }
@@ -290,6 +298,7 @@ public final class CsvTestUtils {
                 }
             }
             pos = 1 + (isLastElement ? csvLine.length() : commaPos);// break out of the loop if it reached its last element
+            previousCommaPos = pos;
         }
         return mvCompressedEntries.toArray(String[]::new);
     }

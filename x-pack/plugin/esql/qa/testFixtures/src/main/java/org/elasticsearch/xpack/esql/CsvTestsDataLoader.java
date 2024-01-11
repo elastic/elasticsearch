@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 
@@ -137,17 +136,33 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client);
+            loadDataSetIntoEs(client, (restClient, indexName, indexMapping) -> {
+                Request request = new Request("PUT", "/" + indexName);
+                request.setJsonEntity("{\"mappings\":" + indexMapping + "}");
+                restClient.performRequest(request);
+            });
         }
     }
 
+    private static void loadDataSetIntoEs(RestClient client, IndexCreator indexCreator) throws IOException {
+        loadDataSetIntoEs(client, LogManager.getLogger(CsvTestsDataLoader.class), indexCreator);
+    }
+
     public static void loadDataSetIntoEs(RestClient client) throws IOException {
-        loadDataSetIntoEs(client, LogManager.getLogger(CsvTestsDataLoader.class));
+        loadDataSetIntoEs(client, (restClient, indexName, indexMapping) -> {
+            ESRestTestCase.createIndex(restClient, indexName, null, indexMapping, null);
+        });
     }
 
     public static void loadDataSetIntoEs(RestClient client, Logger logger) throws IOException {
+        loadDataSetIntoEs(client, logger, (restClient, indexName, indexMapping) -> {
+            ESRestTestCase.createIndex(restClient, indexName, null, indexMapping, null);
+        });
+    }
+
+    private static void loadDataSetIntoEs(RestClient client, Logger logger, IndexCreator indexCreator) throws IOException {
         for (var dataSet : CSV_DATASET_MAP.values()) {
-            load(client, dataSet.indexName, "/" + dataSet.mappingFileName, "/" + dataSet.dataFileName, logger);
+            load(client, dataSet.indexName, "/" + dataSet.mappingFileName, "/" + dataSet.dataFileName, logger, indexCreator);
         }
         forceMerge(client, CSV_DATASET_MAP.keySet(), logger);
         for (var policy : ENRICH_POLICIES) {
@@ -169,7 +184,14 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static void load(RestClient client, String indexName, String mappingName, String dataName, Logger logger) throws IOException {
+    private static void load(
+        RestClient client,
+        String indexName,
+        String mappingName,
+        String dataName,
+        Logger logger,
+        IndexCreator indexCreator
+    ) throws IOException {
         URL mapping = CsvTestsDataLoader.class.getResource(mappingName);
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
@@ -178,12 +200,8 @@ public class CsvTestsDataLoader {
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
         }
-        createTestIndex(client, indexName, readTextFile(mapping));
+        indexCreator.createIndex(client, indexName, readTextFile(mapping));
         loadCsvData(client, indexName, data, CsvTestsDataLoader::createParser, logger);
-    }
-
-    private static void createTestIndex(RestClient client, String indexName, String mapping) throws IOException {
-        ESRestTestCase.createIndex(client, indexName, null, mapping, null);
     }
 
     public static String readTextFile(URL resource) throws IOException {
@@ -278,9 +296,11 @@ public class CsvTestsDataLoader {
                                     if (i > 0 && row.length() > 0) {
                                         row.append(",");
                                     }
-                                    if (entries[i].contains(",")) {// multi-value
+                                    // split on comma ignoring escaped commas
+                                    String[] multiValues = entries[i].split("(?<!\\" + CsvTestUtils.ESCAPE_CHAR + "),");
+                                    if (multiValues.length > 0) {// multi-value
                                         StringBuilder rowStringValue = new StringBuilder("[");
-                                        for (String s : delimitedListToStringArray(entries[i], ",")) {
+                                        for (String s : multiValues) {
                                             rowStringValue.append("\"" + s + "\",");
                                         }
                                         // remove the last comma and put a closing bracket instead
@@ -289,6 +309,8 @@ public class CsvTestsDataLoader {
                                     } else {
                                         entries[i] = "\"" + entries[i] + "\"";
                                     }
+                                    // replace any escaped commas with single comma
+                                    entries[i].replace(CsvTestUtils.ESCAPE_CHAR + ",", ",");
                                     row.append("\"" + columns[i] + "\":" + entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
@@ -356,4 +378,8 @@ public class CsvTestsDataLoader {
     public record TestsDataset(String indexName, String mappingFileName, String dataFileName) {}
 
     public record EnrichConfig(String policyName, String policyFileName) {}
+
+    private interface IndexCreator {
+        void createIndex(RestClient client, String indexName, String mapping) throws IOException;
+    }
 }

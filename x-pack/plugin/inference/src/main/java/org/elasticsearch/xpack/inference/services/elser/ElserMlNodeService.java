@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.services.elser;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
@@ -158,6 +161,15 @@ public class ElserMlNodeService implements InferenceService {
             StartTrainedModelDeploymentAction.INSTANCE,
             startRequest,
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(Boolean.TRUE))
+        );
+    }
+
+    @Override
+    public void stop(String modelId, ActionListener<Boolean> listener) {
+        client.execute(
+            StopTrainedModelDeploymentAction.INSTANCE,
+            new StopTrainedModelDeploymentAction.Request(modelId),
+            listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
         );
     }
 

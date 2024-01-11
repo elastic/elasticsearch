@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,6 +26,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class BulkRequestModifierTests extends ESTestCase {
 
@@ -87,7 +87,7 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         // So half of the requests have "failed", so only the successful requests are left:
         BulkRequest bulkRequest = modifier.getBulkRequest();
-        assertThat(bulkRequest.requests().size(), Matchers.equalTo(16));
+        assertThat(bulkRequest.requests().size(), equalTo(16));
 
         List<BulkItemResponse> responses = new ArrayList<>();
         ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<>() {
@@ -108,9 +108,9 @@ public class BulkRequestModifierTests extends ESTestCase {
         }
         bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[originalResponses.size()]), 0));
 
-        assertThat(responses.size(), Matchers.equalTo(32));
+        assertThat(responses.size(), equalTo(32));
         for (int i = 0; i < 32; i++) {
-            assertThat(responses.get(i).getId(), Matchers.equalTo(String.valueOf(i)));
+            assertThat(responses.get(i).getId(), equalTo(String.valueOf(i)));
         }
     }
 
@@ -126,7 +126,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         }
 
         BulkRequest bulkRequest = modifier.getBulkRequest();
-        assertThat(bulkRequest, Matchers.sameInstance(originalBulkRequest));
+        assertThat(bulkRequest, sameInstance(originalBulkRequest));
         assertThat(modifier.wrapActionListenerIfNeeded(1L, ActionListener.noop()), ActionListenerTests.isMappedActionListener());
     }
 

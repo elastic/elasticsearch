@@ -28,11 +28,6 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     @Override
-    public InsensitiveBinaryComparison reverse() {
-        return this;
-    }
-
-    @Override
     protected NodeInfo<InsensitiveEquals> info() {
         return NodeInfo.create(this, InsensitiveEquals::new, left(), right(), zoneId());
     }

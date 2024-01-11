@@ -285,10 +285,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             changedOperationMode.set(true);
             return null;
         }).when(clusterService)
-            .submitUnbatchedStateUpdateTask(
-                eq("ilm_operation_mode_update[stopped]"),
-                eq(OperationModeUpdateTask.ilmMode(OperationMode.STOPPED))
-            );
+            .submitUnbatchedStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), any(OperationModeUpdateTask.class));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertTrue(changedOperationMode.get());

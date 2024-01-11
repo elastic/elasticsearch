@@ -9,6 +9,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -55,7 +56,7 @@ public class BulkRequest extends ActionRequest
         Accountable,
         RawIndexingDataTransportRequest {
 
-    private static final int REQUEST_OVERHEAD = 50;
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
@@ -73,7 +74,7 @@ public class BulkRequest extends ActionRequest
     private String globalIndex;
     private Boolean globalRequireAlias;
 
-    private long sizeInBytes = 0;
+    private long sizeInBytes = SHALLOW_SIZE;
 
     public BulkRequest() {}
 
@@ -147,7 +148,7 @@ public class BulkRequest extends ActionRequest
 
         requests.add(request);
         // lack of source is validated in validate() method
-        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
+        sizeInBytes += request.ramBytesUsed();
         indices.add(request.index());
         return this;
     }
@@ -164,15 +165,7 @@ public class BulkRequest extends ActionRequest
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        if (request.doc() != null) {
-            sizeInBytes += request.doc().source().length();
-        }
-        if (request.upsertRequest() != null) {
-            sizeInBytes += request.upsertRequest().source().length();
-        }
-        if (request.script() != null) {
-            sizeInBytes += request.script().getIdOrCode().length() * 2;
-        }
+        sizeInBytes += request.ramBytesUsed();
         indices.add(request.index());
         return this;
     }
@@ -185,7 +178,7 @@ public class BulkRequest extends ActionRequest
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        sizeInBytes += REQUEST_OVERHEAD;
+        sizeInBytes += request.ramBytesUsed();
         indices.add(request.index());
         return this;
     }

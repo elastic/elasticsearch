@@ -333,22 +333,32 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected static TestFeatureService createTestFeatureService(
+    protected TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
-        var providers = hasHistoricalFeaturesInformation
-            ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
-            : List.of(new RestTestLegacyFeatures());
-
-        return new ESRestTestFeatureService(
-            hasHistoricalFeaturesInformation,
-            providers,
-            semanticNodeVersions,
-            ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
-        );
+        if (hasHistoricalFeaturesInformation) {
+            return new ESRestTestFeatureService(
+                ESRestTestCaseHistoricalFeatures.loadFeatureNames(System.getProperty("tests.features.metadata.path")),
+                List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures()),
+                semanticNodeVersions,
+                ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
+            );
+        } else {
+            logger.warn(
+                "This test is running on the legacy test framework; historical features from production code will not be available. "
+                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
+                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}",
+                RestTestLegacyFeatures.class.getCanonicalName()
+            );
+            return new LegacyESRestTestFeatureService(
+                List.of(new RestTestLegacyFeatures()),
+                semanticNodeVersions,
+                ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
+            );
+        }
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -2345,32 +2355,61 @@ public abstract class ESRestTestCase extends ESTestCase {
         @Override
         public Map<NodeFeature, Version> getHistoricalFeatures() {
             if (historicalFeatures == null) {
-                Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
                 String metadataPath = System.getProperty("tests.features.metadata.path");
                 if (metadataPath == null) {
                     throw new UnsupportedOperationException(
                         "Historical features information is unavailable when using legacy test plugins."
                     );
                 }
-
-                String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
-                for (String metadataFile : metadataFiles) {
-                    try (
-                        InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
-                        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
-                    ) {
-                        for (Map.Entry<String, String> entry : parser.mapStrings().entrySet()) {
-                            historicalFeaturesMap.put(new NodeFeature(entry.getKey()), Version.fromString(entry.getValue()));
-                        }
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
-
-                historicalFeatures = Collections.unmodifiableMap(historicalFeaturesMap);
+                historicalFeatures = Collections.unmodifiableMap(loadHistoricalFeatures(metadataPath));
             }
 
             return historicalFeatures;
+        }
+
+        static Map<NodeFeature, Version> loadHistoricalFeatures(String metadataPath) {
+            Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
+            String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+            for (String metadataFile : metadataFiles) {
+                try (
+                    InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
+                ) {
+                    Map<String, Object> parsedMap = parser.map();
+                    if (parsedMap.get("historical_features") instanceof Map<?, ?> parsedHistoricalFeatures) {
+                        for (var entry : parsedHistoricalFeatures.entrySet()) {
+                            historicalFeaturesMap.put(
+                                new NodeFeature((String) entry.getKey()),
+                                Version.fromString((String) entry.getValue())
+                            );
+                        }
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            return historicalFeaturesMap;
+        }
+
+        static Set<String> loadFeatureNames(String metadataPath) {
+            Set<String> featureNames = new HashSet<>();
+            String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+            for (String metadataFile : metadataFiles) {
+                try (
+                    InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
+                ) {
+                    Map<String, Object> parsedMap = parser.map();
+                    if (parsedMap.get("feature_names") instanceof ArrayList<?> parsedFeatureNames) {
+                        for (var entry : parsedFeatureNames) {
+                            featureNames.add((String) entry);
+                        }
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            return featureNames;
         }
     }
 

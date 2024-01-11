@@ -19,11 +19,18 @@ import org.junit.rules.TemporaryFolder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class HistoricalFeaturesMetadataExtractorTests extends ESTestCase {
@@ -33,15 +40,30 @@ public class HistoricalFeaturesMetadataExtractorTests extends ESTestCase {
 
     public void testExtractHistoricalMetadata() throws IOException {
         HistoricalFeaturesMetadataExtractor extractor = new HistoricalFeaturesMetadataExtractor(this.getClass().getClassLoader());
-        Map<NodeFeature, Version> nodeFeatureVersionMap = extractor.extractHistoricalFeatureMetadata();
+        Map<NodeFeature, Version> nodeFeatureVersionMap = new HashMap<>();
+        Set<String> featureNamesSet = new HashSet<>();
+        extractor.extractHistoricalFeatureMetadata((historical, names) -> {
+            nodeFeatureVersionMap.putAll(historical);
+            featureNamesSet.addAll(names);
+        });
         assertThat(nodeFeatureVersionMap, not(anEmptyMap()));
+        assertThat(featureNamesSet, not(empty()));
 
         Path outputFile = temporaryFolder.newFile().toPath();
         extractor.generateMetadataFile(outputFile);
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(EMPTY, Files.newInputStream(outputFile))) {
-            Map<String, String> parsedMap = parser.mapStrings();
+            Map<String, Object> parsedMap = parser.map();
+            assertThat(parsedMap, hasKey("historical_features"));
+            assertThat(parsedMap, hasKey("feature_names"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> historicalFeaturesMap = (Map<String, Object>) (parsedMap.get("historical_features"));
             for (Map.Entry<NodeFeature, Version> entry : nodeFeatureVersionMap.entrySet()) {
-                assertThat(parsedMap, hasEntry(entry.getKey().id(), entry.getValue().toString()));
+                assertThat(historicalFeaturesMap, hasEntry(entry.getKey().id(), entry.getValue().toString()));
+            }
+            @SuppressWarnings("unchecked")
+            ArrayList<String> featureNamesList = (ArrayList<String>) (parsedMap.get("feature_names"));
+            for (var entry : featureNamesList) {
+                assertThat(featureNamesList, hasItem(entry));
             }
         }
     }

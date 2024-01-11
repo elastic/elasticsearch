@@ -9,7 +9,6 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.features.FeatureData;
 import org.elasticsearch.features.FeatureSpecification;
 
@@ -18,39 +17,24 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
-class ESRestTestFeatureService implements TestFeatureService {
+class LegacyESRestTestFeatureService implements TestFeatureService {
     private final Predicate<String> historicalFeaturesPredicate;
     private final Set<String> clusterStateFeatures;
-    private final Set<String> allHistoricalFeatureNames;
-    private final Set<String> allFeatureNames;
 
-    ESRestTestFeatureService(
-        Set<String> featureNames,
+    LegacyESRestTestFeatureService(
         List<? extends FeatureSpecification> specs,
         Collection<Version> nodeVersions,
         Set<String> clusterStateFeatures
     ) {
-        this.allFeatureNames = featureNames;
         var featureData = FeatureData.createFromSpecifications(specs);
         var historicalFeatures = featureData.getHistoricalFeatures();
-        this.allHistoricalFeatureNames = historicalFeatures.lastEntry() == null ? Set.of() : historicalFeatures.lastEntry().getValue();
         this.historicalFeaturesPredicate = TestFeatureService.createHistoricalFeaturePredicate(historicalFeatures, nodeVersions);
         this.clusterStateFeatures = clusterStateFeatures;
     }
 
     public boolean clusterHasFeature(String featureId) {
-        if (allFeatureNames.contains(featureId) == false && allHistoricalFeatureNames.contains(featureId) == false) {
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Unknown feature %s: check the feature has been added to the correct FeatureSpecification in the relevant module or, "
-                        + "if this is a legacy feature used only in tests, to a test-only FeatureSpecification such as %s.",
-                    featureId,
-                    RestTestLegacyFeatures.class.getCanonicalName()
-                )
-            );
-        }
-        if (allFeatureNames.contains(featureId)) {
-            return clusterStateFeatures.contains(featureId);
+        if (clusterStateFeatures.contains(featureId)) {
+            return true;
         }
         return historicalFeaturesPredicate.test(featureId);
     }

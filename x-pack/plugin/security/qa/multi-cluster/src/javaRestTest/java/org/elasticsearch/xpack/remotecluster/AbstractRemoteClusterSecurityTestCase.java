@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -36,8 +37,11 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCase {
@@ -49,8 +53,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static final String REMOTE_TRANSFORM_USER = "remote_transform_user";
     protected static final String REMOTE_SEARCH_ROLE = "remote_search";
     protected static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
+    private static final String KEYSTORE_PASSWORD = "keystore-password";
 
     protected static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("analysis-common")
+        .keystorePassword(KEYSTORE_PASSWORD)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.token.enabled", "true")
@@ -191,21 +197,72 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         boolean skipUnavailable
     ) throws Exception {
         // For configurable remote cluster security, this method assumes the cross cluster access API key is already configured in keystore
+        putRemoteClusterSettings(clusterAlias, targetFulfillingCluster, basicSecurity, isProxyMode, skipUnavailable);
+
+        // Ensure remote cluster is connected
+        checkRemoteConnection(clusterAlias, targetFulfillingCluster, basicSecurity, isProxyMode);
+    }
+
+    protected void configureRemoteClusterCredentials(String clusterAlias, String credentials, MutableSettingsProvider keystoreSettings)
+        throws IOException {
+        keystoreSettings.put("cluster.remote." + clusterAlias + ".credentials", credentials);
+        queryCluster.updateStoredSecureSettings();
+        reloadSecureSettings();
+    }
+
+    protected void removeRemoteClusterCredentials(String clusterAlias, MutableSettingsProvider keystoreSettings) throws IOException {
+        keystoreSettings.remove("cluster.remote." + clusterAlias + ".credentials");
+        queryCluster.updateStoredSecureSettings();
+        reloadSecureSettings();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void reloadSecureSettings() throws IOException {
+        final Request request = new Request("POST", "/_nodes/reload_secure_settings");
+        request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+        final Response reloadResponse = adminClient().performRequest(request);
+        assertOK(reloadResponse);
+        final Map<String, Object> map = entityAsMap(reloadResponse);
+        assertThat(map.get("nodes"), instanceOf(Map.class));
+        final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
+        assertThat(nodes, is(not(anEmptyMap())));
+        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
+            assertThat(entry.getValue(), instanceOf(Map.class));
+            final Map<String, Object> node = (Map<String, Object>) entry.getValue();
+            assertThat(node.get("reload_exception"), nullValue());
+        }
+    }
+
+    protected void putRemoteClusterSettings(
+        String clusterAlias,
+        ElasticsearchCluster targetFulfillingCluster,
+        boolean basicSecurity,
+        boolean isProxyMode,
+        boolean skipUnavailable
+    ) throws IOException {
         final Settings.Builder builder = Settings.builder();
         final String remoteClusterEndpoint = basicSecurity
             ? targetFulfillingCluster.getTransportEndpoint(0)
             : targetFulfillingCluster.getRemoteClusterServerEndpoint(0);
         if (isProxyMode) {
             builder.put("cluster.remote." + clusterAlias + ".mode", "proxy")
-                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint);
+                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint)
+                .putNull("cluster.remote." + clusterAlias + ".seeds");
         } else {
             builder.put("cluster.remote." + clusterAlias + ".mode", "sniff")
-                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint);
+                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint)
+                .putNull("cluster.remote." + clusterAlias + ".proxy_address");
         }
         builder.put("cluster.remote." + clusterAlias + ".skip_unavailable", skipUnavailable);
         updateClusterSettings(builder.build());
+    }
 
-        // Ensure remote cluster is connected
+    protected void checkRemoteConnection(
+        String clusterAlias,
+        ElasticsearchCluster targetFulfillingCluster,
+        boolean basicSecurity,
+        boolean isProxyMode
+    ) throws Exception {
         final Request remoteInfoRequest = new Request("GET", "/_remote/info");
         assertBusy(() -> {
             final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);

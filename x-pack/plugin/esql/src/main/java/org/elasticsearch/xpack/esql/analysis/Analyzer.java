@@ -243,7 +243,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     policy
                 );
 
-            return new Enrich(plan.source(), plan.child(), policyNameExp, matchField, policyRes, enrichFields);
+            return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, matchField, policyRes, enrichFields);
         }
 
         private String unresolvedPolicyError(String policyName, EnrichResolution enrichResolution) {
@@ -463,26 +463,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // otherwise resolve them
             else {
                 Map<NamedExpression, Integer> priorities = new LinkedHashMap<>();
-                for (Attribute attribute : childOutput) {
-                    for (var proj : projections) {
-                        List<Attribute> resolved;
-                        int priority;
-                        if (proj instanceof UnresolvedStar) {
-                            resolved = childOutput;
-                            priority = 2;
-                        } else if (proj instanceof UnresolvedAttribute ua) {
-                            resolved = resolveAgainstList(ua, childOutput);
-                            priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
-                        } else {
-                            resolved = List.of(attribute);
-                            priority = 0;
-                        }
-                        for (Attribute attr : resolved) {
-                            Integer previousPrio = priorities.get(attr);
-                            if (previousPrio == null || previousPrio >= priority) {
-                                priorities.remove(attr);
-                                priorities.put(attr, priority);
-                            }
+                for (var proj : projections) {
+                    final List<Attribute> resolved;
+                    final int priority;
+                    if (proj instanceof UnresolvedStar) {
+                        resolved = childOutput;
+                        priority = 2;
+                    } else if (proj instanceof UnresolvedAttribute ua) {
+                        resolved = resolveAgainstList(ua, childOutput);
+                        priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
+                    } else {
+                        assert false : "unexpected projection: " + proj;
+                        throw new IllegalStateException("unexpected projection: " + proj);
+                    }
+                    for (Attribute attr : resolved) {
+                        Integer previousPrio = priorities.get(attr);
+                        if (previousPrio == null || previousPrio >= priority) {
+                            priorities.remove(attr);
+                            priorities.put(attr, priority);
                         }
                     }
                 }
@@ -584,7 +582,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; only KEYWORD allowed"
                     );
                 }
-                return new Enrich(enrich.source(), enrich.child(), enrich.policyName(), resolved, enrich.policy(), enrich.enrichFields());
+                return new Enrich(
+                    enrich.source(),
+                    enrich.child(),
+                    enrich.mode(),
+                    enrich.policyName(),
+                    resolved,
+                    enrich.policy(),
+                    enrich.enrichFields()
+                );
             }
             return enrich;
         }

@@ -31,6 +31,7 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
             ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi("esql.async_query");
             for (Map<String, Object> body : copy.getBodies()) {
                 body.put("wait_for_completion_timeout", "0ms");
+                body.put("keep_on_completion", true);
             }
             doSection.setApiCallSection(copy);
 

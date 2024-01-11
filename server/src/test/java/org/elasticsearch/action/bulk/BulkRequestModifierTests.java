@@ -106,7 +106,7 @@ public class BulkRequestModifierTests extends ESTestCase {
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.id(), 1, 17, 1, true);
             originalResponses.add(BulkItemResponse.success(Integer.parseInt(indexRequest.id()), indexRequest.opType(), indexResponse));
         }
-        bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[originalResponses.size()]), 0));
+        bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[0]), 0));
 
         assertThat(responses.size(), equalTo(32));
         for (int i = 0; i < 32; i++) {

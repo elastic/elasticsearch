@@ -39,12 +39,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 public class UserBoolQueryBuilderTests extends ESTestCase {
-    private static final String[] allowedIndexFieldNames = new String[] {
-        "username",
-        "roles",
-        "full_name",
-        "email",
-        "enabled" };
+    private static final String[] allowedIndexFieldNames = new String[] { "username", "roles", "full_name", "email", "enabled" };
 
     public void testBuildFromSimpleQuery() {
         final QueryBuilder query = randomSimpleQuery();

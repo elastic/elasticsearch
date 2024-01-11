@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -100,6 +101,11 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
         return mlPlugin.getTokenizers();
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return mlPlugin.getMappers();
     }
 
     /**

@@ -383,7 +383,12 @@ public final class DataStreamTestHelper {
             if (DataStream.isFailureStoreEnabled() && storeFailures) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
-                        createIndexMetadata(getDefaultFailureStoreName(dsTuple.v1(), failureStoreNumber, currentTime), true, settings, replicas)
+                        createIndexMetadata(
+                            getDefaultFailureStoreName(dsTuple.v1(), failureStoreNumber, currentTime),
+                            true,
+                            settings,
+                            replicas
+                        )
                     );
                 }
                 allIndices.addAll(failureStores);

@@ -30,12 +30,11 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAddExact;
  * Reduce a multivalued field to a single valued field containing the sum of all values.
  */
 public class MvSum extends AbstractMultivalueFunction {
-    // @TODO: add support for "integer", "long", "unsigned_long" once tests are fixed for both returnType and arg type
     @FunctionInfo(
-        returnType = "double",
+        returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Converts a multivalued field into a single valued field containing the sum of all of the values."
     )
-    public MvSum(Source source, @Param(name = "v", type = "double") Expression field) {
+    public MvSum(Source source, @Param(name = "v", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 

@@ -1325,9 +1325,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 // because it replaces any metadata previously associated with the API key
                 builder.field("metadata", baseUpdateApiKeyRequest.getMetadata());
             }
-            if (baseUpdateApiKeyRequest.getExpiration() != null) {
-                builder.field("expiration", baseUpdateApiKeyRequest.getExpiration());
-            }
+            builder.field(
+                "expiration",
+                baseUpdateApiKeyRequest.getExpiration() != null ? baseUpdateApiKeyRequest.getExpiration().toString() : null
+            );
         }
 
         private static void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {

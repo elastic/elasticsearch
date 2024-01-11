@@ -627,7 +627,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         final String keyId = randomAlphaOfLength(10);
-        final TimeValue newExpiration = ApiKeyTests.randomFutureExpirationTime();
+        final TimeValue newExpiration = randomFrom(ApiKeyTests.randomFutureExpirationTime(), null);
         final var updateApiKeyRequest = new UpdateApiKeyRequest(
             keyId,
             randomBoolean() ? null : keyRoleDescriptors,
@@ -638,12 +638,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final var expectedUpdateKeyAuditEventString = String.format(
             Locale.ROOT,
             """
-                "change":{"apikey":{"id":"%s","type":"rest"%s%s,"expiration":"%s"}}\
+                "change":{"apikey":{"id":"%s","type":"rest"%s%s,"expiration":%s}}\
                 """,
             keyId,
             updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
             updateApiKeyRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization()),
-            updateApiKeyRequest.getExpiration()
+            updateApiKeyRequest.getExpiration() == null ? null : Strings.format("\"%s\"", newExpiration)
         );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
@@ -672,7 +672,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final var expectedBulkUpdateKeyAuditEventString = String.format(
             Locale.ROOT,
             """
-                "change":{"apikeys":{"ids":[%s],"type":"rest"%s%s}}\
+                "change":{"apikeys":{"ids":[%s],"type":"rest"%s%s,"expiration":null}}\
                 """,
             bulkUpdateApiKeyRequest.getIds().stream().map(s -> Strings.format("\"%s\"", s)).collect(Collectors.joining(",")),
             bulkUpdateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
@@ -877,7 +877,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             updateMetadataWithSerialization = randomApiKeyMetadataWithSerialization();
         }
 
-        final TimeValue newExpiration = ApiKeyTests.randomFutureExpirationTime();
+        final TimeValue newExpiration = randomFrom(ApiKeyTests.randomFutureExpirationTime(), null);
         final var updateRequest = new UpdateCrossClusterApiKeyRequest(
             createRequest.getId(),
             updateAccess,
@@ -889,12 +889,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String expectedUpdateAuditEventString = String.format(
             Locale.ROOT,
             """
-                "change":{"apikey":{"id":"%s","type":"cross_cluster"%s%s,"expiration":"%s"}}\
+                "change":{"apikey":{"id":"%s","type":"cross_cluster"%s%s,"expiration":%s}}\
                 """,
             createRequest.getId(),
             updateAccess == null ? "" : ",\"role_descriptors\":" + accessWithSerialization.serialization(),
             updateRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", updateMetadataWithSerialization.serialization()),
-            newExpiration
+            newExpiration == null ? null : String.format("\"%s\"", newExpiration)
         );
 
         output = CapturingLogger.output(logger.getName(), Level.INFO);

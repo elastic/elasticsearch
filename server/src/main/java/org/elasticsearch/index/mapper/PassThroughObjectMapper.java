@@ -20,6 +20,13 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
+/**
+ * Mapper for pass-through objects.
+ *
+ * Pass-through objects allow creating fields inside them that can also be referenced directly in search queries.
+ * They also include parameters that affect how nested fields get configured. For instance, if parameter "time_series_dimension"
+ * is set, all keyword subfields are marked as dimensions and included in routing and tsid calculations.
+ */
 public class PassThroughObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PassThroughObjectMapper.class);
 
@@ -27,9 +34,11 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
     public static class Builder extends ObjectMapper.Builder {
 
+        // Controls whether subfields are configured as time-series dimensions.
         protected Explicit<Boolean> containsDimensions = Explicit.IMPLICIT_FALSE;
 
         public Builder(String name) {
+            // Subobjects are not currently supported.
             super(name, Explicit.IMPLICIT_FALSE);
         }
 
@@ -42,16 +51,14 @@ public class PassThroughObjectMapper extends ObjectMapper {
             return this;
         }
 
+        public PassThroughObjectMapper.Builder setContainsDimensions() {
+            containsDimensions = Explicit.EXPLICIT_TRUE;
+            return this;
+        }
+
         @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
-            return new PassThroughObjectMapper(
-                name,
-                enabled,
-                subobjects,
-                dynamic,
-                buildMappers(context.createChildContext(name)),
-                containsDimensions
-            );
+            return new PassThroughObjectMapper(name, enabled, dynamic, buildMappers(context.createChildContext(name)), containsDimensions);
         }
     }
 
@@ -60,12 +67,12 @@ public class PassThroughObjectMapper extends ObjectMapper {
     PassThroughObjectMapper(
         String name,
         Explicit<Boolean> enabled,
-        Explicit<Boolean> subobjects,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Explicit<Boolean> containsDimensions
     ) {
-        super(name, name, enabled, subobjects, dynamic, mappers);
+        // Subobjects are not currently supported.
+        super(name, name, enabled, Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.containsDimensions = containsDimensions;
     }
 
@@ -78,6 +85,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(name());
         builder.enabled = enabled;
         builder.dynamic = dynamic;
+        builder.containsDimensions = containsDimensions;
         return builder;
     }
 
@@ -93,7 +101,6 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return new PassThroughObjectMapper(
             simpleName(),
             mergeResult.enabled(),
-            mergeResult.subObjects(),
             mergeResult.dynamic(),
             mergeResult.mappers(),
             containsDimensions
@@ -122,7 +129,6 @@ public class PassThroughObjectMapper extends ObjectMapper {
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             PassThroughObjectMapper.Builder builder = new Builder(name);
-
             parsePassthrough(name, node, builder);
             parseObjectFields(node, parserContext, builder);
             return builder;

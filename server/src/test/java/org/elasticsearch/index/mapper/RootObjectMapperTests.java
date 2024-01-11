@@ -358,4 +358,17 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("type cannot be an empty string"));
     }
 
+    public void testPassThroughObjectWithAliases() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("labels").field("type", "passthrough");
+            {
+                b.startObject("properties");
+                b.startObject("dim").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("labels.dim"), instanceOf(KeywordFieldMapper.class));
+    }
 }

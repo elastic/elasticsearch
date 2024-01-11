@@ -74,7 +74,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
     }
 
     @Override
-    public final ContentPath path() {
+    public ContentPath path() {
         return contentPath;
     }
 

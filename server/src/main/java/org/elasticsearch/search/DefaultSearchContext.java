@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -901,7 +902,7 @@ final class DefaultSearchContext extends SearchContext {
                     // to the routing path.
                     Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
                     for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
-                        if (indexRouting.matchesField(mapper.name())) {
+                        if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
                             matchingRoutingPaths.add(mapper.name());
                         }
                     }

@@ -9,6 +9,7 @@
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -187,7 +188,12 @@ public class CrossClusterPainlessExecuteIT extends AbstractMultiClustersTestCase
     private int indexDocs(Client client, String index) {
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource(KEYWORD_FIELD, "my_value").get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+            try {
+                indexRequestBuilder.setSource(KEYWORD_FIELD, "my_value").get();
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;

@@ -38,6 +38,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -88,9 +89,9 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         );
         ensureGreen();
 
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "c_value1").get();
-        createIndexRequest("test", "grandchild", "gc1", "c1", "gc_field", "gc_value1").setRouting("p1").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+        indexData("test", "child", "c1", "p1", null, "c_field", "c_value1");
+        indexData("test", "grandchild", "gc1", "c1", "p1", "gc_field", "gc_value1");
         refresh();
 
         assertNoFailuresAndResponse(
@@ -154,8 +155,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // index simple data
-        createIndexRequest("test", "foo", "1", null, "foo", 1).get();
-        createIndexRequest("test", "test", "2", "1", "foo", 1).get();
+        indexData("test", "foo", "1", null, null, "foo", 1);
+        indexData("test", "test", "2", "1", null, "foo", 1);
         refresh();
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasChildQuery("test", matchQuery("foo", 1), ScoreMode.None)),
@@ -171,12 +172,12 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // index simple data
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
-        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
-        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-        createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
-        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+        indexData("test", "child", "c1", "p1", null, "c_field", "red");
+        indexData("test", "child", "c2", "p1", null, "c_field", "yellow");
+        indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
+        indexData("test", "child", "c3", "p2", null, "c_field", "blue");
+        indexData("test", "child", "c4", "p2", null, "c_field", "red");
         refresh();
 
         // TEST FETCHING _parent from child
@@ -245,7 +246,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         for (int i = 0; i < 10; i++) {
             builders.add(createIndexRequest("test", "parent", Integer.toString(i), null, "p_field", i));
         }
-        indexRandom(randomBoolean(), builders);
+        indexRandomAndDecRefRequests(randomBoolean(), builders);
         builders.clear();
         for (int j = 0; j < 2; j++) {
             for (int i = 0; i < 10; i++) {
@@ -259,7 +260,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 break; // randomly break out and dont' have deletes / updates
             }
         }
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
 
         for (int i = 1; i <= 10; i++) {
             logger.info("Round {}", i);
@@ -273,7 +274,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
         Map<String, Set<String>> parentToChildren = new HashMap<>();
         // Childless parent
-        createIndexRequest("test", "parent", "p0", null, "p_field", "p0").get();
+        indexData("test", "parent", "p0", null, null, "p_field", "p0");
         parentToChildren.put("p0", new HashSet<>());
 
         String previousParentId = null;
@@ -296,7 +297,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             }
             assertThat(parentToChildren.get(previousParentId).add(childId), is(true));
         }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        indexRandomAndDecRefRequests(true, builders);
 
         assertThat(parentToChildren.isEmpty(), equalTo(false));
         for (Map.Entry<String, Set<String>> parentToChildrenEntry : parentToChildren.entrySet()) {
@@ -322,17 +323,17 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // index simple data with flushes, so we have many segments
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
         indicesAdmin().prepareFlush().get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
+        indexData("test", "child", "c1", "p1", null, "c_field", "red");
         indicesAdmin().prepareFlush().get();
-        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
+        indexData("test", "child", "c2", "p1", null, "c_field", "yellow");
         indicesAdmin().prepareFlush().get();
-        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
+        indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
         indicesAdmin().prepareFlush().get();
-        createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
+        indexData("test", "child", "c3", "p2", null, "c_field", "blue");
         indicesAdmin().prepareFlush().get();
-        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
+        indexData("test", "child", "c4", "p2", null, "c_field", "red");
         indicesAdmin().prepareFlush().get();
         refresh();
 
@@ -398,12 +399,12 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // index simple data
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
-        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
-        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-        createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
-        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+        indexData("test", "child", "c1", "p1", null, "c_field", "red");
+        indexData("test", "child", "c2", "p1", null, "c_field", "yellow");
+        indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
+        indexData("test", "child", "c3", "p2", null, "c_field", "blue");
+        indexData("test", "child", "c4", "p2", null, "c_field", "red");
 
         refresh();
 
@@ -445,12 +446,12 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
         // index simple data
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
-        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
-        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-        createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
-        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+        indexData("test", "child", "c1", "p1", null, "c_field", "red");
+        indexData("test", "child", "c2", "p1", null, "c_field", "yellow");
+        indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
+        indexData("test", "child", "c3", "p2", null, "c_field", "blue");
+        indexData("test", "child", "c4", "p2", null, "c_field", "red");
 
         refresh();
 
@@ -465,7 +466,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // update p1 and see what that we get updated values...
 
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1_updated").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1_updated");
         indicesAdmin().prepareRefresh().get();
 
         assertNoFailuresAndResponse(
@@ -483,12 +484,12 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // index simple data
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
-        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
-        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-        createIndexRequest("test", "child", "c3", "p3", "c_field", "blue").get();
-        createIndexRequest("test", "child", "c4", "p2", "c_field", "red").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+        indexData("test", "child", "c1", "p1", null, "c_field", "red");
+        indexData("test", "child", "c2", "p1", null, "c_field", "yellow");
+        indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
+        indexData("test", "child", "c3", "p3", null, "c_field", "blue");
+        indexData("test", "child", "c4", "p2", null, "c_field", "red");
 
         refresh();
 
@@ -507,10 +508,10 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
-        createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
-        createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
+        indexData("test", "parent", "1", null, null, "p_field", 1);
+        indexData("test", "child", "2", "1", null, "c_field", 1);
 
-        prepareIndex("test").setId("3").setSource("p_field", 1).get();
+        indexDoc("test", "3", "p_field", 1);
         refresh();
 
         assertHitCountAndNoFailures(
@@ -531,8 +532,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         String parentId = "p1";
-        createIndexRequest("test", "parent", parentId, null, "p_field", "1").get();
-        createIndexRequest("test", "child", "c1", parentId, "c_field", "1").get();
+        indexData("test", "parent", parentId, null, null, "p_field", "1");
+        indexData("test", "child", "c1", parentId, null, "c_field", "1");
         refresh();
 
         assertHitCount(prepareSearch("test").setSize(0).setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.Max)), 1L);
@@ -556,8 +557,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         String parentId = "p1";
-        createIndexRequest("test", "parent", parentId, null, "p_field", "1").get();
-        createIndexRequest("test", "child", "c1", parentId, "c_field", "1").get();
+        indexData("test", "parent", parentId, null, null, "p_field", "1");
+        indexData("test", "child", "c1", parentId, null, "c_field", "1");
         refresh();
 
         assertResponse(
@@ -635,7 +636,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         );
         ensureGreen();
 
-        indexRandom(true, createDocBuilders().toArray(new IndexRequestBuilder[0]));
+        indexRandomAndDecRefRequests(true, createDocBuilders());
         assertResponse(
             prepareSearch("test").setQuery(
                 hasChildQuery(
@@ -735,9 +736,11 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             0L
         );
 
-        prepareIndex("test").setSource(jsonBuilder().startObject().field("text", "value").endObject())
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setSource(
+            jsonBuilder().startObject().field("text", "value").endObject()
+        ).setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertHitCountAndNoFailures(
             prepareSearch("test").setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)),
@@ -755,11 +758,11 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
-        createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
-        createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
+        indexData("test", "parent", "1", null, null, "p_field", 1);
+        indexData("test", "child", "2", "1", null, "c_field", 1);
         indicesAdmin().prepareFlush("test").get();
 
-        prepareIndex("test").setId("3").setSource("p_field", 2).get();
+        indexDoc("test", "3", "p_field", 2);
 
         refresh();
         assertNoFailuresAndResponse(
@@ -787,8 +790,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
-        createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
-        createIndexRequest("test", "child", "2", "1", "c_field", "foo bar").get();
+        indexData("test", "parent", "1", null, null, "p_field", 1);
+        indexData("test", "child", "2", "1", null, "c_field", "foo bar");
         refresh();
 
         assertNoFailuresAndResponse(
@@ -817,9 +820,9 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // query filter in case for p/c shouldn't execute per segment, but rather
-        createIndexRequest("test", "parent", "1", null, "p_field", 1).get();
+        indexData("test", "parent", "1", null, null, "p_field", 1);
         indicesAdmin().prepareFlush("test").setForce(true).get();
-        createIndexRequest("test", "child", "2", "1", "c_field", 1).get();
+        indexData("test", "child", "2", "1", null, "c_field", 1);
         refresh();
 
         assertResponse(
@@ -869,11 +872,11 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         int childId = 0;
         for (int i = 0; i < 10; i++) {
             String parentId = Strings.format("p%03d", i);
-            createIndexRequest("test", "parent", parentId, null, "p_field", parentId).get();
+            indexData("test", "parent", parentId, null, null, "p_field", parentId);
             int j = childId;
             for (; j < childId + 50; j++) {
                 String childUid = Strings.format("c%03d", j);
-                createIndexRequest("test", "child", childUid, parentId, "c_field", childUid).get();
+                indexData("test", "child", childUid, parentId, null, "c_field", childUid);
             }
             childId = j;
         }
@@ -919,12 +922,12 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // index simple data
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "red").get();
-        createIndexRequest("test", "child", "c2", "p1", "c_field", "yellow").get();
-        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-        createIndexRequest("test", "child", "c3", "p2", "c_field", "x").get();
-        createIndexRequest("test", "child", "c4", "p2", "c_field", "x").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+        indexData("test", "child", "c1", "p1", null, "c_field", "red");
+        indexData("test", "child", "c2", "p1", null, "c_field", "yellow");
+        indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
+        indexData("test", "child", "c3", "p2", null, "c_field", "x");
+        indexData("test", "child", "c4", "p2", null, "c_field", "x");
 
         refresh();
 
@@ -950,10 +953,10 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // re-index
         for (int i = 0; i < 10; i++) {
-            createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-            createIndexRequest("test", "child", "d" + i, "p1", "c_field", "red").get();
-            createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-            createIndexRequest("test", "child", "c3", "p2", "c_field", "x").get();
+            indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+            indexData("test", "child", "d" + i, "p1", null, "c_field", "red");
+            indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
+            indexData("test", "child", "c3", "p2", null, "c_field", "x");
             indicesAdmin().prepareRefresh("test").get();
         }
 
@@ -984,12 +987,12 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // index simple data
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "x").get();
-        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-        createIndexRequest("test", "child", "c3", "p2", "c_field", "x").get();
-        createIndexRequest("test", "child", "c4", "p2", "c_field", "x").get();
-        createIndexRequest("test", "child", "c5", "p2", "c_field", "x").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+        indexData("test", "child", "c1", "p1", null, "c_field", "x");
+        indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
+        indexData("test", "child", "c3", "p2", null, "c_field", "x");
+        indexData("test", "child", "c4", "p2", null, "c_field", "x");
+        indexData("test", "child", "c5", "p2", null, "c_field", "x");
         refresh();
         // Score needs to be 3 or above!
         assertNoFailuresAndResponse(
@@ -1016,7 +1019,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             0L
         );
 
-        createIndexRequest("test", "child", "c1", "p1").get();
+        indexData("test", "child", "c1", "p1");
         refresh();
 
         assertHitCount(
@@ -1026,7 +1029,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             1L
         );
 
-        createIndexRequest("test", "child", "c2", "p2").get();
+        indexData("test", "child", "c2", "p2");
         refresh();
         assertHitCount(
             prepareSearch("test").setQuery(
@@ -1044,12 +1047,12 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         );
         ensureGreen();
 
-        createIndexRequest("test", "child", "c1", "p1").get();
+        indexData("test", "child", "c1", "p1");
         refresh();
 
         assertHitCount(prepareSearch("test").setQuery(parentId("child", "p1")), 1L);
 
-        createIndexRequest("test", "child", "c2", "p2").get();
+        indexData("test", "child", "c2", "p2");
         refresh();
 
         assertHitCount(prepareSearch("test").setQuery(boolQuery().should(parentId("child", "p1")).should(parentId("child", "p2"))), 2L);
@@ -1060,17 +1063,17 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // index simple data
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-        createIndexRequest("test", "parent", "p3", null, "p_field", "p_value3").get();
-        createIndexRequest("test", "parent", "p4", null, "p_field", "p_value4").get();
-        createIndexRequest("test", "parent", "p5", null, "p_field", "p_value5").get();
-        createIndexRequest("test", "parent", "p6", null, "p_field", "p_value6").get();
-        createIndexRequest("test", "parent", "p7", null, "p_field", "p_value7").get();
-        createIndexRequest("test", "parent", "p8", null, "p_field", "p_value8").get();
-        createIndexRequest("test", "parent", "p9", null, "p_field", "p_value9").get();
-        createIndexRequest("test", "parent", "p10", null, "p_field", "p_value10").get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "blue").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+        indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
+        indexData("test", "parent", "p3", null, null, "p_field", "p_value3");
+        indexData("test", "parent", "p4", null, null, "p_field", "p_value4");
+        indexData("test", "parent", "p5", null, null, "p_field", "p_value5");
+        indexData("test", "parent", "p6", null, null, "p_field", "p_value6");
+        indexData("test", "parent", "p7", null, null, "p_field", "p_value7");
+        indexData("test", "parent", "p8", null, null, "p_field", "p_value8");
+        indexData("test", "parent", "p9", null, null, "p_field", "p_value9");
+        indexData("test", "parent", "p10", null, null, "p_field", "p_value10");
+        indexData("test", "child", "c1", "p1", null, "c_field", "blue");
         indicesAdmin().prepareFlush("test").get();
         indicesAdmin().prepareRefresh("test").get();
 
@@ -1079,7 +1082,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             1L
         );
 
-        createIndexRequest("test", "child", "c2", "p2", "c_field", "blue").get();
+        indexData("test", "child", "c2", "p2", null, "c_field", "blue");
         indicesAdmin().prepareRefresh("test").get();
 
         assertHitCountAndNoFailures(
@@ -1132,10 +1135,10 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             )
         );
 
-        createIndexRequest("grandissue", "grandparent", "1", null, "name", "Grandpa").get();
-        createIndexRequest("grandissue", "parent", "2", "1", "name", "Dana").get();
-        createIndexRequest("grandissue", "child_type_one", "3", "2", "name", "William").setRouting("1").get();
-        createIndexRequest("grandissue", "child_type_two", "4", "2", "name", "Kate").setRouting("1").get();
+        indexData("grandissue", "grandparent", "1", null, null, "name", "Grandpa");
+        indexData("grandissue", "parent", "2", "1", null, "name", "Dana");
+        indexData("grandissue", "child_type_one", "3", "2", "1", "name", "William");
+        indexData("grandissue", "child_type_two", "4", "2", "1", "name", "Kate");
         refresh();
 
         assertHitCount(
@@ -1177,7 +1180,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         );
         ensureGreen();
 
-        createIndexRequest(
+        indexData(
             "test",
             "parent",
             "p1",
@@ -1205,8 +1208,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .endObject()
                 .endArray()
                 .endObject()
-        ).get();
-        createIndexRequest(
+        );
+        indexData(
             "test",
             "parent",
             "p2",
@@ -1222,10 +1225,10 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .endObject()
                 .endArray()
                 .endObject()
-        ).get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "blue").get();
-        createIndexRequest("test", "child", "c2", "p1", "c_field", "red").get();
-        createIndexRequest("test", "child", "c3", "p2", "c_field", "red").get();
+        );
+        indexData("test", "child", "c1", "p1", null, "c_field", "blue");
+        indexData("test", "child", "c2", "p1", null, "c_field", "red");
+        indexData("test", "child", "c3", "p2", null, "c_field", "red");
         refresh();
 
         ScoreMode scoreMode = randomFrom(ScoreMode.values());
@@ -1251,8 +1254,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         String parentId = "p1";
-        createIndexRequest("test", "parent", parentId, null, "p_field", "1").get();
-        createIndexRequest("test", "child", "c1", parentId, "c_field", "1").get();
+        indexData("test", "parent", parentId, null, null, "p_field", "1");
+        indexData("test", "child", "c1", parentId, null, "c_field", "1");
         refresh();
 
         assertResponse(
@@ -1301,7 +1304,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         String parentId = "p1";
-        prepareIndex("test").setId(parentId).setSource("p_field", "1").get();
+        indexDoc("test", parentId, "p_field", "1");
         refresh();
 
         try {
@@ -1348,17 +1351,17 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         ensureGreen();
 
         // index simple data
-        createIndexRequest("test", "parent", "p1", null, "p_field", "p_value1").get();
-        createIndexRequest("test", "parent", "p2", null, "p_field", "p_value2").get();
-        createIndexRequest("test", "child", "c1", "p1", "c_field", "blue").get();
-        createIndexRequest("test", "child", "c2", "p1", "c_field", "red").get();
-        createIndexRequest("test", "child", "c3", "p2", "c_field", "red").get();
+        indexData("test", "parent", "p1", null, null, "p_field", "p_value1");
+        indexData("test", "parent", "p2", null, null, "p_field", "p_value2");
+        indexData("test", "child", "c1", "p1", null, "c_field", "blue");
+        indexData("test", "child", "c2", "p1", null, "c_field", "red");
+        indexData("test", "child", "c3", "p2", null, "c_field", "red");
         indicesAdmin().prepareForceMerge("test").setMaxNumSegments(1).setFlush(true).get();
-        createIndexRequest("test", "parent", "p3", null, "p_field", "p_value3").get();
-        createIndexRequest("test", "parent", "p4", null, "p_field", "p_value4").get();
-        createIndexRequest("test", "child", "c4", "p3", "c_field", "green").get();
-        createIndexRequest("test", "child", "c5", "p3", "c_field", "blue").get();
-        createIndexRequest("test", "child", "c6", "p4", "c_field", "blue").get();
+        indexData("test", "parent", "p3", null, null, "p_field", "p_value3");
+        indexData("test", "parent", "p4", null, null, "p_field", "p_value4");
+        indexData("test", "child", "c4", "p3", null, "c_field", "green");
+        indexData("test", "child", "c5", "p3", null, "c_field", "blue");
+        indexData("test", "child", "c6", "p4", null, "c_field", "blue");
         indicesAdmin().prepareFlush("test").get();
         indicesAdmin().prepareRefresh("test").get();
 
@@ -1374,7 +1377,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             );
         }
 
-        createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
+        indexData("test", "child", "c3", "p2", null, "c_field", "blue");
         indicesAdmin().prepareRefresh("test").get();
 
         assertHitCount(
@@ -1390,8 +1393,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            createIndexRequest("test", "parent", "p" + i, null).get();
-            createIndexRequest("test", "child", "c" + i, "p" + i).get();
+            indexData("test", "parent", "p" + i, null);
+            indexData("test", "child", "c" + i, "p" + i);
         }
 
         refresh();
@@ -1463,7 +1466,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertAcked(prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         ensureGreen();
 
-        indexRandom(true, createMinMaxDocBuilders().toArray(new IndexRequestBuilder[0]));
+        indexRandomAndDecRefRequests(true, createMinMaxDocBuilders());
 
         // Score mode = NONE
         assertResponse(minMaxQuery(ScoreMode.None, 1, null), response -> {
@@ -1722,12 +1725,12 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertThat(e.getMessage(), equalTo("[has_child] 'max_children' is less than 'min_children'"));
     }
 
-    public void testHasParentInnerQueryType() {
+    public void testHasParentInnerQueryType() throws IOException {
         assertAcked(
             prepareCreate("test").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent-type", "child-type"))
         );
-        createIndexRequest("test", "child-type", "child-id", "parent-id").get();
-        createIndexRequest("test", "parent-type", "parent-id", null).get();
+        indexData("test", "child-type", "child-id", "parent-id");
+        indexData("test", "parent-type", "parent-id", null);
         refresh();
 
         // make sure that when we explicitly set a type, the inner query is executed in the context of the child type instead
@@ -1762,8 +1765,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     .endObject()
             )
         );
-        createIndexRequest("test", "parent-type", "parent-id", null, "searchText", "quick brown fox").get();
-        createIndexRequest("test", "child-type", "child-id", "parent-id", "searchText", "quick brown fox").get();
+        indexData("test", "parent-type", "parent-id", null, null, "searchText", "quick brown fox");
+        indexData("test", "child-type", "child-id", "parent-id", null, "searchText", "quick brown fox");
         refresh();
 
         String[] highlightTypes = new String[] { "plain", "fvh", "unified" };
@@ -1801,8 +1804,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertAcked(
             prepareCreate("my-index").setMapping(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"))
         );
-        createIndexRequest("my-index", "parent", "1", null).get();
-        createIndexRequest("my-index", "child", "2", "1").get();
+        indexData("my-index", "parent", "1", null);
+        indexData("my-index", "child", "2", "1");
         refresh();
 
         assertAcked(
@@ -1818,6 +1821,46 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             assertHitCount(response, 1L);
             assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
         });
+    }
+
+    private void indexData(String index, String type, String id, String parentId, String routing, Object... fields) {
+        IndexRequestBuilder indexRequestBuilder = createIndexRequest(index, type, id, parentId, fields);
+        try {
+            if (routing != null) {
+                indexRequestBuilder.setRouting(routing);
+            }
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private void indexData(String index, String type, String id, String parentId) {
+        IndexRequestBuilder indexRequestBuilder = createIndexRequest(index, type, id, parentId);
+        try {
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private void indexData(String index, String type, String id, String parentId, XContentBuilder builder) throws IOException {
+        IndexRequestBuilder indexRequestBuilder = createIndexRequest(index, type, id, parentId, builder);
+        try {
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 
 }

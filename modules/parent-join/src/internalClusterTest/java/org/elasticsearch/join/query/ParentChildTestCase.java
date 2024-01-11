@@ -56,7 +56,12 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
 
     protected IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, XContentBuilder builder)
         throws IOException {
-        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(builder), false);
+        Map<String, Object> source;
+        if (builder == null) {
+            source = null;
+        } else {
+            source = XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(builder), false);
+        }
         return createIndexRequest(index, type, id, parentId, source);
     }
 
@@ -101,17 +106,22 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
         type = "doc";
 
         IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId(id);
-        Map<String, Object> joinField = new HashMap<>();
-        if (parentId != null) {
-            joinField.put("name", name);
-            joinField.put("parent", parentId);
-            indexRequestBuilder.setRouting(parentId);
-        } else {
-            joinField.put("name", name);
+        try {
+            Map<String, Object> joinField = new HashMap<>();
+            if (parentId != null) {
+                joinField.put("name", name);
+                joinField.put("parent", parentId);
+                indexRequestBuilder.setRouting(parentId);
+            } else {
+                joinField.put("name", name);
+            }
+            source.put("join_field", joinField);
+            indexRequestBuilder.setSource(source);
+            return indexRequestBuilder;
+        } catch (Exception e) {
+            indexRequestBuilder.request().decRef();
+            throw e;
         }
-        source.put("join_field", joinField);
-        indexRequestBuilder.setSource(source);
-        return indexRequestBuilder;
     }
 
 }

@@ -107,6 +107,9 @@ public abstract class AbstractParentChildTestCase extends ParentChildTestCase {
         requests.add(createIndexRequest("test", "comment", "f", "c"));
 
         indexRandom(true, requests);
+        for (IndexRequestBuilder indexRequestBuilder : requests) {
+            indexRequestBuilder.request().decRef();
+        }
         ensureSearchable("test");
     }
 

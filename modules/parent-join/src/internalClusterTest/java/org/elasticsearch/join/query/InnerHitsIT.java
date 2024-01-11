@@ -114,7 +114,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("articles", "comment", "c4", "p2", "message", "elephant captured"));
         requests.add(createIndexRequest("articles", "comment", "c5", "p2", "message", "mice squashed by elephant x"));
         requests.add(createIndexRequest("articles", "comment", "c6", "p2", "message", "elephant scared by mice x y"));
-        indexRandom(true, requests);
+        indexRandomAndDecRefRequests(true, requests);
 
         assertNoFailuresAndResponse(
             prepareSearch("articles").setQuery(
@@ -248,7 +248,7 @@ public class InnerHitsIT extends ParentChildTestCase {
                 requestBuilders.add(createIndexRequest("idx", "child2", String.format(Locale.ENGLISH, "c2_%04d", child2), parentId));
             }
         }
-        indexRandom(true, requestBuilders);
+        indexRandomAndDecRefRequests(true, requestBuilders);
 
         int size = randomIntBetween(0, numDocs);
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
@@ -333,7 +333,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(
             createIndexRequest("stack", "answer", "4", "2", "body", "Denyhosts protects only ssh; Fail2Ban protects all daemons.")
         );
-        indexRandom(true, requests);
+        indexRandomAndDecRefRequests(true, requests);
 
         assertNoFailuresAndResponse(
             prepareSearch("stack").addSort("id", SortOrder.ASC)
@@ -377,7 +377,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("articles", "article", "2", null, "title", "big gray elephant"));
         requests.add(createIndexRequest("articles", "comment", "4", "2", "message", "elephant captured"));
         requests.add(createIndexRequest("articles", "remark", "6", "4", "message", "bad").setRouting("2"));
-        indexRandom(true, requests);
+        indexRandomAndDecRefRequests(true, requests);
 
         assertNoFailuresAndResponse(
             prepareSearch("articles").setQuery(
@@ -456,7 +456,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("royals", "baron", "baron2", "earl2").setRouting("king"));
         requests.add(createIndexRequest("royals", "baron", "baron3", "earl3").setRouting("king"));
         requests.add(createIndexRequest("royals", "baron", "baron4", "earl4").setRouting("king"));
-        indexRandom(true, requests);
+        indexRandomAndDecRefRequests(true, requests);
         assertResponse(
             prepareSearch("royals").setQuery(
                 boolQuery().filter(
@@ -522,7 +522,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("index", "child", "4", "1", "field", "value2"));
         requests.add(createIndexRequest("index", "parent", "2", null));
         requests.add(createIndexRequest("index", "child", "5", "2", "field", "value1"));
-        indexRandom(true, requests);
+        indexRandomAndDecRefRequests(true, requests);
 
         assertResponse(
             prepareSearch("index").setQuery(
@@ -565,7 +565,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index1", "parent", "1", null));
         requests.add(createIndexRequest("index1", "child", "2", "1", "field", "value1"));
-        indexRandom(true, requests);
+        indexRandomAndDecRefRequests(true, requests);
 
         QueryBuilder query = hasChildQuery("child", matchQuery("field", "value1"), ScoreMode.None).innerHit(
             new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)
@@ -583,8 +583,19 @@ public class InnerHitsIT extends ParentChildTestCase {
                 )
             )
         );
-        createIndexRequest("test", "parent_type", "1", null, "key", "value").get();
-        createIndexRequest("test", "child_type", "2", "1", "nested_type", Collections.singletonMap("key", "value")).get();
+        IndexRequestBuilder indexRequestBuilder1 = createIndexRequest("test", "parent_type", "1", null, "key", "value");
+        indexRequestBuilder1.get();
+        indexRequestBuilder1.request().decRef();
+        IndexRequestBuilder indexRequestBuilder2 = createIndexRequest(
+            "test",
+            "child_type",
+            "2",
+            "1",
+            "nested_type",
+            Collections.singletonMap("key", "value")
+        );
+        indexRequestBuilder2.get();
+        indexRequestBuilder2.request().decRef();
         refresh();
         assertResponse(
             prepareSearch("test").setQuery(
@@ -624,9 +635,20 @@ public class InnerHitsIT extends ParentChildTestCase {
             )
         );
         assertAcked(prepareCreate("index2"));
-        createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
-        createIndexRequest("index1", "child_type", "2", "1").get();
-        prepareIndex("index2").setId("3").setSource("key", "value").get();
+        IndexRequestBuilder indexRequestBuilder1 = createIndexRequest(
+            "index1",
+            "parent_type",
+            "1",
+            null,
+            "nested_type",
+            Collections.singletonMap("key", "value")
+        );
+        indexRequestBuilder1.get();
+        indexRequestBuilder1.request().decRef();
+        IndexRequestBuilder indexRequestBuilder2 = createIndexRequest("index1", "child_type", "2", "1");
+        indexRequestBuilder2.get();
+        indexRequestBuilder2.request().decRef();
+        indexDoc("index2", "3", "key", "value");
         refresh();
         assertSearchHitsWithoutFailures(
             prepareSearch("index1", "index2").setQuery(
@@ -650,8 +672,19 @@ public class InnerHitsIT extends ParentChildTestCase {
                 )
             )
         );
-        createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
-        createIndexRequest("index1", "child_type", "2", "1").get();
+        IndexRequestBuilder indexRequestBuilder1 = createIndexRequest(
+            "index1",
+            "parent_type",
+            "1",
+            null,
+            "nested_type",
+            Collections.singletonMap("key", "value")
+        );
+        indexRequestBuilder1.get();
+        indexRequestBuilder1.request().decRef();
+        IndexRequestBuilder indexRequestBuilder2 = createIndexRequest("index1", "child_type", "2", "1");
+        indexRequestBuilder2.get();
+        indexRequestBuilder2.request().decRef();
         refresh();
         assertHitCountAndNoFailures(
             prepareSearch("index1").setQuery(
@@ -696,5 +729,15 @@ public class InnerHitsIT extends ParentChildTestCase {
                     .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
             )
         );
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

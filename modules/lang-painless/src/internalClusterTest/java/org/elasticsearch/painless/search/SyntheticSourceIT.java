@@ -40,6 +40,7 @@ public class SyntheticSourceIT extends ESIntegTestCase {
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             }
             indexRequest.get();
+            indexRequest.request().decRef();
         }
         client().admin().indices().prepareRefresh("test").get();
         assertNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("long_id").from(0)));

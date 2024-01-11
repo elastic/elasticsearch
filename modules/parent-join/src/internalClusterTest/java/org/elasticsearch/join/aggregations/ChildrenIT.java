@@ -9,6 +9,7 @@ package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.search.SearchHit;
@@ -171,7 +172,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         requests.add(createIndexRequest(indexName, "child", "3", "1", "count", 1));
         requests.add(createIndexRequest(indexName, "child", "4", "1", "count", 1));
         requests.add(createIndexRequest(indexName, "child", "5", "1", "count", 1));
-        indexRandom(true, requests);
+        indexRandomAndDecRefRequests(true, requests);
 
         for (int i = 0; i < 10; i++) {
             assertNoFailuresAndResponse(
@@ -192,11 +193,12 @@ public class ChildrenIT extends AbstractParentChildTestCase {
              * the updates cause that.
              */
             UpdateResponse updateResponse;
-            updateResponse = client().prepareUpdate(indexName, idToUpdate)
-                .setRouting("1")
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexName, idToUpdate);
+            updateResponse = updateRequestBuilder.setRouting("1")
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
                 .setDetectNoop(false)
                 .get();
+            updateRequestBuilder.request().decRef();
             assertThat(updateResponse.getVersion(), greaterThan(1L));
             refresh();
         }
@@ -252,7 +254,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         requests.add(createIndexRequest(indexName, childType, "14", "2", "color", "black", "size", "40"));
         requests.add(createIndexRequest(indexName, childType, "15", "2", "color", "orange", "size", "36"));
         requests.add(createIndexRequest(indexName, childType, "16", "2", "color", "green", "size", "44"));
-        indexRandom(true, requests);
+        indexRandomAndDecRefRequests(true, requests);
 
         assertNoFailuresAndResponse(
             prepareSearch(indexName).setQuery(hasChildQuery(childType, termQuery("color", "orange"), ScoreMode.None))
@@ -300,9 +302,9 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             )
         );
 
-        createIndexRequest(indexName, grandParentType, "1", null, "name", "europe").get();
-        createIndexRequest(indexName, parentType, "2", "1", "name", "belgium").get();
-        createIndexRequest(indexName, childType, "3", "2", "name", "brussels").setRouting("1").get();
+        indexData(indexName, grandParentType, "1", null, null, "name", "europe");
+        indexData(indexName, parentType, "2", "1", null, "name", "belgium");
+        indexData(indexName, childType, "3", "2", "1", "name", "brussels");
         refresh();
 
         assertNoFailuresAndResponse(
@@ -357,7 +359,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         requests.add(createIndexRequest("index", "childType", "6", "2", "name", "John", "age", 2));
         requests.add(createIndexRequest("index", "childType", "7", "3", "name", "Betty", "age", 6));
         requests.add(createIndexRequest("index", "childType", "8", "3", "name", "Dan", "age", 1));
-        indexRandom(true, requests);
+        indexRandomAndDecRefRequests(true, requests);
 
         assertNoFailuresAndResponse(
             prepareSearch("index").setSize(0)
@@ -397,4 +399,27 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             }
         );
     }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexData(String index, String type, String id, String parentId, String routing, Object... fields) {
+        IndexRequestBuilder indexRequestBuilder = createIndexRequest(index, type, id, parentId, fields);
+        try {
+            if (routing != null) {
+                indexRequestBuilder.setRouting(routing);
+            }
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
 }

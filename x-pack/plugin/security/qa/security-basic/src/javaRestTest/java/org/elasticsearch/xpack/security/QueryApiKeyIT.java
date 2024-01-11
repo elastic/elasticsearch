@@ -430,18 +430,21 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     }
 
     public void testSimpleQueryStringQuery() throws IOException {
+        String batmanUserCredentials = createUser("batman", new String[] { "api_key_user_role" });
         final List<String> apiKeyIds = new ArrayList<>();
         apiKeyIds.add(createApiKey("key1-user", "1ms", null, Map.of("label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key1-admin", "1ms", null, Map.of("label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key2-user", "1d", null, Map.of("value", 42, "label", "prod"), API_KEY_USER_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key2-admin", "1d", null, Map.of("value", 42, "label", "prod"), API_KEY_ADMIN_AUTH_HEADER).v1());
-        apiKeyIds.add(createApiKey("key3-user", null, null, Map.of("value", 42), API_KEY_USER_AUTH_HEADER).v1());
-        apiKeyIds.add(createApiKey("key3-admin", null, null, Map.of("value", 42), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key3-user", null, null, Map.of("value", 42, "hero", true), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key3-admin", null, null, Map.of("value", 42, "hero", true), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("key4-batman", null, null, Map.of("hero", true), batmanUserCredentials).v1());
+        apiKeyIds.add(createApiKey("key4-batman", null, null, Map.of("hero", true), batmanUserCredentials).v1());
 
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
             """
-                {"query": {"simple_query_string": {"query": "key*" }}}""",
+                {"query": {"simple_query_string": {"query": "key* +rest" }}}""",
             apiKeys -> assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray()))
         );
         assertQuery(
@@ -450,20 +453,49 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 {"query": {"simple_query_string": {"query": "-prod", "fields": ["metadata"]}}}""",
             apiKeys -> assertThat(
                 apiKeys.stream().map(k -> (String) k.get("id")).toList(),
-                containsInAnyOrder(apiKeyIds.get(4), apiKeyIds.get(5))
+                containsInAnyOrder(apiKeyIds.get(4), apiKeyIds.get(5), apiKeyIds.get(6), apiKeyIds.get(7))
             )
         );
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
             """
-                {"query": {"simple_query_string": {"query": "-42", "fields": ["meta*"]}}}""",
+                {"query": {"simple_query_string": {"query": "-42", "fields": ["meta*", "whatever*"]}}}""",
             apiKeys -> assertThat(
                 apiKeys.stream().map(k -> (String) k.get("id")).toList(),
-                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(1))
+                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(1), apiKeyIds.get(6), apiKeyIds.get(7))
             )
         );
-        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
-            {"query": {"simple_query_string": {"query": "-rest"}}}""", apiKeys -> assertThat(apiKeys.isEmpty(), is(true)));
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "-rest term_which_does_not_exist"}}}""",
+            apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "+default_file +api_key_user", "fields": ["us*", "rea*"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(2), apiKeyIds.get(4))
+            )
+        );
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "default_fie~4", "fields": ["*"]}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(
+                    apiKeyIds.get(0),
+                    apiKeyIds.get(1),
+                    apiKeyIds.get(2),
+                    apiKeyIds.get(3),
+                    apiKeyIds.get(4),
+                    apiKeyIds.get(5)
+                )
+            )
+        );
     }
 
     public void testExistsQuery() throws IOException, InterruptedException {

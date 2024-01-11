@@ -36,6 +36,9 @@ import java.util.Locale;
  * the verbosity of the message.
 */
 public abstract class Terminal {
+    /** If to emit JSON using {@link SystemTerminal} regardless of the availability of a console. */
+    private static final boolean JSON_FORMAT = "json".equals(System.getProperty("cli.terminal.format"));
+
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
     public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
 
@@ -282,7 +285,7 @@ public abstract class Terminal {
         }
 
         static boolean isSupported() {
-            return CONSOLE != null;
+            return CONSOLE != null && JSON_FORMAT == false;
         }
 
         static Console detectTerminal() {
@@ -314,8 +317,10 @@ public abstract class Terminal {
     }
 
     /**
-     * System terminal used if console is not available. Other than {@link ConsoleTerminal} this emits JSON.
-     * Visible for testing
+     * System terminal used if console is not available.
+     *
+     * If System property {@code cli.terminal.format} is {@code json} this emits JSON.
+     * Visible for testing.
      */
     @SuppressForbidden(reason = "Access streams for construction")
     static class SystemTerminal extends Terminal {
@@ -331,12 +336,7 @@ public abstract class Terminal {
         }
 
         private static PrintWriter printWriter(OutputStream out) {
-            // If running in a container, use Json print writer (to match the log4j2 layout typically used there)
-            return isElasticContainer() ? new JsonPrintWriter(out, true) : new PrintWriter(out, true);
-        }
-
-        private static boolean isElasticContainer() {
-            return "true".equals(System.getenv("ELASTIC_CONTAINER"));
+            return JSON_FORMAT ? new JsonPrintWriter(out, true) : new PrintWriter(out, true);
         }
 
         @Override

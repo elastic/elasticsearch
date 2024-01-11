@@ -205,6 +205,10 @@ public final class CsvAssert {
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
                         } else if (expectedType == Type.CARTESIAN_POINT) {
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.GEOGRAPHY) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.GEOMETRY) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
                         } else if (expectedType == Type.IP) {
                             // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));

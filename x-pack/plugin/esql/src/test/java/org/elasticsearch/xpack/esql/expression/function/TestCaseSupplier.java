@@ -571,6 +571,32 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEOGRAPHY}.
+     */
+    public static void forUnaryGeography(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, geographyCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEOMETRY}.
+     */
+    public static void forUnaryGeometry(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, geometryCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataTypes#IP}.
      */
     public static void forUnaryIp(
@@ -919,6 +945,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     private static List<TypedDataSupplier> cartesianPointCases() {
         return List.of(
             new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), EsqlDataTypes.CARTESIAN_POINT)
+        );
+    }
+
+    private static List<TypedDataSupplier> geographyCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<geography>",
+                () -> GEO.asWkb(GeometryTestUtils.randomGeometry(ESTestCase.randomBoolean())),
+                EsqlDataTypes.GEOGRAPHY
+            )
+        );
+    }
+
+    private static List<TypedDataSupplier> geometryCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<geometry>",
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(ESTestCase.randomBoolean())),
+                EsqlDataTypes.GEOMETRY
+            )
         );
     }
 

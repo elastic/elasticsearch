@@ -41,6 +41,8 @@ public class MvFirstTests extends AbstractMultivalueFunctionTestCase {
         dateTimes(cases, "mv_first", "MvFirst", DataTypes.DATETIME, (size, values) -> equalTo(values.findFirst().getAsLong()));
         geoPoints(cases, "mv_first", "MvFirst", EsqlDataTypes.GEO_POINT, (size, values) -> equalTo(values.findFirst().get()));
         cartesianPoints(cases, "mv_first", "MvFirst", EsqlDataTypes.CARTESIAN_POINT, (size, values) -> equalTo(values.findFirst().get()));
+        geography(cases, "mv_first", "MvFirst", EsqlDataTypes.GEOGRAPHY, (size, values) -> equalTo(values.findFirst().get()));
+        geometry(cases, "mv_first", "MvFirst", EsqlDataTypes.GEOMETRY, (size, values) -> equalTo(values.findFirst().get()));
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
     }
 

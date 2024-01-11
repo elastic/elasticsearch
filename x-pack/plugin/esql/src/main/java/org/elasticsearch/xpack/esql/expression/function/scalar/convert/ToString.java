@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEOGRAPHY;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEOMETRY;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -53,7 +55,9 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
-        Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new)
+        Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new),
+        Map.entry(GEOMETRY, ToStringFromGeometryEvaluator.Factory::new),
+        Map.entry(GEOGRAPHY, ToStringFromGeographyEvaluator.Factory::new)
     );
 
     @FunctionInfo(returnType = "keyword", description = "Converts a field into a string.")
@@ -66,6 +70,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "cartesian_point",
                 "date",
                 "double",
+                "geography",
+                "geometry",
                 "geo_point",
                 "integer",
                 "ip",
@@ -146,6 +152,16 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromCartesianPoint")
     static BytesRef fromCartesianPoint(BytesRef wkb) {
+        return new BytesRef(CARTESIAN.wkbToWkt(wkb));
+    }
+
+    @ConvertEvaluator(extraName = "FromGeography")
+    static BytesRef fromGeography(BytesRef wkb) {
+        return new BytesRef(GEO.wkbToWkt(wkb));
+    }
+
+    @ConvertEvaluator(extraName = "FromGeometry")
+    static BytesRef fromGeometry(BytesRef wkb) {
         return new BytesRef(CARTESIAN.wkbToWkt(wkb));
     }
 }

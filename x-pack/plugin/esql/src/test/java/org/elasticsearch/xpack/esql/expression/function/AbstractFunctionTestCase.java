@@ -130,6 +130,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "version" -> randomVersion().toBytesRef();
             case "geo_point" -> GEO.asWkb(GeometryTestUtils.randomPoint());
             case "cartesian_point" -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
+            case "geography" -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
+            case "geometry" -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
             case "null" -> null;
             case "_source" -> {
                 try {
@@ -912,7 +914,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
         Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
-        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string")
+        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
+        Map.entry(Set.of(EsqlDataTypes.GEOGRAPHY, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geography  or string"),
+        Map.entry(Set.of(EsqlDataTypes.GEOMETRY, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geometry  or string")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?

@@ -1,0 +1,128 @@
+###############################################
+# Tests for GEO_SHAPE type
+#
+
+convertFromString#[skip:-8.12.99, reason:spatial type geography only added in 8.13]
+row wkt = "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"
+| eval pt = to_geography(wkt);
+
+wkt:keyword                                     |pt:geography
+"POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))" | POLYGON ((30.0 10.0, 40.0 40.0, 20.0 40.0, 10.0 20.0, 30.0 10.0))
+;
+
+convertFromStringArray#[skip:-8.12.99, reason:spatial type geography only added in 8.13]
+row wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| eval pt = to_geography(wkt);
+
+wkt:keyword                                                                           |pt:geography
+["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
+;
+
+# need to work out how to upload WKT
+#simpleLoad#[skip:-8.12.99, reason:spatial type geography  only added in 8.13]
+
+
+geographyEquals#[skip:-8.12.99, reason:spatial type geography only added in 8.13]
+
+ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geography(wkt)
+| WHERE pt == to_geography("POINT(42.97109630194 14.7552534413725)")
+;
+
+// tag::to_geopoint-equals-result[]
+wkt:keyword                              |pt:geography
+"POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
+// end::to_geopoint-equals-result[]
+;
+
+geographyNotEquals#[skip:-8.12.99, reason:spatial type geography only added in 8.13]
+ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geography(wkt)
+| WHERE pt != to_geography("POINT(42.97109630194 14.7552534413725)")
+;
+
+wkt:keyword                               |pt:geography
+"POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
+;
+
+convertFromStringParseError#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)", "POINT(111)"]
+| mv_expand wkt
+| eval pt = to_geography(wkt)
+;
+
+warning:Line 3:13: evaluation of [to_geography(wkt)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+wkt:keyword                               |pt:geography
+"POINTX(42.97109630194 14.7552534413725)" |null
+"POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
+"POINT(111)"                              |null
+;
+
+###############################################
+# Tests for GEOMETRY type
+#
+
+convertGeometryFromString#[skip:-8.12.99, reason:spatial type geography only added in 8.13]
+
+row wkt = "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))"
+| mv_expand wkt
+| eval pt = to_geometry(wkt)
+;
+
+wkt:keyword               |pt:geometry 
+"POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))" |POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))
+;
+
+convertCartesianFromStringArray#[skip:-8.12.99, reason:spatial type geography only added in 8.13]
+row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| eval pt = to_geometry(wkt);
+
+wkt:keyword                                                                           |pt:geometry 
+["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
+;
+
+# need to work out how to upload WKT
+# simpleGeometryLoad#[skip:-8.12.99, reason:spatial type geography only added in 8.13]
+
+geometryEquals#[skip:-8.12.99, reason:spatial type geography only added in 8.13]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geometry(wkt)
+| WHERE pt == to_geometry("POINT(4297.11 -1475.53)")
+;
+
+wkt:keyword               |pt:geometry
+"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
+;
+
+geometryNotEquals#[skip:-8.12.99, reason:spatial type geography only added in 8.13]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geometry(wkt)
+| WHERE pt != to_geometry("POINT(4297.11 -1475.53)")
+;
+
+wkt:keyword              |pt:geometry
+"POINT(7580.93 2272.77)" |POINT(7580.93 2272.77)
+;
+
+convertGeometrynFromStringParseError#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+row wkt = ["POINTX(4297.11 -1475.53)", "POINT(7580.93 2272.77)", "POINT(111)"]
+| mv_expand wkt
+| eval pt = to_geometry(wkt)
+;
+
+warning:Line 3:13: evaluation of [to_geometry(wkt)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+wkt:keyword                |pt:geometry
+"POINTX(4297.11 -1475.53)" |null
+"POINT(7580.93 2272.77)"   |POINT(7580.93 2272.77)
+"POINT(111)"               |null
+;

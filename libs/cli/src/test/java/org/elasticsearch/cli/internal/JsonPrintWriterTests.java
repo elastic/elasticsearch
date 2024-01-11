@@ -43,18 +43,25 @@ public class JsonPrintWriterTests extends ESTestCase {
         try (PrintWriter writer = new JsonPrintWriter(outputStream, true, FIXED_CLOCK)) {
             String msg = randomAsciiAlphanumOfLengthBetween(random(), 10, 50);
 
-            for (int i = 0; i < msg.length() - 10; i += 10) {
-                String part = msg.substring(i, i + 10);
+            int start = 0;
+            while (true) {
+                int end = start + 10;
+                String part = msg.substring(start, Math.min(msg.length(), end));
+
+                // complete last part using some form of println and break
+                if (end >= msg.length()) {
+                    if (randomBoolean()) {
+                        writer.println(part);
+                    } else {
+                        writer.print(part);
+                        writer.println();
+                    }
+                    break;
+                }
+
                 if (randomBoolean()) writer.write(part);
                 else writer.print(part);
-            }
-
-            String lastPart = msg.substring(msg.length() - msg.length() % 10, msg.length());
-            if (randomBoolean()) {
-                writer.println(lastPart);
-            } else {
-                writer.print(lastPart);
-                writer.println();
+                start = end;
             }
             assertWritten(jsonMessage(msg) + System.lineSeparator());
         }

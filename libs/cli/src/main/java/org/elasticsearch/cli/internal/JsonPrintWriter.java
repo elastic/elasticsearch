@@ -90,6 +90,7 @@ public class JsonPrintWriter extends PrintWriter {
 
     /**
      * Converts {@code msg} to JSON mimicking the ECSJsonLayout.
+     * Visible for testing.
      */
     protected static String toJson(String msg, Instant instant) {
         StringBuilder builder = new StringBuilder(INITIAL_BUFFER_SIZE);

@@ -217,7 +217,7 @@ public class JobResultsProvider {
         ActionListener<MultiSearchResponse> searchResponseActionListener = new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(MultiSearchResponse response) {
-                List<String> searchHits = new ArrayList<>();
+                List<SearchHit> searchHits = new ArrayList<>();
                 // Consider the possibility that some of the responses are exceptions
                 for (int i = 0; i < response.getResponses().length; i++) {
                     MultiSearchResponse.Item itemResponse = response.getResponses()[i];
@@ -242,9 +242,7 @@ public class JobResultsProvider {
                         delegate.onFailure(e);
                         return;
                     }
-                    for (SearchHit hit : itemResponse.getResponse().getHits().getHits()) {
-                        searchHits.add(hit.getId());
-                    }
+                    searchHits.addAll(Arrays.asList(itemResponse.getResponse().getHits().getHits()));
                 }
 
                 if (searchHits.isEmpty()) {
@@ -253,11 +251,12 @@ public class JobResultsProvider {
                     int quantileDocCount = 0;
                     int categorizerStateDocCount = 0;
                     int resultDocCount = 0;
-                    for (String hitId : searchHits) {
-                        if (hitId.equals(Quantiles.documentId(job.getId())) || hitId.equals(Quantiles.v54DocumentId(job.getId()))) {
+                    for (SearchHit hit : searchHits) {
+                        if (hit.getId().equals(Quantiles.documentId(job.getId()))
+                            || hit.getId().equals(Quantiles.v54DocumentId(job.getId()))) {
                             quantileDocCount++;
-                        } else if (hitId.startsWith(CategorizerState.documentPrefix(job.getId()))
-                            || hitId.startsWith(CategorizerState.v54DocumentPrefix(job.getId()))) {
+                        } else if (hit.getId().startsWith(CategorizerState.documentPrefix(job.getId()))
+                            || hit.getId().startsWith(CategorizerState.v54DocumentPrefix(job.getId()))) {
                                 categorizerStateDocCount++;
                             } else {
                                 resultDocCount++;
@@ -1064,8 +1063,9 @@ public class JobResultsProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
-                List<CategoryDefinition> results = new ArrayList<>(searchResponse.getHits().getHits().length);
-                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                List<CategoryDefinition> results = new ArrayList<>(hits.length);
+                for (SearchHit hit : hits) {
                     BytesReference source = hit.getSourceRef();
                     try (XContentParser parser = createParser(source)) {
                         CategoryDefinition categoryDefinition = CategoryDefinition.LENIENT_PARSER.apply(parser, null);
@@ -1692,8 +1692,9 @@ public class JobResultsProvider {
             request.request(),
             ActionListener.<SearchResponse>wrap(response -> {
                 List<ScheduledEvent> events = new ArrayList<>();
+                SearchHit[] hits = response.getHits().getHits();
                 try {
-                    for (SearchHit hit : response.getHits().getHits()) {
+                    for (SearchHit hit : hits) {
                         ScheduledEvent.Builder event = MlParserUtils.parse(hit, ScheduledEvent.LENIENT_PARSER);
 
                         event.eventId(hit.getId());
@@ -1898,12 +1899,13 @@ public class JobResultsProvider {
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
                 List<Calendar> calendars = new ArrayList<>();
+                SearchHit[] hits = response.getHits().getHits();
                 try {
-                    if (queryBuilder.isForAllCalendars() == false && response.getHits().getHits().length == 0) {
+                    if (queryBuilder.isForAllCalendars() == false && hits.length == 0) {
                         listener.onFailure(queryBuilder.buildNotFoundException());
                         return;
                     }
-                    for (SearchHit hit : response.getHits()) {
+                    for (SearchHit hit : hits) {
                         calendars.add(MlParserUtils.parse(hit, Calendar.LENIENT_PARSER).build());
                     }
                     listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value, Calendar.RESULTS_FIELD));

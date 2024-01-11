@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.function.LongSupplier;
@@ -15,17 +15,24 @@ import java.util.function.LongSupplier;
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into an optimized version for extracting inner_hits.
  */
-public class InnerHitsRewriteContext extends QueryRewriteContext {
+public final class InnerHitsRewriteContext extends QueryRewriteContext {
     public InnerHitsRewriteContext(
         final XContentParserConfiguration parserConfiguration,
-        final Client client,
         final LongSupplier nowInMillis
     ) {
-        super(parserConfiguration, client, nowInMillis);
+        super(parserConfiguration, null, nowInMillis);
     }
 
     @Override
     public InnerHitsRewriteContext convertToInnerHitsRewriteContext() {
         return this;
     }
+
+    @Override
+    @SuppressWarnings({ "rawtypes" })
+    public void executeAsyncActions(ActionListener listener) {
+        // InnerHitsRewriteContext does not support async actions at all, and doesn't supply a valid `client` object
+        throw new UnsupportedOperationException("InnerHitsRewriteContext does not support async actions");
+    }
+
 }

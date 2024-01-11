@@ -277,7 +277,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         );
         InnerHitsRewriteContext rewriteContext = new InnerHitsRewriteContext(
             context.getParserConfig(),
-            context.getClient(),
             context::nowInMillis
         );
         QueryBuilder queryBuilder = Rewriteable.rewrite(nestedQueryBuilder, rewriteContext, true);

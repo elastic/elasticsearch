@@ -1237,7 +1237,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         QueryBuilder query = source.query();
         InnerHitsRewriteContext innerHitsRewriteContext = new InnerHitsRewriteContext(
             context.getSearchExecutionContext().getParserConfig(),
-            context.getSearchExecutionContext().getClient(),
             context::getRelativeTimeInMillis
         );
         if (query != null) {

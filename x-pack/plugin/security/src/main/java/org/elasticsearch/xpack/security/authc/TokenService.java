@@ -234,6 +234,7 @@ public class TokenService {
     /**
      * Creates a new token service
      */
+    @SuppressWarnings("this-escape")
     public TokenService(
         Settings settings,
         Clock clock,
@@ -2396,6 +2397,7 @@ public class TokenService {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
+    @SuppressWarnings("this-escape")
     private void initialize(ClusterService clusterService) {
         clusterService.addListener(event -> {
             ClusterState state = event.state();

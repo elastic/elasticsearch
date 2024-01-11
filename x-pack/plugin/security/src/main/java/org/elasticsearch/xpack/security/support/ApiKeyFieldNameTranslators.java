@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
+
 /**
  * A class to translate query level field names to index level field names.
  */
@@ -25,6 +27,7 @@ public class ApiKeyFieldNameTranslators {
             new ExactFieldNameTranslator(s -> "creator.principal", "username"),
             new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
             new ExactFieldNameTranslator(s -> "name", "name"),
+            new ExactFieldNameTranslator(s -> API_KEY_TYPE_RUNTIME_MAPPING_FIELD, "type"),
             new ExactFieldNameTranslator(s -> "creation_time", "creation"),
             new ExactFieldNameTranslator(s -> "expiration_time", "expiration"),
             new ExactFieldNameTranslator(s -> "api_key_invalidated", "invalidated"),

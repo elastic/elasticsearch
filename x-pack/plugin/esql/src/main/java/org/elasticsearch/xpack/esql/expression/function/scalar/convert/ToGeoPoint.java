@@ -32,7 +32,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
         Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "geo_point")
+    @FunctionInfo(returnType = "geo_point", description = "Converts an input value to a geo_point value.")
     public ToGeoPoint(Source source, @Param(name = "v", type = { "geo_point", "keyword", "text" }) Expression field) {
         super(source, field);
     }
@@ -59,6 +59,6 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return GEO.stringAsWKB(in.utf8ToString());
+        return GEO.wktToWkb(in.utf8ToString());
     }
 }

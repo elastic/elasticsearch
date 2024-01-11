@@ -46,7 +46,7 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
     public BaseUpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.roleDescriptors = in.readOptionalCollectionAsList(RoleDescriptor::new);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.UPDATE_API_KEY_EXPIRATION_TIME_ADDED)) {
             expiration = in.readOptionalTimeValue();
         } else {

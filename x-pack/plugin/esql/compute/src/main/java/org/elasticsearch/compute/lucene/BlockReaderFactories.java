@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -56,6 +57,11 @@ public final class BlockReaderFactories {
             @Override
             public String parentField(String field) {
                 return ctx.parentPath(field);
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return (FieldNamesFieldMapper.FieldNamesFieldType) ctx.lookup().fieldType(FieldNamesFieldMapper.NAME);
             }
         });
         if (loader == null) {

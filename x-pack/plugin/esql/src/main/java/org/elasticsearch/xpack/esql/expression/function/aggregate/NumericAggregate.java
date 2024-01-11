@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -57,26 +56,26 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
+    public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
         if (supportsDates() && type == DataTypes.DATETIME) {
-            return longSupplier(bigArrays, inputChannels);
+            return longSupplier(inputChannels);
         }
         if (type == DataTypes.LONG) {
-            return longSupplier(bigArrays, inputChannels);
+            return longSupplier(inputChannels);
         }
         if (type == DataTypes.INTEGER) {
-            return intSupplier(bigArrays, inputChannels);
+            return intSupplier(inputChannels);
         }
         if (type == DataTypes.DOUBLE) {
-            return doubleSupplier(bigArrays, inputChannels);
+            return doubleSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 
-    protected abstract AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels);
 
-    protected abstract AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels);
 
-    protected abstract AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels);
 }

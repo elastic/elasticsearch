@@ -302,7 +302,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103439")
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
@@ -392,6 +391,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
         createIndex(index, alias, false);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));

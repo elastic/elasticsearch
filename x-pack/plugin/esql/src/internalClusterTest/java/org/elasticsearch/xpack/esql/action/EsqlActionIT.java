@@ -86,6 +86,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex("test");
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // TODO: Allow relocation once we have retry in ESQL (see #103081)
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("cluster.routing.rebalance.enable", "none")
+            .build();
+    }
+
     public void testProjectConstant() {
         try (EsqlQueryResponse results = run("from test | eval x = 1 | keep x")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfo("x", "integer"))));
@@ -792,7 +801,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 1000);
         QueryBuilder filter = new RangeQueryBuilder("val").from(from, true).to(to, true);
         try (
-            EsqlQueryResponse results = new EsqlQueryRequestBuilder(client()).query(command).filter(filter).pragmas(randomPragmas()).get()
+            EsqlQueryResponse results = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
+                .query(command)
+                .filter(filter)
+                .pragmas(randomPragmas())
+                .get()
         ) {
             logger.info(results);
             OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
@@ -1036,7 +1049,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         new ColumnInfo("returnType", "keyword"),
                         new ColumnInfo("description", "keyword"),
                         new ColumnInfo("optionalArgs", "boolean"),
-                        new ColumnInfo("variadic", "boolean")
+                        new ColumnInfo("variadic", "boolean"),
+                        new ColumnInfo("isAggregation", "boolean")
                     )
                 )
             );

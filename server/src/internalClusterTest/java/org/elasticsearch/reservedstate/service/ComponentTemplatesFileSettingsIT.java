@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -423,7 +423,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
-                client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1"))
+                client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_1"))
             ).getMessage().contains("[[composable_index_template:template_1] set as read-only by [file_settings]]")
         );
     }
@@ -485,7 +485,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
-                client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_other"))
+                client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_other"))
             ).getMessage()
                 .contains(
                     "with errors: [[component_template:runtime_component_template, "
@@ -494,7 +494,8 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         );
 
         // this will work now, we are saving template without components
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequestNoComponents("template_other")).get();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequestNoComponents("template_other"))
+            .get();
 
         // the rest are still locked
         assertTrue(
@@ -507,7 +508,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
-                client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1"))
+                client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_1"))
             ).getMessage().contains("[[composable_index_template:template_1] set as read-only by [file_settings]]")
         );
     }
@@ -605,7 +606,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertTrue(response.indexTemplates().isEmpty());
 
         // This should succeed, nothing was reserved
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequestNoComponents("err_template")).get();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequestNoComponents("err_template")).get();
     }
 
     public void testErrorSaved() throws Exception {
@@ -644,7 +645,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         }
     }
 
-    private PutComposableIndexTemplateAction.Request sampleIndexTemplateRestRequest(String name) throws Exception {
+    private TransportPutComposableIndexTemplateAction.Request sampleIndexTemplateRestRequest(String name) throws Exception {
         var json = """
             {
                 "index_patterns": ["te*", "bar*"],
@@ -682,11 +683,11 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return new PutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
+            return new TransportPutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
         }
     }
 
-    private PutComposableIndexTemplateAction.Request sampleIndexTemplateRestRequestNoComponents(String name) throws Exception {
+    private TransportPutComposableIndexTemplateAction.Request sampleIndexTemplateRestRequestNoComponents(String name) throws Exception {
         var json = """
             {
                 "index_patterns": ["aa*", "vv*"],
@@ -723,7 +724,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return new PutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
+            return new TransportPutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
         }
     }
 

@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -33,6 +36,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -85,6 +90,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         plugins.add(BlobCachePlugin.class);
         plugins.add(LocalStateSearchableSnapshots.class);
         plugins.add(LicensedSnapshotBasedRecoveriesPlugin.class);
+        plugins.add(ForbiddenActionsPlugin.class);
         return Collections.unmodifiableList(plugins);
     }
 
@@ -357,6 +363,40 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         @Override
         public boolean isLicenseEnabled() {
             return true;
+        }
+    }
+
+    public static class ForbiddenActionsPlugin extends Plugin implements ActionPlugin {
+
+        private ActionFilter actionFilter;
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            final var clusterService = services.clusterService();
+            actionFilter = new ActionFilter.Simple() {
+                @Override
+                protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
+                    if (action.equals(TransportNodesListShardStoreMetadata.ACTION_NAME)) {
+                        final var shardId = asInstanceOf(TransportNodesListShardStoreMetadata.Request.class, request).shardId();
+                        final var indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                        if (indexMetadata != null) {
+                            assertFalse(shardId.toString(), indexMetadata.isSearchableSnapshot());
+                        }
+                    }
+                    return true;
+                }
+
+                @Override
+                public int order() {
+                    return 0;
+                }
+            };
+            return List.of();
+        }
+
+        @Override
+        public List<ActionFilter> getActionFilters() {
+            return List.of(actionFilter);
         }
     }
 }

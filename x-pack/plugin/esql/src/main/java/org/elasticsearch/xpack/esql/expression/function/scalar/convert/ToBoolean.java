@@ -41,7 +41,7 @@ public class ToBoolean extends AbstractConvertFunction {
         Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "boolean")
+    @FunctionInfo(returnType = "boolean", description = "Converts an input value to a boolean value.")
     public ToBoolean(
         Source source,
         @Param(name = "v", type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field

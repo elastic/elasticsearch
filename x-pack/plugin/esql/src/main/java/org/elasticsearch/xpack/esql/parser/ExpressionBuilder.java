@@ -103,9 +103,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String text = ctx.getText();
 
         try {
-            return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
-        } catch (QlIllegalArgumentException siae) {
-            throw new ParsingException(source, siae.getMessage());
+            return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
+        } catch (InvalidArgumentException iae) {
+            throw new ParsingException(source, iae.getMessage());
         }
     }
 
@@ -121,7 +121,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             // if it's too large, then quietly try to parse as a float instead
             try {
                 return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
-            } catch (QlIllegalArgumentException ignored) {}
+            } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
         }

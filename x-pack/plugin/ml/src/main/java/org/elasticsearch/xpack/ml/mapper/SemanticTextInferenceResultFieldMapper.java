@@ -198,12 +198,15 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
 
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
             DocumentParserContext nestedContext = context.createNestedContext(nestedObjectMapper);
-            parseObject(nestedContext, nestedObjectMapper, new LinkedList<>());
+            parseFieldInferenceResultElement(nestedContext, nestedObjectMapper, new LinkedList<>());
         }
     }
 
-    private static void parseObject(DocumentParserContext context, ObjectMapper objectMapper, LinkedList<String> subfieldPath)
-        throws IOException {
+    private static void parseFieldInferenceResultElement(
+        DocumentParserContext context,
+        ObjectMapper objectMapper,
+        LinkedList<String> subfieldPath
+    ) throws IOException {
         XContentParser parser = context.parser();
         DocumentParserContext childContext = context.createChildContext(objectMapper);
 
@@ -222,7 +225,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
 
             Mapper childMapper = objectMapper.getMapper(currentName);
             if (childMapper == null) {
-                logger.warn("Skipping indexing of unrecognized field name [" + currentName + "]");
+                logger.debug("Skipping indexing of unrecognized field name [" + currentName + "]");
                 advancePastCurrentFieldName(parser);
                 continue;
             }
@@ -233,7 +236,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             } else if (childMapper instanceof ObjectMapper) {
                 parser.nextToken();
                 subfieldPath.push(currentName);
-                parseObject(childContext, (ObjectMapper) childMapper, subfieldPath);
+                parseFieldInferenceResultElement(childContext, (ObjectMapper) childMapper, subfieldPath);
                 subfieldPath.pop();
             } else {
                 // This should never happen, but fail parsing if it does so that it's not a silent failure

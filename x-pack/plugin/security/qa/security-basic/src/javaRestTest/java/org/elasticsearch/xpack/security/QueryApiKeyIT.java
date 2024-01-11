@@ -439,7 +439,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         apiKeyIds.add(createApiKey("key3-user", null, null, Map.of("value", 42, "hero", true), API_KEY_USER_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key3-admin", null, null, Map.of("value", 42, "hero", true), API_KEY_ADMIN_AUTH_HEADER).v1());
         apiKeyIds.add(createApiKey("key4-batman", null, null, Map.of("hero", true), batmanUserCredentials).v1());
-        apiKeyIds.add(createApiKey("key4-batman", null, null, Map.of("hero", true), batmanUserCredentials).v1());
+        apiKeyIds.add(createApiKey("key5-batman", null, null, Map.of("hero", true), batmanUserCredentials).v1());
 
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
@@ -494,6 +494,20 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                     apiKeyIds.get(4),
                     apiKeyIds.get(5)
                 )
+            )
+        );
+
+        assertQuery(batmanUserCredentials, """
+            {"query": {"simple_query_string": {"query": "+prod key*", "fields": ["name", "username", "metadata"],
+            "default_operator": "AND"}}}""", apiKeys -> assertThat(apiKeys.isEmpty(), is(true)));
+        assertQuery(
+            batmanUserCredentials,
+            """
+                {"query": {"simple_query_string": {"query": "+true +key*", "fields": ["name", "username", "metadata"],
+                "default_operator": "AND"}}}""",
+            apiKeys -> assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(6), apiKeyIds.get(7))
             )
         );
     }

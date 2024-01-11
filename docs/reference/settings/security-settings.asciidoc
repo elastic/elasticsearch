@@ -1015,8 +1015,10 @@ the following settings:
 `username_pattern`::
 (<<static-cluster-setting,Static>>)
 The regular expression pattern used to extract the username from the
-certificate DN. The first match group is the used as the username.
-Defaults to `CN=(.*?)(?:,\|$)`.
+certificate DN. The username is used for auditing and logging. The username can also be used
+with the <<role-mapping-resources, role mapping API>> and <<configuring-authorization-delegation, authorization delegation>>.
+The first match group is the used as the username.
+Defaults to `CN=(.*?)(?:,|$)`.
 
 `certificate_authorities`::
 (<<static-cluster-setting,Static>>)

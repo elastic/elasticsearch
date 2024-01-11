@@ -39,15 +39,6 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_POINT, v -> v, List.of());
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            evaluatorName.apply("FromLong"),
-            EsqlDataTypes.GEO_POINT,
-            GEO::longAsWKB,
-            Long.MIN_VALUE,
-            Long.MAX_VALUE,
-            List.of()
-        );
         // random strings that don't look like a geo point
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -55,7 +46,7 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             EsqlDataTypes.GEO_POINT,
             bytesRef -> null,
             bytesRef -> {
-                var exception = expectThrows(Exception.class, () -> GEO.stringAsWKB(bytesRef.utf8ToString()));
+                var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));
                 return List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: " + exception
@@ -69,12 +60,12 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<geo point as string>",
-                    () -> new BytesRef(GEO.pointAsString(GeometryTestUtils.randomPoint())),
+                    () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())),
                     DataTypes.KEYWORD
                 )
             ),
             EsqlDataTypes.GEO_POINT,
-            bytesRef -> GEO.stringAsWKB(((BytesRef) bytesRef).utf8ToString()),
+            bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
 

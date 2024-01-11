@@ -50,6 +50,20 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
             );
+        }), new TestCaseSupplier("Substring basic test with text input", () -> {
+            int start = between(1, 8);
+            int length = between(1, 10 - start);
+            String text = randomAlphaOfLength(10);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
+                ),
+                "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                DataTypes.KEYWORD,
+                equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
+            );
         })));
     }
 

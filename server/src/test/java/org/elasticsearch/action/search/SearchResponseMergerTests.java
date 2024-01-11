@@ -330,9 +330,8 @@ public class SearchResponseMergerTests extends ESTestCase {
             for (int i = 0; i < numResponses; i++) {
                 SearchProfileResults profile = SearchProfileResultsTests.createTestItem();
                 expectedProfile.putAll(profile.getShardResults());
-                SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                 SearchResponse searchResponse = new SearchResponse(
-                    searchHits,
+                    SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                     null,
                     null,
                     false,
@@ -408,7 +407,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
-                SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
+                SearchHits searchHits = SearchHits.empty(null, Float.NaN);
                 SearchResponse searchResponse = new SearchResponse(
                     searchHits,
                     null,
@@ -494,9 +493,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
-                SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
                 SearchResponse searchResponse = new SearchResponse(
-                    searchHits,
+                    SearchHits.empty(null, Float.NaN),
                     null,
                     suggest,
                     false,
@@ -565,7 +563,6 @@ public class SearchResponseMergerTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
         try (
             SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
                 0,
@@ -578,7 +575,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             for (Max max : Arrays.asList(max1, max2)) {
                 InternalAggregations aggs = InternalAggregations.from(Arrays.asList(max));
                 SearchResponse searchResponse = new SearchResponse(
-                    searchHits,
+                    SearchHits.empty(null, Float.NaN),
                     aggs,
                     null,
                     false,
@@ -645,9 +642,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 );
                 InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
                 InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));
-                SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
                 SearchResponse searchResponse = new SearchResponse(
-                    searchHits,
+                    SearchHits.empty(null, Float.NaN),
                     aggs,
                     null,
                     false,
@@ -977,16 +973,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 }
             }
             {
-                SearchHits empty = new SearchHits(
-                    new SearchHit[0],
-                    new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-                    Float.NaN,
-                    null,
-                    null,
-                    null
-                );
                 SearchResponse searchResponse = new SearchResponse(
-                    empty,
+                    SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                     null,
                     null,
                     false,
@@ -1041,9 +1029,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                     long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value;
                     expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value, trackTotalHitsUpTo), totalHitsRelation);
                 }
-                SearchHits empty = new SearchHits(new SearchHit[0], totalHits, Float.NaN, null, null, null);
                 SearchResponse searchResponse = new SearchResponse(
-                    empty,
+                    SearchHits.empty(totalHits, Float.NaN),
                     null,
                     null,
                     false,

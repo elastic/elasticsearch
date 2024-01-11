@@ -1,5 +1,5 @@
 [[esql-query-api]]
-== {esql} query API
+=== {esql} query API
 ++++
 <titleabbrev>{esql} query API</titleabbrev>
 ++++
@@ -23,13 +23,13 @@ POST /_query
 
 [discrete]
 [[esql-query-api-request]]
-=== {api-request-title}
+==== {api-request-title}
 
 `POST _query`
 
 [discrete]
 [[esql-query-api-prereqs]]
-=== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the data stream, index,
@@ -37,7 +37,7 @@ or alias you search.
 
 [discrete]
 [[esql-query-api-query-params]]
-=== {api-query-parms-title}
+==== {api-query-parms-title}
 
 `delimiter`::
 (Optional, string) Separator for CSV results. Defaults to `,`. The API only
@@ -54,7 +54,7 @@ precedence.
 [discrete]
 [role="child_attributes"]
 [[esql-query-api-request-body]]
-=== {api-request-body-title}
+==== {api-request-body-title}
 
 `columnar`::
 (Optional, Boolean) If `true`, returns results in a columnar format. Defaults to
@@ -71,7 +71,7 @@ responses. See <<esql-rest-columnar>>.
 [discrete]
 [role="child_attributes"]
 [[esql-query-api-response-body]]
-=== {api-response-body-title}
+==== {api-response-body-title}
 
 `columns`::
 (array of objects)
@@ -79,13 +79,13 @@ Column headings for the search results. Each object is a column.
 +
 .Properties of `columns` objects
 [%collapsible%open]
-====
+=====
 `name`::
 (string) Name of the column.
 
 `type`::
 (string) Data type for the column.
-====
+=====
 
 `rows`::
 (array of arrays)

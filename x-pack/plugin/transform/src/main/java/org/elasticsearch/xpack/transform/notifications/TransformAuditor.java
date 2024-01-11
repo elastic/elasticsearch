@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.transform.notifications;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -41,7 +41,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
             TransformInternalIndexConstants.AUDIT_INDEX,
             () -> {
                 try {
-                    return new PutComposableIndexTemplateAction.Request(TransformInternalIndexConstants.AUDIT_INDEX).indexTemplate(
+                    return new TransportPutComposableIndexTemplateAction.Request(TransformInternalIndexConstants.AUDIT_INDEX).indexTemplate(
                         ComposableIndexTemplate.builder()
                             .template(TransformInternalIndex.getAuditIndexTemplate())
                             .version((long) TransformConfigVersion.CURRENT.id())

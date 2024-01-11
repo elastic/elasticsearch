@@ -57,6 +57,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyStore;
@@ -570,6 +571,25 @@ class CertificateTool extends MultiCommand {
                 }
             });
         }
+
+        /**
+         * Verify that the provided certificate is validly signed by the provided CA
+         */
+        static void verifyIssuer(Certificate certificate, CAInfo caInfo, Terminal terminal) throws UserException {
+            try {
+                certificate.verify(caInfo.certAndKey.cert.getPublicKey());
+            } catch (GeneralSecurityException e) {
+                terminal.errorPrintln("");
+                terminal.errorPrintln("* ERROR *");
+                terminal.errorPrintln("Verification of generated certificate failed.");
+                terminal.errorPrintln("This usually occurs if the provided CA certificate does not match with the CA key.");
+                terminal.errorPrintln("Cause: " + e);
+                for (var c = e.getCause(); c != null; c = c.getCause()) {
+                    terminal.errorPrintln("     - " + c);
+                }
+                throw new UserException(ExitCodes.CONFIG, "Certificate verification failed");
+            }
+        }
     }
 
     static class SigningRequestCommand extends CertificateCommand {
@@ -788,7 +808,7 @@ class CertificateTool extends MultiCommand {
                 final boolean usePassword = super.useOutputPassword(options);
                 fullyWriteZipFile(output, (outputStream, pemWriter) -> {
                     for (CertificateInformation certificateInformation : certs) {
-                        CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days);
+                        CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days, terminal);
 
                         final String dirName = certificateInformation.name.filename + "/";
                         ZipEntry zipEntry = new ZipEntry(dirName);
@@ -836,7 +856,7 @@ class CertificateTool extends MultiCommand {
             } else {
                 assert certs.size() == 1;
                 CertificateInformation certificateInformation = certs.iterator().next();
-                CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days);
+                CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days, terminal);
                 fullyWriteFile(
                     output,
                     stream -> writePkcs12(
@@ -856,7 +876,8 @@ class CertificateTool extends MultiCommand {
             CertificateInformation certificateInformation,
             CAInfo caInfo,
             int keySize,
-            int days
+            int days,
+            Terminal terminal
         ) throws Exception {
             KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
             Certificate certificate;
@@ -873,6 +894,7 @@ class CertificateTool extends MultiCommand {
                     caInfo.certAndKey.key,
                     days
                 );
+                verifyIssuer(certificate, caInfo, terminal);
             } else {
                 certificate = CertGenUtils.generateSignedCertificate(
                     certificateInformation.name.x500Principal,
@@ -940,6 +962,7 @@ class CertificateTool extends MultiCommand {
                 );
             }
         }
+
     }
 
     @SuppressForbidden(reason = "resolve paths against CWD for a CLI tool")

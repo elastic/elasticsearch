@@ -15,11 +15,11 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -32,14 +32,12 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -109,11 +107,12 @@ public abstract class AbstractTransportGetResourcesAction<
                 Set<String> foundResourceIds = new HashSet<>();
                 long totalHitCount = response.getHits().getTotalHits().value;
                 for (SearchHit hit : response.getHits().getHits()) {
-                    BytesReference docSource = hit.getSourceRef();
                     try (
-                        InputStream stream = docSource.streamInput();
-                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+                        XContentParser parser = XContentHelper.createParserNotCompressed(
+                            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                            hit.getSourceRef(),
+                            XContentType.JSON
+                        )
                     ) {
                         Resource resource = parse(parser);
                         String id = extractIdFromResource(resource);

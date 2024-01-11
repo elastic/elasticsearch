@@ -216,7 +216,7 @@ public class SequenceSpecTests extends ESTestCase {
 
             EventsAsHits eah = new EventsAsHits(evs);
             SearchHits searchHits = new SearchHits(
-                eah.hits.toArray(new SearchHit[0]),
+                eah.hits.toArray(SearchHits.EMPTY),
                 new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
                 0.0f
             );

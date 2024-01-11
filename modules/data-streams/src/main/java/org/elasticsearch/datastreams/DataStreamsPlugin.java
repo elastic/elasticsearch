@@ -93,7 +93,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     private static final TimeValue MAX_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2);
     public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
         "index.look_ahead_time",
-        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(30),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueDays(7), // is effectively 2h now.
         Setting.Property.IndexScope,

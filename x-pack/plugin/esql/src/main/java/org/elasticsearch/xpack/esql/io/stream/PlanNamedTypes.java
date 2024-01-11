@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
@@ -66,9 +69,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -84,6 +84,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
@@ -172,6 +174,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -190,6 +193,10 @@ import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 /**
  * A utility class that consists solely of static methods that describe how to serialize and
@@ -310,9 +317,6 @@ public final class PlanNamedTypes {
             of(ESQL_UNARY_SCLR_CLS, Cos.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Cosh.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Floor.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
-            of(ESQL_UNARY_SCLR_CLS, IsFinite.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
-            of(ESQL_UNARY_SCLR_CLS, IsInfinite.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
-            of(ESQL_UNARY_SCLR_CLS, IsNaN.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Length.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Log10.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, LTrim.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
@@ -343,6 +347,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, CIDRMatch.class, PlanNamedTypes::writeCIDRMatch, PlanNamedTypes::readCIDRMatch),
             of(ScalarFunction.class, Coalesce.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, Concat.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
+            of(ScalarFunction.class, DateDiff.class, PlanNamedTypes::writeDateDiff, PlanNamedTypes::readDateDiff),
             of(ScalarFunction.class, DateExtract.class, PlanNamedTypes::writeDateExtract, PlanNamedTypes::readDateExtract),
             of(ScalarFunction.class, DateFormat.class, PlanNamedTypes::writeDateFormat, PlanNamedTypes::readDateFormat),
             of(ScalarFunction.class, DateParse.class, PlanNamedTypes::writeDateTimeParse, PlanNamedTypes::readDateTimeParse),
@@ -383,6 +388,8 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvConcat.class, PlanNamedTypes::writeMvConcat, PlanNamedTypes::readMvConcat),
             of(ScalarFunction.class, MvDedupe.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
+            of(ScalarFunction.class, MvFirst.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
+            of(ScalarFunction.class, MvLast.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMax.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMedian.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvMin.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
@@ -1145,9 +1152,6 @@ public final class PlanNamedTypes {
         entry(name(Cos.class), Cos::new),
         entry(name(Cosh.class), Cosh::new),
         entry(name(Floor.class), Floor::new),
-        entry(name(IsFinite.class), IsFinite::new),
-        entry(name(IsInfinite.class), IsInfinite::new),
-        entry(name(IsNaN.class), IsNaN::new),
         entry(name(Length.class), Length::new),
         entry(name(Log10.class), Log10::new),
         entry(name(LTrim.class), LTrim::new),
@@ -1285,6 +1289,19 @@ public final class PlanNamedTypes {
         out.writeNoSource();
         out.writeExpression(fields.get(0));
         out.writeOptionalWriteable(fields.size() == 2 ? o -> out.writeExpression(fields.get(1)) : null);
+    }
+
+    static DateDiff readDateDiff(PlanStreamInput in) throws IOException {
+        return new DateDiff(in.readSource(), in.readExpression(), in.readExpression(), in.readExpression());
+    }
+
+    static void writeDateDiff(PlanStreamOutput out, DateDiff function) throws IOException {
+        out.writeNoSource();
+        List<Expression> fields = function.children();
+        assert fields.size() == 3;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+        out.writeExpression(fields.get(2));
     }
 
     static DateExtract readDateExtract(PlanStreamInput in) throws IOException {
@@ -1522,6 +1539,8 @@ public final class PlanNamedTypes {
         entry(name(MvAvg.class), MvAvg::new),
         entry(name(MvCount.class), MvCount::new),
         entry(name(MvDedupe.class), MvDedupe::new),
+        entry(name(MvFirst.class), MvFirst::new),
+        entry(name(MvLast.class), MvLast::new),
         entry(name(MvMax.class), MvMax::new),
         entry(name(MvMedian.class), MvMedian::new),
         entry(name(MvMin.class), MvMin::new),
@@ -1572,13 +1591,62 @@ public final class PlanNamedTypes {
     // -- Expressions (other)
 
     static Literal readLiteral(PlanStreamInput in) throws IOException {
-        return new Literal(in.readSource(), in.readGenericValue(), in.dataTypeFromTypeName(in.readString()));
+        Source source = in.readSource();
+        Object value = in.readGenericValue();
+        DataType dataType = in.dataTypeFromTypeName(in.readString());
+        return new Literal(source, mapToLiteralValue(in, dataType, value), dataType);
     }
 
     static void writeLiteral(PlanStreamOutput out, Literal literal) throws IOException {
         out.writeNoSource();
-        out.writeGenericValue(literal.value());
+        out.writeGenericValue(mapFromLiteralValue(out, literal.dataType(), literal.value()));
         out.writeString(literal.dataType().typeName());
+    }
+
+    /**
+     * Not all literal values are currently supported in StreamInput/StreamOutput as generic values.
+     * This mapper allows for addition of new and interesting values without (yet) adding to StreamInput/Output.
+     * This makes the most sense during the pre-GA version of ESQL. When we get near GA we might want to push this down.
+     * <p>
+     * For the spatial point type support we need to care about the fact that 8.12.0 uses encoded longs for serializing
+     * while 8.13 uses WKB.
+     */
+    private static Object mapFromLiteralValue(PlanStreamOutput out, DataType dataType, Object value) {
+        if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
+            // In 8.12.0 and earlier builds of 8.13 (pre-release) we serialized point literals as encoded longs, but now use WKB
+            if (out.getTransportVersion().before(TransportVersions.ESQL_PLAN_POINT_LITERAL_WKB)) {
+                if (value instanceof List<?> list) {
+                    return list.stream().map(v -> mapFromLiteralValue(out, dataType, v)).toList();
+                }
+                return wkbAsLong(dataType, (BytesRef) value);
+            }
+        }
+        return value;
+    }
+
+    /**
+     * Not all literal values are currently supported in StreamInput/StreamOutput as generic values.
+     * This mapper allows for addition of new and interesting values without (yet) changing StreamInput/Output.
+     */
+    private static Object mapToLiteralValue(PlanStreamInput in, DataType dataType, Object value) {
+        if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
+            // In 8.12.0 and earlier builds of 8.13 (pre-release) we serialized point literals as encoded longs, but now use WKB
+            if (in.getTransportVersion().before(TransportVersions.ESQL_PLAN_POINT_LITERAL_WKB)) {
+                if (value instanceof List<?> list) {
+                    return list.stream().map(v -> mapToLiteralValue(in, dataType, v)).toList();
+                }
+                return longAsWKB(dataType, (Long) value);
+            }
+        }
+        return value;
+    }
+
+    private static BytesRef longAsWKB(DataType dataType, long encoded) {
+        return dataType == GEO_POINT ? GEO.longAsWkb(encoded) : CARTESIAN.longAsWkb(encoded);
+    }
+
+    private static long wkbAsLong(DataType dataType, BytesRef wkb) {
+        return dataType == GEO_POINT ? GEO.wkbAsLong(wkb) : CARTESIAN.wkbAsLong(wkb);
     }
 
     static Order readOrder(PlanStreamInput in) throws IOException {

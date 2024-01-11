@@ -16,7 +16,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -51,11 +50,11 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneCountOperator.Factory simple(BigArrays bigArrays) {
-        return simple(bigArrays, randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
+    protected LuceneCountOperator.Factory simple() {
+        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 
-    private LuceneCountOperator.Factory simple(BigArrays bigArrays, DataPartitioning dataPartitioning, int numDocs, int limit) {
+    private LuceneCountOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit) {
         boolean enableShortcut = randomBoolean();
         int commitEvery = Math.max(1, numDocs / 10);
         try (
@@ -150,7 +149,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
 
     private void testCount(Supplier<DriverContext> contexts, int size, int limit) {
         DataPartitioning dataPartitioning = randomFrom(DataPartitioning.values());
-        LuceneCountOperator.Factory factory = simple(contexts.get().bigArrays(), dataPartitioning, size, limit);
+        LuceneCountOperator.Factory factory = simple(dataPartitioning, size, limit);
         List<Page> results = new CopyOnWriteArrayList<>();
         List<Driver> drivers = new ArrayList<>();
         int taskConcurrency = between(1, 8);

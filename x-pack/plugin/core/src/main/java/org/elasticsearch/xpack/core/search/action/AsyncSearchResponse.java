@@ -15,9 +15,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
 
@@ -42,6 +45,15 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
 
     private final long startTimeMillis;
     private final long expirationTimeMillis;
+
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
+        }
+    });
 
     /**
      * Creates an {@link AsyncSearchResponse} with meta-information only (not-modified).
@@ -72,6 +84,9 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
     ) {
         this.id = id;
         this.error = error;
+        if (searchResponse != null) {
+            searchResponse.mustIncRef();
+        }
         this.searchResponse = searchResponse;
         this.isPartial = isPartial;
         this.isRunning = isRunning;
@@ -103,6 +118,26 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
         out.writeBoolean(isRunning);
         out.writeLong(startTimeMillis);
         out.writeLong(expirationTimeMillis);
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 
     public AsyncSearchResponse clone(String searchId) {

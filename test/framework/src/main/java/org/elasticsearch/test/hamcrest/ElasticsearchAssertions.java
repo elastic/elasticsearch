@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -814,11 +815,16 @@ public class ElasticsearchAssertions {
         // Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
         Map<String, Object> actualMap = null;
         Map<String, Object> expectedMap = null;
-        try (XContentParser actualParser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, actual.streamInput())) {
+        try (
+            XContentParser actualParser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, actual, xContentType)
+        ) {
             actualMap = actualParser.map();
             try (
-                XContentParser expectedParser = xContentType.xContent()
-                    .createParser(XContentParserConfiguration.EMPTY, expected.streamInput())
+                XContentParser expectedParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    expected,
+                    xContentType
+                )
             ) {
                 expectedMap = expectedParser.map();
                 try {

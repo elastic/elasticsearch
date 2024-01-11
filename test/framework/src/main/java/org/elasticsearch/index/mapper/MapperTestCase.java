@@ -1239,25 +1239,36 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertNoDocValueLoader(b -> b.startArray("field").endArray());
     }
 
-    public final void testBlockLoaderFromColumnReader() throws IOException {
-        testBlockLoader(true);
+    // TextFieldMapperTests @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromColumnReader() throws IOException {
+        testBlockLoader(false, true);
     }
 
-    public final void testBlockLoaderFromRowStrideReader() throws IOException {
-        testBlockLoader(false);
+    // TextFieldMapperTests @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromRowStrideReader() throws IOException {
+        testBlockLoader(false, false);
+    }
+
+    // TextFieldMapperTests @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromColumnReaderWithSyntheticSource() throws IOException {
+        testBlockLoader(true, true);
+    }
+
+    // Removed 'final' to silence this test in GeoPointFieldMapperTests, which does not support synthetic source completely
+    // TextFieldMapperTests @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104152")
+    public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
+        testBlockLoader(true, false);
     }
 
     protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
         return ft.hasDocValues();
     }
 
-    private void testBlockLoader(boolean columnReader) throws IOException {
+    private void testBlockLoader(boolean syntheticSource, boolean columnReader) throws IOException {
+        // TODO if we're not using synthetic source use a different sort of example. Or something.
         SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> { // TODO randomly use syntheticSourceMapping or normal
-            b.startObject("field");
-            example.mapping().accept(b);
-            b.endObject();
-        }));
+        XContentBuilder mapping = syntheticSource ? syntheticSourceFieldMapping(example.mapping) : fieldMapping(example.mapping);
+        MapperService mapper = createMapperService(mapping);
         testBlockLoader(columnReader, example, mapper, "field");
     }
 
@@ -1284,8 +1295,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             public String parentField(String field) {
                 return mapper.mappingLookup().parentField(field);
             }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return (FieldNamesFieldMapper.FieldNamesFieldType) mapper.fieldType(FieldNamesFieldMapper.NAME);
+            }
         });
-        Function<Object, Object> valuesConvert = loadBlockExpected();
+        Function<Object, Object> valuesConvert = loadBlockExpected(mapper, loaderFieldName);
         if (valuesConvert == null) {
             assertNull(loader);
             return;
@@ -1359,7 +1375,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * How {@link MappedFieldType#blockLoader} should load values or {@code null}
      * if that method isn't supported by field being tested.
      */
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
         return null;
     }
 

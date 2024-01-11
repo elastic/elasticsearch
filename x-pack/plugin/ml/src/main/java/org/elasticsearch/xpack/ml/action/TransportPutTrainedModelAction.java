@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -29,10 +27,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -42,20 +40,16 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
@@ -87,22 +81,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MlTasks.downloadModelTaskDescription;
 
 public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Request, Response> {
 
     private static final ByteSizeValue MAX_NATIVE_DEFINITION_INDEX_SIZE = ByteSizeValue.ofGb(50);
-    private static final Logger logger = LogManager.getLogger(TransportPutTrainedModelAction.class);
 
     private final TrainedModelProvider trainedModelProvider;
     private final XPackLicenseState licenseState;
     private final NamedXContentRegistry xContentRegistry;
     private final OriginSettingClient client;
-    private final Settings settings;
 
     @Inject
     public TransportPutTrainedModelAction(
-        Settings settings,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -128,7 +118,6 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         this.trainedModelProvider = trainedModelProvider;
         this.xContentRegistry = xContentRegistry;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
-        this.settings = settings;
     }
 
     @Override
@@ -349,7 +338,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         ThreadPool threadPool,
         ActionListener<TrainedModelConfig> configToReturnListener
     ) {
-        ActionListener<TrainedModelConfig> addWarningHeaderOnFailureListener = new ActionListener<TrainedModelConfig>() {
+        ActionListener<TrainedModelConfig> addWarningHeaderOnFailureListener = new ActionListener<>() {
             @Override
             public void onResponse(TrainedModelConfig config) {
                 assert Objects.equals(config, configToReturn);
@@ -401,38 +390,9 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         }, sendResponseListener::onFailure), timeout);
     }
 
-    private static void getExistingTaskInfo(Client client, String modelId, boolean waitForCompletion, ActionListener<TaskInfo> listener) {
-        client.admin()
-            .cluster()
-            .prepareListTasks()
-            .setActions(MlTasks.MODEL_IMPORT_TASK_ACTION)
-            .setDetailed(true)
-            .setWaitForCompletion(waitForCompletion)
-            .setDescriptions(downloadModelTaskDescription(modelId))
-            .execute(ActionListener.wrap((response) -> {
-                var tasks = response.getTasks();
-
-                if (tasks.size() > 0) {
-                    // there really shouldn't be more than a single task but if there is we'll just use the first one
-                    listener.onResponse(tasks.get(0));
-                } else {
-                    listener.onResponse(null);
-                }
-            }, e -> {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Unable to retrieve task information for model id [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        e,
-                        modelId
-                    )
-                );
-            }));
-    }
-
     private static void getModelInformation(Client client, String modelId, ActionListener<Response> listener) {
         client.execute(GetTrainedModelsAction.INSTANCE, new GetTrainedModelsAction.Request(modelId), ActionListener.wrap(models -> {
-            if (models.getResources().results().size() == 0) {
+            if (models.getResources().results().isEmpty()) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         "No model information found for a concurrent create model execution for model id [{}]",
@@ -551,11 +511,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         trainedModelConfig.setPlatformArchitecture(resolvedModelPackageConfig.getPlatformArchitecture());
         trainedModelConfig.setMetadata(resolvedModelPackageConfig.getMetadata());
         trainedModelConfig.setInferenceConfig(
-            parseInferenceConfigFromModelPackage(
-                resolvedModelPackageConfig.getInferenceConfigSource(),
-                xContentRegistry,
-                LoggingDeprecationHandler.INSTANCE
-            )
+            parseInferenceConfigFromModelPackage(resolvedModelPackageConfig.getInferenceConfigSource(), xContentRegistry)
         );
         trainedModelConfig.setTags(resolvedModelPackageConfig.getTags());
         trainedModelConfig.setPrefixStrings(resolvedModelPackageConfig.getPrefixStrings());
@@ -566,18 +522,15 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         trainedModelConfig.setLocation(trainedModelConfig.getModelType().getDefaultLocation(trainedModelConfig.getModelId()));
     }
 
-    static InferenceConfig parseInferenceConfigFromModelPackage(
-        Map<String, Object> source,
-        NamedXContentRegistry namedXContentRegistry,
-        DeprecationHandler deprecationHandler
-    ) throws IOException {
+    static InferenceConfig parseInferenceConfigFromModelPackage(Map<String, Object> source, NamedXContentRegistry namedXContentRegistry)
+        throws IOException {
         try (
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-            XContentParser sourceParser = XContentType.JSON.xContent()
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
-                    BytesReference.bytes(xContentBuilder).streamInput()
-                )
+            XContentParser sourceParser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(namedXContentRegistry),
+                BytesReference.bytes(xContentBuilder),
+                XContentType.JSON
+            )
         ) {
 
             XContentParser.Token token = sourceParser.nextToken();

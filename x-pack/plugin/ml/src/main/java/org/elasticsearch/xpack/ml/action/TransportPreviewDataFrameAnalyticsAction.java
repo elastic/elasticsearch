@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -98,7 +99,11 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
                 preview(task, config, listener);
             });
         } else {
-            preview(task, request.getConfig(), listener);
+            preview(
+                task,
+                request.getConfig(),
+                ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
+            );
         }
     }
 

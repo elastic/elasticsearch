@@ -492,7 +492,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      * In stateless, this is the RAM usage of current and old version map plus the RAM usage of the parts of the archive that require a
      * new unpromotable refresh. To reclaim all three components we need to refresh AND flush.
      */
-    long reclaimableRamBytes() {
+    long reclaimableRefreshRamBytes() {
         return archive == LiveVersionMapArchive.NOOP_ARCHIVE
             ? maps.current.ramBytesUsed.get()
             : maps.ramBytesUsed() + archive.getReclaimableMemoryBytes();

@@ -952,3 +952,48 @@ Bamford        |true
 Bernatsky      |false
 // end::endsWith-result[]
 ;
+
+
+
+toLowerRow#[skip:-8.12.99]
+// tag::to_lower[]
+ROW message = "Some Text"
+| EVAL message_lower = TO_LOWER(message)
+// end::to_lower[]
+;
+
+// tag::to_lower-result[]
+message:keyword | message_lower:keyword
+Some Text       | some text
+// end::to_lower-result[]
+;
+
+
+toLower#[skip:-8.12.99]
+from employees | sort emp_no | eval name_lower = TO_LOWER(first_name) | keep emp_no, first_name, name_lower | limit 1;
+
+emp_no:integer  | first_name:keyword    | name_lower:keyword
+10001           | Georgi                | georgi
+;
+
+
+toUpperRow#[skip:-8.12.99]
+// tag::to_upper[]
+ROW message = "Some Text"
+| EVAL message_upper = TO_UPPER(message)
+// end::to_upper[]
+;
+
+// tag::to_upper-result[]
+message:keyword | message_upper:keyword
+Some Text       | SOME TEXT
+// end::to_upper-result[]
+;
+
+
+toUpper#[skip:-8.12.99]
+from employees | sort emp_no | eval name_upper = TO_UPPER(first_name) | keep emp_no, first_name, name_upper | limit 1;
+
+emp_no:integer  | first_name:keyword    | name_upper:keyword
+10001           | Georgi                | GEORGI
+;

@@ -147,9 +147,8 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
                 ).build();
                 extractedFieldsDetectorFactory.createFromSource(
                     config,
-                    ActionListener.wrap(
-                        extractedFieldsDetector -> explain(parentTaskId, config, extractedFieldsDetector, listener),
-                        listener::onFailure
+                    listener.delegateFailureAndWrap(
+                        (l, extractedFieldsDetector) -> explain(parentTaskId, config, extractedFieldsDetector, l)
                     )
                 );
             });
@@ -160,14 +159,8 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
             );
             extractedFieldsDetectorFactory.createFromSource(
                 request.getConfig(),
-                ActionListener.wrap(
-                    extractedFieldsDetector -> explain(
-                        parentTaskId,
-                        request.getConfig(),
-                        extractedFieldsDetector,
-                        responseHeaderPreservingListener
-                    ),
-                    responseHeaderPreservingListener::onFailure
+                responseHeaderPreservingListener.delegateFailureAndWrap(
+                    (l, extractedFieldsDetector) -> explain(parentTaskId, request.getConfig(), extractedFieldsDetector, l)
                 )
             );
         }
@@ -189,13 +182,14 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
             );
             return;
         }
-
-        ActionListener<MemoryEstimation> memoryEstimationListener = ActionListener.wrap(
-            memoryEstimation -> listener.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), memoryEstimation)),
-            listener::onFailure
+        estimateMemoryUsage(
+            parentTaskId,
+            config,
+            fieldExtraction.v1(),
+            listener.delegateFailureAndWrap(
+                (l, memoryEstimation) -> l.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), memoryEstimation))
+            )
         );
-
-        estimateMemoryUsage(parentTaskId, config, fieldExtraction.v1(), memoryEstimationListener);
     }
 
     /**
@@ -220,11 +214,8 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
             estimateMemoryTaskId,
             config,
             extractorFactory,
-            ActionListener.wrap(
-                result -> listener.onResponse(
-                    new MemoryEstimation(result.getExpectedMemoryWithoutDisk(), result.getExpectedMemoryWithDisk())
-                ),
-                listener::onFailure
+            listener.delegateFailureAndWrap(
+                (l, result) -> l.onResponse(new MemoryEstimation(result.getExpectedMemoryWithoutDisk(), result.getExpectedMemoryWithDisk()))
             )
         );
     }

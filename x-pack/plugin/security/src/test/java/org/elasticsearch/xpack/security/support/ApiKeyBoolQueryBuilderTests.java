@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SpanQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -162,10 +163,10 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
 
         // metadata
         {
-            final List<String> queryFields = new ArrayList<>();
+            List<String> queryFields = new ArrayList<>();
             final String metadataKey = randomAlphaOfLengthBetween(3, 8);
             final TermQueryBuilder q1 = QueryBuilders.termQuery("metadata." + metadataKey, randomAlphaOfLengthBetween(3, 8));
-            final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, queryFields::add, authentication);
+            ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, queryFields::add, authentication);
             assertThat(queryFields, hasItem("doc_type"));
             assertThat(queryFields, hasItem("metadata_flattened." + metadataKey));
             if (authentication != null && authentication.isApiKey() == false) {
@@ -174,6 +175,22 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             }
             assertCommonFilterQueries(apiKeyQb1, authentication);
             assertThat(apiKeyQb1.must().get(0), equalTo(QueryBuilders.termQuery("metadata_flattened." + metadataKey, q1.value())));
+
+            queryFields = new ArrayList<>();
+            String queryStringQuery = randomAlphaOfLength(8);
+            SimpleQueryStringBuilder q2 = QueryBuilders.simpleQueryStringQuery(queryStringQuery).field("metadata");
+            apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q2, queryFields::add, authentication);
+            assertThat(queryFields, hasItem("doc_type"));
+            assertThat(queryFields, hasItem("metadata_flattened"));
+            if (authentication != null && authentication.isApiKey() == false) {
+                assertThat(queryFields, hasItem("creator.principal"));
+                assertThat(queryFields, hasItem("creator.realm"));
+            }
+            assertCommonFilterQueries(apiKeyQb1, authentication);
+            assertThat(
+                apiKeyQb1.must().get(0),
+                equalTo(QueryBuilders.simpleQueryStringQuery(queryStringQuery).field("metadata_flattened"))
+            );
         }
 
         // username
@@ -233,6 +250,70 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             assertCommonFilterQueries(apiKeyQb5, authentication);
             assertThat(apiKeyQb5.must().get(0), equalTo(QueryBuilders.termQuery("expiration_time", q5.value())));
         }
+
+        // type
+        {
+            final List<String> queryFields = new ArrayList<>();
+            float fieldBoost = randomFloat();
+            final SimpleQueryStringBuilder q5 = QueryBuilders.simpleQueryStringQuery("q=42").field("type", fieldBoost);
+            final ApiKeyBoolQueryBuilder apiKeyQb5 = ApiKeyBoolQueryBuilder.build(q5, queryFields::add, authentication);
+            assertThat(queryFields, hasItem("doc_type"));
+            assertThat(queryFields, hasItem("runtime_key_type")); // "type" translation
+            if (authentication != null && authentication.isApiKey() == false) {
+                assertThat(queryFields, hasItem("creator.principal"));
+                assertThat(queryFields, hasItem("creator.realm"));
+            }
+            assertCommonFilterQueries(apiKeyQb5, authentication);
+            assertThat(
+                apiKeyQb5.must().get(0),
+                equalTo(QueryBuilders.simpleQueryStringQuery("q=42").field("runtime_key_type", fieldBoost))
+            );
+        }
+
+        // test them all together
+        {
+            final List<String> queryFields = new ArrayList<>();
+            final SimpleQueryStringBuilder q6 = QueryBuilders.simpleQueryStringQuery("+OK -NOK maybe~3")
+                .field("username")
+                .field("realm_name")
+                .field("name")
+                .field("type")
+                .field("creation")
+                .field("expiration")
+                .field("invalidated")
+                .field("invalidation")
+                .field("metadata")
+                .field("metadata.inner");
+            final ApiKeyBoolQueryBuilder apiKeyQb6 = ApiKeyBoolQueryBuilder.build(q6, queryFields::add, authentication);
+            assertThat(queryFields, hasItem("doc_type"));
+            assertThat(queryFields, hasItem("creator.principal"));
+            assertThat(queryFields, hasItem("creator.realm"));
+            assertThat(queryFields, hasItem("name"));
+            assertThat(queryFields, hasItem("runtime_key_type")); // "type" translation
+            assertThat(queryFields, hasItem("creation_time"));
+            assertThat(queryFields, hasItem("expiration_time"));
+            assertThat(queryFields, hasItem("api_key_invalidated"));
+            assertThat(queryFields, hasItem("invalidation_time"));
+            assertThat(queryFields, hasItem("metadata_flattened"));
+            assertThat(queryFields, hasItem("metadata_flattened.inner"));
+            assertCommonFilterQueries(apiKeyQb6, authentication);
+            assertThat(
+                apiKeyQb6.must().get(0),
+                equalTo(
+                    QueryBuilders.simpleQueryStringQuery("+OK -NOK maybe~3")
+                        .field("creator.principal")
+                        .field("creator.realm")
+                        .field("name")
+                        .field("runtime_key_type")
+                        .field("creation_time")
+                        .field("expiration_time")
+                        .field("api_key_invalidated")
+                        .field("invalidation_time")
+                        .field("metadata_flattened")
+                        .field("metadata_flattened.inner")
+                )
+            );
+        }
     }
 
     public void testAllowListOfFieldNames() {
@@ -254,16 +335,44 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             "creator.metadata"
         );
 
-        final QueryBuilder q1 = randomValueOtherThanMany(
-            q -> q.getClass() == IdsQueryBuilder.class || q.getClass() == MatchAllQueryBuilder.class,
-            () -> randomSimpleQuery(fieldName)
-        );
-        final IllegalArgumentException e1 = expectThrows(
-            IllegalArgumentException.class,
-            () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
-        );
+        {
+            final QueryBuilder q1 = randomValueOtherThanMany(
+                q -> q.getClass() == IdsQueryBuilder.class || q.getClass() == MatchAllQueryBuilder.class,
+                () -> randomSimpleQuery(fieldName)
+            );
+            final IllegalArgumentException e1 = expectThrows(
+                IllegalArgumentException.class,
+                () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
+            );
+            assertThat(e1.getMessage(), containsString("Field [" + fieldName + "] is not allowed for API Key query"));
+        }
 
-        assertThat(e1.getMessage(), containsString("Field [" + fieldName + "] is not allowed for API Key query"));
+        // also wrapped in a boolean query
+        {
+            final QueryBuilder q1 = randomValueOtherThanMany(
+                q -> q.getClass() == IdsQueryBuilder.class || q.getClass() == MatchAllQueryBuilder.class,
+                () -> randomSimpleQuery(fieldName)
+            );
+            final BoolQueryBuilder q2 = QueryBuilders.boolQuery();
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    q2.filter(q1);
+                } else {
+                    q2.must(q1);
+                }
+            } else {
+                if (randomBoolean()) {
+                    q2.should(q1);
+                } else {
+                    q2.mustNot(q1);
+                }
+            }
+            IllegalArgumentException e2 = expectThrows(
+                IllegalArgumentException.class,
+                () -> ApiKeyBoolQueryBuilder.build(q2, ignored -> {}, authentication)
+            );
+            assertThat(e2.getMessage(), containsString("Field [" + fieldName + "] is not allowed for API Key query"));
+        }
     }
 
     public void testTermsLookupIsNotAllowed() {
@@ -294,7 +403,6 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             QueryBuilders.constantScoreQuery(mock(QueryBuilder.class)),
             QueryBuilders.boostingQuery(mock(QueryBuilder.class), mock(QueryBuilder.class)),
             QueryBuilders.queryStringQuery("q=a:42"),
-            QueryBuilders.simpleQueryStringQuery(randomAlphaOfLength(5)),
             QueryBuilders.combinedFieldsQuery(randomAlphaOfLength(5)),
             QueryBuilders.disMaxQuery(),
             QueryBuilders.distanceFeatureQuery(
@@ -332,6 +440,29 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
         );
         assertThat(e1.getMessage(), containsString("Query type [" + q1.getName() + "] is not supported for API Key query"));
+
+        // also wrapped in a boolean query
+        {
+            final BoolQueryBuilder q2 = QueryBuilders.boolQuery();
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    q2.filter(q1);
+                } else {
+                    q2.must(q1);
+                }
+            } else {
+                if (randomBoolean()) {
+                    q2.should(q1);
+                } else {
+                    q2.mustNot(q1);
+                }
+            }
+            IllegalArgumentException e2 = expectThrows(
+                IllegalArgumentException.class,
+                () -> ApiKeyBoolQueryBuilder.build(q2, ignored -> {}, authentication)
+            );
+            assertThat(e2.getMessage(), containsString("Query type [" + q1.getName() + "] is not supported for API Key query"));
+        }
     }
 
     public void testWillSetAllowedFields() throws IOException {
@@ -419,18 +550,23 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         );
     }
 
-    private QueryBuilder randomSimpleQuery(String name) {
-        return switch (randomIntBetween(0, 7)) {
-            case 0 -> QueryBuilders.termQuery(name, randomAlphaOfLengthBetween(3, 8));
-            case 1 -> QueryBuilders.termsQuery(name, randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
+    private QueryBuilder randomSimpleQuery(String fieldName) {
+        return switch (randomIntBetween(0, 8)) {
+            case 0 -> QueryBuilders.termQuery(fieldName, randomAlphaOfLengthBetween(3, 8));
+            case 1 -> QueryBuilders.termsQuery(fieldName, randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
             case 2 -> QueryBuilders.idsQuery().addIds(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(22)));
-            case 3 -> QueryBuilders.prefixQuery(name, "prod-");
-            case 4 -> QueryBuilders.wildcardQuery(name, "prod-*-east-*");
+            case 3 -> QueryBuilders.prefixQuery(fieldName, "prod-");
+            case 4 -> QueryBuilders.wildcardQuery(fieldName, "prod-*-east-*");
             case 5 -> QueryBuilders.matchAllQuery();
-            case 6 -> QueryBuilders.existsQuery(name);
-            default -> QueryBuilders.rangeQuery(name)
+            case 6 -> QueryBuilders.existsQuery(fieldName);
+            case 7 -> QueryBuilders.rangeQuery(fieldName)
                 .from(Instant.now().minus(1, ChronoUnit.DAYS).toEpochMilli(), randomBoolean())
                 .to(Instant.now().toEpochMilli(), randomBoolean());
+            case 8 -> QueryBuilders.simpleQueryStringQuery("+rest key*")
+                .field(fieldName)
+                .lenient(randomBoolean())
+                .analyzeWildcard(randomBoolean());
+            default -> throw new IllegalStateException("illegal switch case");
         };
     }
 

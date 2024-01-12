@@ -54,6 +54,12 @@ public class ApiKeyFieldNameTranslators {
         throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query");
     }
 
+    /**
+     * Translates a query level field name pattern to the matching index level field names.
+     * The result can be the empty set, if the pattern doesn't match any of the allowed index level field names.
+     * If the pattern is actually a concrete field name rather than a pattern,
+     * it is also translated, but only if the query level field name is allowed, otherwise an exception is thrown.
+     */
     public static Set<String> translatePattern(String fieldNameOrPattern) {
         Set<String> indexFieldNames = new HashSet<>();
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {

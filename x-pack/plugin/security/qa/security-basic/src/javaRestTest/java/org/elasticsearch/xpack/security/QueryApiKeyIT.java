@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -130,8 +131,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         });
 
         // Search for fields outside of the allowlist fails
-        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
+        ResponseException responseException = assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
             { "query": { "prefix": {"api_key_hash": "{PBKDF2}10000$"} } }""");
+        assertThat(responseException.getMessage(), containsString("Field [api_key_hash] is not allowed for API Key query"));
 
         // Search for fields that are not allowed in Query DSL but used internally by the service itself
         final String fieldName = randomFrom("doc_type", "api_key_invalidated", "invalidation_time");
@@ -453,8 +455,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 {"query": {"simple_query_string": {"query": "prod 42 true", "fields": ["metadata.*"]}}}""",
             apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
         );
-        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
+        ResponseException responseException = assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
             {"query": {"simple_query_string": {"query": "ke*", "fields": ["i*", "api_key_hash", "*"]}}}""");
+        assertThat(responseException.getMessage(), containsString("Field [api_key_hash] is not allowed for API Key query"));
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
             """
@@ -649,12 +652,13 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return actualSize;
     }
 
-    private void assertQueryError(String authHeader, int statusCode, String body) throws IOException {
+    private ResponseException assertQueryError(String authHeader, int statusCode, String body) throws IOException {
         final Request request = new Request("GET", "/_security/_query/api_key");
         request.setJsonEntity(body);
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         final ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+        return responseException;
     }
 
     private void assertQuery(String authHeader, String body, Consumer<List<Map<String, Object>>> apiKeysVerifier) throws IOException {

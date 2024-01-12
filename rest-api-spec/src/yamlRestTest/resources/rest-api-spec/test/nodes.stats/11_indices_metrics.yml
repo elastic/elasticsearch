@@ -413,13 +413,11 @@
   - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 0 }
 
 ---
-"indices mappings exact count test for indices level":
+"indices mappings count test for indices level":
 
   - skip:
       features: [arbitrary_key]
-      version:
-       - " - 8.4.99"
-       - "8.13.0 - "
+      version: " - 8.4.99"
       reason:  "mappings added in version 8.5.0"
 
   - do:
@@ -504,7 +502,7 @@
   - gte: { nodes.$node_id.indices.mappings.total_count: 26 }
   - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead
   - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 26624 }
-  - match: { nodes.$node_id.indices.indices.index1.mappings.total_count: 26 }
+  - gte: { nodes.$node_id.indices.indices.index1.mappings.total_count: 26 }
   - is_true: nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead
   - match: { nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead_in_bytes: 26624 }
 

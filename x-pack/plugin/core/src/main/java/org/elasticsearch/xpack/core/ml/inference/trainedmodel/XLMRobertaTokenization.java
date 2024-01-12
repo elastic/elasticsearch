@@ -73,6 +73,11 @@ public class XLMRobertaTokenization extends Tokenization {
     }
 
     @Override
+    protected Tokenization buildWindowingTokenization(int maxSeqLength, int span) {
+        return new XLMRobertaTokenization(withSpecialTokens, maxSeqLength, Truncate.NONE, span);
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

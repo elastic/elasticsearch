@@ -16,6 +16,7 @@ import org.elasticsearch.action.delete.DeleteResponseTests;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -68,7 +69,12 @@ public class BulkResponseTests extends ESTestCase {
         }
 
         BulkResponse bulkResponse = new BulkResponse(bulkItems, took, ingestTook);
-        BytesReference originalBytes = toShuffledXContent(bulkResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsToXContent(bulkResponse),
+            xContentType,
+            ToXContent.EMPTY_PARAMS,
+            humanReadable
+        );
 
         BulkResponse parsedBulkResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

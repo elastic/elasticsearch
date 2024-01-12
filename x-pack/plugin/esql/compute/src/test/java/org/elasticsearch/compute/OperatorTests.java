@@ -345,7 +345,7 @@ public class OperatorTests extends MapperServiceTestCase {
     }
 
     static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, int limit) {
-        final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0, 0);
+        final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
             List.of(searchContext),
             ctx -> query,

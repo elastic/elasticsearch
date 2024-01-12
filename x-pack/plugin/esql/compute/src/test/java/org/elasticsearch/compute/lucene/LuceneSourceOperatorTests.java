@@ -27,7 +27,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -87,7 +86,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        ShardContext ctx = new MockShardContext(reader, 0, 0);
+        ShardContext ctx = new MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int maxPageSize = between(10, Math.max(10, numDocs));
         return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit);
@@ -182,12 +181,10 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
      */
     public static class MockShardContext implements ShardContext {
         private final int index;
-        private final int shardId;
         private final ContextIndexSearcher searcher;
 
-        public MockShardContext(IndexReader reader, int index, int shardId) {
+        public MockShardContext(IndexReader reader, int index) {
             this.index = index;
-            this.shardId = shardId;
             try {
                 this.searcher = new ContextIndexSearcher(
                     reader,
@@ -217,13 +214,8 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         @Override
-        public Index fullyQualifiedIndex() {
-            return new Index("test", "uid");
-        }
-
-        @Override
-        public int shardId() {
-            return shardId;
+        public String shardIdentifier() {
+            return "test";
         }
     }
 }

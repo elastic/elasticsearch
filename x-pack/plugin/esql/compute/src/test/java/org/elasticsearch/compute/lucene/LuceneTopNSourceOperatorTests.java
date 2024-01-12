@@ -85,7 +85,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0, 0) {
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0) {
             @Override
             public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
                 SortField field = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);

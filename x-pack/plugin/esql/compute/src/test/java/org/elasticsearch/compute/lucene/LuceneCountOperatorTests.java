@@ -80,7 +80,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0, 0);
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         final Query query;
         if (enableShortcut && randomBoolean()) {
             query = new MatchAllDocsQuery();

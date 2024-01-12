@@ -162,7 +162,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             throw new RuntimeException(e);
         }
         var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0, 0)),
+            List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
             ctx -> new MatchAllDocsQuery(),
             DataPartitioning.SHARD,
             randomIntBetween(1, 10),
@@ -1266,7 +1266,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0, 0)),
+            List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
             ctx -> new MatchAllDocsQuery(),
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
@@ -1484,7 +1484,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             List<ShardContext> contexts = new ArrayList<>();
             List<ValuesSourceReaderOperator.ShardContext> readerShardContexts = new ArrayList<>();
             for (int s = 0; s < shardCount; s++) {
-                contexts.add(new LuceneSourceOperatorTests.MockShardContext(readers[s], s, s));
+                contexts.add(new LuceneSourceOperatorTests.MockShardContext(readers[s], s));
                 readerShardContexts.add(new ValuesSourceReaderOperator.ShardContext(readers[s], () -> SourceLoader.FROM_STORED_SOURCE));
             }
             var luceneFactory = new LuceneSourceOperator.Factory(

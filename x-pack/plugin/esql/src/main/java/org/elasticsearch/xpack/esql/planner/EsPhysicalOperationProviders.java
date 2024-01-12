@@ -23,7 +23,6 @@ import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -224,13 +223,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public Index fullyQualifiedIndex() {
-            return ctx.getFullyQualifiedIndex();
-        }
-
-        @Override
-        public int shardId() {
-            return ctx.getShardId();
+        public String shardIdentifier() {
+            return ctx.getFullyQualifiedIndex().getName() + ":" + ctx.getShardId();
         }
 
         @Override

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -36,13 +35,8 @@ public interface ShardContext {
     Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) throws IOException;
 
     /**
-     * The index <strong>name</strong> of the index.
+     * A "name" for the shard that you can look up against other APIs like
+     * {@code _cat/shards}.
      */
-    Index fullyQualifiedIndex();
-
-    /**
-     * The number of the shard being processed. These are just counting numbers
-     * starting with 0.
-     */
-    int shardId();
+    String shardIdentifier();
 }

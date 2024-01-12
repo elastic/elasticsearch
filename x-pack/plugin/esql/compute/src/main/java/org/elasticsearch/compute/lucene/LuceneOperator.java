@@ -89,9 +89,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     continue;
                 }
                 processedSlices++;
-                processedShards.add(
-                    currentSlice.shardContext().fullyQualifiedIndex().getName() + ":" + currentSlice.shardContext().shardId()
-                );
+                processedShards.add(currentSlice.shardContext().shardIdentifier());
             }
             final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
             logger.trace("Starting {}", partialLeaf);

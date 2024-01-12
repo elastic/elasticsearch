@@ -154,7 +154,7 @@ class MutableSearchResponse implements Releasable {
      * @param clusterResponse SearchResponse from cluster 'clusterAlias'
      */
     synchronized void updateResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
-        clusterResponse.mustIncRef();  // TODO: do I need this? They are now decRef'd in the close method of this class
+        clusterResponse.mustIncRef();
         if (clusterResponses == null) {
             clusterResponses = new ArrayList<>();
         }
@@ -262,7 +262,7 @@ class MutableSearchResponse implements Releasable {
                     try {
                         searchResponse = getMergedResponse(searchResponseMerger, partialAggsSearchResponse);
                     } finally {
-                        partialAggsSearchResponse.decRef();  // TODO: do I need this?
+                        partialAggsSearchResponse.decRef();
                     }
                 } else {
                     /*
@@ -313,7 +313,7 @@ class MutableSearchResponse implements Releasable {
         return task.getSearchResponseMergerSupplier().get();
     }
 
-    private SearchResponse getMergedResponse(SearchResponseMerger merger) {
+    private synchronized SearchResponse getMergedResponse(SearchResponseMerger merger) {
         return getMergedResponse(merger, null);
     }
 
@@ -346,8 +346,8 @@ class MutableSearchResponse implements Releasable {
         if (finalResponse != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
-                frozen == false,
-                isPartial,
+                false,
+                false,  // TODO: this should be isPartial - fix in bug fix PR
                 startTime,
                 expirationTime,
                 startTime + finalResponse.getTook().millis(),
@@ -475,7 +475,7 @@ class MutableSearchResponse implements Releasable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (finalResponse != null) {
             finalResponse.decRef();
         }

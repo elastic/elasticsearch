@@ -762,7 +762,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(ObjectPath.eval("suppressed.2.suppressed.0.reason", map), equalTo("suppressed#2"));
         assertThat(ObjectPath.eval("suppressed.2.suppressed.0.suppressed.0.reason", map), equalTo("suppressed#3"));
 
-        String tailExceptionPath = ".suppressed.0.caused_by".repeat(51).substring(1);
+        String tailExceptionPath = ".suppressed.0.caused_by".repeat(50).substring(1) + ".suppressed.0";
         final Object tailException = ObjectPath.eval(tailExceptionPath, map);
         assertThat(tailException, not(nullValue()));
         assertThat(tailException, instanceOf(Map.class));

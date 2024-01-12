@@ -371,6 +371,14 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Throwable cause,
         int nestedLevel
     ) throws IOException {
+
+        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            var terminalException = new IllegalStateException("too many nested exceptions");
+            builder.field(TYPE, getExceptionName(terminalException));
+            builder.field(REASON, terminalException.getMessage());
+            return;
+        }
+
         builder.field(TYPE, type);
         builder.field(REASON, message);
 
@@ -380,12 +388,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
         if (throwable instanceof ElasticsearchException exception) {
             exception.metadataToXContent(builder, params);
-        }
-
-        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
-            if (cause != null || throwable.getSuppressed().length > 0) {
-                cause = new IllegalStateException("too many nested exceptions");
-            }
         }
 
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
@@ -409,17 +411,15 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
         }
 
-        if (nestedLevel <= MAX_NESTED_EXCEPTION_LEVEL) {
-            Throwable[] allSuppressed = throwable.getSuppressed();
-            if (allSuppressed.length > 0) {
-                builder.startArray(SUPPRESSED.getPreferredName());
-                for (Throwable suppressed : allSuppressed) {
-                    builder.startObject();
-                    generateThrowableXContent(builder, params, suppressed, nestedLevel + 1);
-                    builder.endObject();
-                }
-                builder.endArray();
+        Throwable[] allSuppressed = throwable.getSuppressed();
+        if (allSuppressed.length > 0) {
+            builder.startArray(SUPPRESSED.getPreferredName());
+            for (Throwable suppressed : allSuppressed) {
+                builder.startObject();
+                generateThrowableXContent(builder, params, suppressed, nestedLevel + 1);
+                builder.endObject();
             }
+            builder.endArray();
         }
     }
 
@@ -582,7 +582,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but limits nesting depth
      * so that it can avoid stackoverflow errors.
      */
-    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, int nestedLevel) throws IOException {
+    protected static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, int nestedLevel)
+        throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof ElasticsearchException) {

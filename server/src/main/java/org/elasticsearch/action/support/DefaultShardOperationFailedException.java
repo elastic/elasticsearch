@@ -105,7 +105,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         builder.field("status", status.name());
         if (reason != null) {
             builder.startObject("reason");
-            ElasticsearchException.generateThrowableXContent(builder, params, cause, 0);
+            ElasticsearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
         }
         return builder;

@@ -417,7 +417,9 @@
 
   - skip:
       features: [arbitrary_key]
-      version: " - 8.4.99"
+      version:
+       - " - 8.4.99"
+       - "8.13.0 - "
       reason:  "mappings added in version 8.5.0"
 
   - do:

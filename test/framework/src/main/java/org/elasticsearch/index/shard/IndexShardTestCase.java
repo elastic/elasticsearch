@@ -1160,6 +1160,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static long recoverLocallyUpToGlobalCheckpoint(IndexShard indexShard) {
-        return indexShard.recoverLocallyUpToGlobalCheckpoint();
+        return PlainActionFuture.get(indexShard::recoverLocallyUpToGlobalCheckpoint, 10, TimeUnit.SECONDS);
     }
 }

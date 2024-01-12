@@ -53,6 +53,21 @@ public class APMAgentSettingsTests extends ESTestCase {
         verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
     }
 
+    public void testSetAgentsSettingsWithTelemetryPrefix() {
+        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
+        Settings settings = Settings.builder()
+            .put("tracing.apm.enabled", true)
+            .put("telemetry.metrics.enabled", true)
+            .put("telemetry.agent.server_url", "https://my-apm-server.example.com")
+            .put("telemetry.agent.metrics_interval", "1s")
+            .build();
+        apmAgentSettings.syncAgentSystemProperties(settings);
+
+        verify(apmAgentSettings).setAgentSetting("recording", "true");
+        verify(apmAgentSettings).setAgentSetting("metrics_interval", "1s");
+        verify(apmAgentSettings).setAgentSetting("server_url", "https://my-apm-server.example.com");
+    }
+
     /**
      * Check that invalid or forbidden APM agent settings are rejected.
      */

@@ -216,26 +216,27 @@ class APMJvmOptions {
     static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
-        agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
+        // tracing.apm.agent. is deprecated by telemetry.agent.
+        final String telemetryAgentPrefix = "telemetry.agent.";
+        final String tracingAgentPrefix = "tracing.apm.agent.";
 
-        // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
-        final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");
-        final StringJoiner globalLabels = new StringJoiner(",");
+        final Settings telemetryAgentSettings = settings.getByPrefix(telemetryAgentPrefix);
+        telemetryAgentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(telemetryAgentSettings.get(key))));
 
-        for (var globalLabel : globalLabelsSettings.keySet()) {
-            // remove the individual label from the properties map, they are harmless, but we shouldn't be passing
-            // something to the agent it doesn't understand.
-            propertiesMap.remove("global_labels." + globalLabel);
-            var globalLabelValue = globalLabelsSettings.get(globalLabel);
-            if (Strings.isNullOrBlank(globalLabelValue) == false) {
-                // sanitize for the agent labels separators in case the global labels passed in have , or =
-                globalLabelValue = globalLabelValue.replaceAll("[,=]", "_");
-                // append to the global labels string
-                globalLabels.add(String.join("=", globalLabel, globalLabelValue));
+        final Settings apmAgentSettings = settings.getByPrefix(tracingAgentPrefix);
+        for (String key : apmAgentSettings.keySet()) {
+            if (propertiesMap.containsKey(key)) {
+                throw new IllegalStateException(
+                    Strings.format("Duplicate telemetry setting: [%s%s] and [%s%s]", telemetryAgentPrefix, key, tracingAgentPrefix, key)
+                );
             }
+            propertiesMap.put(key, String.valueOf(apmAgentSettings.get(key)));
         }
 
+        StringJoiner globalLabels = extractGlobalLabels(telemetryAgentPrefix, propertiesMap, settings);
+        if (globalLabels.length() == 0) {
+            globalLabels = extractGlobalLabels(tracingAgentPrefix, propertiesMap, settings);
+        }
         if (globalLabels.length() > 0) {
             propertiesMap.put("global_labels", globalLabels.toString());
         }
@@ -254,6 +255,26 @@ class APMJvmOptions {
 
         propertiesMap.putAll(STATIC_CONFIG);
         return propertiesMap;
+    }
+
+    private static StringJoiner extractGlobalLabels(String prefix, Map<String, String> propertiesMap, Settings settings) {
+        // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
+        final Settings globalLabelsSettings = settings.getByPrefix(prefix + "global_labels.");
+        final StringJoiner globalLabels = new StringJoiner(",");
+
+        for (var globalLabel : globalLabelsSettings.keySet()) {
+            // remove the individual label from the properties map, they are harmless, but we shouldn't be passing
+            // something to the agent it doesn't understand.
+            propertiesMap.remove("global_labels." + globalLabel);
+            var globalLabelValue = globalLabelsSettings.get(globalLabel);
+            if (Strings.isNullOrBlank(globalLabelValue) == false) {
+                // sanitize for the agent labels separators in case the global labels passed in have , or =
+                globalLabelValue = globalLabelValue.replaceAll("[,=]", "_");
+                // append to the global labels string
+                globalLabels.add(String.join("=", globalLabel, globalLabelValue));
+            }
+        }
+        return globalLabels;
     }
 
     // package private for testing

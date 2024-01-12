@@ -2053,7 +2053,16 @@ public class Setting<T> implements ToXContentObject {
      */
     public static <T> AffixSetting<T> prefixKeySetting(String prefix, Function<String, Setting<T>> delegateFactory) {
         BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
-        return affixKeySetting(new AffixKey(prefix), delegateFactoryWithNamespace);
+        return affixKeySetting(new AffixKey(prefix, null, null), delegateFactoryWithNamespace);
+    }
+
+    /**
+     *  Same as above but also matches the fallback prefix in addition to the prefix of the setting.
+     */
+    public static <T> AffixSetting<T> prefixKeySetting(String prefix, String fallbackPrefix, Function<String, Setting<T>> delegateFactory) {
+        BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
+        Setting<T> delegate = delegateFactoryWithNamespace.apply("_na_", "_na_");
+        return new AffixSetting<>(new AffixKey(prefix, null, fallbackPrefix), delegate, delegateFactoryWithNamespace);
     }
 
     /**
@@ -2068,7 +2077,7 @@ public class Setting<T> implements ToXContentObject {
         AffixSettingDependency... dependencies
     ) {
         BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
-        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactoryWithNamespace, dependencies);
+        return affixKeySetting(new AffixKey(prefix, suffix, null), delegateFactoryWithNamespace, dependencies);
     }
 
     public static <T> AffixSetting<T> affixKeySetting(
@@ -2078,7 +2087,7 @@ public class Setting<T> implements ToXContentObject {
         AffixSettingDependency... dependencies
     ) {
         Setting<T> delegate = delegateFactory.apply("_na_", "_na_");
-        return new AffixSetting<>(new AffixKey(prefix, suffix), delegate, delegateFactory, dependencies);
+        return new AffixSetting<>(new AffixKey(prefix, suffix, null), delegate, delegateFactory, dependencies);
     }
 
     private static <T> AffixSetting<T> affixKeySetting(
@@ -2160,27 +2169,35 @@ public class Setting<T> implements ToXContentObject {
     public static final class AffixKey implements Key {
         private final Pattern pattern;
         private final String prefix;
+        private final String fallbackPrefix;
         private final String suffix;
 
         private final String keyString;
 
-        AffixKey(String prefix) {
-            this(prefix, null);
-        }
-
-        AffixKey(String prefix, String suffix) {
+        AffixKey(String prefix, String suffix, String fallbackPrefix) {
             assert prefix != null || suffix != null : "Either prefix or suffix must be non-null";
+            assert fallbackPrefix == null || prefix != null : "prefix must be non-null if fallbackPrefix is non-null";
 
             this.prefix = prefix;
             if (prefix.endsWith(".") == false) {
                 throw new IllegalArgumentException("prefix must end with a '.'");
             }
+            this.fallbackPrefix = fallbackPrefix;
+            String prefixPattern;
+            if (fallbackPrefix != null) {
+                if (fallbackPrefix.endsWith(".") == false) {
+                    throw new IllegalArgumentException("prefix must end with a '.'");
+                }
+                prefixPattern = "(" + Pattern.quote(prefix) + "|" + Pattern.quote(fallbackPrefix) + ")";
+            } else {
+                prefixPattern = "(" + Pattern.quote(prefix) + ")";
+            }
             this.suffix = suffix;
             if (suffix == null) {
-                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
+                pattern = Pattern.compile("(" + prefixPattern + "((?:[-\\w]+[.])*[-\\w]+$))");
             } else {
                 // the last part of this regexp is to support both list and group keys
-                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
+                pattern = Pattern.compile("(" + prefixPattern + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
             }
             StringBuilder sb = new StringBuilder();
             sb.append(prefix);
@@ -2216,7 +2233,7 @@ public class Setting<T> implements ToXContentObject {
             if (matcher.matches() == false) {
                 throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
             }
-            return Settings.internKeyOrValue(matcher.group(2));
+            return Settings.internKeyOrValue(matcher.group(3));
         }
 
         public SimpleKey toConcreteKey(String missingPart) {

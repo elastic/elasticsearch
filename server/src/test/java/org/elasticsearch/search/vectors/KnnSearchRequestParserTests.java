@@ -92,7 +92,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             query.addFilterQueries(filterQueries);
         }
         assertEquals(query, searchRequest.source().query());
-        assertEquals((int) knnSearch.k, searchRequest.source().size());
+        assertEquals(knnSearch.k, searchRequest.source().size());
 
         assertEquals(searchSource.fetchSource(), searchRequest.source().fetchSource());
         assertEquals(searchSource.fetchFields(), searchRequest.source().fetchFields());

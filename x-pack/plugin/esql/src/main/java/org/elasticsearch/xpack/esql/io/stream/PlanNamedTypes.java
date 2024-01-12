@@ -721,9 +721,14 @@ public final class PlanNamedTypes {
     }
 
     static Enrich readEnrich(PlanStreamInput in) throws IOException {
+        Enrich.Mode m = Enrich.Mode.ANY;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQ_MODE)) {
+            m = in.readEnum(Enrich.Mode.class);
+        }
         return new Enrich(
             in.readSource(),
             in.readLogicalPlanNode(),
+            m,
             in.readExpression(),
             in.readNamedExpression(),
             new EnrichPolicyResolution(in.readString(), new EnrichPolicy(in), IndexResolution.valid(readEsIndex(in))),
@@ -732,6 +737,10 @@ public final class PlanNamedTypes {
     }
 
     static void writeEnrich(PlanStreamOutput out, Enrich enrich) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQ_MODE)) {
+            out.writeEnum(enrich.mode());
+        }
+
         out.writeNoSource();
         out.writeLogicalPlanNode(enrich.child());
         out.writeExpression(enrich.policyName());

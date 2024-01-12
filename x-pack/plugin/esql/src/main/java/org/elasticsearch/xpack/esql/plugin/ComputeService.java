@@ -363,6 +363,17 @@ public class ComputeService {
 
     void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<List<DriverProfile>> listener) {
         listener = ActionListener.runAfter(listener, () -> Releasables.close(context.searchContexts));
+        List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts.size());
+        for (int i = 0; i < context.searchContexts.size(); i++) {
+            SearchContext searchContext = context.searchContexts.get(i);
+            contexts.add(
+                new EsPhysicalOperationProviders.DefaultShardContext(
+                    i,
+                    searchContext.getSearchExecutionContext(),
+                    searchContext.request().getAliasFilter()
+                )
+            );
+        }
         final List<Driver> drivers;
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
@@ -375,7 +386,7 @@ public class ComputeService {
                 context.exchangeSource(),
                 context.exchangeSink(),
                 enrichLookupService,
-                new EsPhysicalOperationProviders(context.searchContexts)
+                new EsPhysicalOperationProviders(contexts)
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);

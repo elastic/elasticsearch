@@ -72,11 +72,11 @@ public class UpdateConnectorConfigurationAction extends ActionType<ConnectorUpda
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
             if (Objects.isNull(configuration)) {
-                validationException = addValidationError("[configuration] cannot be null.", validationException);
+                validationException = addValidationError("[configuration] cannot be [null].", validationException);
             }
 
             return validationException;

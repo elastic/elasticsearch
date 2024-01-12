@@ -1350,6 +1350,7 @@ public class MachineLearning extends Plugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -1964,7 +1965,7 @@ public class MachineLearning extends Plugin
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
             new SetUpgradeModeAction.Request(true),
-            ActionListener.wrap(r -> listener.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)))
         );
     }
 
@@ -1986,7 +1987,7 @@ public class MachineLearning extends Plugin
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
             new SetUpgradeModeAction.Request(false),
-            ActionListener.wrap(r -> listener.onResponse(r.isAcknowledged()), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
         );
     }
 
@@ -2087,40 +2088,39 @@ public class MachineLearning extends Plugin
             }
         );
 
-        ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(listTasksResponse -> {
-            listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
-            if (results.values().stream().allMatch(b -> b)) {
-                if (memoryTracker.get() != null) {
-                    memoryTracker.get()
-                        .awaitAndClear(
-                            ActionListener.wrap(
-                                cacheCleared -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener),
-                                clearFailed -> {
-                                    logger.error(
-                                        "failed to clear memory tracker cache via machine learning reset feature API",
-                                        clearFailed
-                                    );
-                                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
-                                }
-                            )
-                        );
-                    return;
+        // Stop all model deployments
+        ActionListener<AcknowledgedResponse> pipelineValidation = unsetResetModeListener.<ListTasksResponse>delegateFailureAndWrap(
+            (delegate, listTasksResponse) -> {
+                listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
+                if (results.values().stream().allMatch(b -> b)) {
+                    if (memoryTracker.get() != null) {
+                        memoryTracker.get()
+                            .awaitAndClear(
+                                ActionListener.wrap(
+                                    cacheCleared -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, delegate),
+                                    clearFailed -> {
+                                        logger.error(
+                                            "failed to clear memory tracker cache via machine learning reset feature API",
+                                            clearFailed
+                                        );
+                                        SystemIndexPlugin.super.cleanUpFeature(clusterService, client, delegate);
+                                    }
+                                )
+                            );
+                        return;
+                    }
+                    // Call into the original listener to clean up the indices and then clear ml memory cache
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, delegate);
+                } else {
+                    final List<String> failedComponents = results.entrySet()
+                        .stream()
+                        .filter(result -> result.getValue() == false)
+                        .map(Map.Entry::getKey)
+                        .toList();
+                    delegate.onFailure(new RuntimeException("Some machine learning components failed to reset: " + failedComponents));
                 }
-                // Call into the original listener to clean up the indices and then clear ml memory cache
-                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
-            } else {
-                final List<String> failedComponents = results.entrySet()
-                    .stream()
-                    .filter(result -> result.getValue() == false)
-                    .map(Map.Entry::getKey)
-                    .toList();
-                unsetResetModeListener.onFailure(
-                    new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
-                );
             }
-        }, unsetResetModeListener::onFailure);
-
-        ActionListener<StopDataFrameAnalyticsAction.Response> afterDataframesStopped = ActionListener.wrap(dataFrameStopResponse -> {
+        ).<StopDataFrameAnalyticsAction.Response>delegateFailureAndWrap((delegate, dataFrameStopResponse) -> {
             // Handle the response
             results.put("data_frame/analytics", dataFrameStopResponse.isStopped());
             if (results.values().stream().allMatch(b -> b)) {
@@ -2130,7 +2130,7 @@ public class MachineLearning extends Plugin
                     // This waits for all xpack actions including: allocations, anomaly detections, analytics
                     .setActions("xpack/ml/*")
                     .setWaitForCompletion(true)
-                    .execute(ActionListener.wrap(listMlTasks -> {
+                    .execute(delegate.delegateFailureAndWrap((l, listMlTasks) -> {
                         listMlTasks.rethrowFailures("Waiting for machine learning tasks");
                         client.admin()
                             .cluster()
@@ -2139,48 +2139,37 @@ public class MachineLearning extends Plugin
                             .setDetailed(true)
                             .setWaitForCompletion(true)
                             .setDescriptions("*.ml-*")
-                            .execute(afterWaitingForTasks);
-                    }, unsetResetModeListener::onFailure));
+                            .execute(l);
+                    }));
             } else {
                 final List<String> failedComponents = results.entrySet()
                     .stream()
                     .filter(result -> result.getValue() == false)
                     .map(Map.Entry::getKey)
                     .toList();
-                unsetResetModeListener.onFailure(
-                    new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
-                );
+                delegate.onFailure(new RuntimeException("Some machine learning components failed to reset: " + failedComponents));
             }
-        }, unsetResetModeListener::onFailure);
-
-        ActionListener<CloseJobAction.Response> afterAnomalyDetectionClosed = ActionListener.wrap(closeJobResponse -> {
+        }).<CloseJobAction.Response>delegateFailureAndWrap((delegate, closeJobResponse) -> {
             // Handle the response
             results.put("anomaly_detectors", closeJobResponse.isClosed());
             if (machineLearningExtension.get().isDataFrameAnalyticsEnabled() == false) {
-                afterDataframesStopped.onResponse(new StopDataFrameAnalyticsAction.Response(true));
+                delegate.onResponse(new StopDataFrameAnalyticsAction.Response(true));
                 return;
             }
             // Stop data frame analytics
             StopDataFrameAnalyticsAction.Request stopDataFramesReq = new StopDataFrameAnalyticsAction.Request("_all").setAllowNoMatch(true);
-            client.execute(
-                StopDataFrameAnalyticsAction.INSTANCE,
-                stopDataFramesReq,
-                ActionListener.wrap(afterDataframesStopped::onResponse, failure -> {
-                    logger.warn(
-                        "failed stopping data frame analytics jobs for machine learning feature reset. Attempting with force=true",
-                        failure
-                    );
-                    client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq.setForce(true), afterDataframesStopped);
-                })
-            );
-        }, unsetResetModeListener::onFailure);
-
-        // Close anomaly detection jobs
-        ActionListener<StopDatafeedAction.Response> afterDataFeedsStopped = ActionListener.wrap(datafeedResponse -> {
+            client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq, ActionListener.wrap(delegate::onResponse, failure -> {
+                logger.warn(
+                    "failed stopping data frame analytics jobs for machine learning feature reset. Attempting with force=true",
+                    failure
+                );
+                client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq.setForce(true), delegate);
+            }));
+        }).<StopDatafeedAction.Response>delegateFailureAndWrap((delegate, datafeedResponse) -> {
             // Handle the response
             results.put("datafeeds", datafeedResponse.isStopped());
             if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
-                afterAnomalyDetectionClosed.onResponse(new CloseJobAction.Response(true));
+                delegate.onResponse(new CloseJobAction.Response(true));
                 return;
             }
             CloseJobAction.Request closeJobsRequest = new CloseJobAction.Request().setAllowNoMatch(true).setJobId("_all");
@@ -2188,65 +2177,48 @@ public class MachineLearning extends Plugin
             client.execute(
                 KillProcessAction.INSTANCE,
                 new KillProcessAction.Request("*"),
-                ActionListener.wrap(
+                delegate.delegateFailureAndWrap(
                     // If successful, close and wait for jobs
-                    success -> client.execute(
+                    (l, success) -> client.execute(
                         CloseJobAction.INSTANCE,
                         closeJobsRequest,
-                        ActionListener.wrap(afterAnomalyDetectionClosed::onResponse, failure -> {
+                        ActionListener.wrap(l::onResponse, failure -> {
                             logger.warn(
                                 "failed closing anomaly jobs for machine learning feature reset. Attempting with force=true",
                                 failure
                             );
-                            client.execute(CloseJobAction.INSTANCE, closeJobsRequest.setForce(true), afterAnomalyDetectionClosed);
+                            client.execute(CloseJobAction.INSTANCE, closeJobsRequest.setForce(true), l);
                         })
-                    ),
-                    unsetResetModeListener::onFailure
+                    )
                 )
             );
-        }, unsetResetModeListener::onFailure);
-
-        // Stop data feeds
-        ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelSnapshotUpgradesListener = ActionListener.wrap(
-            cancelUpgradesResponse -> {
-                if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
-                    afterDataFeedsStopped.onResponse(new StopDatafeedAction.Response(true));
-                    return;
-                }
-                StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all").setAllowNoMatch(true);
-                client.execute(
-                    StopDatafeedAction.INSTANCE,
-                    stopDatafeedsReq,
-                    ActionListener.wrap(afterDataFeedsStopped::onResponse, failure -> {
-                        logger.warn("failed stopping datafeeds for machine learning feature reset. Attempting with force=true", failure);
-                        client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq.setForce(true), afterDataFeedsStopped);
-                    })
-                );
-            },
-            unsetResetModeListener::onFailure
-        );
-
-        // Cancel model snapshot upgrades
-        ActionListener<AcknowledgedResponse> stopDeploymentsListener = ActionListener.wrap(acknowledgedResponse -> {
+        }).<CancelJobModelSnapshotUpgradeAction.Response>delegateFailureAndWrap((delegate, cancelUpgradesResponse) -> {
             if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
-                cancelSnapshotUpgradesListener.onResponse(new CancelJobModelSnapshotUpgradeAction.Response(true));
+                delegate.onResponse(new StopDatafeedAction.Response(true));
+                return;
+            }
+            StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all").setAllowNoMatch(true);
+            client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq, ActionListener.wrap(delegate::onResponse, failure -> {
+                logger.warn("failed stopping datafeeds for machine learning feature reset. Attempting with force=true", failure);
+                client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq.setForce(true), delegate);
+            }));
+        }).<AcknowledgedResponse>delegateFailureAndWrap((delegate, acknowledgedResponse) -> {
+            if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
+                delegate.onResponse(new CancelJobModelSnapshotUpgradeAction.Response(true));
                 return;
             }
             CancelJobModelSnapshotUpgradeAction.Request cancelSnapshotUpgradesReq = new CancelJobModelSnapshotUpgradeAction.Request(
                 "_all",
                 "_all"
             );
-            client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, cancelSnapshotUpgradesListener);
-        }, unsetResetModeListener::onFailure);
-
-        // Stop all model deployments
-        ActionListener<AcknowledgedResponse> pipelineValidation = ActionListener.wrap(acknowledgedResponse -> {
+            client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, delegate);
+        }).delegateFailureAndWrap((delegate, acknowledgedResponse) -> {
             if (trainedModelAllocationClusterServiceSetOnce.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
-                stopDeploymentsListener.onResponse(AcknowledgedResponse.TRUE);
+                delegate.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(stopDeploymentsListener);
-        }, unsetResetModeListener::onFailure);
+            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(delegate);
+        });
 
         // validate no pipelines are using machine learning models
         ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(acknowledgedResponse -> {

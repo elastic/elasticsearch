@@ -125,8 +125,6 @@ setup:
             num_candidates: 2
           size: 10
 
-  - match: { status: 400 }
-
 ---
 "kNN search with missing k, default size, and invalid num_candidates":
 
@@ -139,5 +137,3 @@ setup:
             field: vector
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
             num_candidates: 2
-
-  - match: { status: 400 }

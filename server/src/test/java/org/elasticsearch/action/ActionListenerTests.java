@@ -492,6 +492,18 @@ public class ActionListenerTests extends ESTestCase {
         assertTrue(releasedFlag.get());
     }
 
+    private static void completeListener(boolean successResponse, ActionListener<Void> listener) {
+        if (successResponse) {
+            try {
+                listener.onResponse(null);
+            } catch (Exception e) {
+                // ok
+            }
+        } else {
+            listener.onFailure(new RuntimeException("simulated"));
+        }
+    }
+
     public void testRun() throws Exception {
         final var successFuture = new PlainActionFuture<>();
         final var successResult = new Object();
@@ -549,18 +561,18 @@ public class ActionListenerTests extends ESTestCase {
         } catch (InterruptedException e) {
             fail(e);
         }
-    }
 
-    private static void completeListener(boolean successResponse, ActionListener<Void> listener) {
-        if (successResponse) {
-            try {
-                listener.onResponse(null);
-            } catch (Exception e) {
-                // ok
-            }
-        } else {
-            listener.onFailure(new RuntimeException("simulated"));
-        }
+        final var failureFuture = new PlainActionFuture<>();
+        ActionListener.runWithResource(
+            failureFuture,
+            () -> { throw new ElasticsearchException("resource creation failure"); },
+            (l, r) -> fail("should not be called")
+        );
+        assertTrue(failureFuture.isDone());
+        assertEquals(
+            "resource creation failure",
+            expectThrows(ExecutionException.class, ElasticsearchException.class, failureFuture::get).getMessage()
+        );
     }
 
     public void testReleaseAfter() {

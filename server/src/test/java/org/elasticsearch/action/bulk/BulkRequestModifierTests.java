@@ -37,8 +37,8 @@ public class BulkRequestModifierTests extends ESTestCase {
             bulkRequest.add(new IndexRequest("_index").id(String.valueOf(i)).source("{}", XContentType.JSON));
         }
 
+        // wrap the bulk request and fail some of the item requests at random
         TransportBulkAction.BulkRequestModifier bulkRequestModifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);
-
         Set<Integer> failedSlots = new HashSet<>();
         for (int i = 0; bulkRequestModifier.hasNext(); i++) {
             bulkRequestModifier.next();
@@ -47,14 +47,15 @@ public class BulkRequestModifierTests extends ESTestCase {
                 failedSlots.add(i);
             }
         }
-
         assertThat(bulkRequestModifier.getBulkRequest().requests().size(), equalTo(numRequests - failedSlots.size()));
-        // simulate that we actually executed the modified bulk request:
+
+        // simulate that we actually executed the modified bulk request
         long ingestTook = randomLong();
         CaptureActionListener actionListener = new CaptureActionListener();
         ActionListener<BulkResponse> result = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTook, actionListener);
         result.onResponse(new BulkResponse(new BulkItemResponse[numRequests - failedSlots.size()], 0));
 
+        // check the results for successes and failures
         BulkResponse bulkResponse = actionListener.getResponse();
         assertThat(bulkResponse.getIngestTookInMillis(), equalTo(ingestTook));
         for (int i = 0; i < bulkResponse.getItems().length; i++) {

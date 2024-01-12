@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -34,6 +35,16 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
 
     private static final String READ_USERS_USER_AUTH_HEADER = "Basic cmVhZF91c2Vyc191c2VyOnJlYWQtdXNlcnMtcGFzc3dvcmQ=";
     private static final String TEST_USER_NO_READ_USERS_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
+
+    private static final Set<String> reservedUsers = Set.of(
+        "elastic",
+        "kibana",
+        "kibana_system",
+        "logstash_system",
+        "beats_system",
+        "apm_system",
+        "remote_monitoring_user"
+    );
 
     private Request queryUserRequestWithAuth() {
         final Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/user");
@@ -117,6 +128,11 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         // IDs query not supported
         assertQueryError(400, """
             { "query": { "ids": { "values": "abc" } } }""");
+
+        // Make sure we can't query reserved users
+        String reservedUsername = getReservedUsernameAndAssertExits();
+        assertQuery(String.format("""
+            {"query":{"term":{"username":"%s"}}}""", reservedUsername), users -> assertTrue(users.isEmpty()));
     }
 
     public void testPagination() throws IOException {
@@ -217,6 +233,17 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
 
         final String invalidFieldName = randomFrom("doc_type", "invalid", "password");
         assertQueryError(400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
+    }
+
+    private String getReservedUsernameAndAssertExits() throws IOException {
+        String username = randomFrom(reservedUsers);
+        final Request request = new Request("GET", "/_security/user");
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_USERS_USER_AUTH_HEADER));
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+        assertNotNull(responseMap.get(username));
+        return username;
     }
 
     @SuppressWarnings("unchecked")
@@ -325,7 +352,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
 
     private User createRandomUser() throws IOException {
         return createUser(
-            randomAlphaOfLengthBetween(3, 8),
+            randomValueOtherThanMany(reservedUsers::contains, () -> randomAlphaOfLengthBetween(3, 8)),
             randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)),
             randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLengthBetween(3, 8),

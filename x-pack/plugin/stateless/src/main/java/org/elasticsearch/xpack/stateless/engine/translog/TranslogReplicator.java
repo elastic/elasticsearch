@@ -559,6 +559,20 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         public int compareTo(BlobTranslogFile o) {
             return Long.compare(generation(), o.generation());
         }
+
+        @Override
+        public String toString() {
+            return "BlobTranslogFile{"
+                + "generation="
+                + generation
+                + ", blobName='"
+                + blobName
+                + "', checkpoints="
+                + checkpoints
+                + ", includedShards="
+                + includedShards
+                + '}';
+        }
     }
 
     private class BlobTranslogFileImpl extends BlobTranslogFile {

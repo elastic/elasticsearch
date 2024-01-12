@@ -296,13 +296,14 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
 
         Set<TranslogReplicator.BlobTranslogFile> activeTranslogFiles = translogReplicator.getActiveTranslogFiles();
+        logger.info("--> activeTranslogFiles {}", activeTranslogFiles);
         assertThat(activeTranslogFiles.size(), greaterThan(0));
 
         flush(indexNameA);
 
         assertBusy(() -> {
             assertThat(translogReplicator.getActiveTranslogFiles().size(), greaterThan(0));
-            assertThat(translogReplicator.getTranslogFilesToDelete().size(), equalTo(0));
+            assertThat(translogReplicator.getTranslogFilesToDelete(), empty());
         });
 
         // TODO: Implement the mechanism to allow translog file prune when index deleted
@@ -315,8 +316,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0));
-            assertThat(translogReplicator.getTranslogFilesToDelete().size(), equalTo(0));
+            assertThat(translogReplicator.getActiveTranslogFiles(), empty());
+            assertThat(translogReplicator.getTranslogFilesToDelete(), empty());
 
             assertTranslogBlobsDoNotExist(activeTranslogFiles, objectStoreService);
         });

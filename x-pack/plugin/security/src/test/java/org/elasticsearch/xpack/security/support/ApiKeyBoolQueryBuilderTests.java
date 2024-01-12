@@ -43,6 +43,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.FIELD_NAME_TRANSLATORS;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -507,6 +508,214 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         );
         assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.termQuery("doc_type", "api_key")));
         assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.idsQuery().addIds(apiKeyId)));
+    }
+
+    public void testSimpleQueryStringFieldPatternTranslation() {
+        String queryStringQuery = randomAlphaOfLength(8);
+        Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
+        // no field translates to all the allowed fields
+        {
+            List<String> queryFields = new ArrayList<>();
+            SimpleQueryStringBuilder q = QueryBuilders.simpleQueryStringQuery(queryStringQuery);
+            ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(q, queryFields::add, authentication);
+            assertThat(
+                queryFields.subList(0, 9),
+                containsInAnyOrder(
+                    "creator.principal",
+                    "creator.realm",
+                    "name",
+                    "runtime_key_type",
+                    "creation_time",
+                    "expiration_time",
+                    "api_key_invalidated",
+                    "invalidation_time",
+                    "metadata_flattened"
+                )
+            );
+            assertThat(queryFields.get(9), is("doc_type"));
+            assertThat(
+                apiKeyQb.must().get(0),
+                equalTo(
+                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                        .field("creator.principal")
+                        .field("creator.realm")
+                        .field("name")
+                        .field("runtime_key_type")
+                        .field("creation_time")
+                        .field("expiration_time")
+                        .field("api_key_invalidated")
+                        .field("invalidation_time")
+                        .field("metadata_flattened")
+                        .lenient(true)
+                )
+            );
+        }
+        // * matches all fields
+        {
+            List<String> queryFields = new ArrayList<>();
+            float fieldBoost = Math.abs(randomFloat());
+            SimpleQueryStringBuilder q = QueryBuilders.simpleQueryStringQuery(queryStringQuery).field("*", fieldBoost);
+            ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(q, queryFields::add, authentication);
+            assertThat(
+                queryFields.subList(0, 9),
+                containsInAnyOrder(
+                    "creator.principal",
+                    "creator.realm",
+                    "name",
+                    "runtime_key_type",
+                    "creation_time",
+                    "expiration_time",
+                    "api_key_invalidated",
+                    "invalidation_time",
+                    "metadata_flattened"
+                )
+            );
+            assertThat(queryFields.get(9), is("doc_type"));
+            assertThat(
+                apiKeyQb.must().get(0),
+                equalTo(
+                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                        .field("creator.principal", fieldBoost)
+                        .field("creator.realm", fieldBoost)
+                        .field("name", fieldBoost)
+                        .field("runtime_key_type", fieldBoost)
+                        .field("creation_time", fieldBoost)
+                        .field("expiration_time", fieldBoost)
+                        .field("api_key_invalidated", fieldBoost)
+                        .field("invalidation_time", fieldBoost)
+                        .field("metadata_flattened", fieldBoost)
+                        .lenient(true)
+                )
+            );
+        }
+        // pattern that matches a subset of fields
+        {
+            List<String> queryFields = new ArrayList<>();
+            float fieldBoost = Math.abs(randomFloat());
+            boolean lenient = randomBoolean();
+            SimpleQueryStringBuilder q = QueryBuilders.simpleQueryStringQuery(queryStringQuery).field("i*", fieldBoost).lenient(lenient);
+            ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(q, queryFields::add, authentication);
+            assertThat(queryFields.subList(0, 2), containsInAnyOrder("api_key_invalidated", "invalidation_time"));
+            assertThat(queryFields.get(2), is("doc_type"));
+            assertThat(
+                apiKeyQb.must().get(0),
+                equalTo(
+                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                        .field("api_key_invalidated", fieldBoost)
+                        .field("invalidation_time", fieldBoost)
+                        .lenient(lenient)
+                )
+            );
+        }
+        // multi pattern that matches a subset of fields
+        {
+            List<String> queryFields = new ArrayList<>();
+            float boost1 = randomFrom(2.0f, 4.0f, 8.0f);
+            float boost2 = randomFrom(2.0f, 4.0f, 8.0f);
+            float boost3 = randomFrom(2.0f, 4.0f, 8.0f);
+            SimpleQueryStringBuilder q = QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                .field("i*", boost1)
+                .field("u*", boost2)
+                .field("user*", boost3);
+            ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(q, queryFields::add, authentication);
+            assertThat(queryFields.subList(0, 3), containsInAnyOrder("creator.principal", "api_key_invalidated", "invalidation_time"));
+            assertThat(queryFields.get(4), is("doc_type"));
+            assertThat(
+                apiKeyQb.must().get(0),
+                equalTo(
+                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                        .field("api_key_invalidated", boost1)
+                        .field("invalidation_time", boost1)
+                        .field("creator.principal", boost2 * boost3)
+                        .lenient(false)
+                )
+            );
+
+            // wildcards don't expand under metadata.*
+            queryFields = new ArrayList<>();
+            q = QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                .field("rea*", boost1)
+                .field("t*", boost1)
+                .field("ty*", boost2)
+                .field("me*", boost2)
+                .field("metadata.*", boost3)
+                .field("metadata.x*", boost3);
+            apiKeyQb = ApiKeyBoolQueryBuilder.build(q, queryFields::add, authentication);
+            assertThat(
+                queryFields.subList(0, 4),
+                containsInAnyOrder("creator.realm", "runtime_key_type", "metadata_flattened", "runtime_key_type")
+            );
+            assertThat(queryFields.get(4), is("doc_type"));
+            assertThat(
+                apiKeyQb.must().get(0),
+                equalTo(
+                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                        .field("creator.realm", boost1)
+                        .field("runtime_key_type", boost1 * boost2)
+                        .field("metadata_flattened", boost2)
+                        .lenient(false)
+                )
+            );
+        }
+        // patterns that don't match anything
+        {
+            List<String> queryFields = new ArrayList<>();
+            float boost1 = randomFrom(2.0f, 4.0f, 8.0f);
+            float boost2 = randomFrom(2.0f, 4.0f, 8.0f);
+            float boost3 = randomFrom(2.0f, 4.0f, 8.0f);
+            SimpleQueryStringBuilder q = QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                .field("field_that_does_not*", boost1)
+                .field("what*", boost2)
+                .field("aiaiaiai*", boost3);
+            ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(q, queryFields::add, authentication);
+            assertThat(queryFields.get(0), is("doc_type"));
+            if (authentication != null) {
+                assertThat(queryFields.get(1), is("creator.principal"));
+                assertThat(queryFields.get(2), is("creator.realm"));
+                assertThat(queryFields.size(), is(3));
+            } else {
+                assertThat(queryFields.size(), is(1));
+            }
+            assertThat(
+                apiKeyQb.must().get(0),
+                equalTo(
+                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                        .field("match_nothing_place_holder_field_name_wildcard*")
+                        .lenient(false)
+                )
+            );
+        }
+        // disallowed field
+        {
+            float boost1 = randomFrom(2.0f, 4.0f, 8.0f);
+            float boost2 = randomFrom(2.0f, 4.0f, 8.0f);
+            SimpleQueryStringBuilder q = QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                .field("field_that_does_not*", boost1)
+                .field("unknown_field", boost2);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ApiKeyBoolQueryBuilder.build(q, ignored -> {}, authentication)
+            );
+            assertThat(e.getMessage(), containsString("Field [unknown_field] is not allowed for API Key query"));
+
+            // translated field
+            String translatedField = randomFrom(
+                "creator.principal",
+                "creator.realm",
+                "name",
+                "runtime_key_type",
+                "creation_time",
+                "expiration_time",
+                "api_key_invalidated",
+                "invalidation_time",
+                "metadata_flattened"
+            );
+            SimpleQueryStringBuilder q2 = QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                .field(translatedField, boost1)
+                .field("field_that_does_not*", boost2);
+            e = expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q2, ignored -> {}, authentication));
+            assertThat(e.getMessage(), containsString("Field [" + translatedField + "] is not allowed for API Key query"));
+        }
     }
 
     private void testAllowedIndexFieldName(Predicate<String> predicate) {

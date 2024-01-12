@@ -86,28 +86,33 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
 
         for (String jobId : request.getJobIds()) {
             UpdateRequest updateRequest = new UpdateRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
-            updateRequest.retryOnConflict(3);
-            updateRequest.doc(update);
-            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            try {
+                updateRequest.retryOnConflict(3);
+                updateRequest.doc(update);
+                updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            voidChainTaskExecutor.add(chainedListener -> {
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    TransportUpdateAction.TYPE,
-                    updateRequest,
-                    ActionListener.runAfter(
-                        ActionListener.wrap(updateResponse -> chainedListener.onResponse(null), chainedListener::onFailure),
-                        updateRequest::decRef
-                    )
-                );
-            });
+                voidChainTaskExecutor.add(chainedListener -> {
+                    executeAsyncWithOrigin(
+                        client,
+                        ML_ORIGIN,
+                        TransportUpdateAction.TYPE,
+                        updateRequest,
+                        ActionListener.runAfter(
+                            chainedListener.delegateFailureAndWrap((l, updateResponse) -> l.onResponse(null)),
+                            updateRequest::decRef
+                        )
+                    );
+                });
+            } catch (Exception e) {
+                updateRequest.decRef();
+                throw e;
+            }
         }
 
-        voidChainTaskExecutor.execute(ActionListener.wrap(aVoids -> {
+        voidChainTaskExecutor.execute(listener.delegateFailureAndWrap((l, aVoids) -> {
             logger.debug("finalized job [{}]", jobIdString);
-            listener.onResponse(AcknowledgedResponse.TRUE);
-        }, listener::onFailure));
+            l.onResponse(AcknowledgedResponse.TRUE);
+        }));
     }
 
     @Override

@@ -391,7 +391,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -1388,6 +1387,7 @@ public class Security extends Plugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -1975,14 +1975,19 @@ public class Security extends Plugin
      * See {@link TransportReloadRemoteClusterCredentialsAction} for more context.
      */
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
+        // Using `settings` instead of `settingsWithKeystore` is deliberate: we are not interested in secure settings here
+        if (DiscoveryNode.isStateless(settings)) {
+            // Stateless does not support remote cluster operations. Skip.
+            return;
+        }
+
         final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>();
         getClient().execute(
             ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
             new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
             future
         );
-        assert future.isDone() : "expecting local-only action call to return immediately on invocation";
-        future.actionGet(0, TimeUnit.NANOSECONDS);
+        future.actionGet();
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

@@ -56,24 +56,24 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "keyword")
+    @FunctionInfo(returnType = "keyword", description = "Converts a field into a string.")
     public ToString(
         Source source,
         @Param(
             name = "v",
             type = {
-                "unsigned_long",
-                "date",
                 "boolean",
+                "cartesian_point",
+                "date",
                 "double",
-                "ip",
-                "text",
-                "integer",
-                "keyword",
-                "version",
-                "long",
                 "geo_point",
-                "cartesian_point" }
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
         ) Expression v
     ) {
         super(source, v);
@@ -141,11 +141,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromGeoPoint")
     static BytesRef fromGeoPoint(BytesRef wkb) {
-        return new BytesRef(GEO.wkbAsString(wkb));
+        return new BytesRef(GEO.wkbToWkt(wkb));
     }
 
     @ConvertEvaluator(extraName = "FromCartesianPoint")
     static BytesRef fromCartesianPoint(BytesRef wkb) {
-        return new BytesRef(CARTESIAN.wkbAsString(wkb));
+        return new BytesRef(CARTESIAN.wkbToWkt(wkb));
     }
 }

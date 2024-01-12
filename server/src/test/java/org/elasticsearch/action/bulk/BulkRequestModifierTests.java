@@ -25,7 +25,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class BulkRequestModifierTests extends ESTestCase {
@@ -49,11 +48,21 @@ public class BulkRequestModifierTests extends ESTestCase {
         }
         assertThat(bulkRequestModifier.getBulkRequest().requests().size(), equalTo(numRequests - failedSlots.size()));
 
+        // populate the non-failed responses
+        BulkRequest subsequentBulkRequest = bulkRequestModifier.getBulkRequest();
+        assertThat(subsequentBulkRequest.requests().size(), equalTo(numRequests - failedSlots.size()));
+        List<BulkItemResponse> responses = new ArrayList<>();
+        for (int j = 0; j < subsequentBulkRequest.requests().size(); j++) {
+            IndexRequest indexRequest = (IndexRequest) subsequentBulkRequest.requests().get(j);
+            IndexResponse indexResponse = new IndexResponse(new ShardId("_index", "_na_", 0), indexRequest.id(), 1, 17, 1, true);
+            responses.add(BulkItemResponse.success(j, indexRequest.opType(), indexResponse));
+        }
+
         // simulate that we actually executed the modified bulk request
         long ingestTook = randomLong();
         CaptureActionListener actionListener = new CaptureActionListener();
         ActionListener<BulkResponse> result = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTook, actionListener);
-        result.onResponse(new BulkResponse(new BulkItemResponse[numRequests - failedSlots.size()], 0));
+        result.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[0]), 0));
 
         // check the results for successes and failures
         BulkResponse bulkResponse = actionListener.getResponse();
@@ -67,7 +76,10 @@ public class BulkRequestModifierTests extends ESTestCase {
                 assertThat(failure.getId(), equalTo(String.valueOf(i)));
                 assertThat(failure.getMessage(), equalTo("java.lang.RuntimeException"));
             } else {
-                assertThat(item, nullValue());
+                assertThat(item.isFailed(), is(false));
+                IndexResponse success = item.getResponse();
+                assertThat(success.getIndex(), equalTo("_index"));
+                assertThat(success.getId(), equalTo(String.valueOf(i)));
             }
         }
     }

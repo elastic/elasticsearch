@@ -53,11 +53,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
     }
 
     public void testQuery() throws IOException {
-        int randomUserCount = randomIntBetween(5, 10);
-        for (int i = 0; i < randomUserCount; i++) {
-            createRandomUser();
-        }
-
+        int randomUserCount = createRandomUsers().size();
         // An empty request body means search for all users
         assertQuery(randomBoolean() ? "" : """
             {"query":{"match_all":{}}}""", users -> assertThat(users.size(), equalTo(randomUserCount)));
@@ -130,21 +126,17 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             { "query": { "ids": { "values": "abc" } } }""");
 
         // Make sure we can't query reserved users
-        String reservedUsername = getReservedUsernameAndAssertExits();
+        String reservedUsername = getReservedUsernameAndAssertExists();
         assertQuery(String.format("""
             {"query":{"term":{"username":"%s"}}}""", reservedUsername), users -> assertTrue(users.isEmpty()));
     }
 
     public void testPagination() throws IOException {
-        int randomUserCount = randomIntBetween(8, 15);
-        final List<User> users = new ArrayList<>(randomUserCount);
-        for (int i = 0; i < randomUserCount; i++) {
-            users.add(createRandomUser());
-        }
+        final List<User> users = createRandomUsers();
 
         final int from = randomIntBetween(0, 3);
         final int size = randomIntBetween(2, 5);
-        final int remaining = randomUserCount - from;
+        final int remaining = users.size() - from;
 
         // Using string only sorting to simplify test
         final String sortField = "username";
@@ -152,7 +144,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         {
             Request request = queryUserRequestWithAuth();
             request.setJsonEntity("{\"from\":" + from + ",\"size\":" + size + ",\"sort\":[\"" + sortField + "\"]}");
-            allUserInfos.addAll(collectUsers(request, randomUserCount));
+            allUserInfos.addAll(collectUsers(request, users.size()));
         }
         // first batch should be a full page
         assertThat(allUserInfos.size(), equalTo(size));
@@ -164,7 +156,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             request.setJsonEntity(Strings.format("""
                 {"size":%s,"sort":["%s"],"search_after":["%s"]}
                 """, size, sortField, sortValues.get(0)));
-            final List<Map<String, Object>> userInfoPage = collectUsers(request, randomUserCount);
+            final List<Map<String, Object>> userInfoPage = collectUsers(request, users.size());
 
             if (userInfoPage.isEmpty() && allUserInfos.size() < remaining) {
                 fail("fail to retrieve all Users, expect [" + remaining + "], got [" + allUserInfos + "]");
@@ -192,7 +184,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         final Map<String, Object> responseMap = responseAsMap(response);
-        assertThat(responseMap.get("total"), equalTo(randomUserCount));
+        assertThat(responseMap.get("total"), equalTo(users.size()));
         assertThat(responseMap.get("count"), equalTo(0));
     }
 
@@ -235,9 +227,16 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         assertQueryError(400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
     }
 
-    private String getReservedUsernameAndAssertExits() throws IOException {
+    private String getReservedUsernameAndAssertExists() throws IOException {
         String username = randomFrom(reservedUsers);
         final Request request = new Request("GET", "/_security/user");
+
+        if (randomBoolean()) {
+            // Update the user to create it in the security index
+            Request putUserRequest = new Request("PUT", "/_security/user/" + username);
+            putUserRequest.setJsonEntity("{\"enabled\": true}");
+        }
+
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_USERS_USER_AUTH_HEADER));
         final Response response = client().performRequest(request);
         assertOK(response);
@@ -350,15 +349,24 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         );
     }
 
-    private User createRandomUser() throws IOException {
-        return createUser(
-            randomValueOtherThanMany(reservedUsers::contains, () -> randomAlphaOfLengthBetween(3, 8)),
-            randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)),
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8),
-            randomUserMetadata(),
-            randomBoolean()
-        );
+    private List<User> createRandomUsers() throws IOException {
+        int randomUserCount = randomIntBetween(8, 15);
+        final List<User> users = new ArrayList<>(randomUserCount);
+
+        for (int i = 0; i < randomUserCount; i++) {
+            users.add(
+                createUser(
+                    randomValueOtherThanMany(reservedUsers::contains, () -> randomAlphaOfLengthBetween(3, 8)) + "-" + i,
+                    randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)),
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomUserMetadata(),
+                    randomBoolean()
+                )
+            );
+        }
+
+        return users;
     }
 
     private User createUser(String userName, String[] roles) throws IOException {
@@ -397,7 +405,9 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             )
         );
         request.setJsonEntity(source.utf8ToString());
-        assertOK(adminClient().performRequest(request));
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+        assertTrue((boolean) responseAsMap(response).get("created"));
         return new User(userName, roles, fullName, email, metadata, enabled);
     }
 }

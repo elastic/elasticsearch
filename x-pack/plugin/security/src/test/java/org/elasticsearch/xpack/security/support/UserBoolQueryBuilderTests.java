@@ -94,7 +94,7 @@ public class UserBoolQueryBuilderTests extends ESTestCase {
     public void testAllowListOfFieldNames() {
         final String fieldName = randomValueOtherThanMany(
             v -> Arrays.asList(allowedIndexFieldNames).contains(v),
-            () -> randomAlphaOfLengthBetween(3, 20)
+            () -> randomFrom(randomAlphaOfLengthBetween(3, 20), "type", "password")
         );
 
         // MatchAllQueryBuilder doesn't do any translation, so skip

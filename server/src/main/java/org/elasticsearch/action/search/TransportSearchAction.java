@@ -978,11 +978,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, OriginalIndices> remoteClusterIndices
     ) {
         final List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
-        Map<ShardId, SearchContextIdForNode> contextsMap = new HashMap<>(searchContextId.shards());
+        Map<ShardId, SearchContextIdForNode> searchContextIdForNodeMap = new HashMap<>(searchContextId.shards());
         for (Map.Entry<String, SearchShardsResponse> entry : searchShardsResponses.entrySet()) {
             for (SearchShardsGroup group : entry.getValue().getGroups()) {
                 final ShardId shardId = group.shardId();
-                final SearchContextIdForNode perNode = contextsMap.remove(shardId);
+                final SearchContextIdForNode perNode = searchContextIdForNodeMap.remove(shardId);
                 if (perNode == null) {
                     // the shard was skipped after can match, hence it is not even part of the pit id
                     continue;
@@ -1016,7 +1016,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 remoteShardIterators.add(shardIterator);
             }
         }
-        assert contextsMap.isEmpty() : "shards that were in the PIT id were not returned by search shards?";
+
+        assert searchContextIdForNodeMap.values()
+            .stream()
+            .filter(searchContextIdForNode -> searchContextIdForNode.getClusterAlias() != null)
+            .count() == 0 : "search shards did not return remote shards that PIT included: " + searchContextIdForNodeMap;
         return remoteShardIterators;
     }
 

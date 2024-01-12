@@ -259,7 +259,49 @@ setup:
   - length: { hits.hits.0.inner_hits.nested.hits.hits: 2 }
   - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
   - match: { hits.hits.0.inner_hits.nested.hits.hits.1.fields.nested.0.paragraph_id.0: "1" }
+---
+"nested kNN search inner_hits & boosting":
+  - skip:
+      version: ' - 8.12.99'
+      reason: 'inner_hits on nested kNN search added in 8.13'
 
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 5
+            inner_hits: {size: 2, fields: ["nested.paragraph_id"], _source: false}
+
+  - set: { hits.hits.0._score: hit_0_score }
+  - set: { hits.hits.0.inner_hits.nested.hits.hits.0._score: hit_0_inner_hit_score }
+  - set: { hits.hits.1._score: hit_1_score }
+  - set: { hits.hits.1.inner_hits.nested.hits.hits.0._score: hit_1_inner_hit_score }
+  - set: { hits.hits.2._score: hit_2_score }
+  - set: { hits.hits.2.inner_hits.nested.hits.hits.0._score: hit_2_inner_hit_score }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 5
+            boost: 2
+            inner_hits: {size: 2, fields: ["nested.paragraph_id"], _source: false}
+  - gt: { hits.hits.0._score: $hit_0_score }
+  - gt: { hits.hits.0.inner_hits.nested.hits.hits.0._score: $hit_0_inner_hit_score }
+  - gt: { hits.hits.1._score: $hit_1_score }
+  - gt: { hits.hits.1.inner_hits.nested.hits.hits.0._score: $hit_1_inner_hit_score }
+  - gt: { hits.hits.2._score: $hit_2_score }
+  - gt: { hits.hits.2.inner_hits.nested.hits.hits.0._score: $hit_2_inner_hit_score }
 ---
 "nested kNN search inner_hits & profiling":
   - skip:

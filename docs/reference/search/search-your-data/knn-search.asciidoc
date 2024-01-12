@@ -889,7 +889,7 @@ Now the result will contain the nearest found paragraph when searching.
                     "paragraph": {
                         "hits": {
                             "total": {
-                                "value": 1,
+                                "value": 2,
                                 "relation": "eq"
                             },
                             "max_score": 1.0,
@@ -933,7 +933,7 @@ Now the result will contain the nearest found paragraph when searching.
                     "paragraph": {
                         "hits": {
                             "total": {
-                                "value": 1,
+                                "value": 2,
                                 "relation": "eq"
                             },
                             "max_score": 0.9997144,

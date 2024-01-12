@@ -8,11 +8,14 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.queries.function.FunctionQuery;
 import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
-import org.apache.lucene.queries.function.valuesource.VectorSimilarityFunction;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -83,12 +86,22 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
 
     @Override
     protected void doAssertLuceneQuery(ExactKnnQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertTrue(query instanceof ExactKnnQuery);
-        ExactKnnQuery exactKnnQuery = (ExactKnnQuery) query;
-        VectorSimilarityFunction func = exactKnnQuery.getFunc();
-        String description = func.description().toLowerCase(Locale.ROOT);
-        assertTrue(description, description.contains("dot_product"));
-        assertTrue(func instanceof FloatVectorSimilarityFunction);
+        assertTrue(query instanceof BooleanQuery);
+        BooleanQuery booleanQuery = (BooleanQuery) query;
+        boolean foundFunction = false;
+        for (BooleanClause clause : booleanQuery) {
+            if (clause.getQuery() instanceof FunctionQuery functionQuery) {
+                foundFunction = true;
+                assertTrue(functionQuery.getValueSource() instanceof FloatVectorSimilarityFunction);
+                String description = functionQuery.getValueSource().description().toLowerCase(Locale.ROOT);
+                if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)) {
+                    assertTrue(description, description.contains("dot_product"));
+                } else {
+                    assertTrue(description, description.contains("cosine"));
+                }
+            }
+        }
+        assertTrue("Unable to find FloatVectorSimilarityFunction in created BooleanQuery", foundFunction);
     }
 
     @Override

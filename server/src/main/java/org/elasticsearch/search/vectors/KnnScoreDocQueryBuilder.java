@@ -136,7 +136,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
         if (queryRewriteContext.convertToInnerHitsRewriteContext() != null && queryVector != null && fieldName != null) {
-            return new ExactKnnQueryBuilder(queryVector, fieldName).boost(boost()).queryName(queryName());
+            return new ExactKnnQueryBuilder(queryVector, fieldName);
         }
         return super.doRewrite(queryRewriteContext);
     }

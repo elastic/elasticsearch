@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
@@ -20,6 +21,7 @@ import java.util.stream.Stream;
 /**
  * Run the ESQL yaml tests async and then fetch the results with a long wait time.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104294")
 public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlIT {
     public EsqlClientYamlAsyncSubmitAndFetchIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

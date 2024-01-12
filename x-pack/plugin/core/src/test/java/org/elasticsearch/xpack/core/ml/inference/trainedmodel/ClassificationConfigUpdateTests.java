@@ -59,11 +59,11 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
     public void testApply() {
         ClassificationConfig originalConfig = randomClassificationConfig();
 
-        assertThat(originalConfig, equalTo(ClassificationConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(ClassificationConfigUpdate.EMPTY_PARAMS)));
 
         assertThat(
             new ClassificationConfig.Builder(originalConfig).setNumTopClasses(5).build(),
-            equalTo(new ClassificationConfigUpdate.Builder().setNumTopClasses(5).build().apply(originalConfig))
+            equalTo(originalConfig.apply(new ClassificationConfigUpdate.Builder().setNumTopClasses(5).build()))
         );
         assertThat(
             new ClassificationConfig.Builder().setNumTopClasses(5)
@@ -73,13 +73,14 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
                 .setTopClassesResultsField("bar")
                 .build(),
             equalTo(
-                new ClassificationConfigUpdate.Builder().setNumTopClasses(5)
-                    .setNumTopFeatureImportanceValues(1)
-                    .setPredictionFieldType(PredictionFieldType.BOOLEAN)
-                    .setResultsField("foo")
-                    .setTopClassesResultsField("bar")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new ClassificationConfigUpdate.Builder().setNumTopClasses(5)
+                        .setNumTopFeatureImportanceValues(1)
+                        .setPredictionFieldType(PredictionFieldType.BOOLEAN)
+                        .setResultsField("foo")
+                        .setTopClassesResultsField("bar")
+                        .build()
+                )
             )
         );
     }

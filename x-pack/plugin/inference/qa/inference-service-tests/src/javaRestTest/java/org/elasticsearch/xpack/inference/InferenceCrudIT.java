@@ -18,6 +18,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class InferenceCrudIT extends InferenceBaseRestTest {
 
@@ -40,9 +41,19 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             expectThrows(ResponseException.class, () -> putModel(modelId, elserConfig, TaskType.SPARSE_EMBEDDING));
         }
 
-        // Happy Case
-        // We choose not to test the case where ELSER is downloaded to avoid causing excessive network traffic.
-        // This test case will be tested separately outside of CI
+        downloadElserBlocking();
+
+        // Happy case
+        {
+            String modelId = randomAlphaOfLength(10).toLowerCase();
+            putModel(modelId, elserConfig, TaskType.SPARSE_EMBEDDING);
+            var models = getModels(modelId, TaskType.SPARSE_EMBEDDING);
+            assertThat(models.get("models").toString(), containsString("model_id=" + modelId));
+            deleteModel(modelId, TaskType.SPARSE_EMBEDDING);
+            expectThrows(ResponseException.class, () -> getModels(modelId, TaskType.SPARSE_EMBEDDING));
+            models = getTrainedModel("_all");
+            assertThat(models.toString(), not(containsString("deployment_id=" + modelId)));
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -30,7 +30,7 @@ If you need to apply the same update to many API keys, you can use <<security-ap
 
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
 
-This API supports updates to an API key's access scope and metadata.
+This API supports updates to an API key's access scope, metadata and expiration.
 The access scope of an API key is derived from the <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> you specify in the request, and a snapshot of the owner user's permissions at the time of the request.
 The snapshot of the owner's permissions is updated automatically on every call.
 
@@ -66,6 +66,9 @@ The structure of a role descriptor is the same as the request for the <<api-key-
 It supports nested data structure.
 Within the `metadata` object, top-level keys beginning with `_` are reserved for system usage.
 When specified, this fully replaces metadata previously associated with the API key.
+
+`expiration`::
+(Optional, string) Expiration time for the API key. By default, API keys never expire. Can be omitted to leave unchanged.
 
 [[security-api-update-api-key-response-body]]
 ==== {api-response-body-title}

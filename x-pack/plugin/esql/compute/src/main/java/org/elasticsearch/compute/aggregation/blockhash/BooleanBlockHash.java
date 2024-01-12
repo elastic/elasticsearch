@@ -51,8 +51,8 @@ final class BooleanBlockHash extends BlockHash {
                     addInput.add(0, groupIds);
                 }
             } else {
-                try (IntBlock groupIds = add(booleanVector).asBlock()) {
-                    addInput.add(0, groupIds.asVector());
+                try (IntVector groupIds = add(booleanVector)) {
+                    addInput.add(0, groupIds);
                 }
             }
         }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -60,7 +58,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
@@ -177,7 +174,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void persistState(TransformState state, ActionListener<Void> listener);
 
-    abstract void validate(ActionListener<ValidateTransformAction.Response> listener);
+    abstract void validate(ActionListener<Void> listener);
 
     @Override
     protected String getJobId() {
@@ -268,8 +265,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        SetOnce<Map<String, String>> deducedDestIndexMappings = new SetOnce<>();
-
         ActionListener<Void> finalListener = ActionListener.wrap(r -> {
             try {
                 // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
@@ -331,14 +326,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
-        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(destIndexMappings -> {
-            if (destIndexMappings.isEmpty() == false) {
-                // If we managed to fetch destination index mappings, we use them from now on ...
-                this.fieldMappings = destIndexMappings;
-            } else {
-                // ... otherwise we fall back to index mappings deduced based on source indices
-                this.fieldMappings = deducedDestIndexMappings.get();
-            }
+        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(mappings -> {
+            this.fieldMappings = mappings;
             configurationReadyListener.onResponse(null);
         }, listener::onFailure);
 
@@ -349,8 +338,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }, listener::onFailure);
 
         // If we are continuous, we will want to verify we have the latest stored configuration
-        ActionListener<ValidateTransformAction.Response> changedSourceListener = ActionListener.wrap(validationResponse -> {
-            deducedDestIndexMappings.set(validationResponse.getDestIndexMappings());
+        ActionListener<Void> changedSourceListener = ActionListener.wrap(r -> {
             if (isContinuous()) {
                 transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
                     if (transformConfig.equals(config) && fieldMappings != null) {
@@ -389,7 +377,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 if (hasChanged) {
                     context.setChangesLastDetectedAt(instantOfTrigger);
                     logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
-                    changedSourceListener.onResponse(new ValidateTransformAction.Response(emptyMap()));
+                    changedSourceListener.onResponse(null);
                 } else {
                     logger.trace("[{}] source has not changed, finish indexer early.", getJobId());
                     // No changes, stop executing
@@ -408,7 +396,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             hasSourceChanged = true;
             context.setLastSearchTime(instantOfTrigger);
             context.setChangesLastDetectedAt(instantOfTrigger);
-            changedSourceListener.onResponse(new ValidateTransformAction.Response(emptyMap()));
+            changedSourceListener.onResponse(null);
         }
     }
 

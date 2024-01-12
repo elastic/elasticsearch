@@ -262,11 +262,6 @@ public abstract class DisruptableMockTransport extends MockTransport {
             }
 
             @Override
-            public String getChannelType() {
-                return "disruptable-mock-transport-channel";
-            }
-
-            @Override
             public void sendResponse(final TransportResponse response) {
                 execute(new RebootSensitiveRunnable() {
                     @Override

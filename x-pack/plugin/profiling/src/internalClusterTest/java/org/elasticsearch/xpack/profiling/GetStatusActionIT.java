@@ -9,12 +9,23 @@ package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Before;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class GetStatusActionIT extends ProfilingTestCase {
     @Override
     protected boolean requiresDataSetup() {
         // We need explicit control whether index template management is enabled, and thus we skip data setup.
         return false;
+    }
+
+    @Before
+    public void setupCluster() {
+        // dedicated master with a data node
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
     }
 
     public void testTimeoutIfResourcesNotCreated() throws Exception {
@@ -27,6 +38,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.REQUEST_TIMEOUT, response.status());
         assertFalse(response.isResourcesCreated());
+        assertFalse(response.hasData());
     }
 
     public void testNoTimeoutIfNotWaiting() throws Exception {
@@ -37,8 +49,10 @@ public class GetStatusActionIT extends ProfilingTestCase {
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
         assertFalse(response.isResourcesCreated());
+        assertFalse(response.hasData());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104035")
     public void testWaitsUntilResourcesAreCreated() throws Exception {
         updateProfilingTemplatesEnabled(true);
         GetStatusAction.Request request = new GetStatusAction.Request();
@@ -47,5 +61,17 @@ public class GetStatusActionIT extends ProfilingTestCase {
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
         assertTrue(response.isResourcesCreated());
+        assertFalse(response.hasData());
+    }
+
+    public void testHasData() throws Exception {
+        doSetupData();
+        GetStatusAction.Request request = new GetStatusAction.Request();
+        request.waitForResourcesCreated(true);
+
+        GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
+        assertEquals(RestStatus.OK, response.status());
+        assertTrue(response.isResourcesCreated());
+        assertTrue(response.hasData());
     }
 }

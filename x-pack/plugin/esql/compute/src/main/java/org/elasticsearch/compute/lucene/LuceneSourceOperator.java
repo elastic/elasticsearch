@@ -95,7 +95,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         super(blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
-        this.docsBuilder = IntVector.newVectorBuilder(Math.min(limit, maxPageSize), blockFactory);
+        this.docsBuilder = blockFactory.newIntVectorBuilder(Math.min(limit, maxPageSize));
         this.leafCollector = new LeafCollector() {
             @Override
             public void setScorer(Scorable scorer) {
@@ -149,10 +149,10 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntBlock leaf = null;
                 IntVector docs = null;
                 try {
-                    shard = IntBlock.newConstantBlockWith(scorer.shardIndex(), currentPagePos, blockFactory);
-                    leaf = IntBlock.newConstantBlockWith(scorer.leafReaderContext().ord, currentPagePos, blockFactory);
+                    shard = blockFactory.newConstantIntBlockWith(scorer.shardIndex(), currentPagePos);
+                    leaf = blockFactory.newConstantIntBlockWith(scorer.leafReaderContext().ord, currentPagePos);
                     docs = docsBuilder.build();
-                    docsBuilder = IntVector.newVectorBuilder(Math.min(remainingDocs, maxPageSize), blockFactory);
+                    docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     page = new Page(currentPagePos, new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock());
                 } finally {
                     if (page == null) {

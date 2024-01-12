@@ -22,6 +22,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -193,15 +194,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        Timer rewriteTimer = null;
         if (profiler != null) {
-            profiler.startRewriteTime();
+            rewriteTimer = profiler.startRewriteTime();
         }
-
         try {
             return super.rewrite(original);
+        } catch (TimeExceededException e) {
+            timeExceeded = true;
+            return new MatchNoDocsQuery("rewrite timed out");
         } finally {
             if (profiler != null) {
-                profiler.stopAndAddRewriteTime();
+                profiler.stopAndAddRewriteTime(rewriteTimer);
             }
         }
     }
@@ -297,10 +301,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
         final C firstCollector = collectorManager.newCollector();
+        // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
+        query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
         final Weight weight;
         try {
-            // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
-            query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
             weight = createWeight(query, firstCollector.scoreMode(), 1);
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;

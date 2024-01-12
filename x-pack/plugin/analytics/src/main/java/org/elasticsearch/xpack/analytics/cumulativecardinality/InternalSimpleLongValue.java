@@ -53,14 +53,6 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
         return value;
     }
 
-    public long getValue() {
-        return value;
-    }
-
-    DocValueFormat formatter() {
-        return format;
-    }
-
     @Override
     public InternalSimpleLongValue reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");

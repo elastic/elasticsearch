@@ -160,8 +160,8 @@ public class LuceneCountOperator extends LuceneOperator {
                 LongBlock count = null;
                 BooleanBlock seen = null;
                 try {
-                    count = LongBlock.newConstantBlockWith(totalHits, PAGE_SIZE, blockFactory);
-                    seen = BooleanBlock.newConstantBlockWith(true, PAGE_SIZE, blockFactory);
+                    count = blockFactory.newConstantLongBlockWith(totalHits, PAGE_SIZE);
+                    seen = blockFactory.newConstantBooleanBlockWith(true, PAGE_SIZE);
                     page = new Page(PAGE_SIZE, count, seen);
                 } finally {
                     if (page == null) {

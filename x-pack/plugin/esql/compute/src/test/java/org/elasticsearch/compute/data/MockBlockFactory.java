@@ -32,7 +32,9 @@ public class MockBlockFactory extends BlockFactory {
     static final boolean TRACK_ALLOCATIONS = true;
 
     static Object trackDetail() {
-        return TRACK_ALLOCATIONS ? new RuntimeException("Block allocated from test: " + LuceneTestCase.getTestClass().getName()) : true;
+        return TRACK_ALLOCATIONS
+            ? new RuntimeException("Releasable allocated from test: " + LuceneTestCase.getTestClass().getName())
+            : true;
     }
 
     final ConcurrentMap<Object, Object> TRACKED_BLOCKS = new ConcurrentHashMap<>();
@@ -50,7 +52,7 @@ public class MockBlockFactory extends BlockFactory {
             Iterator<Object> causes = copy.values().iterator();
             Object firstCause = causes.next();
             RuntimeException exception = new RuntimeException(
-                copy.size() + " blocks have not been released",
+                copy.size() + " releasables have not been released",
                 firstCause instanceof Throwable ? (Throwable) firstCause : null
             );
             while (causes.hasNext()) {
@@ -71,7 +73,7 @@ public class MockBlockFactory extends BlockFactory {
         this(breaker, bigArrays, maxPrimitiveArraySize, null);
     }
 
-    public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
+    private MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
         super(breaker, bigArrays, maxPrimitiveArraySize, parent);
     }
 
@@ -84,9 +86,9 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    void adjustBreaker(final long delta, final boolean isDataAlreadyCreated) {
+    void adjustBreaker(final long delta) {
         purgeTrackBlocks();
-        super.adjustBreaker(delta, isDataAlreadyCreated);
+        super.adjustBreaker(delta);
     }
 
     void purgeTrackBlocks() {
@@ -121,7 +123,7 @@ public class MockBlockFactory extends BlockFactory {
                     TRACKED_BLOCKS.remove(vecBuilder);
                 }
             } else if (b instanceof Vector vector) {
-                if (vector.asBlock().isReleased()) {
+                if (vector.isReleased()) {
                     TRACKED_BLOCKS.remove(vector);
                 }
             } else {

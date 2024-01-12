@@ -408,6 +408,38 @@ setup:
           }
 
 ---
+"Downsample failure":
+  - skip:
+      version: " - 8.12.99"
+      reason: "#103615 merged to 8.13.0 and later"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [failed-downsample-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [failed-downsample-test]
+          template:
+            settings:
+              index:
+                routing:
+                  allocation:
+                    include:
+                      does-not-exist: "yes"
+
+  - do:
+      catch: /downsample task \[downsample-failed-downsample-test-0-1h\] failed/
+      indices.downsample:
+        index: test
+        target_index: failed-downsample-test
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
 "Downsample to existing index":
   - skip:
       version: " - 8.4.99"

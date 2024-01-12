@@ -1383,11 +1383,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                     }
                   }
                 }
-              },
-              "settings": {
-                "deduce_mappings": %s
               }
-            }""", REVIEWS_INDEX_NAME, offset, randomBoolean());
+            }""", REVIEWS_INDEX_NAME, offset);
         createPreviewRequest.setJsonEntity(config);
 
         Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));

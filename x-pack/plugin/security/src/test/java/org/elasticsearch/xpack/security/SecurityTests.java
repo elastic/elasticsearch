@@ -58,6 +58,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -123,6 +124,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -222,7 +225,8 @@ public class SecurityTests extends ESTestCase {
             xContentRegistry(),
             env,
             nodeMetadata,
-            TestIndexNameExpressionResolver.newInstance(threadContext)
+            TestIndexNameExpressionResolver.newInstance(threadContext),
+            TelemetryProvider.NOOP
         );
     }
 
@@ -483,10 +487,10 @@ public class SecurityTests extends ESTestCase {
         IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, permissionsMap);
         securityContext.putIndicesAccessControl(indicesAccessControl);
 
-        assertTrue(fieldFilter.apply("index_granted").test("field_granted"));
-        assertFalse(fieldFilter.apply("index_granted").test(randomAlphaOfLengthBetween(3, 10)));
+        assertThat(fieldFilter.apply("index_granted"), trueWith("field_granted"));
+        assertThat(fieldFilter.apply("index_granted"), falseWith(randomAlphaOfLengthBetween(3, 10)));
         assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_granted_all_permissions"));
-        assertTrue(fieldFilter.apply("index_granted_all_permissions").test(randomAlphaOfLengthBetween(3, 10)));
+        assertThat(fieldFilter.apply("index_granted_all_permissions"), trueWith(randomAlphaOfLengthBetween(3, 10)));
         assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_other"));
     }
 
@@ -580,6 +584,32 @@ public class SecurityTests extends ESTestCase {
             .build();
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
         assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
+    }
+
+    public void testValidateForFipsRequiredProvider() {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .putList(XPackSettings.FIPS_REQUIRED_PROVIDERS.getKey(), List.of("BCFIPS"))
+            .build();
+        if (inFipsJvm()) {
+            Security.validateForFips(settings);
+            // no exceptions since gradle has wired in the bouncy castle FIPS provider
+        } else {
+            final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
+            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider: [bcfips]"));
+        }
+
+        final Settings settings2 = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .putList(XPackSettings.FIPS_REQUIRED_PROVIDERS.getKey(), List.of("junk0", "BCFIPS", "junk1", "junk2"))
+            .build();
+        if (inFipsJvm()) {
+            final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings2));
+            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider: [junk0, junk1, junk2]"));
+        } else {
+            final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings2));
+            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider: [junk0, bcfips, junk1, junk2]"));
+        }
     }
 
     public void testValidateForFipsMultipleValidationErrors() {
@@ -776,6 +806,7 @@ public class SecurityTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 settingsModule.getSettings(),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                null,
                 settingsModule.getIndexScopedSettings(),
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),

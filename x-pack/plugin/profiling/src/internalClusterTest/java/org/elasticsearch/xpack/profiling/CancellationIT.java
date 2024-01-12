@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.profiling;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -48,6 +49,7 @@ import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestRespons
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103809")
 public class CancellationIT extends ProfilingTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

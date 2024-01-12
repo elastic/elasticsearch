@@ -47,8 +47,9 @@ public record Build(
 
         // finds the pluggable current build, or uses the local build as a fallback
         private static Build findCurrent() {
-            var buildExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class), () -> Build::findLocalBuild);
-            return buildExtension.getCurrentBuild();
+            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
+                .map(BuildExtension::getCurrentBuild)
+                .orElseGet(Build::findLocalBuild);
         }
     }
 

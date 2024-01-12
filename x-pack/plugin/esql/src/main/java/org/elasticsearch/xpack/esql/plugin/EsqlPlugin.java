@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -93,7 +94,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
-        BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize, null);
+        BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         return List.of(
             new PlanExecutor(
                 new IndexResolver(
@@ -137,6 +138,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -144,7 +146,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestEsqlQueryAction(), new RestEsqlAsyncQueryAction(), new RestEsqlGetAsyncResultAction());
+        return List.of(
+            new RestEsqlQueryAction(),
+            new RestEsqlAsyncQueryAction(),
+            new RestEsqlGetAsyncResultAction(),
+            new RestEsqlDeleteAsyncResultAction()
+        );
     }
 
     @Override

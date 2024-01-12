@@ -45,7 +45,6 @@ import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -154,19 +153,16 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                             1F
                         );
                     } else {
-                        searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                        searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    InternalSearchResponse response = new InternalSearchResponse(
+                    SearchResponse searchResponse = new SearchResponse(
                         searchHits,
                         InternalAggregations.EMPTY,
                         null,
-                        null,
                         false,
                         null,
-                        1
-                    );
-                    SearchResponse searchResponse = new SearchResponse(
-                        response,
+                        null,
+                        1,
                         null,
                         1,
                         1,

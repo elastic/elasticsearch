@@ -89,6 +89,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -375,6 +376,7 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTra
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.security.Provider;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -389,7 +391,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -647,7 +648,8 @@ public class Security extends Plugin
                 services.xContentRegistry(),
                 services.environment(),
                 services.nodeEnvironment().nodeMetadata(),
-                services.indexNameExpressionResolver()
+                services.indexNameExpressionResolver(),
+                services.telemetryProvider()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -665,7 +667,8 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeMetadata nodeMetadata,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        TelemetryProvider telemetryProvider
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -943,7 +946,8 @@ public class Security extends Plugin
                 tokenService,
                 apiKeyService,
                 serviceAccountService,
-                operatorPrivilegesService.get()
+                operatorPrivilegesService.get(),
+                telemetryProvider.getMeterRegistry()
             )
         );
         components.add(authcService.get());
@@ -1178,6 +1182,7 @@ public class Security extends Plugin
 
         // The following just apply in node mode
         settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
+        settingsList.add(XPackSettings.FIPS_REQUIRED_PROVIDERS);
 
         SSLService.registerSettings(settingsList);
         // IP Filter settings
@@ -1382,6 +1387,7 @@ public class Security extends Plugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -1560,6 +1566,30 @@ public class Security extends Plugin
                 );
             }
         });
+
+        Set<String> foundProviders = new HashSet<>();
+        for (Provider provider : java.security.Security.getProviders()) {
+            foundProviders.add(provider.getName().toLowerCase(Locale.ROOT));
+            if (logger.isTraceEnabled()) {
+                logger.trace("Security Provider: " + provider.getName() + ", Version: " + provider.getVersionStr());
+                provider.entrySet().forEach(entry -> { logger.trace("\t" + entry.getKey()); });
+            }
+        }
+
+        final List<String> requiredProviders = XPackSettings.FIPS_REQUIRED_PROVIDERS.get(settings);
+        logger.info("JVM Security Providers: " + foundProviders);
+        if (requiredProviders != null && requiredProviders.isEmpty() == false) {
+            List<String> unsatisfiedProviders = requiredProviders.stream()
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .filter(element -> foundProviders.contains(element) == false)
+                .toList();
+
+            if (unsatisfiedProviders.isEmpty() == false) {
+                String errorMessage = "Could not find required FIPS security provider: " + unsatisfiedProviders;
+                logger.error(errorMessage);
+                validationErrors.add(errorMessage);
+            }
+        }
 
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();
@@ -1945,14 +1975,19 @@ public class Security extends Plugin
      * See {@link TransportReloadRemoteClusterCredentialsAction} for more context.
      */
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
+        // Using `settings` instead of `settingsWithKeystore` is deliberate: we are not interested in secure settings here
+        if (DiscoveryNode.isStateless(settings)) {
+            // Stateless does not support remote cluster operations. Skip.
+            return;
+        }
+
         final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>();
         getClient().execute(
             ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
             new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
             future
         );
-        assert future.isDone() : "expecting local-only action call to return immediately on invocation";
-        future.actionGet(0, TimeUnit.NANOSECONDS);
+        future.actionGet();
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

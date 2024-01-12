@@ -10,7 +10,9 @@ package org.elasticsearch.test.fixtures.idp;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.Network;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.images.builder.dockerfile.statement.SingleArgumentStatement;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -125,19 +127,24 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
                     .run("chmod +x /opt/jetty-home/bin/jetty.sh")
                     // Opening 4443 (browser TLS), 8443 (mutual auth TLS)
                     .cmd("run-jetty.sh")
+                    .withStatement(
+                        new SingleArgumentStatement(
+                            "HEALTHCHECK",
+                            "CMD curl -f -s --http0.9 http://localhost:4443 " + "--connect-timeout 10 --max-time 10 --output - > /dev/null"
+                        )
+                    )
                     // .expose(4443)
                     .build()
-
             )
                 .withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
                 .withFileFromClasspath("idp/jetty-custom/keystore", "/idp/jetty-custom/keystore")
                 .withFileFromClasspath("idp/shib-jetty-base/", "/idp/shib-jetty-base/")
                 .withFileFromClasspath("idp/shibboleth-idp/", "/idp/shibboleth-idp/")
                 .withFileFromClasspath("idp/bin/", "/idp/bin/")
-
         );
         withNetworkAliases("idp");
         withNetwork(network);
+        waitingFor(Wait.forHealthcheck());
         addExposedPorts(4443, 8443);
     }
 

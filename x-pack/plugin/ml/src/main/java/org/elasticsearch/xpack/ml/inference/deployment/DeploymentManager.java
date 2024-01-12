@@ -17,8 +17,10 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
@@ -26,9 +28,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -200,9 +199,18 @@ public class DeploymentManager {
                         // here, we are being called back on the searching thread, which MAY be a network thread
                         // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
                         // executor.
-                        executorServiceForDeployment.execute(
-                            () -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener)
-                        );
+                        executorServiceForDeployment.execute(new AbstractRunnable() {
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                failedDeploymentListener.onFailure(e);
+                            }
+
+                            @Override
+                            protected void doRun() {
+                                processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener);
+                            }
+                        });
                     }, failedDeploymentListener::onFailure)
                 );
             } else {
@@ -284,13 +292,11 @@ public class DeploymentManager {
 
     Vocabulary parseVocabularyDocLeniently(SearchHit hit) throws IOException {
         try (
-            InputStream stream = hit.getSourceRef().streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
-                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                    stream
-                )
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                hit.getSourceRef(),
+                XContentType.JSON
+            )
         ) {
             return Vocabulary.PARSER.apply(parser, null);
         } catch (IOException e) {
@@ -496,7 +502,14 @@ public class DeploymentManager {
             }
 
             logger.debug("[{}] start and load", task.getDeploymentId());
-            process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, this::onProcessCrash));
+            process.set(
+                pyTorchProcessFactory.createProcess(
+                    task,
+                    executorServiceForProcess,
+                    () -> resultProcessor.awaitCompletion(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES),
+                    this::onProcessCrash
+                )
+            );
             startTime = Instant.now();
             logger.debug("[{}] process started", task.getDeploymentId());
             try {

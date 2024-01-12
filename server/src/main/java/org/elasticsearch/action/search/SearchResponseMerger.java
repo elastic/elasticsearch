@@ -27,7 +27,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -211,18 +210,15 @@ final class SearchResponseMerger implements Releasable {
         SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
         // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
-        InternalSearchResponse response = new InternalSearchResponse(
+        long tookInMillis = searchTimeProvider.buildTookInMillis();
+        return new SearchResponse(
             mergedSearchHits,
             reducedAggs,
             suggest,
-            profileShardResults,
             topDocsStats.timedOut,
             topDocsStats.terminatedEarly,
-            numReducePhases
-        );
-        long tookInMillis = searchTimeProvider.buildTookInMillis();
-        return new SearchResponse(
-            response,
+            profileShardResults,
+            numReducePhases,
             null,
             totalShards,
             successfulShards,

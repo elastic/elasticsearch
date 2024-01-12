@@ -376,10 +376,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             out.writeCollection(shardIds);
         }
 
-        public long getTotal() {
-            return total;
-        }
-
         public boolean containsShardId(ShardId shardId) {
             return shardIds.contains(shardId);
         }

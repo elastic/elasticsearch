@@ -95,6 +95,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
             "test",
             logger,
+            null,
             transportService,
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
@@ -152,10 +153,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertTrue(searchPhaseDidRun.get());
         assertEquals(shardsIter.size() - numSkipped, numRequests.get());
 
-        asyncAction.sendSearchResponse(
-            new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1),
-            null
-        );
+        asyncAction.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, null);
         assertNotNull(searchResponse.get());
         assertEquals(0, searchResponse.get().getFailedShards());
         assertEquals(numSkipped, searchResponse.get().getSkippedShards());
@@ -206,6 +204,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
+                null,
                 transportService,
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
@@ -321,6 +320,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
+                null,
                 transportService,
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
@@ -446,6 +446,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
+                null,
                 transportService,
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
@@ -554,6 +555,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
+                null,
                 transportService,
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
@@ -655,6 +657,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
             "test",
             logger,
+            null,
             new SearchTransportService(null, null, null),
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
@@ -698,10 +701,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertThat(latch.await(4, TimeUnit.SECONDS), equalTo(true));
         assertThat(searchPhaseDidRun.get(), equalTo(true));
 
-        asyncAction.sendSearchResponse(
-            new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1),
-            null
-        );
+        asyncAction.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, null);
         assertNotNull(searchResponse.get());
         assertThat(searchResponse.get().getSkippedShards(), equalTo(numUnavailableSkippedShards));
         assertThat(searchResponse.get().getFailedShards(), equalTo(0));

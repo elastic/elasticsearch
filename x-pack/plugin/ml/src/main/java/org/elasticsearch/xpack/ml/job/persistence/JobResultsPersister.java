@@ -270,7 +270,16 @@ public class JobResultsPersister {
 
         private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) {
             try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
-                items.put(id, new IndexRequest(indexName).id(id).source(content));
+                IndexRequest indexRequest = new IndexRequest(indexName);
+                try {
+                    IndexRequest previousRequest = items.put(id, indexRequest.id(id).source(content));
+                    if (previousRequest != null) {
+                        previousRequest.decRef();
+                    }
+                } catch (Exception e) {
+                    indexRequest.decRef();
+                    throw e;
+                }
             } catch (IOException e) {
                 logger.error(() -> format("[%s] Error serialising %s", jobId, resultType), e);
             }

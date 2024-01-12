@@ -51,6 +51,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
                 isDog[i] = 0;
                 indexRequest.source("metric", x, "term", "cat").opType(DocWriteRequest.OpType.CREATE);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             sendAndMaybeFail(bulkRequestBuilder);
         }

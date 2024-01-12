@@ -68,7 +68,7 @@ abstract class AbstractPreserveAllocations {
     AssignmentPlan mergePreservedAllocations(AssignmentPlan assignmentPlan) {
         // As the model/node objects the assignment plan are the modified ones,
         // they will not match the models/nodes members we have in this class.
-        // Therefore, we build a lookup table based on the ids so we can merge the plan
+        // Therefore, we build a lookup table based on the ids, so we can merge the plan
         // with its preserved allocations.
         final Map<Tuple<String, String>, Integer> plannedAssignmentsByModelNodeIdPair = new HashMap<>();
         for (Deployment m : assignmentPlan.models()) {

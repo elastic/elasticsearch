@@ -401,8 +401,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             if (allocations <= 0) {
                 return this;
             }
-            if (/*isAlreadyAssigned(deployment, node) == false
-                &&*/ requiredMemory > remainingNodeMemory.get(node)) {
+            if (requiredMemory > remainingNodeMemory.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough memory on node ["
                         + node.id()
@@ -447,16 +446,12 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             return m.currentAllocationsByNodeId.containsKey(n.id()) ? m.currentAllocationsByNodeId.get(n.id()) : 0;
         }
 
-        // public void accountMemory(Deployment m, Node n) {
-        // // TODO (#101612) remove or refactor unused method
-        // long requiredMemory = getDeploymentMemoryRequirement(m, n, getCurrentAllocations(m, n));
-        // accountMemory(m, n, requiredMemory);
-        // }
-
         public void accountMemory(Deployment m, Node n) {
-            int allocations = m.currentAllocationsByNodeId().get(n.id());
-            long requiredMemory = m.estimateMemoryUsageBytes(allocations);
-            accountMemory(m, n, requiredMemory);
+            if (m.currentAllocationsByNodeId().containsKey(n.id())) {
+                int allocations = m.currentAllocationsByNodeId().get(n.id());
+                long requiredMemory = m.estimateMemoryUsageBytes(allocations);
+                accountMemory(m, n, requiredMemory);
+            }
         }
 
         private void accountMemory(Deployment m, Node n, long requiredMemory) {

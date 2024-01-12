@@ -1388,8 +1388,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         @Override
         public void close() {
-            appender.stop();
             Loggers.removeAppender(mockLogger, appender);
+            appender.stop();
             if (checked == false) {
                 fail("did not check expectations matched in TimedOutLogExpectation");
             }

@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -247,9 +247,15 @@ public class ElserMlNodeService implements InferenceService {
             var input = new TrainedModelInput(fieldNames);
             var config = TrainedModelConfig.builder().setInput(input).setModelId(modelVariant).build();
             PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
-            executeAsyncWithOrigin(client, ML_ORIGIN, PutTrainedModelAction.INSTANCE, putRequest, listener.delegateFailure((l, r) -> {
-                l.onResponse(Boolean.TRUE);
-            }));
+            executeAsyncWithOrigin(
+                client,
+                INFERENCE_ORIGIN,
+                PutTrainedModelAction.INSTANCE,
+                putRequest,
+                listener.delegateFailure((l, r) -> {
+                    l.onResponse(Boolean.TRUE);
+                })
+            );
         }
     }
 

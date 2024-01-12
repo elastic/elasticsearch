@@ -669,7 +669,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    private record IngestPipelinesExecutionResult(boolean success, boolean kept, Exception exception, String failedIndex) {
+    private record IngestPipelinesExecutionResult(boolean success, boolean shouldKeep, Exception exception, String failedIndex) {
         private static final IngestPipelinesExecutionResult SUCCESSFUL_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
         private static final IngestPipelinesExecutionResult DISCARD_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
         private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
@@ -729,7 +729,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                 public void onResponse(IngestPipelinesExecutionResult result) {
                                     assert result != null;
                                     if (result.success) {
-                                        if (result.kept == false) {
+                                        if (result.shouldKeep == false) {
                                             onDropped.accept(slot);
                                         }
                                     } else {

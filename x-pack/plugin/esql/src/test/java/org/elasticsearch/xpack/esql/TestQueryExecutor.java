@@ -122,7 +122,8 @@ public class TestQueryExecutor {
         LogicalPlan parsedQuery,
         AbstractPhysicalOperationProviders testOperationProviders,
         IndexResolution indexResolution,
-        EnrichResolution enrichResolution
+        EnrichResolution enrichResolution,
+        boolean useEsPhysicalOptimizations
     ) {
         String sessionId = "csv-test";
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(
@@ -182,9 +183,8 @@ public class TestQueryExecutor {
             if (dataNodePlan != null) {
                 var searchStats = new DisabledSearchStats();
                 var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
-                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                    new LocalPhysicalOptimizerContext(configuration, searchStats)
-                );
+                var localPhysicalOptimizerCtx = new LocalPhysicalOptimizerContext(configuration, searchStats);
+                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(localPhysicalOptimizerCtx, useEsPhysicalOptimizations);
 
                 var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
                 exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, ESTestCase.randomIntBetween(1, 3));
@@ -214,6 +214,15 @@ public class TestQueryExecutor {
         } finally {
             Releasables.close(() -> Releasables.close(drivers));
         }
+    }
+
+    public ActualResults executePlan(
+        LogicalPlan parsedQuery,
+        AbstractPhysicalOperationProviders testOperationProviders,
+        IndexResolution indexResolution,
+        EnrichResolution enrichResolution
+    ) {
+        return executePlan(parsedQuery, testOperationProviders, indexResolution, enrichResolution, false);
     }
 
     public CircuitBreakerService breakerService() {

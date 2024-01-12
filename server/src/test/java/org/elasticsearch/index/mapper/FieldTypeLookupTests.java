@@ -431,16 +431,24 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     public void testInferenceModelFieldType() {
-        MockFieldMapper f = new MockFieldMapper(new MockInferenceModelFieldType("foo", "bar"));
-        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
-        assertEquals(f.fieldType(), lookup.get("foo"));
+        MockFieldMapper f1 = new MockFieldMapper(new MockInferenceModelFieldType("foo1", "bar1"));
+        MockFieldMapper f2 = new MockFieldMapper(new MockInferenceModelFieldType("foo2", "bar1"));
+        MockFieldMapper f3 = new MockFieldMapper(new MockInferenceModelFieldType("foo3", "bar2"));
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(f1, f2, f3), emptyList(), emptyList());
+        assertEquals(f1.fieldType(), lookup.get("foo1"));
+        assertEquals(f2.fieldType(), lookup.get("foo2"));
+        assertEquals(f3.fieldType(), lookup.get("foo3"));
+
         assertEquals(Collections.emptySet(), lookup.getFieldsForModel("baz"));
-        assertEquals(Collections.singleton("foo"), lookup.getFieldsForModel("bar"));
+        assertEquals(Set.of("foo1", "foo2"), lookup.getFieldsForModel("bar1"));
+        assertEquals(Set.of("foo3"), lookup.getFieldsForModel("bar2"));
 
         Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
         assertNotNull(fieldsForModels);
-        assertEquals(1, fieldsForModels.size());
-        assertEquals(Collections.singleton("foo"), fieldsForModels.get("bar"));
+        assertEquals(2, fieldsForModels.size());
+        assertEquals(Set.of("foo1", "foo2"), fieldsForModels.get("bar1"));
+        assertEquals(Set.of("foo3"), fieldsForModels.get("bar2"));
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {

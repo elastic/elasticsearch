@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
@@ -70,12 +70,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
@@ -442,17 +442,27 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
             PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
                 if (exec instanceof AggregateExec agg) {
+                    var unchangedAggregates = new ArrayList<NamedExpression>();
+                    var changedAggregates = new ArrayList<NamedExpression>();
                     for (NamedExpression aggExpr : agg.aggregates()) {
-                        if (aggExpr instanceof Alias as && as.child() instanceof AggregateFunction af && isSpatial(af.field().dataType())) {
+                        if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
+                            // Firstly we tell the aggregation function that is should expect doc-values instead of source values
+                            changedAggregates.add(as.replaceChild(af.withDocValues()));
                             if (af.field() instanceof Attribute fieldAttribute) {
                                 foundAttribute.set(fieldAttribute);
                             } else {
                                 throw new RuntimeException("Expected field attribute, got " + af.field());
                             }
+                        } else {
+                            unchangedAggregates.add(aggExpr);
                         }
+                    }
+                    if (changedAggregates.isEmpty() == false) {
+                        exec = agg.replaceAggregates(Stream.concat(unchangedAggregates.stream(), changedAggregates.stream()).toList());
                     }
                 }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {
+                    // Also tell the field extractor that it should extract the field from doc-values instead of source values
                     if (foundAttribute.get() != null && fieldExtractExec.attributesToExtract().contains(foundAttribute.get())) {
                         exec = fieldExtractExec.withForStats(foundAttribute.get());
                     }

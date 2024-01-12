@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -28,10 +28,19 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 /**
  * Calculate spatial centroid of all geo_point or cartesian point values of a field in matching documents.
  */
-public class SpatialCentroid extends AggregateFunction implements ToAggregator {
+public class SpatialCentroid extends SpatialAggregateFunction implements ToAggregator {
+
+    private SpatialCentroid(Source source, Expression field, boolean useDocValues) {
+        super(source, field, useDocValues);
+    }
 
     public SpatialCentroid(Source source, Expression field) {
-        super(source, field);
+        super(source, field, false);
+    }
+
+    @Override
+    public SpatialCentroid withDocValues() {
+        return new SpatialCentroid(source(), field(), true);
     }
 
     @Override
@@ -58,8 +67,6 @@ public class SpatialCentroid extends AggregateFunction implements ToAggregator {
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        // TODO: Figure out how to know whether to use doc-values or source-values here
-        boolean useDocValues = true;
         if (useDocValues) {
             // When the points are read as doc-values (eg. from the index), feed them into the doc-values aggregator
             if (type == EsqlDataTypes.GEO_POINT) {

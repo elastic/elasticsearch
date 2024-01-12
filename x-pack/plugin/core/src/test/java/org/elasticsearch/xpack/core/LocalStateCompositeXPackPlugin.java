@@ -83,6 +83,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
@@ -381,10 +382,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-
+    public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
         // There can be only one.
-        List<UnaryOperator<RestHandler>> items = filterPlugins(ActionPlugin.class).stream()
+        List<RestInterceptor> items = filterPlugins(ActionPlugin.class).stream()
             .filter(RestServerActionPlugin.class::isInstance)
             .map(RestServerActionPlugin.class::cast)
             .map(p -> p.getRestHandlerInterceptor(threadContext))

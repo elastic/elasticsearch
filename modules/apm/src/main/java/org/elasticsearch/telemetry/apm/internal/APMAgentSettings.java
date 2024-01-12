@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -220,22 +221,23 @@ public class APMAgentSettings {
         "span_stack_trace_min_duration"
     );
 
+    private static final String APM_AGENT_SETTING_PREFIX = APM_SETTING_PREFIX + "agent.";
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
-        APM_SETTING_PREFIX + "agent.",
-        (qualifiedKey) -> {
-            final String[] parts = qualifiedKey.split("\\.");
-            final String key = parts[parts.length - 1];
-            return new Setting<>(qualifiedKey, "", (value) -> {
-                if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(key) == false) {
-                    // TODO figure out why those settings are kept, these should be reformatted / removed by now
-                    if (qualifiedKey.startsWith("tracing.apm.agent.global_labels.")) {
-                        return value;
-                    }
-                    throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");
+        APM_AGENT_SETTING_PREFIX,
+        (qualifiedKey) -> new Setting<>(qualifiedKey, "", (value) -> {
+            if (qualifiedKey.equals("_na_")) {
+                return value; // shortcut for initialization of delegate
+            }
+            String key = Strings.split(qualifiedKey, APM_AGENT_SETTING_PREFIX)[1];
+            if (PERMITTED_AGENT_KEYS.contains(key) == false) {
+                // TODO figure out why those settings are kept, these should be reformatted / removed by now
+                if (qualifiedKey.startsWith("tracing.apm.agent.global_labels.")) {
+                    return value;
                 }
-                return value;
-            }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic);
-        }
+                throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");
+            }
+            return value;
+        }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic)
     );
 
     public static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(

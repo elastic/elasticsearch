@@ -65,4 +65,17 @@ public class APMAgentSettingsTests extends ESTestCase {
         Exception exception = expectThrows(IllegalArgumentException.class, () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings));
         assertThat(exception.getMessage(), containsString("[tracing.apm.agent.unknown]"));
     }
+
+    /**
+     * Check that invalid or forbidden APM agent settings are rejected if their last part resembles an allowed setting.
+     */
+    public void testRejectUnknownSettingResemblingAnAllowedOne() {
+        Settings settings = Settings.builder()
+            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+            .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "unknown.service_name", "true")
+            .build();
+
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings));
+        assertThat(exception.getMessage(), containsString("[tracing.apm.agent.unknown.service_name]"));
+    }
 }

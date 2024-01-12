@@ -182,12 +182,15 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         IndexRequest indexRequest = new IndexRequest("data");
         indexRequest.source("time", 1407081600L);
         client().index(indexRequest).get();
+        indexRequest.decRef();
         indexRequest = new IndexRequest("data");
         indexRequest.source("time", 1407082600L);
         client().index(indexRequest).get();
+        indexRequest.decRef();
         indexRequest = new IndexRequest("data");
         indexRequest.source("time", 1407083600L);
         client().index(indexRequest).get();
+        indexRequest.decRef();
         refresh("*");
 
         Job.Builder job = createScheduledJob("job_id");

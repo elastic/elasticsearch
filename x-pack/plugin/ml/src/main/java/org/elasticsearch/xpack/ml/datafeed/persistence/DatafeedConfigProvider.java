@@ -130,26 +130,31 @@ public class DatafeedConfigProvider {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = finalConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DatafeedConfig.documentId(datafeedId))
-                .source(source)
-                .opType(DocWriteRequest.OpType.CREATE)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName());
+            try {
+                indexRequest.id(DatafeedConfig.documentId(datafeedId))
+                    .source(source)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                TransportIndexAction.TYPE,
-                indexRequest,
-                ActionListener.wrap(r -> listener.onResponse(Tuple.tuple(finalConfig, r)), e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                        // the datafeed already exists
-                        listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
-                    } else {
-                        listener.onFailure(e);
-                    }
-                })
-            );
-
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    TransportIndexAction.TYPE,
+                    indexRequest,
+                    ActionListener.runAfter(ActionListener.wrap(r -> listener.onResponse(Tuple.tuple(finalConfig, r)), e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            // the datafeed already exists
+                            listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }), indexRequest::decRef)
+                );
+            } catch (Exception e) {
+                indexRequest.decRef();
+                throw e;
+            }
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise datafeed config with id [" + datafeedId + "]", e));
         }
@@ -367,14 +372,26 @@ public class DatafeedConfigProvider {
     private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm, ActionListener<DocWriteResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DatafeedConfig.documentId(updatedConfig.getId()))
-                .source(updatedSource)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName());
+            try {
+                indexRequest.id(DatafeedConfig.documentId(updatedConfig.getId()))
+                    .source(updatedSource)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            indexRequest.setIfSeqNo(seqNo);
-            indexRequest.setIfPrimaryTerm(primaryTerm);
+                indexRequest.setIfSeqNo(seqNo);
+                indexRequest.setIfPrimaryTerm(primaryTerm);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, listener);
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    TransportIndexAction.TYPE,
+                    indexRequest,
+                    ActionListener.runAfter(listener, indexRequest::decRef)
+                );
+            } catch (Exception e) {
+                indexRequest.decRef();
+                throw e;
+            }
 
         } catch (IOException e) {
             listener.onFailure(

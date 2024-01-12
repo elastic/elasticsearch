@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -74,9 +75,11 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
-        prepareIndex(MlConfigIndex.indexName()).setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
-            .setSource(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL, XContentType.JSON)
-            .get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(MlConfigIndex.indexName()).setId(
+            DatafeedConfig.documentId("farequote" + "-datafeed-with-old-agg")
+        ).setSource(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL, XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         AtomicReference<DatafeedConfig.Builder> getConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 

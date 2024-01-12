@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
@@ -76,22 +78,28 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
         assertThat(configHolder.get(), is(equalTo(config)));
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        originSettingClient.prepareIndex(".ml-state-000001")
-            .setId("delete-config-with-state-and-stats_regression_state#1")
-            .setSource("{}", XContentType.JSON)
-            .get();
-        originSettingClient.prepareIndex(".ml-state-000001")
-            .setId("data_frame_analytics-delete-config-with-state-and-stats-progress")
-            .setSource("{}", XContentType.JSON)
-            .get();
-        originSettingClient.prepareIndex(".ml-stats-000001")
-            .setId("delete-config-with-state-and-stats_1")
-            .setSource("{\"job_id\": \"delete-config-with-state-and-stats\"}", XContentType.JSON)
-            .get();
-        originSettingClient.prepareIndex(".ml-stats-000001")
-            .setId("delete-config-with-state-and-stats_2")
-            .setSource("{\"job_id\": \"delete-config-with-state-and-stats\"}", XContentType.JSON)
-            .get();
+        index(originSettingClient, ".ml-state-000001", "delete-config-with-state-and-stats_regression_state#1", "{}", XContentType.JSON);
+        index(
+            originSettingClient,
+            ".ml-state-000001",
+            "data_frame_analytics-delete-config-with-state-and-stats-progress",
+            "{}",
+            XContentType.JSON
+        );
+        index(
+            originSettingClient,
+            ".ml-stats-000001",
+            "delete-config-with-state-and-stats_1",
+            "{\"job_id\": \"delete-config-with-state-and-stats\"}",
+            XContentType.JSON
+        );
+        index(
+            originSettingClient,
+            ".ml-stats-000001",
+            "delete-config-with-state-and-stats_2",
+            "{\"job_id\": \"delete-config-with-state-and-stats\"}",
+            XContentType.JSON
+        );
 
         originSettingClient.admin().indices().prepareRefresh(".ml-stat*").get();
 
@@ -116,6 +124,15 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
                 .setTrackTotalHits(true),
             0
         );
+    }
+
+    private void index(Client client, String index, String id, String source, XContentType contentType) {
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource(source, contentType).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
 }

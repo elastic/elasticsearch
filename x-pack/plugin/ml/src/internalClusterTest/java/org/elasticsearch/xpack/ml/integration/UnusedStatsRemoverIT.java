@@ -144,11 +144,15 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
             Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, Boolean.toString(true))
         );
         IndexRequest doc = new IndexRequest(MlStatsIndex.writeAlias());
-        doc.id(docId);
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            object.toXContent(builder, params);
-            doc.source(builder);
-            client.index(doc).actionGet();
+        try {
+            doc.id(docId);
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                object.toXContent(builder, params);
+                doc.source(builder);
+                client.index(doc).actionGet();
+            }
+        } finally {
+            doc.decRef();
         }
     }
 }

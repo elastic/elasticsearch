@@ -206,6 +206,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
                         .setId(TrainedModelDefinitionDoc.docId(doc.getModelId(), startingDocNum++));
 
                     bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder.request().decRef();
                 }
             }
 

@@ -235,30 +235,36 @@ public class DataFrameAnalyticsConfigProvider {
     ) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DataFrameAnalyticsConfig.documentId(config.getId()))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(builder);
-            if (getResponse == null) {
-                indexRequest.opType(DocWriteRequest.OpType.CREATE);
-            } else {
-                indexRequest.opType(DocWriteRequest.OpType.INDEX)
-                    .setIfSeqNo(getResponse.getSeqNo())
-                    .setIfPrimaryTerm(getResponse.getPrimaryTerm());
-            }
+            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName());
+            try {
+                indexRequest.id(DataFrameAnalyticsConfig.documentId(config.getId()))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(builder);
+                if (getResponse == null) {
+                    indexRequest.opType(DocWriteRequest.OpType.CREATE);
+                } else {
+                    indexRequest.opType(DocWriteRequest.OpType.INDEX)
+                        .setIfSeqNo(getResponse.getSeqNo())
+                        .setIfPrimaryTerm(getResponse.getPrimaryTerm());
+                }
 
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                TransportIndexAction.TYPE,
-                indexRequest,
-                ActionListener.wrap(indexResponse -> listener.onResponse(config), e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                        listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(config.getId()));
-                    } else {
-                        listener.onFailure(e);
-                    }
-                })
-            );
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    TransportIndexAction.TYPE,
+                    indexRequest,
+                    ActionListener.runAfter(ActionListener.wrap(indexResponse -> listener.onResponse(config), e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(config.getId()));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }), indexRequest::decRef)
+                );
+            } catch (Exception e) {
+                indexRequest.decRef();
+                throw e;
+            }
         } catch (IOException e) {
             listener.onFailure(
                 new ElasticsearchParseException("Failed to serialise data frame analytics with id [" + config.getId() + "]")

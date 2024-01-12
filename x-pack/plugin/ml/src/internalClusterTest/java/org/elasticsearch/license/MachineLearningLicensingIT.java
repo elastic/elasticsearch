@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
@@ -541,7 +542,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         AcknowledgedResponse putPipelineResponse = putPipelineListener.actionGet();
         assertTrue(putPipelineResponse.isAcknowledged());
 
-        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
+        index("infer_license_test", "test_infer_license_pipeline", "{}", XContentType.JSON);
 
         String simulateSource = Strings.format("""
             {
@@ -570,7 +571,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // Inference against the previous pipeline should still work
         try {
-            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
+            index("infer_license_test", "test_infer_license_pipeline", "{}", XContentType.JSON);
         } catch (ElasticsearchSecurityException ex) {
             fail(ex.getMessage());
         }
@@ -591,7 +592,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // Inference against the new pipeline should fail since it has never previously succeeded
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again").setSource("{}", XContentType.JSON).get();
+            index("infer_license_test", "test_infer_license_pipeline_again", "{}", XContentType.JSON);
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
         assertThat(e.getMessage(), containsString("non-compliant"));
@@ -634,8 +635,8 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // both ingest pipelines should work
 
-        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
-        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again").setSource("{}", XContentType.JSON).get();
+        index("infer_license_test", "test_infer_license_pipeline", "{}", XContentType.JSON);
+        index("infer_license_test", "test_infer_license_pipeline_again", "{}", XContentType.JSON);
     }
 
     public void testMachineLearningInferModelRestricted() {
@@ -727,12 +728,17 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         String index = "inference-agg-licence-test";
         client().admin().indices().prepareCreate(index).setMapping("feature1", "type=double", "feature2", "type=keyword").get();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk(index)) {
-            bulkRequestBuilder.add(new IndexRequest().source("feature1", "10.0", "feature2", "foo"))
-                .add(new IndexRequest().source("feature1", "20.0", "feature2", "foo"))
-                .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
-                .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            List<IndexRequest> indexRequests = List.of(
+                new IndexRequest().source("feature1", "10.0", "feature2", "foo"),
+                new IndexRequest().source("feature1", "20.0", "feature2", "foo"),
+                new IndexRequest().source("feature1", "20.0", "feature2", "bar"),
+                new IndexRequest().source("feature1", "20.0", "feature2", "bar")
+            );
+            for (IndexRequest indexRequest : indexRequests) {
+                bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
+            }
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         }
 
         TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("foobar").field("feature2");
@@ -832,6 +838,16 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
             licenseState.update(new XPackLicenseStatus(operationMode, true, null));
+        }
+    }
+
+    private void index(String index, String pipeline, String source, XContentType contentType) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setPipeline(pipeline).setSource(source, contentType);
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
     }
 }

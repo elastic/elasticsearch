@@ -812,10 +812,14 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         try (XContentBuilder xContentBuilder = JsonXContent.contentBuilder()) {
             modelSnapshot.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
-            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            indexRequest.id(ModelSnapshot.documentId(modelSnapshot));
-            indexRequest.source(xContentBuilder);
-            client().index(indexRequest).actionGet();
+            try {
+                indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                indexRequest.id(ModelSnapshot.documentId(modelSnapshot));
+                indexRequest.source(xContentBuilder);
+                client().index(indexRequest).actionGet();
+            } finally {
+                indexRequest.decRef();
+            }
         }
 
         JobUpdate jobUpdate = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();

@@ -304,6 +304,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
             IndexRequest stateDoc = new IndexRequest(".ml-state");
             stateDoc.source(Collections.singletonMap("state", "blah"));
             DocWriteResponse indexResponse = client().index(stateDoc).actionGet();
+            stateDoc.decRef();
             assertEquals(RestStatus.CREATED, indexResponse.status());
 
             // Creating the .ml-state index would normally cause .ml-annotations

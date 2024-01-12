@@ -50,31 +50,46 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
     protected void doExecute(Task task, PutFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
         MlFilter filter = request.getFilter();
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
-        indexRequest.opType(DocWriteRequest.OpType.CREATE);
-        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
-            indexRequest.source(filter.toXContent(builder, params));
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
+        try {
+            indexRequest.opType(DocWriteRequest.OpType.CREATE);
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                ToXContent.MapParams params = new ToXContent.MapParams(
+                    Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
+                );
+                indexRequest.source(filter.toXContent(builder, params));
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
+            }
+
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(DocWriteResponse indexResponse) {
+                        listener.onResponse(new PutFilterAction.Response(filter));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Exception reportedException;
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            reportedException = new ResourceAlreadyExistsException(
+                                "A filter with id [" + filter.getId() + "] already exists"
+                            );
+                        } else {
+                            reportedException = ExceptionsHelper.serverError("Error putting filter with id [" + filter.getId() + "]", e);
+                        }
+                        listener.onFailure(reportedException);
+                    }
+                }, indexRequest::decRef)
+            );
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
         }
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(DocWriteResponse indexResponse) {
-                listener.onResponse(new PutFilterAction.Response(filter));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                Exception reportedException;
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    reportedException = new ResourceAlreadyExistsException("A filter with id [" + filter.getId() + "] already exists");
-                } else {
-                    reportedException = ExceptionsHelper.serverError("Error putting filter with id [" + filter.getId() + "]", e);
-                }
-                listener.onFailure(reportedException);
-            }
-        });
     }
 }

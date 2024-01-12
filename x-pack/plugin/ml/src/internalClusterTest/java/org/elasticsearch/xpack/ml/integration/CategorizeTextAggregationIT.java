@@ -120,6 +120,7 @@ public class CategorizeTextAggregationIT extends BaseMlIntegTestCase {
             IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis(), "msg", "Node 1 started", "part", "nodes");
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source(
                 "time",
@@ -130,6 +131,7 @@ public class CategorizeTextAggregationIT extends BaseMlIntegTestCase {
                 "shutdowns"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source(
                 "time",
@@ -140,16 +142,20 @@ public class CategorizeTextAggregationIT extends BaseMlIntegTestCase {
                 "shutdowns"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source("time", nowMillis - TimeValue.timeValueHours(1).millis(), "msg", "Node 2 started", "part", "nodes");
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source("time", nowMillis, "msg", "Node 3 started", "part", "nodes");
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
 
             indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source("time", nowMillis, "msg", "Node 3 stopped", "part", "nodes");
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
 
             BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             assertThat(bulkResponse.hasFailures(), is(false));

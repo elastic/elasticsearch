@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -793,10 +794,12 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 .build()
         );
         // Add a snapshot WITHOUT a min version.
-        prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job")).setId(ModelSnapshot.documentId("other_job", "11"))
-            .setSource("""
-                {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
-            .get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job")).setId(
+            ModelSnapshot.documentId("other_job", "11")
+        ).setSource("""
+            {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         indicesAdmin().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern(), AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
             .get();
@@ -1048,6 +1051,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                     );
                     indexRequest.source(event.toXContent(builder, params));
                     bulkRequest.add(indexRequest);
+                    indexRequest.decRef();
                 }
             }
             BulkResponse response = bulkRequest.get();
@@ -1074,6 +1078,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                     );
                     indexRequest.source(filter.toXContent(builder, params));
                     bulkRequest.add(indexRequest);
+                    indexRequest.decRef();
                 }
             }
             bulkRequest.get();
@@ -1125,6 +1130,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                     );
                     indexRequest.source(calendar.toXContent(builder, params));
                     bulkRequest.add(indexRequest);
+                    indexRequest.decRef();
                 }
             }
             bulkRequest.get();

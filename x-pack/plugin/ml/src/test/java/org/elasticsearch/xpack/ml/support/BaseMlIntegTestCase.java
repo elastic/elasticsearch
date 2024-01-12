@@ -303,26 +303,35 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     public static void indexDocs(Client client, Logger logger, String index, long numDocs, long start, long end) {
         int maxDelta = (int) (end - start - 1);
-        try (BulkRequestBuilder bulkRequestBuilder = client.prepareBulk()) {
-            for (int i = 0; i < numDocs; i++) {
-                IndexRequest indexRequest = new IndexRequest(index);
-                long timestamp = start + randomIntBetween(0, maxDelta);
-                assert timestamp >= start && timestamp < end;
-                indexRequest.source("time", timestamp, "@timestamp", timestamp).opType(DocWriteRequest.OpType.CREATE);
-                bulkRequestBuilder.add(indexRequest);
-            }
-            BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-            if (bulkResponse.hasFailures()) {
-                int failures = 0;
-                for (BulkItemResponse itemResponse : bulkResponse) {
-                    if (itemResponse.isFailed()) {
-                        failures++;
-                        logger.error("Item response failure [{}]", itemResponse.getFailureMessage());
+        int maxBatchSize = 1000;
+        int docsIndexed = 0;
+        while (docsIndexed < numDocs) {
+            try (BulkRequestBuilder bulkRequestBuilder = client.prepareBulk()) {
+                for (int i = 0; i < maxBatchSize && docsIndexed < numDocs; i++) {
+                    docsIndexed++;
+                    IndexRequest indexRequest = new IndexRequest(index);
+                    try {
+                        long timestamp = start + randomIntBetween(0, maxDelta);
+                        assert timestamp >= start && timestamp < end;
+                        indexRequest.source("time", timestamp, "@timestamp", timestamp).opType(DocWriteRequest.OpType.CREATE);
+                        bulkRequestBuilder.add(indexRequest);
+                    } finally {
+                        indexRequest.decRef();
                     }
                 }
-                fail("Bulk response contained " + failures + " failures");
+                BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+                if (bulkResponse.hasFailures()) {
+                    int failures = 0;
+                    for (BulkItemResponse itemResponse : bulkResponse) {
+                        if (itemResponse.isFailed()) {
+                            failures++;
+                            logger.error("Item response failure [{}]", itemResponse.getFailureMessage());
+                        }
+                    }
+                    fail("Bulk response contained " + failures + " failures");
+                }
+                logger.info("Indexed [{}] documents", numDocs);
             }
-            logger.info("Indexed [{}] documents", numDocs);
         }
     }
 

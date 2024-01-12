@@ -61,18 +61,22 @@ public class CategorizeTextDistributedIT extends BaseMlIntegTestCase {
                         Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol destroy")
                     );
                     bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder.request().decRef();
                     indexRequestBuilder = prepareIndex(indexName).setSource(
                         Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol init")
                     );
                     bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder.request().decRef();
                     indexRequestBuilder = prepareIndex(indexName).setSource(
                         Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol start")
                     );
                     bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder.request().decRef();
                     indexRequestBuilder = prepareIndex(indexName).setSource(
                         Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol stop")
                     );
                     bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder.request().decRef();
                 }
                 bulkRequestBuilder.get();
             }

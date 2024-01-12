@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -321,14 +322,12 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             )
         ) {
             AtomicReference<DocWriteResponse> putDocHolder = new AtomicReference<>();
-            blockingCall(
-                listener -> prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .setSource(xContentBuilder)
-                    .setId(TrainedModelDefinitionDoc.docId(modelId, 0))
-                    .execute(listener),
-                putDocHolder,
-                exceptionHolder
-            );
+            blockingCall(listener -> {
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setRefreshPolicy(
+                    WriteRequest.RefreshPolicy.IMMEDIATE
+                ).setSource(xContentBuilder).setId(TrainedModelDefinitionDoc.docId(modelId, 0));
+                indexRequestBuilder.execute(ActionListener.runAfter(listener, () -> indexRequestBuilder.request().decRef()));
+            }, putDocHolder, exceptionHolder);
             assertThat(exceptionHolder.get(), is(nullValue()));
         }
 
@@ -376,6 +375,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
                     ).setId(TrainedModelDefinitionDoc.docId(modelId, i));
 
                     bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder.request().decRef();
                 }
             }
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -423,6 +423,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
                     ).setId(TrainedModelDefinitionDoc.docId(modelId, i));
 
                     bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder.request().decRef();
                 }
             }
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

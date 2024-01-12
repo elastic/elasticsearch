@@ -107,11 +107,10 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
         );
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             modelDefinitionDoc.toXContent(builder, null);
-            client().execute(
-                TransportIndexAction.TYPE,
-                new IndexRequest(InferenceIndexConstants.nativeDefinitionStore()).source(builder)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            ).actionGet();
+            IndexRequest indexRequest = new IndexRequest(InferenceIndexConstants.nativeDefinitionStore());
+            client().execute(TransportIndexAction.TYPE, indexRequest.source(builder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
+                .actionGet();
+            indexRequest.decRef();
         }
 
         client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(model, true)).actionGet();

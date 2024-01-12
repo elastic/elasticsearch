@@ -1865,21 +1865,29 @@ public class JobResultsProvider {
             Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs), calendar.getDescription());
 
             UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), updatedCalendar.documentId());
-            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            try {
+                updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                updateRequest.doc(updatedCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to serialise calendar with id [" + updatedCalendar.getId() + "]", e);
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    updateRequest.doc(updatedCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                } catch (IOException e) {
+                    throw new IllegalStateException("Failed to serialise calendar with id [" + updatedCalendar.getId() + "]", e);
+                }
+
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    ML_ORIGIN,
+                    updateRequest,
+                    ActionListener.runAfter(
+                        ActionListener.<UpdateResponse>wrap(response -> handler.accept(updatedCalendar), errorHandler),
+                        updateRequest::decRef
+                    ),
+                    client::update
+                );
+            } catch (Exception e) {
+                updateRequest.decRef();
+                throw e;
             }
-
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                ML_ORIGIN,
-                updateRequest,
-                ActionListener.<UpdateResponse>wrap(response -> handler.accept(updatedCalendar), errorHandler),
-                client::update
-            );
 
         }, errorHandler);
 
@@ -1931,13 +1939,19 @@ public class JobResultsProvider {
                 List<String> ids = calendar.getJobIds().stream().filter(jId -> jobId.equals(jId) == false).collect(Collectors.toList());
                 Calendar newCalendar = new Calendar(calendar.getId(), ids, calendar.getDescription());
                 UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), newCalendar.documentId());
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    updateRequest.doc(newCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
-                } catch (IOException e) {
-                    listener.onFailure(new IllegalStateException("Failed to serialise calendar with id [" + newCalendar.getId() + "]", e));
-                    return;
+                try {
+                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                        updateRequest.doc(newCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                    } catch (IOException e) {
+                        listener.onFailure(
+                            new IllegalStateException("Failed to serialise calendar with id [" + newCalendar.getId() + "]", e)
+                        );
+                        return;
+                    }
+                    bulkUpdate.add(updateRequest);
+                } finally {
+                    updateRequest.decRef();
                 }
-                bulkUpdate.add(updateRequest);
             }
             if (bulkUpdate.numberOfActions() > 0) {
                 executeAsyncWithOrigin(

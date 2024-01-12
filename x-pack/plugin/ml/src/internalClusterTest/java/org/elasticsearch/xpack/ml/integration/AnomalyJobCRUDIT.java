@@ -113,35 +113,32 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
 
     public void testCreateWithExistingCategorizerDocs() {
         String jobId = "job-id-with-existing-docs";
-        testCreateWithExistingDocs(
-            prepareIndex(".ml-state-000001").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .setId(jobId + "_categorizer_state#1")
-                .setSource("{}", XContentType.JSON)
-                .request(),
-            jobId
-        );
+        IndexRequest indexRequest = prepareIndex(".ml-state-000001").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setId(jobId + "_categorizer_state#1")
+            .setSource("{}", XContentType.JSON)
+            .request();
+        testCreateWithExistingDocs(indexRequest, jobId);
+        indexRequest.decRef();
     }
 
     public void testCreateWithExistingQuantilesDocs() {
         String jobId = "job-id-with-existing-docs";
-        testCreateWithExistingDocs(
-            prepareIndex(".ml-state-000001").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .setId(jobId + "_quantiles")
-                .setSource("{}", XContentType.JSON)
-                .request(),
-            jobId
-        );
+        IndexRequest indexRequest = prepareIndex(".ml-state-000001").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setId(jobId + "_quantiles")
+            .setSource("{}", XContentType.JSON)
+            .request();
+        testCreateWithExistingDocs(indexRequest, jobId);
+        indexRequest.decRef();
     }
 
     public void testCreateWithExistingResultsDocs() {
         String jobId = "job-id-with-existing-docs";
-        testCreateWithExistingDocs(
-            prepareIndex(".ml-anomalies-shared").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .setId(jobId + "_1464739200000_1")
-                .setSource("{\"job_id\": \"" + jobId + "\"}", XContentType.JSON)
-                .request(),
-            jobId
-        );
+        IndexRequest indexRequest = prepareIndex(".ml-anomalies-shared").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setId(jobId + "_1464739200000_1")
+            .setSource("{\"job_id\": \"" + jobId + "\"}", XContentType.JSON)
+            .request();
+        testCreateWithExistingDocs(indexRequest, jobId);
+        indexRequest.decRef();
     }
 
     public void testPutJobWithClosedResultsIndex() {

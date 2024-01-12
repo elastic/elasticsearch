@@ -120,11 +120,23 @@ public class JobDataCountsPersister {
     public void persistDataCountsAsync(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
         counts.setLogTime(Instant.now());
         try (XContentBuilder content = serialiseCounts(counts)) {
-            final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).id(DataCounts.documentId(jobId))
-                .setRequireAlias(true)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(content);
-            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, request, listener.safeMap(r -> true));
+            final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId));
+            try {
+                request.id(DataCounts.documentId(jobId))
+                    .setRequireAlias(true)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(content);
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    TransportIndexAction.TYPE,
+                    request,
+                    ActionListener.runAfter(listener.safeMap(r -> true), request::decRef)
+                );
+            } catch (Exception e) {
+                request.decRef();
+                throw e;
+            }
         } catch (IOException ioe) {
             String msg = "[" + jobId + "] Failed writing data_counts stats";
             logger.error(msg, ioe);

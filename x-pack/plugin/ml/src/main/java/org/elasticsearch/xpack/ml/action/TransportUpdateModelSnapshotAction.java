@@ -103,33 +103,38 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
     }
 
     private void indexModelSnapshot(Result<ModelSnapshot> modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        IndexRequest indexRequest = new IndexRequest(modelSnapshot.index).id(ModelSnapshot.documentId(modelSnapshot.result));
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            modelSnapshot.result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            indexRequest.source(builder);
-        } catch (IOException e) {
-            errorHandler.accept(e);
-            return;
-        }
-        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        bulkRequestBuilder.add(indexRequest);
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            BulkAction.INSTANCE,
-            bulkRequestBuilder.request(),
-            ActionListener.releaseAfter(new ActionListener<>() {
-                @Override
-                public void onResponse(BulkResponse indexResponse) {
-                    handler.accept(true);
-                }
+        IndexRequest indexRequest = new IndexRequest(modelSnapshot.index);
+        try {
+            indexRequest.id(ModelSnapshot.documentId(modelSnapshot.result));
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                modelSnapshot.result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                indexRequest.source(builder);
+            } catch (IOException e) {
+                errorHandler.accept(e);
+                return;
+            }
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            bulkRequestBuilder.add(indexRequest);
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                BulkAction.INSTANCE,
+                bulkRequestBuilder.request(),
+                ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(BulkResponse indexResponse) {
+                        handler.accept(true);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    errorHandler.accept(e);
-                }
-            }, bulkRequestBuilder)
-        );
+                    @Override
+                    public void onFailure(Exception e) {
+                        errorHandler.accept(e);
+                    }
+                }, bulkRequestBuilder)
+            );
+        } finally {
+            indexRequest.decRef();
+        }
     }
 }

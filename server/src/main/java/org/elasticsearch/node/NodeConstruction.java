@@ -798,6 +798,7 @@ class NodeConstruction {
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
+            namedWriteableRegistry,
             settingsModule.getIndexScopedSettings(),
             settingsModule.getClusterSettings(),
             settingsModule.getSettingsFilter(),
@@ -1260,8 +1261,7 @@ class NodeConstruction {
             transportService.getTaskManager(),
             () -> clusterService.localNode().getId(),
             transportService.getLocalNodeConnection(),
-            transportService.getRemoteClusterService(),
-            namedWriteableRegistry
+            transportService.getRemoteClusterService()
         );
 
         logger.debug("initializing HTTP handlers ...");

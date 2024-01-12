@@ -1307,6 +1307,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
                     return new SearchDfsQueryThenFetchAsyncAction(
                         logger,
+                        namedWriteableRegistry,
                         searchTransportService,
                         connectionLookup,
                         aliasFilter,
@@ -1325,6 +1326,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
                     return new SearchQueryThenFetchAsyncAction(
                         logger,
+                        namedWriteableRegistry,
                         searchTransportService,
                         connectionLookup,
                         aliasFilter,

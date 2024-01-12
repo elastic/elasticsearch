@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
@@ -21,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,6 +46,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     private static final String API_KEY_ADMIN_AUTH_HEADER = "Basic YXBpX2tleV9hZG1pbjpzZWN1cml0eS10ZXN0LXBhc3N3b3Jk";
     private static final String API_KEY_USER_AUTH_HEADER = "Basic YXBpX2tleV91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
     private static final String TEST_USER_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
+    private static final String SYSTEM_WRITE_ROLE_NAME = "system_write";
+    private static final String SUPERUSER_WITH_SYSTEM_WRITE = "superuser_with_system_write";
 
     public void testQuery() throws IOException {
         createApiKeys();
@@ -295,6 +300,71 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final Map<String, Object> responseMap2 = responseAsMap(response2);
         assertThat(responseMap2.get("total"), equalTo(total));
         assertThat(responseMap2.get("count"), equalTo(0));
+    }
+
+    public void testTypeField() throws Exception {
+        final List<String> allApiKeyIds = new ArrayList<>(7);
+        for (int i = 0; i < 7; i++) {
+            allApiKeyIds.add(
+                createApiKey("typed_key_" + i, Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1()
+            );
+        }
+        List<String> apiKeyIdsSubset = randomSubsetOf(allApiKeyIds);
+        List<String> apiKeyIdsSubsetDifference = new ArrayList<>(allApiKeyIds);
+        apiKeyIdsSubsetDifference.removeAll(apiKeyIdsSubset);
+
+        List<String> apiKeyRestTypeQueries = List.of("""
+            {"query": {"term": {"type": "rest" }}}""", """
+            {"query": {"bool": {"must_not": [{"term": {"type": "cross_cluster"}}, {"term": {"type": "other"}}]}}}""", """
+            {"query": {"prefix": {"type": "re" }}}""", """
+            {"query": {"wildcard": {"type": "r*t" }}}""", """
+            {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""");
+
+        for (String query : apiKeyRestTypeQueries) {
+            assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                    containsInAnyOrder(allApiKeyIds.toArray(new String[0]))
+                );
+            });
+        }
+
+        createSystemWriteRole(SYSTEM_WRITE_ROLE_NAME);
+        String systemWriteCreds = createUser(SUPERUSER_WITH_SYSTEM_WRITE, new String[] { "superuser", SYSTEM_WRITE_ROLE_NAME });
+
+        // test keys with no "type" field are still considered of type "rest"
+        // this is so in order to accommodate pre-8.9 API keys which where all of type "rest" implicitly
+        updateApiKeys(systemWriteCreds, "ctx._source.remove('type');", apiKeyIdsSubset);
+        for (String query : apiKeyRestTypeQueries) {
+            assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                    containsInAnyOrder(allApiKeyIds.toArray(new String[0]))
+                );
+            });
+        }
+
+        // but the same keys with type "other" are NOT of type "rest"
+        updateApiKeys(systemWriteCreds, "ctx._source['type']='other';", apiKeyIdsSubset);
+        for (String query : apiKeyRestTypeQueries) {
+            assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                    containsInAnyOrder(apiKeyIdsSubsetDifference.toArray(new String[0]))
+                );
+            });
+        }
+        // the complement set is not of type "rest" if it is "cross_cluster"
+        updateApiKeys(systemWriteCreds, "ctx._source['type']='rest';", apiKeyIdsSubset);
+        updateApiKeys(systemWriteCreds, "ctx._source['type']='cross_cluster';", apiKeyIdsSubsetDifference);
+        for (String query : apiKeyRestTypeQueries) {
+            assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                    containsInAnyOrder(apiKeyIdsSubset.toArray(new String[0]))
+                );
+            });
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -598,10 +668,73 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return tuple.v1();
     }
 
-    private void createUser(String name) throws IOException {
-        final Request request = new Request("POST", "/_security/user/" + name);
-        request.setJsonEntity("""
-            {"password":"super-strong-password","roles":[]}""");
-        assertOK(adminClient().performRequest(request));
+    private String createUser(String username) throws IOException {
+        return createUser(username, new String[0]);
+    }
+
+    private String createUser(String username, String[] roles) throws IOException {
+        final Request request = new Request("POST", "/_security/user/" + username);
+        Map<String, Object> body = Map.ofEntries(Map.entry("roles", roles), Map.entry("password", "super-strong-password".toString()));
+        request.setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+        return basicAuthHeaderValue(username, new SecureString("super-strong-password".toCharArray()));
+    }
+
+    private void createSystemWriteRole(String roleName) throws IOException {
+        final Request addRole = new Request("POST", "/_security/role/" + roleName);
+        addRole.setJsonEntity("""
+            {
+              "indices": [
+                {
+                  "names": [ "*" ],
+                  "privileges": ["all"],
+                  "allow_restricted_indices" : true
+                }
+              ]
+            }""");
+        Response response = adminClient().performRequest(addRole);
+        assertOK(response);
+    }
+
+    private void expectWarnings(Request request, String... expectedWarnings) {
+        final Set<String> expected = Set.of(expectedWarnings);
+        RequestOptions options = request.getOptions().toBuilder().setWarningsHandler(warnings -> {
+            final Set<String> actual = Set.copyOf(warnings);
+            // Return true if the warnings aren't what we expected; the client will treat them as a fatal error.
+            return actual.equals(expected) == false;
+        }).build();
+        request.setOptions(options);
+    }
+
+    private void updateApiKeys(String creds, String script, Collection<String> ids) throws IOException {
+        if (ids.isEmpty()) {
+            return;
+        }
+        final Request request = new Request("POST", "/.security/_update_by_query?refresh=true&wait_for_completion=true");
+        request.setJsonEntity(Strings.format("""
+            {
+              "script": {
+                "source": "%s",
+                "lang": "painless"
+              },
+              "query": {
+                "bool": {
+                  "must": [
+                    {"term": {"doc_type": "api_key"}},
+                    {"ids": {"values": %s}}
+                  ]
+                }
+              }
+            }
+            """, script, ids.stream().map(id -> "\"" + id + "\"").collect(Collectors.toList())));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, creds));
+        expectWarnings(
+            request,
+            "this request accesses system indices: [.security-7],"
+                + " but in a future major version, direct access to system indices will be prevented by default"
+        );
+        Response response = client().performRequest(request);
+        assertOK(response);
     }
 }

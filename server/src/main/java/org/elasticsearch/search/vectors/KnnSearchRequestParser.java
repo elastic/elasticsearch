@@ -29,9 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A builder used in {@link RestKnnSearchAction} to convert the kNN REST request
@@ -196,7 +194,6 @@ public class KnnSearchRequestParser {
 
     // visible for testing
     static class KnnSearch {
-        private static final float MULTIPLICATIVE_FACTOR = 1.5f;
         private static final int NUM_CANDS_LIMIT = 10000;
         static final ParseField FIELD_FIELD = new ParseField("field");
         static final ParseField K_FIELD = new ParseField("k");
@@ -210,14 +207,14 @@ public class KnnSearchRequestParser {
             for (int i = 0; i < vector.size(); i++) {
                 vectorArray[i] = vector.get(i);
             }
-            return new KnnSearch((String) args[0], vectorArray, (Integer) args[2], (Integer) args[3]);
+            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3]);
         });
 
         static {
             PARSER.declareString(constructorArg(), FIELD_FIELD);
             PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
-            PARSER.declareInt(optionalConstructorArg(), K_FIELD);
-            PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
+            PARSER.declareInt(constructorArg(), K_FIELD);
+            PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
         }
 
         public static KnnSearch parse(XContentParser parser) throws IOException {
@@ -226,8 +223,8 @@ public class KnnSearchRequestParser {
 
         final String field;
         final float[] queryVector;
-        Integer k;
-        Integer numCands;
+        final int k;
+        final int numCands;
 
         /**
          * Defines a kNN search.
@@ -237,25 +234,25 @@ public class KnnSearchRequestParser {
          * @param k the final number of nearest neighbors to return as top hits
          * @param numCands the number of nearest neighbor candidates to consider per shard
          */
-        KnnSearch(String field, float[] queryVector, Integer k, Integer numCands) {
+        KnnSearch(String field, float[] queryVector, int k, int numCands) {
             this.field = field;
             this.queryVector = queryVector;
-            this.k = k == null ? DEFAULT_SIZE : k;
-            this.numCands = numCands == null ? Math.round(Math.min(MULTIPLICATIVE_FACTOR * this.k, NUM_CANDS_LIMIT)) : numCands;
+            this.k = k;
+            this.numCands = numCands;
         }
 
         public KnnVectorQueryBuilder toQueryBuilder() {
             // We perform validation here instead of the constructor because it makes the errors
             // much clearer. Otherwise, the error message is deeply nested under parsing exceptions.
-            if (k != null && k < 1) {
+            if (k < 1) {
                 throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
             }
-            if (numCands != null && k != null && numCands < k) {
+            if (numCands < k) {
                 throw new IllegalArgumentException(
                     "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
                 );
             }
-            if (numCands != null && numCands > NUM_CANDS_LIMIT) {
+            if (numCands > NUM_CANDS_LIMIT) {
                 throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
             }
             return new KnnVectorQueryBuilder(field, queryVector, numCands, null);
@@ -266,8 +263,8 @@ public class KnnSearchRequestParser {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             KnnSearch that = (KnnSearch) o;
-            return Objects.equals(k, that.k)
-                && Objects.equals(numCands, that.numCands)
+            return k == that.k
+                && numCands == that.numCands
                 && Objects.equals(field, that.field)
                 && Arrays.equals(queryVector, that.queryVector);
         }

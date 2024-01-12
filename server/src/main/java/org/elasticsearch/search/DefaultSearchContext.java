@@ -265,6 +265,10 @@ final class DefaultSearchContext extends SearchContext {
         ToLongFunction<String> fieldCardinality,
         boolean isQueryPhaseParallelismEnabled
     ) {
+        // When profiling, we should never use more than one thread, none of the profiler objects are thread safe
+        if (source != null && source.profile()) {
+            return false;
+        }
         if (resultsType == SearchService.ResultsType.DFS) {
             return true;
         }

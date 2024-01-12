@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -215,7 +216,15 @@ public class DfsPhase {
                 topDocsCollectorManager,
                 CollectorResult.REASON_SEARCH_TOP_HITS
             );
-            topDocs = searcher.search(knnQuery, ipcm);
+            // When profiling, we want to make sure that all tasks are done on the task executor
+            // Otherwise we can't guarantee that the `knnProfiler` isn't being hit by more than one thread
+            if (searcher.getTaskExecutor() != null) {
+                List<Callable<TopDocs>> tasks = new ArrayList<>(1);
+                tasks.add(() -> searcher.search(knnQuery, ipcm));
+                topDocs = searcher.getTaskExecutor().invokeAll(tasks).get(0);
+            } else {
+                topDocs = searcher.search(knnQuery, ipcm);
+            }
 
             if (knnQuery instanceof ProfilingQuery profilingQuery) {
                 profilingQuery.profile(knnProfiler);

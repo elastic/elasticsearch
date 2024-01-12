@@ -39,7 +39,6 @@ public class DfsProfilerIT extends ESIntegTestCase {
 
     private static final int KNN_DIM = 3;
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104235")
     public void testProfileDfs() throws Exception {
         String textField = "text_field";
         String numericField = "number";
@@ -76,7 +75,6 @@ public class DfsProfilerIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 knnSearchBuilder.addFilterQuery(q);
             }
-            logger.info("Query: {}", q);
             assertResponse(
                 prepareSearch().setQuery(q)
                     .setTrackTotalHits(true)

@@ -571,6 +571,7 @@ public final class DataStreamTestHelper {
             DocumentMapper documentMapper = mock(DocumentMapper.class);
             when(documentMapper.mapping()).thenReturn(mapping);
             when(documentMapper.mappingSource()).thenReturn(mapping.toCompressedXContent());
+            when(documentMapper.mappers()).thenReturn(mappingLookup);
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);
             when(documentMapper.routingFieldMapper()).thenReturn(routingFieldMapper);

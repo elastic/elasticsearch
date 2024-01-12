@@ -69,7 +69,7 @@ public class APMAgentSettings {
         this.setAgentSetting("recording", Boolean.toString(APM_ENABLED_SETTING.get(settings)));
         // Apply values from the settings in the cluster state
         APM_AGENT_SETTINGS.getAsMap(settings).forEach((k, v) -> {
-            LOGGER.warn("stu: setAgentSetting [{}]:[{}]", k, v);
+            LOGGER.warn("stu: setAgentSetting from syncAgentSystemProperties [{}]:[{}]", k, v);
             setAgentSetting(k, v);
         });
     }
@@ -83,6 +83,7 @@ public class APMAgentSettings {
     @SuppressForbidden(reason = "Need to be able to manipulate APM agent-related properties to set them dynamically")
     public void setAgentSetting(String key, String value) {
         final String completeKey = "elastic.apm." + Objects.requireNonNull(key);
+        LOGGER.warn("stu: setAgentSetting [{}]:[{}]:[{}]", completeKey, key, value);
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             if (value == null || value.isEmpty()) {
                 LOGGER.trace("Clearing system property [{}]", completeKey);

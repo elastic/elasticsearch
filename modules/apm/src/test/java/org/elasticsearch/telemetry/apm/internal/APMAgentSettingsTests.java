@@ -53,6 +53,22 @@ public class APMAgentSettingsTests extends ESTestCase {
         verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
     }
 
+    public void testSetAgentsSettings2() {
+        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
+        // TODO (stu): keystore 'tracing.apm.secret_token', 'XXXYYYZZZ'
+        Settings settings = Settings.builder()
+            .put("tracing.apm.enabled", true)
+            .put("telemetry.metrics.enabled", true)
+            .put("telemetry.agent.server_url", "https://296a15aa5f8d4fbfa73124bf4ce50417.apm.us-central1.gcp.cloud.es.io:443")
+            .put("telemetry.agent.metrics_interval", "1s")
+            .build();
+        apmAgentSettings.syncAgentSystemProperties(settings);
+
+        verify(apmAgentSettings).setAgentSetting("metrics_interval", "1s");
+        verify(apmAgentSettings).setAgentSetting("enabled", "true");
+        verify(apmAgentSettings).setAgentSetting("server_url", "https://296a15aa5f8d4fbfa73124bf4ce50417.apm.us-central1.gcp.cloud.es.io:443");
+    }
+
     /**
      * Check that invalid or forbidden APM agent settings are rejected.
      */

@@ -76,6 +76,7 @@ public class APMAgentSettings {
      * @param settings the settings to apply
      */
     public void syncAgentSystemProperties(Settings settings) {
+        LOGGER.warn("stu: syncAgentSystemProperties {}", settings.toString());
         this.setAgentSetting("recording", Boolean.toString(APM_ENABLED_SETTING.get(settings)));
 
         // Apply default values for some system properties. Although we configure
@@ -87,7 +88,10 @@ public class APMAgentSettings {
             );
 
         // Then apply values from the settings in the cluster state
-        APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
+        APM_AGENT_SETTINGS.getAsMap(settings).forEach((k, v) -> {
+            LOGGER.warn("stu: setAgentSetting [{}]:[{}]", k, v);
+            setAgentSetting(k, v);
+        });
     }
 
     /**

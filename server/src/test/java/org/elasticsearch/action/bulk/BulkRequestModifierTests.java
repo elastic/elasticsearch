@@ -37,19 +37,19 @@ public class BulkRequestModifierTests extends ESTestCase {
         }
 
         // wrap the bulk request and fail some of the item requests at random
-        TransportBulkAction.BulkRequestModifier bulkRequestModifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);
+        TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);
         Set<Integer> failedSlots = new HashSet<>();
-        for (int i = 0; bulkRequestModifier.hasNext(); i++) {
-            bulkRequestModifier.next();
+        for (int i = 0; modifier.hasNext(); i++) {
+            modifier.next();
             if (randomBoolean()) {
-                bulkRequestModifier.markItemAsFailed(i, new RuntimeException());
+                modifier.markItemAsFailed(i, new RuntimeException());
                 failedSlots.add(i);
             }
         }
-        assertThat(bulkRequestModifier.getBulkRequest().requests().size(), equalTo(numRequests - failedSlots.size()));
+        assertThat(modifier.getBulkRequest().requests().size(), equalTo(numRequests - failedSlots.size()));
 
         // populate the non-failed responses
-        BulkRequest subsequentBulkRequest = bulkRequestModifier.getBulkRequest();
+        BulkRequest subsequentBulkRequest = modifier.getBulkRequest();
         assertThat(subsequentBulkRequest.requests().size(), equalTo(numRequests - failedSlots.size()));
         List<BulkItemResponse> responses = new ArrayList<>();
         for (int j = 0; j < subsequentBulkRequest.requests().size(); j++) {
@@ -61,7 +61,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         // simulate that we actually executed the modified bulk request
         long ingestTook = randomLong();
         CaptureActionListener actionListener = new CaptureActionListener();
-        ActionListener<BulkResponse> result = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTook, actionListener);
+        ActionListener<BulkResponse> result = modifier.wrapActionListenerIfNeeded(ingestTook, actionListener);
         result.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[0]), 0));
 
         // check the results for successes and failures

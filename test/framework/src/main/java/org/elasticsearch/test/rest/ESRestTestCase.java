@@ -83,11 +83,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
+import java.io.*;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -333,19 +329,28 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected static TestFeatureService createTestFeatureService(
+    protected TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
-        var providers = hasHistoricalFeaturesInformation
-            ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
-            : List.of(new RestTestLegacyFeatures());
+
+        final List<FeatureSpecification> featureSpecifications;
+        if (hasHistoricalFeaturesInformation) {
+            featureSpecifications = List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures());
+        } else {
+            logger.warn(
+                "This test is running on the legacy test framework; historical features from production code will not be available. "
+                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
+                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
+                RestTestLegacyFeatures.class.getCanonicalName()
+            );
+            featureSpecifications = List.of(new RestTestLegacyFeatures());
+        }
 
         return new ESRestTestFeatureService(
-            hasHistoricalFeaturesInformation,
-            providers,
+            featureSpecifications,
             semanticNodeVersions,
             ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
         );
@@ -2353,7 +2358,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     );
                 }
 
-                String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+                String[] metadataFiles = metadataPath.split(File.pathSeparator);
                 for (String metadataFile : metadataFiles) {
                     try (
                         InputStream in = Files.newInputStream(PathUtils.get(metadataFile));

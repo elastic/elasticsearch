@@ -36,11 +36,10 @@ class ESRestTestFeatureService implements TestFeatureService {
         var historicalFeatures = featureData.getHistoricalFeatures();
         Set<String> allHistoricalFeatures = historicalFeatures.lastEntry() == null ? Set.of() : historicalFeatures.lastEntry().getValue();
 
-        this.allSupportedFeatures = Sets.union(clusterStateFeatures,
-            minNodeVersion.<Set<String>>map(v -> {
-                var historicalFeaturesForVersion = historicalFeatures.floorEntry(v);
-                return historicalFeaturesForVersion == null ? Set.of() : historicalFeaturesForVersion.getValue();
-            }).orElse(allHistoricalFeatures));
+        this.allSupportedFeatures = Sets.union(clusterStateFeatures, minNodeVersion.<Set<String>>map(v -> {
+            var historicalFeaturesForVersion = historicalFeatures.floorEntry(v);
+            return historicalFeaturesForVersion == null ? Set.of() : historicalFeaturesForVersion.getValue();
+        }).orElse(allHistoricalFeatures));
 
         var errorMessage = Strings.format(
             hasHistoricalFeaturesInformation

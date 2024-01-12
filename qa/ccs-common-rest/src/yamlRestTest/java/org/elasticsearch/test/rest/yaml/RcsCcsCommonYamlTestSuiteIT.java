@@ -299,6 +299,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 public boolean clusterHasFeature(String featureId) {
                     return testFeatureService.clusterHasFeature(featureId) && searchTestFeatureService.clusterHasFeature(featureId);
                 }
+
                 @Override
                 public Set<String> getAllSupportedFeatures() {
                     return Sets.intersection(

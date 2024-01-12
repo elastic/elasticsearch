@@ -28,9 +28,9 @@ public class ClusterFeatureMigrationIT extends ParameterizedRollingUpgradeTestCa
 
     @BeforeClass
     public static void checkMigrationVersion() {
-        assumeTrue(
+        assumeFalse(
             "This checks migrations from before cluster features were introduced",
-            getOldClusterVersion().before(FeatureService.CLUSTER_FEATURES_ADDED_VERSION)
+            oldClusterHasFeature(FeatureService.FEATURES_SUPPORTED)
         );
     }
 

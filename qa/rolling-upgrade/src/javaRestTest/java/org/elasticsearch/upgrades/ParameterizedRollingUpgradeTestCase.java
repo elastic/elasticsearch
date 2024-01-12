@@ -151,7 +151,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         upgradeFailed = false;
     }
 
-    @Deprecated // Use features and oldClusterHasFeature instead
+    @Deprecated // Use the new testing framework and oldClusterHasFeature(feature) instead
     protected static org.elasticsearch.Version getOldClusterVersion() {
         return org.elasticsearch.Version.fromString(OLD_CLUSTER_VERSION);
     }

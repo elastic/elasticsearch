@@ -23,7 +23,9 @@ public interface TestFeatureService {
 
         @Override
         public Set<String> getAllSupportedFeatures() {
-            throw new UnsupportedOperationException("Only available to properly initialized TestFeatureService. See ESRestTestCase#createTestFeatureService");
+            throw new UnsupportedOperationException(
+                "Only available to properly initialized TestFeatureService. See ESRestTestCase#createTestFeatureService"
+            );
         }
     };
 }

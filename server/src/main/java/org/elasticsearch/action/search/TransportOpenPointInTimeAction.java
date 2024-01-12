@@ -135,7 +135,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ThreadPool threadPool,
             SearchResponse.Clusters clusters
         ) {
-            //Note: remote shards are prefiltered via can match as part of search shards. They don't need additional pre-filtering and
+            // Note: remote shards are prefiltered via can match as part of search shards. They don't need additional pre-filtering and
             // that is signaled to the local can match through the SearchShardIterator#prefiltered flag. Local shards do need to go
             // through the local can match phase.
             if (SearchService.canRewriteToMatchNone(searchRequest.source())) {

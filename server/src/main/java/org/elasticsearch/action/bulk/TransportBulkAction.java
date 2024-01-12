@@ -53,6 +53,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -85,6 +86,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -1034,8 +1036,37 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         allResponses[originalSlots.get(i)] = bulkResponses[i];
                     }
 
+                    if (Assertions.ENABLED) {
+                        assertResponsesAreCorrect(bulkResponses, allResponses);
+                    }
+
                     return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis);
                 });
+            }
+        }
+
+        private void assertResponsesAreCorrect(BulkItemResponse[] bulkResponses, BulkItemResponse[] allResponses) {
+            // check for an empty intersection between the ids
+            final Set<Integer> failedIds = itemResponses.stream().map(BulkItemResponse::getItemId).collect(Collectors.toSet());
+            final Set<Integer> responseIds = IntStream.range(0, bulkResponses.length)
+                .map(originalSlots::get) // resolve subsequent bulk ids back to the original slots
+                .boxed()
+                .collect(Collectors.toSet());
+            assert Sets.haveEmptyIntersection(failedIds, responseIds)
+                : "bulk item response slots cannot have failed and been processed in the subsequent bulk request, failed ids: "
+                    + failedIds
+                    + ", response ids: "
+                    + responseIds;
+
+            // check for the correct number of responses
+            final int expectedResponseCount = bulkRequest.requests.size();
+            final int actualResponseCount = failedIds.size() + responseIds.size();
+            assert expectedResponseCount == actualResponseCount
+                : "Expected [" + expectedResponseCount + "] responses, but found [" + actualResponseCount + "]";
+
+            // check that every response is present
+            for (int i = 0; i < allResponses.length; i++) {
+                assert allResponses[i] != null : "BulkItemResponse at index [" + i + "] was null";
             }
         }
 

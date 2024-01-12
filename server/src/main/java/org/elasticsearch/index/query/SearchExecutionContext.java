@@ -73,6 +73,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 /**
  * The context used to execute a search request on a shard. It provides access
@@ -100,7 +101,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private QueryBuilder aliasFilter;
     private boolean rewriteToNamedQueries = false;
 
-    private Integer requestSize;
+    private Integer requestSize = DEFAULT_SIZE;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.

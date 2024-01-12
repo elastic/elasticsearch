@@ -59,6 +59,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureSpecification;
@@ -83,7 +84,12 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -2348,6 +2354,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         private static Map<NodeFeature, Version> historicalFeatures;
 
         @Override
+        @SuppressForbidden(reason = "File#pathSeparator has not equivalent in java.nio.file")
         public Map<NodeFeature, Version> getHistoricalFeatures() {
             if (historicalFeatures == null) {
                 Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();

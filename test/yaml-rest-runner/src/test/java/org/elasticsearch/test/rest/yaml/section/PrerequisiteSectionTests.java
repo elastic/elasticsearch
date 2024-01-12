@@ -362,10 +362,10 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testParseSkipSectionOsListTestFeaturesInRequires() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-            requires:
+            - requires:
                test_runner_features: skip_os
                reason:      skip_os is needed for skip based on os
-            skip:
+            - skip:
                os:          [debian-9,windows-95,ms-dos]
                reason:      see gh#xyz
             """);
@@ -419,10 +419,10 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testParseRequireAndSkipSectionsClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-            requires:
+            - requires:
                cluster_features: needed-feature
                reason:      test needs needed-feature to run
-            skip:
+            - skip:
                cluster_features: undesired-feature
                reason:      test cannot run when undesired-feature are present
             """);
@@ -438,12 +438,12 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testParseRequireAndSkipSectionMultipleClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-            requires:
-               cluster_features: [needed-feature-1, needed-feature-2]
-               reason:      test needs some to run
-            skip:
-               cluster_features:   [undesired-feature-1, undesired-feature-2]
-               reason:      test cannot run when some are present
+            - requires:
+                cluster_features: [needed-feature-1, needed-feature-2]
+                reason:      test needs some to run
+            - skip:
+                cluster_features:   [undesired-feature-1, undesired-feature-2]
+                reason:      test cannot run when some are present
             """);
 
         var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
@@ -457,10 +457,10 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
     public void testParseSameRequireAndSkipClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
-            requires:
+            - requires:
                cluster_features: some-feature
                reason: test needs some-feature to run
-            skip:
+            - skip:
                cluster_features: some-feature
                reason: test cannot run with some-feature
             """);

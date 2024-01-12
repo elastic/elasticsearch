@@ -183,6 +183,16 @@ public class PrerequisiteSection {
         return parseInternal(parser).build();
     }
 
+    private static void advanceToNextField(XContentParser parser) throws IOException {
+        var token = parser.currentToken();
+        while (token == XContentParser.Token.END_OBJECT || token == XContentParser.Token.END_ARRAY) {
+            token = parser.nextToken();
+        }
+        if (token != null) {
+            ParserUtils.advanceToFieldName(parser);
+        }
+    }
+
     static PrerequisiteSectionBuilder parseInternal(XContentParser parser) throws IOException {
         PrerequisiteSectionBuilder builder = new PrerequisiteSectionBuilder();
         var hasPrerequisiteSection = false;
@@ -192,15 +202,16 @@ public class PrerequisiteSection {
             if ("skip".equals(parser.currentName())) {
                 parseSkipSection(parser, builder);
                 hasPrerequisiteSection = true;
+                advanceToNextField(parser);
             } else if ("requires".equals(parser.currentName())) {
                 parseRequiresSection(parser, builder);
                 hasPrerequisiteSection = true;
+                advanceToNextField(parser);
             } else {
                 unknownFieldName = true;
             }
         }
         if (hasPrerequisiteSection) {
-            parser.nextToken();
             builder.validate(parser.getTokenLocation());
         }
         return builder;

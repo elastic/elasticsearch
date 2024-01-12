@@ -876,19 +876,6 @@ public class Setting<T> implements ToXContentObject {
             this.dependencies = Set.of(dependencies);
         }
 
-        public AffixSetting(
-            AffixKey key,
-            Setting<T> fallback,
-            Setting<T> delegate,
-            BiFunction<String, String, Setting<T>> delegateFactory,
-            AffixSettingDependency... dependencies
-        ) {
-            super(key, fallback, delegate.defaultValue, delegate.parser, v -> {}, delegate.properties.toArray(new Property[0]));
-            this.key = key;
-            this.delegateFactory = delegateFactory;
-            this.dependencies = Set.of(dependencies);
-        }
-
         boolean isGroupSetting() {
             return true;
         }
@@ -1086,7 +1073,7 @@ public class Setting<T> implements ToXContentObject {
             matchStream(settings).distinct().forEach(key -> {
                 String namespace = this.key.getNamespace(key);
                 Setting<T> concreteSetting = getConcreteSetting(namespace, key);
-                map.putIfAbsent(namespace, concreteSetting.get(settings));
+                map.put(namespace, concreteSetting.get(settings));
             });
             return Collections.unmodifiableMap(map);
         }

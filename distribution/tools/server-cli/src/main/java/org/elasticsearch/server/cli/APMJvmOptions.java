@@ -150,7 +150,8 @@ class APMJvmOptions {
 
         // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
         if (propertiesMap.containsKey("server_url") == false && propertiesMap.containsKey("server_urls") == false) {
-            return List.of();
+            throw new IllegalStateException(Strings.format("stu: propetries map does not contain server url: %s", propertiesMap));
+            //return List.of();
         }
 
         if (propertiesMap.containsKey("service_node_name") == false) {
@@ -216,8 +217,10 @@ class APMJvmOptions {
     static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
-        agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
+        final Settings telemetryAgentSettings = settings.getByPrefix("telemetry.agent.");
+        telemetryAgentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(telemetryAgentSettings.get(key))));
+        final Settings apmAgentSettings = settings.getByPrefix("tracing.apm.agent.");
+        apmAgentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(apmAgentSettings.get(key))));
 
         // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
         final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");

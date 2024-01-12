@@ -64,8 +64,8 @@ public class APMAgentSettingsTests extends ESTestCase {
             .build();
         apmAgentSettings.syncAgentSystemProperties(settings);
 
+        verify(apmAgentSettings).setAgentSetting("recording", "true");
         verify(apmAgentSettings).setAgentSetting("metrics_interval", "1s");
-        verify(apmAgentSettings).setAgentSetting("enabled", "true");
         verify(apmAgentSettings).setAgentSetting("server_url", "https://296a15aa5f8d4fbfa73124bf4ce50417.apm.us-central1.gcp.cloud.es.io:443");
     }
 

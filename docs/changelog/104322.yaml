@@ -1,0 +1,6 @@
+pr: 104322
+summary: Ensure profiling is single threaded and that knn profiling occurs in the
+  same threadpool
+area: Vector Search
+type: bug
+issues: []

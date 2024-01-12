@@ -1,13 +1,28 @@
 [discrete]
 [[esql-log10]]
 === `LOG10`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/log10.svg[Embedded,opts=inline]
 
-Returns the log base 10.  The input can be any numeric value, the return value
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns the log base 10. The input can be any numeric value, the return value
 is always a double.
 
-Logs of negative numbers are NaN. Logs of infinites are infinite, as is the log of 0.
+Logs of negative numbers are NaN. Logs of infinites are infinite, as is the log
+of 0.
+
+*Supported types*
+
+include::types/log10.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -17,7 +32,3 @@ include::{esql-specs}/math.csv-spec[tag=log10]
 |===
 include::{esql-specs}/math.csv-spec[tag=log10-result]
 |===
-
-Supported types:
-
-include::types/log10.asciidoc[]

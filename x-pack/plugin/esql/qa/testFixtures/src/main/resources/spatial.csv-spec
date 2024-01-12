@@ -8,8 +8,8 @@ long:long           |pt:geo_point
 
 convertFromString#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
 // tag::to_geopoint-str[]
-row wkt = "POINT(42.97109630194 14.7552534413725)"
-| eval pt = to_geopoint(wkt)
+ROW wkt = "POINT(42.97109630194 14.7552534413725)"
+| EVAL pt = TO_GEOPOINT(wkt)
 // end::to_geopoint-str[]
 ;
 
@@ -63,9 +63,9 @@ long:long           |pt:cartesian_point
 
 convertCartesianFromString#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
 // tag::to_cartesianpoint-str[]
-row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
-| mv_expand wkt
-| eval pt = to_cartesianpoint(wkt)
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
 // end::to_cartesianpoint-str[]
 ;
 

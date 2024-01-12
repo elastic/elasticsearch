@@ -59,14 +59,15 @@ public class BulkRequestModifierTests extends ESTestCase {
         BulkResponse bulkResponse = actionListener.getResponse();
         assertThat(bulkResponse.getIngestTookInMillis(), equalTo(ingestTook));
         for (int j = 0; j < bulkResponse.getItems().length; j++) {
+            BulkItemResponse item = bulkResponse.getItems()[j];
             if (failedSlots.contains(j)) {
-                BulkItemResponse item = bulkResponse.getItems()[j];
                 assertThat(item.isFailed(), is(true));
-                assertThat(item.getFailure().getIndex(), equalTo("_index"));
-                assertThat(item.getFailure().getId(), equalTo(String.valueOf(j)));
-                assertThat(item.getFailure().getMessage(), equalTo("java.lang.RuntimeException"));
+                BulkItemResponse.Failure failure = item.getFailure();
+                assertThat(failure.getIndex(), equalTo("_index"));
+                assertThat(failure.getId(), equalTo(String.valueOf(j)));
+                assertThat(failure.getMessage(), equalTo("java.lang.RuntimeException"));
             } else {
-                assertThat(bulkResponse.getItems()[j], nullValue());
+                assertThat(item, nullValue());
             }
         }
     }

@@ -207,15 +207,33 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
             mock(LearningToRankService.class)
         );
 
-        LearningToRankRescorerContext rescoreContext = rescorerBuilder.innerBuildContext(20, context);
+        LearningToRankRescorerContext rescoreContext = (LearningToRankRescorerContext) rescorerBuilder.buildContext(context);
         assertNotNull(rescoreContext);
-        assertThat(rescoreContext.getWindowSize(), equalTo(20));
+        assertThat(rescoreContext.getWindowSize(), equalTo(LearningToRankRescorerBuilder.DEFAULT_WINDOW_SIZE));
         List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());
         assertThat(featureExtractors, hasSize(2));
         assertThat(
             featureExtractors.stream().flatMap(featureExtractor -> featureExtractor.featureNames().stream()).toList(),
             containsInAnyOrder("feature_1", "feature_2", DOUBLE_FIELD_NAME, INT_FIELD_NAME)
         );
+    }
+
+    public void testBuildContextWindowSize() throws IOException {
+        int windowSize = randomInt();
+        LearningToRankRescorerBuilder rescorerBuilder = new LearningToRankRescorerBuilder(
+            mock(LocalModel.class),
+            mock(LearningToRankConfig.class),
+            null,
+            mock(LearningToRankService.class)
+        );
+
+        rescorerBuilder.windowSize(windowSize);
+
+        LearningToRankRescorerContext rescoreContext = (LearningToRankRescorerContext) rescorerBuilder.buildContext(
+            mock(SearchExecutionContext.class)
+        );
+
+        assertThat(rescoreContext.getWindowSize(), equalTo(windowSize));
     }
 
     private LearningToRankRescorerBuilder rewriteAndFetch(

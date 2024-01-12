@@ -33,6 +33,7 @@ import java.util.function.Function;
 public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRankRescorerBuilder> {
 
     public static final String NAME = "learning_to_rank";
+    public static final int DEFAULT_WINDOW_SIZE = 1000;
     private static final ParseField MODEL_FIELD = new ParseField("model_id");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, false, Builder::new);
@@ -247,6 +248,11 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
     protected LearningToRankRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
         rescoreOccurred = true;
         return new LearningToRankRescorerContext(windowSize, LearningToRankRescorer.INSTANCE, learningToRankConfig, localModel, context);
+    }
+
+    @Override
+    protected int defaultWindowSize() {
+        return DEFAULT_WINDOW_SIZE;
     }
 
     @Override

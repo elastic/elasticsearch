@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.queries.function.FunctionQuery;
+import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
 import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -213,7 +214,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (BooleanClause clause : booleanQuery) {
                 if (clause.getQuery() instanceof FunctionQuery functionQuery) {
                     foundFunction = true;
-                    assertTrue(functionQuery.getValueSource() instanceof FloatVectorSimilarityFunction);
+                    assertTrue(functionQuery.getValueSource() instanceof ByteVectorSimilarityFunction);
                 }
             }
             assertTrue("Unable to find FloatVectorSimilarityFunction in created BooleanQuery", foundFunction);

@@ -35,24 +35,34 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             }
             """;
 
-        // ELSER not downloaded case
-        {
-            String modelId = randomAlphaOfLength(10).toLowerCase();
-            expectThrows(ResponseException.class, () -> putModel(modelId, elserConfig, TaskType.SPARSE_EMBEDDING));
-        }
-
-        downloadElserBlocking();
-
-        // Happy case
+        // Model already downloaded
         {
             String modelId = randomAlphaOfLength(10).toLowerCase();
             putModel(modelId, elserConfig, TaskType.SPARSE_EMBEDDING);
             var models = getModels(modelId, TaskType.SPARSE_EMBEDDING);
             assertThat(models.get("models").toString(), containsString("model_id=" + modelId));
+
             deleteModel(modelId, TaskType.SPARSE_EMBEDDING);
             expectThrows(ResponseException.class, () -> getModels(modelId, TaskType.SPARSE_EMBEDDING));
             models = getTrainedModel("_all");
             assertThat(models.toString(), not(containsString("deployment_id=" + modelId)));
+        }
+
+        // Model downloaded automatically & test infer
+        {
+            String modelId = randomAlphaOfLength(10).toLowerCase();
+            putElserInference(modelId, TaskType.SPARSE_EMBEDDING);
+            var models = getTrainedModel("_all");
+            assertThat(models.toString(), containsString("deployment_id=" + modelId));
+
+            Map<String, Object> results = inferOnMockService(
+                modelId,
+                TaskType.SPARSE_EMBEDDING,
+                List.of("hello world", "this is the second document")
+            );
+            System.out.println(results.toString());
+            assert (((Map) ((Map) ((List) results.get("sparse_embedding")).get(0)).get("embedding")).size() > 1); // there exists embeddings
+            assert (((Map) ((List) results.get("sparse_embedding")).get(0)).size() == 2); // there are two sets of embeddings
         }
     }
 

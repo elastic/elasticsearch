@@ -349,16 +349,20 @@ public final class CsvTestUtils {
                     if (value.startsWith("[") ^ value.endsWith("]")) {
                         throw new IllegalArgumentException("Incomplete multi-value (opening and closing square brackets) found " + value);
                     }
-                    // split on comma ignoring escaped commas, ignoring any potential starting and stopping square brackets
-                    String[] multiValues = value.substring(1, value.length() - 1).split(COMMA_ESCAPING_REGEX);
-                    if (multiValues.length > 0 && value.startsWith("[")) {// commas outside a multi-value should be ok
-                        List<Object> listOfMvValues = new ArrayList<>();
-                        for (String mvValue : multiValues) {
-                            listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                    if (value.contains(",") && value.startsWith("[")) {
+                        // split on comma ignoring escaped commas, ignoring any potential starting and stopping square brackets
+                        String[] multiValues = value.substring(1, value.length() - 1).split(COMMA_ESCAPING_REGEX);
+                        if (multiValues.length > 0) {
+                            List<Object> listOfMvValues = new ArrayList<>();
+                            for (String mvValue : multiValues) {
+                                listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                            }
+                            rowValues.add(listOfMvValues);
+                        } else {
+                            rowValues.add(columnTypes.get(i).convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
                         }
-                        rowValues.add(listOfMvValues);
                     } else {
-                        rowValues.add(columnTypes.get(i).convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                        rowValues.add(columnTypes.get(i).convert(value));
                     }
                 }
                 values.add(rowValues);

@@ -16,7 +16,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.user.QueryUserAction;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.user.QueryUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -32,7 +32,7 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
 
     @Inject
     public TransportQueryUserAction(TransportService transportService, ActionFilters actionFilters, NativeUsersStore usersStore) {
-        super(QueryUserAction.NAME, actionFilters, transportService.getTaskManager());
+        super(ActionTypes.QUERY_USER_ACTION.name(), actionFilters, transportService.getTaskManager());
         this.usersStore = usersStore;
     }
 

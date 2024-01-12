@@ -14,8 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.Scope;
-import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -23,7 +21,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.action.user.QueryUserAction;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.user.QueryUserRequest;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -38,7 +36,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Rest action to search for Users
  */
-@ServerlessScope(Scope.INTERNAL)
 public final class RestQueryUserAction extends SecurityBaseRestHandler {
 
     @SuppressWarnings("unchecked")
@@ -105,7 +102,7 @@ public final class RestQueryUserAction extends SecurityBaseRestHandler {
         } else {
             queryUserRequest = new QueryUserRequest(null, null, null, null, null);
         }
-        return channel -> client.execute(QueryUserAction.INSTANCE, queryUserRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(ActionTypes.QUERY_USER_ACTION, queryUserRequest, new RestToXContentListener<>(channel));
     }
 
     private record Payload(

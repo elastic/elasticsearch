@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.QueryUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
@@ -235,7 +235,7 @@ public class ClusterPrivilegeResolver {
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME + "*",
             GetUsersAction.NAME,
-            QueryUserAction.NAME,
+            ActionTypes.QUERY_USER_ACTION.name(),
             GetUserPrivilegesAction.NAME, // normally authorized under the "same-user" authz check, but added here for uniformity
             HasPrivilegesAction.NAME,
             GetSecuritySettingsAction.NAME

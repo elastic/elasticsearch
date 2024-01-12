@@ -349,12 +349,32 @@ public interface ActionListener<Response> {
     /**
      * Execute the given action in a {@code try/catch} block which feeds all exceptions to the given listener's {@link #onFailure} method.
      */
-    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, Exception> action) {
+    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, ? extends Exception> action) {
         try {
             action.accept(listener);
         } catch (Exception e) {
             safeOnFailure(listener, e);
         }
+    }
+
+    /**
+     * Execute the given action in an (async equivalent of a) try-with-resources block which closes the supplied resource on completion, and
+     * feeds all exceptions to the given listener's {@link #onFailure} method.
+     */
+    static <T, R extends AutoCloseable> void runWithResource(
+        ActionListener<T> listener,
+        CheckedSupplier<R, ? extends Exception> resourceSupplier,
+        CheckedBiConsumer<ActionListener<T>, R, ? extends Exception> action
+    ) {
+        R resource;
+        try {
+            resource = resourceSupplier.get();
+        } catch (Exception e) {
+            safeOnFailure(listener, e);
+            return;
+        }
+
+        ActionListener.run(ActionListener.runBefore(listener, resource::close), l -> action.accept(l, resource));
     }
 
 }

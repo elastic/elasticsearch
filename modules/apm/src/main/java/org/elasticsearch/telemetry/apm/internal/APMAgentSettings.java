@@ -227,6 +227,10 @@ public class APMAgentSettings {
             final String key = parts[parts.length - 1];
             return new Setting<>(qualifiedKey, "", (value) -> {
                 if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(key) == false) {
+                    // TODO figure out why those settings are kept, these should be reformatted / removed by now
+                    if(key.startsWith("global_labels.")){
+                        return value;
+                    }
                     throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");
                 }
                 return value;

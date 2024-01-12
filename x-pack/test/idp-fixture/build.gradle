@@ -1,3 +1,7 @@
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.cache-test-fixtures'
 
@@ -7,3 +11,23 @@ dependencies {
   api project(':test:fixtures:testcontainer-utils')
   api "junit:junit:${versions.junit}"
 }
+
+tasks.register("buildFixtursDockerImages") {
+  dependsOn(tasks.withType(DockerBuildTask))
+}
+
+for (final Architecture architecture : Architecture.values()) {
+
+  addBuildDockerImageTask(architecture)
+}
+
+TaskProvider<DockerBuildTask> addBuildDockerImageTask(Architecture architecture) {
+  return tasks.register("buildIdpfixtureDockerImage" + architecture.dockerPlatform, DockerBuildTask) {
+    dockerContext.fileValue(file("src/main/resources/idp"))
+    baseImages = ["openjdk:11.0.16-jre"]
+    noCache = BuildParams.isCi
+    tags = ["elastic/idp-fixture"]
+    platform = architecture.dockerPlatform
+  }
+}
+

@@ -507,6 +507,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             testHarness.commitService.markCommitDeleted(testHarness.shardId, firstCommit.getGeneration());
             testHarness.commitService.closedLocalReadersForGeneration(testHarness.shardId).accept(firstCommit.getGeneration());
+            testHarness.commitService.closedGenerationalFiles(
+                testHarness.shardId,
+                new PrimaryTermAndGeneration(firstCommit.getPrimaryTerm(), firstCommit.getGeneration())
+            );
 
             List<String> expectedDeletedFiles = firstCommit.getCommitFiles()
                 .stream()
@@ -811,9 +815,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // Now the index shard, report that it no longer uses commits [1;9] and they should be deleted
             LongConsumer closedLocalReadersForGeneration = commitService.closedLocalReadersForGeneration(shardId);
-            initialCommits.stream()
-                .filter(c -> c.getGeneration() != firstCommit.getGeneration())
-                .forEach(c -> closedLocalReadersForGeneration.accept(c.getGeneration()));
+            initialCommits.stream().filter(c -> c.getGeneration() != firstCommit.getGeneration()).forEach(c -> {
+                closedLocalReadersForGeneration.accept(c.getGeneration());
+                commitService.closedGenerationalFiles(
+                    shardId,
+                    new PrimaryTermAndGeneration(firstCommit.getPrimaryTerm(), c.getGeneration())
+                );
+            });
 
             var expectedDeletedCommits = initialCommits.stream()
                 .map(commit -> staleCommit(shardId, commit))
@@ -1131,6 +1139,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assert recoveryCommit.getGeneration() == indexingShardState.v1().generation();
             commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
             commitService.closedLocalReadersForGeneration(shardId).accept(recoveryCommit.getGeneration());
+            commitService.closedGenerationalFiles(shardId, new PrimaryTermAndGeneration(primaryTerm, recoveryCommit.getGeneration()));
 
             // The search node is still using commit 9, that contains references to all previous commits;
             // therefore we should retain all commits.
@@ -1237,6 +1246,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
             commitService.closedLocalReadersForGeneration(shardId).accept(recoveryCommit.getGeneration());
+            commitService.closedGenerationalFiles(shardId, new PrimaryTermAndGeneration(primaryTerm, recoveryCommit.getGeneration()));
             HashSet<StaleCompoundCommit> newDeleted = new HashSet<>(expectedDeletedCommits);
             newDeleted.add(staleCommit(shardId, recoveryCommit));
             assertThat(deletedCommits, equalTo(newDeleted));
@@ -1867,10 +1877,18 @@ public class StatelessCommitServiceTests extends ESTestCase {
             boolean deleteFirst = randomBoolean();
             if (deleteFirst == false) {
                 closedLocalReadersForGeneration.accept(indexCommit.getGeneration());
+                commitService.closedGenerationalFiles(
+                    shardId,
+                    new PrimaryTermAndGeneration(indexCommit.getPrimaryTerm(), indexCommit.getGeneration())
+                );
             }
             commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
             if (deleteFirst || randomBoolean()) {
                 closedLocalReadersForGeneration.accept(indexCommit.getGeneration());
+                commitService.closedGenerationalFiles(
+                    shardId,
+                    new PrimaryTermAndGeneration(indexCommit.getPrimaryTerm(), indexCommit.getGeneration())
+                );
             }
         }
     }

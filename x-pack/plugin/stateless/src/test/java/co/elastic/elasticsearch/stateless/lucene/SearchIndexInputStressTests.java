@@ -164,6 +164,7 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
             searchIndexInputs.put(
                 new SearchIndexInput(
                     fileName,
+                    null,
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, compoundFileName), allBytes.length),
                     randomIOContext(),
                     TestUtils.singleBlobContainer(compoundFileName, allBytes),

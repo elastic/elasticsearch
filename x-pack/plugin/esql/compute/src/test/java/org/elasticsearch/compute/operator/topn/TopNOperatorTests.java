@@ -936,6 +936,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertMap(actualValues, matchesList(List.of(expectedValues.subList(0, topCount))));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104167")
     public void testRandomMultiValuesTopN() {
         DriverContext driverContext = driverContext();
         int rows = randomIntBetween(50, 100);

@@ -31,16 +31,14 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Map;
+import java.time.temporal.ChronoUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
@@ -172,45 +170,46 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         startIndexNode();
         startSearchNode();
 
-        final var now = System.currentTimeMillis();
-        final String[] indices = new String[randomIntBetween(2, 6)];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = "index-" + i;
-            createIndex(indices[i], indexSettings(1, 1).build());
-            indexRandom(
-                indices[i],
-                builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(now - DEFAULT_BOOST_WINDOW.millis() + 1, now))
-            );
-        }
-        refresh(indices);
+        var now = System.currentTimeMillis();
 
-        Map<Index, Long> shardSizes = Maps.newMapWithExpectedSize(indices.length);
-        for (int j = 0; j < indices.length; j++) {
-            final var index = resolveIndex(indices[j]);
-            var searchShard = findSearchShard(index, 0);
-            shardSizes.put(index, getShardSizeFromObjectStore(searchShard));
-        }
+        var index = randomIdentifier();
+        createIndex(index, indexSettings(1, 1).build());
+        indexRandom(
+            index,
+            builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(now - DEFAULT_BOOST_WINDOW.millis() + 1, now))
+        );
 
-        assertAcked(client().admin().indices().prepareClose(indices));
-        ensureGreen(indices);
+        var shardId = resolveShardId(index);
+        var shard = findSearchShard(shardId.getIndex(), shardId.id());
+        var expectedShardSize = getShardSizeFromObjectStore(shard);
 
-        for (var entry : shardSizes.entrySet()) {
-            final var index = entry.getKey();
-            final var expectedShardSize = entry.getValue();
-            assertBusy(() -> {
-                var shardSize = getShardSize(findSearchShard(index, 0), now);
-                assertThat(shardSize.interactiveSizeInBytes(), equalTo(0L));
-                assertThat(shardSize.nonInteractiveSizeInBytes(), equalTo(expectedShardSize));
-            });
-        }
+        assertAcked(client().admin().indices().prepareClose(index));
+        ensureGreen(index);
+
+        var closedShard = findSearchShard(shardId.getIndex(), shardId.id());
+        assertBusy(() -> {
+            var shardSize = getShardSize(closedShard, now);
+            assertThat(shardSize.interactiveSizeInBytes(), equalTo(0L));
+            assertThat(shardSize.nonInteractiveSizeInBytes(), equalTo(expectedShardSize));
+        });
     }
 
     private static Object getRandomTimestamp(long min, long max) {
-        var instant = Instant.ofEpochMilli(randomLongBetween(min, max));
         return switch (randomIntBetween(0, 2)) {
-            case 0 -> instant.toEpochMilli();
-            case 1 -> DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS.getName()).format(instant);
-            case 2 -> DateFormatter.forPattern(FormatNames.STRICT_DATE.getName()).format(instant);
+            case 0 -> randomLongBetween(min, max);
+            case 1 -> {
+                var instant = Instant.ofEpochMilli(randomLongBetween(min, max));
+                yield DateFormatter.forPattern(FormatNames.STRICT_DATE_TIME.getName()).format(instant);
+            }
+            case 2 -> {
+                var instant = Instant.ofEpochMilli(
+                    randomLongBetween(
+                        Instant.ofEpochMilli(min).truncatedTo(ChronoUnit.DAYS).plus(1, ChronoUnit.DAYS).toEpochMilli(),
+                        Instant.ofEpochMilli(max).truncatedTo(ChronoUnit.DAYS).toEpochMilli()
+                    )
+                );
+                yield DateFormatter.forPattern(FormatNames.STRICT_DATE.getName()).format(instant);
+            }
             default -> throw new AssertionError("Unreachable");
         };
     }

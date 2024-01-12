@@ -30,6 +30,11 @@ public class NullInferenceConfig implements InferenceConfig {
     }
 
     @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        throw new UnsupportedOperationException("Cannot update NullInferenceConfig objects");
+    }
+
+    @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
         return MlConfigVersion.CURRENT;
     }

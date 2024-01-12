@@ -47,8 +47,8 @@ public class TextFormatterTests extends ESTestCase {
 
     private static final BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
     static {
-        geoPoints.append(GEO.pointAsWKB(new Point(12, 56)));
-        geoPoints.append(GEO.pointAsWKB(new Point(-97, 26)));
+        geoPoints.append(GEO.asWkb(new Point(12, 56)));
+        geoPoints.append(GEO.asWkb(new Point(-97, 26)));
     }
 
     EsqlQueryResponse esqlResponse = new EsqlQueryResponse(
@@ -72,8 +72,8 @@ public class TextFormatterTests extends ESTestCase {
                 ).asBlock(),
                 blockFactory.newBytesRefArrayVector(geoPoints, 2).asBlock(),
                 blockFactory.newBytesRefBlockBuilder(2)
-                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(1234, 5678)))
-                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(-9753, 2611)))
+                    .appendBytesRef(CARTESIAN.asWkb(new Point(1234, 5678)))
+                    .appendBytesRef(CARTESIAN.asWkb(new Point(-9753, 2611)))
                     .build(),
                 blockFactory.newConstantNullBlock(2)
             )
@@ -146,8 +146,8 @@ public class TextFormatterTests extends ESTestCase {
                     ).asBlock(),
                     blockFactory.newBytesRefArrayVector(geoPoints, 2).asBlock(),
                     blockFactory.newBytesRefBlockBuilder(2)
-                        .appendBytesRef(CARTESIAN.pointAsWKB(new Point(1234, 5678)))
-                        .appendBytesRef(CARTESIAN.pointAsWKB(new Point(-9753, 2611)))
+                        .appendBytesRef(CARTESIAN.asWkb(new Point(1234, 5678)))
+                        .appendBytesRef(CARTESIAN.asWkb(new Point(-9753, 2611)))
                         .build(),
                     blockFactory.newConstantNullBlock(2)
                 )

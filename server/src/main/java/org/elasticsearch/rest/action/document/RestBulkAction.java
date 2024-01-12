@@ -19,7 +19,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -95,7 +95,7 @@ public class RestBulkAction extends BaseRestHandler {
             request.getRestApiVersion()
         );
 
-        return channel -> client.bulk(bulkRequest, new RestToXContentListener<>(channel));
+        return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     @Override

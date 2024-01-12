@@ -260,8 +260,8 @@ public class TextFormatTests extends ESTestCase {
         );
 
         BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
-        geoPoints.append(GEO.pointAsWKB(new Point(12, 56)));
-        geoPoints.append(GEO.pointAsWKB(new Point(-97, 26)));
+        geoPoints.append(GEO.asWkb(new Point(12, 56)));
+        geoPoints.append(GEO.asWkb(new Point(-97, 26)));
         // values
         List<Page> values = List.of(
             new Page(
@@ -272,8 +272,8 @@ public class TextFormatTests extends ESTestCase {
                 blockFactory.newIntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock(),
                 blockFactory.newBytesRefArrayVector(geoPoints, 2).asBlock(),
                 blockFactory.newBytesRefBlockBuilder(2)
-                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(1234, 5678)))
-                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(-9753, 2611)))
+                    .appendBytesRef(CARTESIAN.asWkb(new Point(1234, 5678)))
+                    .appendBytesRef(CARTESIAN.asWkb(new Point(-9753, 2611)))
                     .build()
             )
         );

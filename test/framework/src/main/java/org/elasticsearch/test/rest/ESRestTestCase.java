@@ -11,6 +11,7 @@ package org.elasticsearch.test.rest;
 import io.netty.handler.codec.http.HttpMethod;
 
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpDelete;
@@ -58,6 +59,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureSpecification;
@@ -83,6 +85,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -157,14 +160,18 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Convert the entity from a {@link Response} into a map of maps.
      */
     public static Map<String, Object> entityAsMap(Response response) throws IOException {
-        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+        return entityAsMap(response.getEntity());
+    }
+
+    public static Map<String, Object> entityAsMap(HttpEntity entity) throws IOException {
+        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (
             XContentParser parser = xContentType.xContent()
                 .createParser(
                     XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
                         .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
-                    response.getEntity().getContent()
+                    entity.getContent()
                 )
         ) {
             return parser.map();
@@ -328,19 +335,28 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected static TestFeatureService createTestFeatureService(
+    protected TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
-        var providers = hasHistoricalFeaturesInformation
-            ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
-            : List.of(new RestTestLegacyFeatures());
+
+        final List<FeatureSpecification> featureSpecifications;
+        if (hasHistoricalFeaturesInformation) {
+            featureSpecifications = List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures());
+        } else {
+            logger.warn(
+                "This test is running on the legacy test framework; historical features from production code will not be available. "
+                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
+                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
+                RestTestLegacyFeatures.class.getCanonicalName()
+            );
+            featureSpecifications = List.of(new RestTestLegacyFeatures());
+        }
 
         return new ESRestTestFeatureService(
-            hasHistoricalFeaturesInformation,
-            providers,
+            featureSpecifications,
             semanticNodeVersions,
             ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
         );
@@ -2338,6 +2354,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         private static Map<NodeFeature, Version> historicalFeatures;
 
         @Override
+        @SuppressForbidden(reason = "File#pathSeparator has not equivalent in java.nio.file")
         public Map<NodeFeature, Version> getHistoricalFeatures() {
             if (historicalFeatures == null) {
                 Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
@@ -2348,7 +2365,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     );
                 }
 
-                String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+                String[] metadataFiles = metadataPath.split(File.pathSeparator);
                 for (String metadataFile : metadataFiles) {
                     try (
                         InputStream in = Files.newInputStream(PathUtils.get(metadataFile));

@@ -30,8 +30,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
-    public RestUpdateByQueryAction() {
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    public RestUpdateByQueryAction(NamedWriteableRegistry namedWriteableRegistry) {
         super(UpdateByQueryAction.INSTANCE);
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -51,7 +54,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return doPrepareRequest(request, client, false, true);
+        return doPrepareRequest(request, namedWriteableRegistry, client, false, true);
     }
 
     @Override

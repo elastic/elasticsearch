@@ -996,7 +996,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104101")
     public void testDisableFieldNameField() throws IOException {
         assumeTrue("can only disable field names field before 8.0", Version.fromString(getOldClusterVersion()).before(Version.V_8_0_0));
         String docLocation = "/nofnf/_doc/1";
@@ -1025,7 +1024,13 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 }""");
             createIndex.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
-                    .setWarningsHandler(warnings -> false == warnings.equals(List.of(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE)))
+                    .setWarningsHandler(
+                        warnings -> switch (warnings.size()) {
+                            case 0 -> false;  // old versions don't return a warning
+                            case 1 -> false == warnings.get(0).contains("_field_names");
+                            default -> true;
+                        }
+                    )
             );
             client().performRequest(createIndex);
 

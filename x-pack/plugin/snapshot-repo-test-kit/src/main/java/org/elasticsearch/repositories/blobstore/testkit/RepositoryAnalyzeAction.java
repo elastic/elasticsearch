@@ -149,7 +149,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 request,
                 state.nodes(),
                 state.getMinTransportVersion(),
-                threadPool::relativeTimeInMillis,
+                threadPool.relativeTimeInMillisSupplier(),
                 listener
             ).run();
             return;

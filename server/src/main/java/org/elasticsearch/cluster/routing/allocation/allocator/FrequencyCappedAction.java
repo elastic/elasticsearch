@@ -24,7 +24,7 @@ public class FrequencyCappedAction {
     private long next = -1;
 
     public FrequencyCappedAction(ThreadPool threadPool) {
-        this(threadPool::relativeTimeInMillis);
+        this(threadPool.relativeTimeInMillisSupplier());
     }
 
     public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier) {

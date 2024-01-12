@@ -202,7 +202,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     List<Driver> createDriversForInput(List<Page> input, List<Page> results, boolean throwingOp) {
         Collection<List<Page>> splitInput = randomSplits(input, randomIntBetween(2, 4));
 
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(randomIntBetween(2, 10), threadPool.relativeTimeInMillisSupplier());
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 4), threadPool.executor(ESQL_TEST_EXECUTOR));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
 

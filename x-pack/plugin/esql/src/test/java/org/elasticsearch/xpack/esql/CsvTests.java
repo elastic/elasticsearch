@@ -328,7 +328,7 @@ public class CsvTests extends ESTestCase {
 
         String sessionId = "csv-test";
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), threadPool.executor(ESQL_THREAD_POOL_NAME));
-        ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(between(1, 64), threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(between(1, 64), threadPool.relativeTimeInMillisSupplier());
         Settings.Builder settings = Settings.builder();
 
         BlockFactory blockFactory = new BlockFactory(

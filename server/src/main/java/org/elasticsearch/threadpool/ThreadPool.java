@@ -48,6 +48,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -142,6 +143,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     private final ThreadPoolInfo threadPoolInfo;
 
     private final CachedTimeThread cachedTimeThread;
+
+    private final LongSupplier relativeTimeInMillisSupplier;
 
     private final ThreadContext threadContext;
 
@@ -319,6 +322,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis()
         );
         this.cachedTimeThread.start();
+        this.relativeTimeInMillisSupplier = cachedTimeThread.relativeTimeInMillisSupplier();
     }
 
     // for subclassing by tests that don't actually use any of the machinery that the regular constructor sets up
@@ -326,6 +330,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         this.builders = Map.of();
         this.executors = Map.of();
         this.cachedTimeThread = null;
+        this.relativeTimeInMillisSupplier = this::relativeTimeInMillis;
         this.threadPoolInfo = new ThreadPoolInfo(List.of());
         this.slowSchedulerWarnThresholdNanos = 0L;
         this.threadContext = new ThreadContext(Settings.EMPTY);
@@ -339,7 +344,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
     public long relativeTimeInMillis() {
-        return TimeValue.nsecToMSec(relativeTimeInNanos());
+        return cachedTimeThread.relativeTimeInMillis();
+    }
+
+    /**
+     * Effectively the same as {@code this::relativeTimeInMillis}, except that it returns a constant
+     */
+    public LongSupplier relativeTimeInMillisSupplier() {
+        return relativeTimeInMillisSupplier;
     }
 
     /**
@@ -682,12 +694,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         volatile boolean running = true;
         volatile long relativeNanos;
+        volatile long relativeMillis;
         volatile long absoluteMillis;
 
         CachedTimeThread(String name, long intervalMillis, long thresholdMillis) {
             super(name);
             this.interval = intervalMillis;
             this.relativeNanos = System.nanoTime();
+            this.relativeMillis = TimeValue.nsecToMSec(this.relativeNanos);
             this.absoluteMillis = System.currentTimeMillis();
             this.timeChangeChecker = new TimeChangeChecker(thresholdMillis, absoluteMillis, relativeNanos);
             setDaemon(true);
@@ -705,6 +719,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 return relativeNanos;
             }
             return System.nanoTime();
+        }
+
+        /**
+         * Return the current time used for relative calculations. This is {@link System#nanoTime()} converted into milliseconds.
+         * <p>
+         * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
+         * then the cache is disabled and the method calls {@link System#nanoTime()}
+         * whenever called. Typically used for testing.
+         */
+        long relativeTimeInMillis() {
+            if (0 < interval) {
+                return relativeMillis;
+            }
+            return TimeValue.nsecToMSec(System.nanoTime());
         }
 
         /**
@@ -726,6 +754,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public void run() {
             while (running && 0 < interval) {
                 relativeNanos = System.nanoTime();
+                relativeMillis = TimeValue.nsecToMSec(this.relativeNanos);
                 absoluteMillis = System.currentTimeMillis();
                 timeChangeChecker.check(absoluteMillis, relativeNanos);
                 try {
@@ -737,6 +766,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     return;
                 }
             }
+        }
+
+        LongSupplier relativeTimeInMillisSupplier() {
+            return new LongSupplier() {
+                @Override
+                public long getAsLong() {
+                    return CachedTimeThread.this.relativeTimeInMillis();
+                }
+
+                @Override
+                public String toString() {
+                    return CachedTimeThread.class.getCanonicalName() + "::relativeTimeInMillis";
+                }
+            };
         }
     }
 

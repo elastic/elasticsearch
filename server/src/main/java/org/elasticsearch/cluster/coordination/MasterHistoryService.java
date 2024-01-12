@@ -61,7 +61,7 @@ public class MasterHistoryService {
     public MasterHistoryService(TransportService transportService, ThreadPool threadPool, ClusterService clusterService) {
         this.transportService = transportService;
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
-        this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
+        this.currentTimeMillisSupplier = threadPool.relativeTimeInMillisSupplier();
         this.acceptableRemoteHistoryAge = REMOTE_HISTORY_TIME_TO_LIVE_SETTING.get(clusterService.getSettings());
     }
 

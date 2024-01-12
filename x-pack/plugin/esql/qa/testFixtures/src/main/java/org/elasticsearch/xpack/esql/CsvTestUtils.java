@@ -61,7 +61,9 @@ public final class CsvTestUtils {
     private static final int MAX_WIDTH = 20;
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
     private static final String NULL_VALUE = "null";
-    public static final char ESCAPE_CHAR = '\\';
+    private static final char ESCAPE_CHAR = '\\';
+    public static final String COMMA_ESCAPING_REGEX = "(?<!\\" + ESCAPE_CHAR + "),";
+    public static final String ESCAPED_COMMA_SEQUENCE = ESCAPE_CHAR + ",";
 
     private CsvTestUtils() {}
 
@@ -347,14 +349,16 @@ public final class CsvTestUtils {
                     if (value.startsWith("[") ^ value.endsWith("]")) {
                         throw new IllegalArgumentException("Incomplete multi-value (opening and closing square brackets) found " + value);
                     }
-                    if (value.contains(",") && value.startsWith("[")) {// commas outside a multi-value should be ok
+                    // split on comma ignoring escaped commas, ignoring any potential starting and stopping square brackets
+                    String[] multiValues = value.substring(1, value.length() - 1).split(COMMA_ESCAPING_REGEX);
+                    if (multiValues.length > 0 && value.startsWith("[")) {// commas outside a multi-value should be ok
                         List<Object> listOfMvValues = new ArrayList<>();
-                        for (String mvValue : delimitedListToStringArray(value.substring(1, value.length() - 1), ",")) {
-                            listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim()));
+                        for (String mvValue : multiValues) {
+                            listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
                         }
                         rowValues.add(listOfMvValues);
                     } else {
-                        rowValues.add(columnTypes.get(i).convert(value));
+                        rowValues.add(columnTypes.get(i).convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
                     }
                 }
                 values.add(rowValues);

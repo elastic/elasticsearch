@@ -43,6 +43,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 
 public class CsvTestsDataLoader {
@@ -297,7 +299,7 @@ public class CsvTestsDataLoader {
                                         row.append(",");
                                     }
                                     // split on comma ignoring escaped commas
-                                    String[] multiValues = entries[i].split("(?<!\\" + CsvTestUtils.ESCAPE_CHAR + "),");
+                                    String[] multiValues = entries[i].split(COMMA_ESCAPING_REGEX);
                                     if (multiValues.length > 0) {// multi-value
                                         StringBuilder rowStringValue = new StringBuilder("[");
                                         for (String s : multiValues) {
@@ -310,7 +312,7 @@ public class CsvTestsDataLoader {
                                         entries[i] = "\"" + entries[i] + "\"";
                                     }
                                     // replace any escaped commas with single comma
-                                    entries[i].replace(CsvTestUtils.ESCAPE_CHAR + ",", ",");
+                                    entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
                                     row.append("\"" + columns[i] + "\":" + entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(

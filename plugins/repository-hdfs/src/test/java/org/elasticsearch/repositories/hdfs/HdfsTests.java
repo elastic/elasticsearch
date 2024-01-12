@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -62,9 +63,9 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
-            prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
-            prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            indexDoc("test-idx-1", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-2", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-3", Integer.toString(i), "foo", "bar" + i);
         }
         client().admin().indices().prepareRefresh().get();
         assertThat(count(client, "test-idx-1"), equalTo(100L));
@@ -278,5 +279,14 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     private long count(Client client, String index) {
         return SearchResponseUtils.getTotalHitsValue(client.prepareSearch(index).setSize(0));
+    }
+
+    private void indexDoc(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

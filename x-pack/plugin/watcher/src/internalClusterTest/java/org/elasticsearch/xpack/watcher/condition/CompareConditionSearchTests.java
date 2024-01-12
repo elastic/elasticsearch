@@ -35,10 +35,10 @@ import static org.mockito.Mockito.when;
 public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testExecuteWithAggs() {
-        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:00").get();
-        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:10").get();
-        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:20").get();
-        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:30").get();
+        indexDoc("my-index", null, "@timestamp", "2005-01-01T00:00");
+        indexDoc("my-index", null, "@timestamp", "2005-01-01T00:10");
+        indexDoc("my-index", null, "@timestamp", "2005-01-01T00:20");
+        indexDoc("my-index", null, "@timestamp", "2005-01-01T00:30");
         refresh();
 
         CompareCondition condition = new CompareCondition(
@@ -71,7 +71,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
             }
         );
 
-        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:40").get();
+        indexDoc("my-index", null, "@timestamp", "2005-01-01T00:40");
         refresh();
 
         assertResponse(

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -196,14 +197,12 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final boolean createAPMIndex = randomBoolean();
         final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";
 
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setId("0");
         assertThat(
-            prepareIndex(indexName).setId("0")
-                .setRefreshPolicy("true")
-                .setSource("{\"field\":\"value\"}", XContentType.JSON)
-                .get()
-                .status(),
+            indexRequestBuilder.setRefreshPolicy("true").setSource("{\"field\":\"value\"}", XContentType.JSON).get().status(),
             is(RestStatus.CREATED)
         );
+        indexRequestBuilder.request().decRef();
 
         final Settings settings = Settings.builder().put("cluster.metadata.display_name", "my cluster").build();
         assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings));

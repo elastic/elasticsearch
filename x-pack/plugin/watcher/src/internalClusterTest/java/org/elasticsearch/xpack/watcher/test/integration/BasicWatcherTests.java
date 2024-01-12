@@ -75,7 +75,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testIndexWatch() throws Exception {
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        prepareIndex("idx").setSource("field", "foo").get();
+        indexDoc("idx", null, "field", "foo");
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "foo")), "idx");
         new PutWatchRequestBuilder(client()).setId("_name")
@@ -109,7 +109,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithNoActionNeeded("_name", 1);
 
         // Index sample doc after we register the watch and the watch's condition should meet
-        prepareIndex("idx").setSource("field", "value").get();
+        indexDoc("idx", null, "field", "value");
         refresh();
 
         timeWarp().clock().fastForwardSeconds(5);
@@ -145,7 +145,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testMalformedWatch() throws Exception {
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        prepareIndex("idx").setSource("field", "value").get();
+        indexDoc("idx", null, "field", "value");
         XContentBuilder watchSource = jsonBuilder();
 
         watchSource.startObject();
@@ -166,7 +166,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
             // In watch store we fail parsing if an watch contains undefined fields.
         }
         try {
-            prepareIndex(Watch.INDEX).setId("_name").setSource(watchSource).get();
+            index(Watch.INDEX, "_name", watchSource);
             fail();
         } catch (Exception e) {
             // The watch index template the mapping is defined as strict
@@ -251,7 +251,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testInputFiltering() throws Exception {
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        prepareIndex("idx").setSource(jsonBuilder().startObject().field("field", "foovalue").endObject()).get();
+        index("idx", null, jsonBuilder().startObject().field("field", "foovalue").endObject());
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "foovalue")), "idx");
         new PutWatchRequestBuilder(client()).setId("_name1")
@@ -385,21 +385,21 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         logger.info("created watch [{}] at [{}]", watchName, ZonedDateTime.now(Clock.systemUTC()));
 
-        prepareIndex("events").setSource("level", "a").get();
-        prepareIndex("events").setSource("level", "a").get();
+        indexDoc("events", null, "level", "a");
+        indexDoc("events", null, "level", "a");
 
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 1);
 
-        prepareIndex("events").setSource("level", "b").get();
+        indexDoc("events", null, "level", "b");
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 2);
 
-        prepareIndex("events").setSource("level", "a").get();
+        indexDoc("events", null, "level", "a");
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);

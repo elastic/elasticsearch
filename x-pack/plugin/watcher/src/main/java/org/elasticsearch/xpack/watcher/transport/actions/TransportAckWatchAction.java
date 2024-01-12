@@ -119,36 +119,48 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                             }
 
                             UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getWatchId());
-                            // this may reject this action, but prevents concurrent updates from a watch execution
-                            updateRequest.setIfSeqNo(getResponse.getSeqNo());
-                            updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());
-                            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                            XContentBuilder builder = jsonBuilder();
-                            builder.startObject().startObject(WatchField.STATUS.getPreferredName()).startObject("actions");
+                            try {
+                                // this may reject this action, but prevents concurrent updates from a watch execution
+                                updateRequest.setIfSeqNo(getResponse.getSeqNo());
+                                updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());
+                                updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                                XContentBuilder builder = jsonBuilder();
+                                builder.startObject().startObject(WatchField.STATUS.getPreferredName()).startObject("actions");
 
-                            List<String> actionIdsAsList = Arrays.asList(actionIds);
-                            boolean updateAll = actionIdsAsList.contains("_all");
-                            for (ActionWrapper actionWrapper : watch.actions()) {
-                                if (updateAll || actionIdsAsList.contains(actionWrapper.id())) {
-                                    builder.startObject(actionWrapper.id())
-                                        .field("ack", watch.status().actionStatus(actionWrapper.id()).ackStatus(), ToXContent.EMPTY_PARAMS)
-                                        .endObject();
+                                List<String> actionIdsAsList = Arrays.asList(actionIds);
+                                boolean updateAll = actionIdsAsList.contains("_all");
+                                for (ActionWrapper actionWrapper : watch.actions()) {
+                                    if (updateAll || actionIdsAsList.contains(actionWrapper.id())) {
+                                        builder.startObject(actionWrapper.id())
+                                            .field(
+                                                "ack",
+                                                watch.status().actionStatus(actionWrapper.id()).ackStatus(),
+                                                ToXContent.EMPTY_PARAMS
+                                            )
+                                            .endObject();
+                                    }
                                 }
+
+                                builder.endObject().endObject().endObject();
+                                updateRequest.doc(builder);
+
+                                executeAsyncWithOrigin(
+                                    client.threadPool().getThreadContext(),
+                                    WATCHER_ORIGIN,
+                                    updateRequest,
+                                    ActionListener.runAfter(
+                                        ActionListener.<UpdateResponse>wrap(
+                                            (updateResponse) -> listener.onResponse(new AckWatchResponse(watch.status())),
+                                            listener::onFailure
+                                        ),
+                                        updateRequest::decRef
+                                    ),
+                                    client::update
+                                );
+                            } catch (Exception e) {
+                                updateRequest.decRef();
+                                throw e;
                             }
-
-                            builder.endObject().endObject().endObject();
-                            updateRequest.doc(builder);
-
-                            executeAsyncWithOrigin(
-                                client.threadPool().getThreadContext(),
-                                WATCHER_ORIGIN,
-                                updateRequest,
-                                ActionListener.<UpdateResponse>wrap(
-                                    (updateResponse) -> listener.onResponse(new AckWatchResponse(watch.status())),
-                                    listener::onFailure
-                                ),
-                                client::update
-                            );
                         }
                     }, listener::onFailure),
                     client::get

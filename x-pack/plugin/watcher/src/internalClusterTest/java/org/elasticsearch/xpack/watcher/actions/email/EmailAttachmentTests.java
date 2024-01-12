@@ -153,7 +153,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        prepareIndex("idx").setSource("field", "value").get();
+        indexDoc("idx", null, "field", "value");
         refresh();
 
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();

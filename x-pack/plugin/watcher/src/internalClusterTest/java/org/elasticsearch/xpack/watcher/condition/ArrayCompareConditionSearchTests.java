@@ -38,8 +38,8 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         int numberOfDocuments = randomIntBetween(1, 100);
         int numberOfDocumentsWatchingFor = 1 + numberOfDocuments;
         for (int i = 0; i < numberOfDocuments; i++) {
-            prepareIndex(index).setSource(source("elastic", "you know, for search", i)).get();
-            prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", i)).get();
+            index(index, null, source("elastic", "you know, for search", i));
+            index(index, null, source("fights_for_the_users", "you know, for the users", i));
         }
 
         refresh();
@@ -89,7 +89,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
             }
         );
 
-        prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
+        index(index, null, source("fights_for_the_users", "you know, for the users", numberOfDocuments));
         refresh();
 
         assertResponse(

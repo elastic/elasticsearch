@@ -69,50 +69,55 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
         try {
             ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
             UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getWatchId());
-            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            XContentBuilder builder = activateWatchBuilder(request.isActivate(), now);
-            updateRequest.doc(builder);
-            // a watch execution updates the status in between, we still want this want to override the active state
-            // two has been chosen arbitrary, maybe one would make more sense, as a watch would not execute more often than
-            // once per second?
-            updateRequest.retryOnConflict(2);
+            try {
+                updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                XContentBuilder builder = activateWatchBuilder(request.isActivate(), now);
+                updateRequest.doc(builder);
+                // a watch execution updates the status in between, we still want this want to override the active state
+                // two has been chosen arbitrary, maybe one would make more sense, as a watch would not execute more often than
+                // once per second?
+                updateRequest.retryOnConflict(2);
 
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                WATCHER_ORIGIN,
-                updateRequest,
-                ActionListener.<UpdateResponse>wrap(updateResponse -> {
-                    GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId()).preference(Preference.LOCAL.type())
-                        .realtime(true);
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    WATCHER_ORIGIN,
+                    updateRequest,
+                    ActionListener.<UpdateResponse>wrap(updateResponse -> {
+                        GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId()).preference(Preference.LOCAL.type())
+                            .realtime(true);
 
-                    executeAsyncWithOrigin(
-                        client.threadPool().getThreadContext(),
-                        WATCHER_ORIGIN,
-                        getRequest,
-                        ActionListener.<GetResponse>wrap(getResponse -> {
-                            if (getResponse.isExists()) {
-                                Watch watch = parser.parseWithSecrets(
-                                    request.getWatchId(),
-                                    true,
-                                    getResponse.getSourceAsBytesRef(),
-                                    now,
-                                    XContentType.JSON,
-                                    getResponse.getSeqNo(),
-                                    getResponse.getPrimaryTerm()
-                                );
-                                watch.status().version(getResponse.getVersion());
-                                listener.onResponse(new ActivateWatchResponse(watch.status()));
-                            } else {
-                                listener.onFailure(
-                                    new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId())
-                                );
-                            }
-                        }, listener::onFailure),
-                        client::get
-                    );
-                }, listener::onFailure),
-                client::update
-            );
+                        executeAsyncWithOrigin(
+                            client.threadPool().getThreadContext(),
+                            WATCHER_ORIGIN,
+                            getRequest,
+                            ActionListener.runAfter(ActionListener.<GetResponse>wrap(getResponse -> {
+                                if (getResponse.isExists()) {
+                                    Watch watch = parser.parseWithSecrets(
+                                        request.getWatchId(),
+                                        true,
+                                        getResponse.getSourceAsBytesRef(),
+                                        now,
+                                        XContentType.JSON,
+                                        getResponse.getSeqNo(),
+                                        getResponse.getPrimaryTerm()
+                                    );
+                                    watch.status().version(getResponse.getVersion());
+                                    listener.onResponse(new ActivateWatchResponse(watch.status()));
+                                } else {
+                                    listener.onFailure(
+                                        new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId())
+                                    );
+                                }
+                            }, listener::onFailure), updateRequest::decRef),
+                            client::get
+                        );
+                    }, listener::onFailure),
+                    client::update
+                );
+            } catch (Exception e) {
+                updateRequest.decRef();
+                throw e;
+            }
         } catch (IOException e) {
             listener.onFailure(e);
         }

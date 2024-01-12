@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
@@ -66,93 +69,84 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testLoadMalformedWatchRecord() throws Exception {
-        prepareIndex(Watch.INDEX).setId("_id")
-            .setSource(
-                jsonBuilder().startObject()
-                    .startObject(WatchField.TRIGGER.getPreferredName())
-                    .startObject("schedule")
-                    .field("cron", "0/5 * * * * ? 2050")
-                    .endObject()
-                    .endObject()
-                    .startObject(WatchField.ACTIONS.getPreferredName())
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        index(
+            Watch.INDEX,
+            "_id",
+            jsonBuilder().startObject()
+                .startObject(WatchField.TRIGGER.getPreferredName())
+                .startObject("schedule")
+                .field("cron", "0/5 * * * * ? 2050")
+                .endObject()
+                .endObject()
+                .startObject(WatchField.ACTIONS.getPreferredName())
+                .endObject()
+                .endObject()
+        );
 
         // valid watch record:
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid("_id", now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         ExecutableCondition condition = InternalAlwaysCondition.INSTANCE;
-        prepareIndex(HistoryStoreField.DATA_STREAM).setId(wid.value())
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("@timestamp", ZonedDateTime.now())
-                    .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
-                    .field(event.type(), event)
-                    .endObject()
-                    .startObject(WatchField.CONDITION.getPreferredName())
-                    .field(condition.type(), condition)
-                    .endObject()
-                    .startObject(WatchField.INPUT.getPreferredName())
-                    .startObject("none")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-            .setWaitForActiveShards(ActiveShardCount.ALL)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            HistoryStoreField.DATA_STREAM,
+            wid.value(),
+            jsonBuilder().startObject()
+                .field("@timestamp", ZonedDateTime.now())
+                .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
+                .field(event.type(), event)
+                .endObject()
+                .startObject(WatchField.CONDITION.getPreferredName())
+                .field(condition.type(), condition)
+                .endObject()
+                .startObject(WatchField.INPUT.getPreferredName())
+                .startObject("none")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         // unknown condition:
         wid = new Wid("_id", now);
-        prepareIndex(HistoryStoreField.DATA_STREAM).setId(wid.value())
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("@timestamp", ZonedDateTime.now())
-                    .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
-                    .field(event.type(), event)
-                    .endObject()
-                    .startObject(WatchField.CONDITION.getPreferredName())
-                    .startObject("unknown")
-                    .endObject()
-                    .endObject()
-                    .startObject(WatchField.INPUT.getPreferredName())
-                    .startObject("none")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-            .setWaitForActiveShards(ActiveShardCount.ALL)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            HistoryStoreField.DATA_STREAM,
+            wid.value(),
+            jsonBuilder().startObject()
+                .field("@timestamp", ZonedDateTime.now())
+                .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
+                .field(event.type(), event)
+                .endObject()
+                .startObject(WatchField.CONDITION.getPreferredName())
+                .startObject("unknown")
+                .endObject()
+                .endObject()
+                .startObject(WatchField.INPUT.getPreferredName())
+                .startObject("none")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         // unknown trigger:
         wid = new Wid("_id", now);
-        prepareIndex(HistoryStoreField.DATA_STREAM).setId(wid.value())
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("@timestamp", ZonedDateTime.now())
-                    .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
-                    .startObject("unknown")
-                    .endObject()
-                    .endObject()
-                    .startObject(WatchField.CONDITION.getPreferredName())
-                    .field(condition.type(), condition)
-                    .endObject()
-                    .startObject(WatchField.INPUT.getPreferredName())
-                    .startObject("none")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-            .setWaitForActiveShards(ActiveShardCount.ALL)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            HistoryStoreField.DATA_STREAM,
+            wid.value(),
+            jsonBuilder().startObject()
+                .field("@timestamp", ZonedDateTime.now())
+                .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
+                .startObject("unknown")
+                .endObject()
+                .endObject()
+                .startObject(WatchField.CONDITION.getPreferredName())
+                .field(condition.type(), condition)
+                .endObject()
+                .startObject(WatchField.INPUT.getPreferredName())
+                .startObject("none")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         stopWatcher();
         startWatcher();
@@ -171,17 +165,17 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             for (int i = 0; i < numWatches; i++) {
-                bulkRequestBuilder.add(
-                    prepareIndex(Watch.INDEX).setId("_id" + i)
-                        .setSource(
-                            watchBuilder().trigger(schedule(cron("0 0/5 * * * ? 2050")))
-                                .input(searchInput(request))
-                                .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L))
-                                .buildAsBytes(XContentType.JSON),
-                            XContentType.JSON
-                        )
-                        .setWaitForActiveShards(ActiveShardCount.ALL)
-                );
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(Watch.INDEX).setId("_id" + i)
+                    .setSource(
+                        watchBuilder().trigger(schedule(cron("0 0/5 * * * ? 2050")))
+                            .input(searchInput(request))
+                            .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L))
+                            .buildAsBytes(XContentType.JSON),
+                        XContentType.JSON
+                    )
+                    .setWaitForActiveShards(ActiveShardCount.ALL);
+                bulkRequestBuilder.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             assertHitCount(prepareSearch(Watch.INDEX).setSize(0), numWatches);
@@ -197,7 +191,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
-        prepareIndex("my-index").setId("bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource("field", "value").get();
+        indexDocImmediate("my-index", "bar", "field", "value");
 
         WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).get();
         assertThat(response.getWatchesCount(), equalTo(0L));
@@ -230,11 +224,11 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, now, now);
                 Wid wid = new Wid(watchId, now);
                 TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
-                bulkRequestBuilder.add(
-                    prepareIndex(TriggeredWatchStoreField.INDEX_NAME).setId(triggeredWatch.id().value())
-                        .setSource(jsonBuilder().value(triggeredWatch))
-                        .request()
-                );
+                IndexRequest indexRequest = prepareIndex(TriggeredWatchStoreField.INDEX_NAME).setId(triggeredWatch.id().value())
+                    .setSource(jsonBuilder().value(triggeredWatch))
+                    .request();
+                bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -247,7 +241,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     public void testTriggeredWatchLoading() throws Exception {
         cluster().wipeIndices(TriggeredWatchStoreField.INDEX_NAME);
         createIndex("output");
-        prepareIndex("my-index").setId("bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource("field", "value").get();
+        indexDocImmediate("my-index", "bar", "field", "value");
 
         WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).get();
         assertThat(response.getWatchesCount(), equalTo(0L));
@@ -274,11 +268,11 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, now, now);
                 Wid wid = new Wid(watchId, now);
                 TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
-                bulkRequestBuilder.add(
-                    prepareIndex(TriggeredWatchStoreField.INDEX_NAME).setId(triggeredWatch.id().value())
-                        .setSource(jsonBuilder().value(triggeredWatch))
-                        .setWaitForActiveShards(ActiveShardCount.ALL)
-                );
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(TriggeredWatchStoreField.INDEX_NAME).setId(
+                    triggeredWatch.id().value()
+                ).setSource(jsonBuilder().value(triggeredWatch)).setWaitForActiveShards(ActiveShardCount.ALL);
+                bulkRequestBuilder.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -352,18 +346,19 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, triggeredTime, triggeredTime);
                 Wid wid = new Wid(watchId, triggeredTime);
                 TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
-                bulkRequestBuilder.add(
-                    prepareIndex(TriggeredWatchStoreField.INDEX_NAME).setId(triggeredWatch.id().value())
-                        .setSource(jsonBuilder().value(triggeredWatch))
-                );
+                IndexRequestBuilder indexRequestBuilder1 = prepareIndex(TriggeredWatchStoreField.INDEX_NAME).setId(
+                    triggeredWatch.id().value()
+                ).setSource(jsonBuilder().value(triggeredWatch));
+                bulkRequestBuilder.add(indexRequestBuilder1);
+                indexRequestBuilder1.request().decRef();
 
                 String id = internalCluster().getInstance(ClusterService.class).localNode().getId();
                 WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, "executed", id);
-                bulkRequestBuilder.add(
-                    prepareIndex(HistoryStoreField.DATA_STREAM).setId(watchRecord.id().value())
-                        .setOpType(DocWriteRequest.OpType.CREATE)
-                        .setSource(jsonBuilder().value(watchRecord))
-                );
+                IndexRequestBuilder indexRequestBuilder2 = prepareIndex(HistoryStoreField.DATA_STREAM).setId(watchRecord.id().value())
+                    .setOpType(DocWriteRequest.OpType.CREATE)
+                    .setSource(jsonBuilder().value(watchRecord));
+                bulkRequestBuilder.add(indexRequestBuilder2);
+                indexRequestBuilder2.request().decRef();
             }
             assertNoFailures(bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get());
 
@@ -387,6 +382,28 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                     }
                 });
             });
+        }
+    }
+
+    private void indexImmediate(String index, String id, XContentBuilder contentBuilder) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId(id);
+        try {
+            indexRequestBuilder.setOpType(DocWriteRequest.OpType.CREATE)
+                .setSource(contentBuilder)
+                .setWaitForActiveShards(ActiveShardCount.ALL)
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private void indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
     }
 }

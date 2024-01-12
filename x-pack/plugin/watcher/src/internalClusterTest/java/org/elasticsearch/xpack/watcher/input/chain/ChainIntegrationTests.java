@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.chain;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -55,7 +56,11 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     public void testChainedInputsAreWorking() throws Exception {
         String index = "the-most-awesome-index-ever";
         createIndex(index);
-        prepareIndex(index).setId("id").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId("id")
+            .setSource("{}", XContentType.JSON)
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         HttpInput.Builder httpInputBuilder = httpInput(

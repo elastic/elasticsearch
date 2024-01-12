@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -46,23 +47,18 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         );
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            IndexRequestBuilder indexRequestBuilder1 = prepareIndex("idx").setId("1")
+                .setSource(jsonBuilder().startObject().field("name", "first").field("foo", "bar").endObject());
+            IndexRequestBuilder indexRequestBuilder2 = prepareIndex("idx").setId("2")
+                .setSource(
+                    jsonBuilder().startObject().field("name", "second").startObject("foo").field("what", "ever").endObject().endObject()
+                );
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(
-                    prepareIndex("idx").setId("1")
-                        .setSource(jsonBuilder().startObject().field("name", "first").field("foo", "bar").endObject())
-                )
-                .add(
-                    prepareIndex("idx").setId("2")
-                        .setSource(
-                            jsonBuilder().startObject()
-                                .field("name", "second")
-                                .startObject("foo")
-                                .field("what", "ever")
-                                .endObject()
-                                .endObject()
-                        )
-                )
+                .add(indexRequestBuilder1)
+                .add(indexRequestBuilder2)
                 .get();
+            indexRequestBuilder1.request().decRef();
+            indexRequestBuilder2.request().decRef();
         }
 
         new PutWatchRequestBuilder(client(), "_first").setSource(

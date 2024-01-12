@@ -9,6 +9,7 @@ package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -100,7 +101,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testBasic() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), (int) getResponse.getField("_size").getValue());
@@ -109,7 +110,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testGetWithFields() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         assertResponse(
             prepareSearch("test").addFetchField("_size"),
             response -> assertEquals(
@@ -134,7 +135,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testWildCardWithFieldsWhenDisabled() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=false"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         assertResponse(
             prepareSearch("test").addFetchField("_size"),
             response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
@@ -154,7 +155,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testWildCardWithFieldsWhenNotProvided() throws Exception {
         assertAcked(prepareCreate("test"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         assertResponse(
             prepareSearch("test").addFetchField("_size"),
             response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
@@ -169,5 +170,15 @@ public class SizeMappingIT extends ESIntegTestCase {
             prepareSearch("test").addStoredField("*"),
             response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
         );
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

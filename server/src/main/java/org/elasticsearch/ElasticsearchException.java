@@ -342,7 +342,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return toXContent(builder, params, 0);
     }
 

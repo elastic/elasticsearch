@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * The main CLI for running Elasticsearch.
@@ -61,6 +62,13 @@ class ServerCli extends EnvironmentAwareCommand {
         enrollmentTokenOption = parser.accepts("enrollment-token", "An existing enrollment token for securely joining a cluster")
             .availableUnless(versionOption)
             .withRequiredArg();
+    }
+
+    /** For ServerCli JSON output is expected in containers if {@code ES_LOG_STYLE} is either unset or equals {@code console}. */
+    @Override
+    public boolean hasJsonOutput() {
+        Map<String, String> env = System.getenv();
+        return "true".equals(env.get("ELASTIC_CONTAINER")) && "console".equals(env.getOrDefault("ES_LOG_STYLE", "console"));
     }
 
     @Override

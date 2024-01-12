@@ -16,7 +16,6 @@ exec \
   -Dcli.name="$CLI_NAME" \
   -Dcli.script="$0" \
   -Dcli.libs="$CLI_LIBS" \
-  -Dcli.terminal.format="$CLI_TERMINAL_FORMAT" \
   -Des.path.home="$ES_HOME" \
   -Des.path.conf="$ES_PATH_CONF" \
   -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \

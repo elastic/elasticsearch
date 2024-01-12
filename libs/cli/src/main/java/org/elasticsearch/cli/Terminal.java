@@ -36,11 +36,8 @@ import java.util.Locale;
  * the verbosity of the message.
 */
 public abstract class Terminal {
-    /** If to emit JSON using {@link SystemTerminal} regardless of the availability of a console. */
-    private static final boolean JSON_FORMAT = "json".equals(System.getProperty("cli.terminal.format"));
-
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
-    public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
+    public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal(false);
 
     /** Defines the available verbosity levels of messages to be printed. */
     public enum Verbosity {
@@ -270,6 +267,10 @@ public abstract class Terminal {
         return false;
     }
 
+    public Terminal asJson() {
+        return new SystemTerminal(true);
+    }
+
     private static class ConsoleTerminal extends Terminal {
         private static final int JDK_VERSION_WITH_IS_TERMINAL = 22;
         private static final Console CONSOLE = detectTerminal();
@@ -285,7 +286,7 @@ public abstract class Terminal {
         }
 
         static boolean isSupported() {
-            return CONSOLE != null && JSON_FORMAT == false;
+            return CONSOLE != null;
         }
 
         static Console detectTerminal() {
@@ -324,19 +325,27 @@ public abstract class Terminal {
      */
     @SuppressForbidden(reason = "Access streams for construction")
     static class SystemTerminal extends Terminal {
-        SystemTerminal() {
+        private final boolean useJsonOutput;
+
+        SystemTerminal(boolean useJsonOutput) {
             super(
                 // TODO: InputStreamReader can advance stdin past what it decodes. We need a way to buffer this and put it back
                 // at the end of each character based read, so that switching to using getInputStream() returns binary data
                 // right after the last character based input (newline)
                 new InputStreamReader(System.in, Charset.defaultCharset()),
-                printWriter(System.out),
-                printWriter(System.err)
+                printWriter(System.out, useJsonOutput),
+                printWriter(System.err, useJsonOutput)
             );
+            this.useJsonOutput = useJsonOutput;
         }
 
-        private static PrintWriter printWriter(OutputStream out) {
-            return JSON_FORMAT ? new JsonPrintWriter(out, true) : new PrintWriter(out, true);
+        @Override
+        public Terminal asJson() {
+            return useJsonOutput ? this : super.asJson();
+        }
+
+        private static PrintWriter printWriter(OutputStream out, boolean useJsonOutput) {
+            return useJsonOutput ? new JsonPrintWriter(out, true) : new PrintWriter(out, true);
         }
 
         @Override

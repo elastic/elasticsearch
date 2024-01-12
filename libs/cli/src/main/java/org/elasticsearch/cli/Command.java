@@ -63,6 +63,11 @@ public abstract class Command implements Closeable {
         return ExitCodes.OK;
     }
 
+    /** If the command expects JSON output (via {@link Terminal}). */
+    public boolean hasJsonOutput() {
+        return false;
+    }
+
     /**
      * Executes the command, but all errors are thrown.
      */

@@ -32,6 +32,19 @@ public class ApiCallSection {
         this.api = api;
     }
 
+    public ApiCallSection copyWithNewApi(String api) {
+        ApiCallSection copy = new ApiCallSection(api);
+        for (var e : params.entrySet()) {
+            copy.addParam(e.getKey(), e.getValue());
+        }
+        copy.addHeaders(headers);
+        for (var b : bodies) {
+            copy.addBody(b);
+        }
+        copy.nodeSelector = nodeSelector;
+        return copy;
+    }
+
     public String getApi() {
         return api;
     }

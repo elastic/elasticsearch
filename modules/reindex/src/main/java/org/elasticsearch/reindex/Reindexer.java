@@ -342,8 +342,8 @@ public class Reindexer {
                 }
 
                 /*
-                 * The rest of the index request just has to be copied from the template. It may be changed later from scripts or the superclass
-                 * here on out operates on the index request rather than the template.
+                 * The rest of the index request just has to be copied from the template. It may be changed later from scripts or the
+                 * superclass here on out operates on the index request rather than the template.
                  */
                 index.routing(mainRequest.getDestination().routing());
                 index.setPipeline(mainRequest.getDestination().getPipeline());

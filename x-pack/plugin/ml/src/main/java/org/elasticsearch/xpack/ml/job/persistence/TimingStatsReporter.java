@@ -56,7 +56,6 @@ public class TimingStatsReporter {
     private void flush() {
         persistedTimingStats = new TimingStats(currentTimingStats);
         bulkResultsPersister.persistTimingStats(persistedTimingStats);
-        bulkResultsPersister.executeRequest();
     }
 
     /**

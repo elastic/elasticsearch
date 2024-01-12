@@ -25,7 +25,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx) {
-        return unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.PROJECT_UNQUOTED_IDENTIFIER());
+        return unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_ID_PATTERN());
     }
 
     @Override
@@ -33,7 +33,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.FROM_UNQUOTED_IDENTIFIER());
     }
 
-    static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {
+    protected static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {
         String result;
         if (quotedNode != null) {
             String identifier = quotedNode.getText();

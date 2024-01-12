@@ -11,7 +11,6 @@ import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -108,10 +107,7 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getPrerequisiteSection().isEmpty(), equalTo(false));
         assertThat(setupSection.getPrerequisiteSection(), notNullValue());
-        assertThat(
-            setupSection.getPrerequisiteSection().getSkipMessage(""),
-            containsString("Update doesn't return metadata fields, waiting for #3259")
-        );
+        assertThat(setupSection.getPrerequisiteSection().skipReason, equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(setupSection.getExecutableSections().size(), equalTo(2));
         assertThat(setupSection.getExecutableSections().get(0), instanceOf(DoSection.class));
         assertThat(((DoSection) setupSection.getExecutableSections().get(0)).getApiCallSection().getApi(), equalTo("index1"));

@@ -147,8 +147,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Get type mapping - pre 6.0"));
         assertThat(restTestSuite.getTestSections().get(1).getPrerequisiteSection().isEmpty(), equalTo(false));
         assertThat(
-            restTestSuite.getTestSections().get(1).getPrerequisiteSection().getSkipMessage(""),
-            containsString("for newer versions the index name is always returned")
+            restTestSuite.getTestSections().get(1).getPrerequisiteSection().skipReason,
+            equalTo("for newer versions the index name is always returned")
         );
 
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
@@ -419,8 +419,43 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
         assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
-        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().getSkipMessage(""), containsString("not supported"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipReason, containsString("not supported"));
         assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().yamlRunnerHasFeature("skip_os"), equalTo(true));
+    }
+
+    public void testParseSkipAndRequireClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "Broken on some os":
+
+              - skip:
+                  cluster_features:     [unsupported-feature1, unsupported-feature2]
+                  reason:      "unsupported-features are not supported"
+              - requires:
+                  cluster_features:     required-feature1
+                  reason:      "required-feature1 is required"
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(
+            restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipReason,
+            equalTo("unsupported-features are not supported")
+        );
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().requireReason, equalTo("required-feature1 is required"));
     }
 
     public void testParseFileWithSingleTestSection() throws Exception {

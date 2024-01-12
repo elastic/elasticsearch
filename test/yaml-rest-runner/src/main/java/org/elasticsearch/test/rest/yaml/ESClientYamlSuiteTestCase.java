@@ -446,20 +446,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         // skip test if the whole suite (yaml file) is disabled
-        assumeFalse(
-            testCandidate.getSetupSection().getPrerequisiteSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getPrerequisiteSection().skip(restTestExecutionContext)
-        );
-        // skip test if the whole suite (yaml file) is disabled
-        assumeFalse(
-            testCandidate.getTeardownSection().getPrerequisiteSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getPrerequisiteSection().skip(restTestExecutionContext)
-        );
+        testCandidate.getSetupSection().getPrerequisiteSection().evaluate(restTestExecutionContext, testCandidate.getSuitePath());
+        testCandidate.getTeardownSection().getPrerequisiteSection().evaluate(restTestExecutionContext, testCandidate.getSuitePath());
         // skip test if test section is disabled
-        assumeFalse(
-            testCandidate.getTestSection().getPrerequisiteSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getPrerequisiteSection().skip(restTestExecutionContext)
-        );
+        testCandidate.getTestSection().getPrerequisiteSection().evaluate(restTestExecutionContext, testCandidate.getTestPath());
 
         // let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().isEmpty()) {

@@ -14,6 +14,7 @@ import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 import com.google.common.annotations.VisibleForTesting;
@@ -86,6 +87,9 @@ public class UpdateVersionsTask extends DefaultTask {
         Matcher m = VERSION_FIELD.matcher(field);
         if (m.find() == false) return Optional.empty();
 
+        // if it has a qualifier, ignore it for now, just use the official release. We're not using qualifiers anymore.
+        if (m.group(4) != null) return Optional.empty();
+
         return Optional.of(
             new Version(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), m.group(4))
         );
@@ -141,19 +145,37 @@ public class UpdateVersionsTask extends DefaultTask {
             .stream()
             .map(f -> Map.entry(f, parseVersionField(f.getVariable(0).getNameAsString())))
             .filter(e -> e.getValue().isPresent())
-            .collect(Collectors.toMap(e -> e.getValue().get(), Map.Entry::getKey, (v1, v2) -> {
-                throw new IllegalArgumentException("Duplicate version constants " + v1);
-            }, TreeMap::new));
+            .collect(
+                Collectors.toMap(
+                    e -> e.getValue().get(),
+                    Map.Entry::getKey,
+                    (v1, v2) -> { throw new IllegalArgumentException("Duplicate version constants " + v1); },
+                    TreeMap::new
+                )
+            );
 
         // find the version this should be inserted after
         var previousVersion = versions.lowerEntry(version);
         if (previousVersion == null) {
             throw new IllegalStateException(String.format("Could not find previous version to [%s]", version));
         }
+        // copy the lucene version argument from the previous version
+        String luceneFieldRef = previousVersion.getValue()
+            .getVariable(0)
+            .getInitializer()
+            .get()
+            .findFirst(FieldAccessExpr.class)
+            .orElseThrow(
+                () -> new IllegalStateException(
+                    String.format("Could not find lucene version from previous version declaration [%s]", previousVersion.getValue())
+                )
+            )
+            .toString();
+
         FieldDeclaration newVersion = createNewVersionConstant(
             previousVersion.getValue(),
             newFieldName,
-            String.format("%d_%02d_%02d_99", version.getMajor(), version.getMinor(), version.getRevision())
+            String.format("%d_%02d_%02d_99, %s", version.getMajor(), version.getMinor(), version.getRevision(), luceneFieldRef)
         );
         versionClass.getMembers().addAfter(newVersion, previousVersion.getValue());
 

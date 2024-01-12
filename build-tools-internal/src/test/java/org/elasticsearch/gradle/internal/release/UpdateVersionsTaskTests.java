@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 
@@ -36,15 +37,15 @@ public class UpdateVersionsTaskTests {
     public void addVersion_versionExists() {
         final String versionJava = """
             public class Version {
-                public static final Version V_8_10_0 = new Version(8_10_00_99);
-                public static final Version V_8_10_1 = new Version(8_10_01_99);
-                public static final Version V_8_11_0 = new Version(8_11_00_99);
-                public static final Version CURRENT = V_8_11_0;
+                public static final Version V_7_16_0 = new Version(7_16_00_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_16_1 = new Version(7_16_01_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+                public static final Version CURRENT = V_7_17_0;
             }""";
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        var newUnit = UpdateVersionsTask.addVersionConstant(unit, Version.fromString("8.10.1"), false);
+        var newUnit = UpdateVersionsTask.addVersionConstant(unit, Version.fromString("7.17.0"), false);
         assertThat(newUnit.isPresent(), is(false));
     }
 
@@ -52,29 +53,29 @@ public class UpdateVersionsTaskTests {
     public void addVersion_oldVersion() {
         final String versionJava = """
             public class Version {
-                public static final Version V_8_10_0 = new Version(8_10_00_99);
-                public static final Version V_8_10_1 = new Version(8_10_01_99);
-                public static final Version V_8_11_0 = new Version(8_11_00_99);
-                public static final Version CURRENT = V_8_11_0;
+                public static final Version V_7_16_0 = new Version(7_16_00_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_16_1 = new Version(7_16_01_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+                public static final Version CURRENT = V_7_17_0;
             }""";
         final String updatedVersionJava = """
             public class Version {
 
-                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_7_16_0 = new Version(7_16_00_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
 
-                public static final Version V_8_10_1 = new Version(8_10_01_99);
+                public static final Version V_7_16_1 = new Version(7_16_01_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
 
-                public static final Version V_8_10_2 = new Version(8_10_02_99);
+                public static final Version V_7_16_2 = new Version(7_16_02_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
 
-                public static final Version V_8_11_0 = new Version(8_11_00_99);
+                public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
 
-                public static final Version CURRENT = V_8_11_0;
+                public static final Version CURRENT = V_7_17_0;
             }
             """;
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        UpdateVersionsTask.addVersionConstant(unit, Version.fromString("8.10.2"), false);
+        UpdateVersionsTask.addVersionConstant(unit, Version.fromString("7.16.2"), false);
 
         assertThat(unit, hasToString(updatedVersionJava));
     }
@@ -83,29 +84,29 @@ public class UpdateVersionsTaskTests {
     public void addVersion_newVersion_current() {
         final String versionJava = """
             public class Version {
-                public static final Version V_8_10_0 = new Version(8_10_00_99);
-                public static final Version V_8_10_1 = new Version(8_10_01_99);
-                public static final Version V_8_11_0 = new Version(8_11_00_99);
-                public static final Version CURRENT = V_8_11_0;
+                public static final Version V_7_16_0 = new Version(7_16_00_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_16_1 = new Version(7_16_01_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+                public static final Version CURRENT = V_7_17_0;
             }""";
         final String updatedVersionJava = """
             public class Version {
 
-                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_7_16_0 = new Version(7_16_00_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
 
-                public static final Version V_8_10_1 = new Version(8_10_01_99);
+                public static final Version V_7_16_1 = new Version(7_16_01_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
 
-                public static final Version V_8_11_0 = new Version(8_11_00_99);
+                public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
 
-                public static final Version V_8_11_1 = new Version(8_11_01_99);
+                public static final Version V_7_17_1 = new Version(7_17_01_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
 
-                public static final Version CURRENT = V_8_11_1;
+                public static final Version CURRENT = V_7_17_1;
             }
             """;
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        UpdateVersionsTask.addVersionConstant(unit, Version.fromString("8.11.1"), true);
+        UpdateVersionsTask.addVersionConstant(unit, Version.fromString("7.17.1"), true);
 
         assertThat(unit, hasToString(updatedVersionJava));
     }
@@ -114,15 +115,15 @@ public class UpdateVersionsTaskTests {
     public void removeVersion_versionDoesntExist() {
         final String versionJava = """
             public class Version {
-                public static final Version V_8_10_0 = new Version(8_10_00_99);
-                public static final Version V_8_10_1 = new Version(8_10_01_99);
-                public static final Version V_8_11_0 = new Version(8_11_00_99);
-                public static final Version CURRENT = V_8_11_0;
+                public static final Version V_7_16_0 = new Version(7_16_00_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_16_1 = new Version(7_16_01_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+                public static final Version CURRENT = V_7_17_0;
             }""";
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        var newUnit = UpdateVersionsTask.removeVersionConstant(unit, Version.fromString("8.10.2"));
+        var newUnit = UpdateVersionsTask.removeVersionConstant(unit, Version.fromString("7.16.2"));
         assertThat(newUnit.isPresent(), is(false));
     }
 
@@ -130,44 +131,44 @@ public class UpdateVersionsTaskTests {
     public void removeVersion_versionIsCurrent() {
         final String versionJava = """
             public class Version {
-                public static final Version V_8_10_0 = new Version(8_10_00_99);
-                public static final Version V_8_10_1 = new Version(8_10_01_99);
-                public static final Version V_8_11_0 = new Version(8_11_00_99);
-                public static final Version CURRENT = V_8_11_0;
+                public static final Version V_7_16_0 = new Version(7_16_00_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_16_1 = new Version(7_16_01_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+                public static final Version CURRENT = V_7_17_0;
             }""";
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
         var ex = assertThrows(
             IllegalArgumentException.class,
-            () -> UpdateVersionsTask.removeVersionConstant(unit, Version.fromString("8.11.0"))
+            () -> UpdateVersionsTask.removeVersionConstant(unit, Version.fromString("7.17.0"))
         );
-        assertThat(ex.getMessage(), equalTo("Cannot remove version [8.11.0], it is referenced by CURRENT"));
+        assertThat(ex.getMessage(), equalTo("Cannot remove version [7.17.0], it is referenced by CURRENT"));
     }
 
     @Test
     public void removeVersion() {
         final String versionJava = """
             public class Version {
-                public static final Version V_8_10_0 = new Version(8_10_00_99);
-                public static final Version V_8_10_1 = new Version(8_10_01_99);
-                public static final Version V_8_11_0 = new Version(8_11_00_99);
-                public static final Version CURRENT = V_8_11_0;
+                public static final Version V_7_16_0 = new Version(7_16_00_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_16_1 = new Version(7_16_01_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
+                public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+                public static final Version CURRENT = V_7_17_0;
             }""";
         final String updatedVersionJava = """
             public class Version {
 
-                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_7_16_0 = new Version(7_16_00_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
 
-                public static final Version V_8_11_0 = new Version(8_11_00_99);
+                public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
 
-                public static final Version CURRENT = V_8_11_0;
+                public static final Version CURRENT = V_7_17_0;
             }
             """;
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        UpdateVersionsTask.removeVersionConstant(unit, Version.fromString("8.10.1"));
+        UpdateVersionsTask.removeVersionConstant(unit, Version.fromString("7.16.1"));
 
         assertThat(unit, hasToString(updatedVersionJava));
     }
@@ -200,7 +201,14 @@ public class UpdateVersionsTaskTests {
         assertThat(
             field.get().getVariable(0).getInitializer().get(),
             hasToString(
-                String.format("new Version(%d_%02d_%02d_99)", newVersion.getMajor(), newVersion.getMinor(), newVersion.getRevision())
+                matchesRegex(
+                    String.format(
+                        "new Version\\(%d_%02d_%02d_99, (org.apache.lucene.util.Version.)?LUCENE_[0-9_]+\\)",
+                        newVersion.getMajor(),
+                        newVersion.getMinor(),
+                        newVersion.getRevision()
+                    )
+                )
             )
         );
         // and CURRENT has been updated

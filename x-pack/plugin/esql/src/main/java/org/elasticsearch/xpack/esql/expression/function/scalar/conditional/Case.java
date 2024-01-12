@@ -17,6 +17,8 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -44,7 +46,44 @@ public final class Case extends ScalarFunction implements EvaluatorMapper {
     private final Expression elseValue;
     private DataType dataType;
 
-    public Case(Source source, Expression first, List<Expression> rest) {
+    @FunctionInfo(
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "date",
+            "double",
+            "geo_point",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "text",
+            "unsigned_long",
+            "version" },
+        description = """
+            Accepts pairs of conditions and values.
+            The function returns the value that belongs to the first condition that evaluates to true."""
+    )
+    public Case(
+        Source source,
+        @Param(name = "condition", type = { "boolean" }) Expression first,
+        @Param(
+            name = "rest",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "date",
+                "double",
+                "geo_point",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
+        ) List<Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
         int conditionCount = children().size() / 2;
         conditions = new ArrayList<>(conditionCount);

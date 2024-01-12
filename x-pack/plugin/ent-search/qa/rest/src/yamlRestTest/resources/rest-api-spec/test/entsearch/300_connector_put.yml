@@ -101,3 +101,17 @@ setup:
           service_type: super-connector
 
   - match: { result: 'updated' }
+
+---
+'Create Connector - Invalid Index Name':
+  - do:
+      catch: "bad_request"
+      connector.put:
+        connector_id: test-connector-recreating
+        body:
+          index_name: _this-is-invalid-index-name
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+

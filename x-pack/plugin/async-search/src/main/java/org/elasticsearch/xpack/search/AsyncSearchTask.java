@@ -482,7 +482,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                  */
                 reducedAggs = () -> InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase, false);
+            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }
 
         /**
@@ -496,7 +496,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             if (delegate != null) {
                 delegate.onFinalReduce(shards, totalHits, aggregations, reducePhase);
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase, true);
+            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
         }
 
         /**

@@ -104,15 +104,13 @@ class MutableSearchResponse implements Releasable {
      * @param totalHits
      * @param reducedAggs is a strategy for producing the reduced aggs
      * @param reducePhase
-     * @param finalReduce indicates whether this is the final "partial reduction" set of TotalHits and reducedAggs data
      */
     @SuppressWarnings("HiddenField")
     synchronized void updatePartialResponse(
         int successfulShards,
         TotalHits totalHits,
         Supplier<InternalAggregations> reducedAggs,
-        int reducePhase,
-        boolean finalReduce
+        int reducePhase
     ) {
         failIfFrozen();
         if (reducePhase < this.reducePhase) {
@@ -156,6 +154,7 @@ class MutableSearchResponse implements Releasable {
      * @param clusterResponse SearchResponse from cluster 'clusterAlias'
      */
     synchronized void updateResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
+        clusterResponse.mustIncRef();  // TODO: do I need this? They are now decRef'd in the close method of this class
         if (clusterResponses == null) {
             clusterResponses = new ArrayList<>();
         }
@@ -259,7 +258,12 @@ class MutableSearchResponse implements Releasable {
                      */
                     InternalAggregations reducedAggs = reducedAggsSource.get();
                     reducedAggsSource = () -> reducedAggs;
-                    searchResponse = getMergedResponse(searchResponseMerger, buildResponse(task.getStartTimeNanos(), reducedAggs));
+                    SearchResponse partialAggsSearchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
+                    try {
+                        searchResponse = getMergedResponse(searchResponseMerger, partialAggsSearchResponse);
+                    } finally {
+                        partialAggsSearchResponse.decRef();  // TODO: do I need this?
+                    }
                 } else {
                     /*
                      * For CCS MRT=true and the local cluster has reported back only full results (final reduce),
@@ -306,13 +310,7 @@ class MutableSearchResponse implements Releasable {
         if (task.getSearchResponseMergerSupplier() == null) {
             return null; // local search and CCS minimize_roundtrips=false
         }
-        SearchResponseMerger merger = task.getSearchResponseMergerSupplier().get();
-        if (clusterResponses != null) {
-            for (SearchResponse response : clusterResponses) {
-                merger.add(response);
-            }
-        }
-        return merger;
+        return task.getSearchResponseMergerSupplier().get();
     }
 
     private SearchResponse getMergedResponse(SearchResponseMerger merger) {
@@ -480,6 +478,11 @@ class MutableSearchResponse implements Releasable {
     public void close() {
         if (finalResponse != null) {
             finalResponse.decRef();
+        }
+        if (clusterResponses != null) {
+            for (SearchResponse clusterResponse : clusterResponses) {
+                clusterResponse.decRef();
+            }
         }
     }
 }

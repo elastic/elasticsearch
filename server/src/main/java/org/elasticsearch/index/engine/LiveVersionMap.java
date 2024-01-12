@@ -487,7 +487,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      * reclaimed by refreshing. It doesn't include tombstones since they don't get cleared on refresh, nor the old version map that
      * is being reclaimed.
      */
-    long reclaimableRamBytes() {
+    long reclaimableRefreshRamBytes() {
         return maps.current.ramBytesUsed.get();
     }
 

@@ -10,7 +10,7 @@ validations and assertions to ensure that the state representation in the intern
 
 [TIP]
 ====
-Use our https://github.com/elastic/connectors/blob/main/docs/CLI.md[CLI] to manage connectors and sync jobs programmatically.
+We also have a command-line interface for Elastic connectors. Learn more in the https://github.com/elastic/connectors/blob/main/docs/CLI.md[elastic/connectors] repository.
 ====
 
 [discrete]

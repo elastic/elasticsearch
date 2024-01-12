@@ -26,7 +26,6 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -45,7 +44,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     @Inject
     public TransportReindexAction(
         Settings settings,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
@@ -58,7 +56,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         this(
             ReindexAction.NAME,
             settings,
-            threadPool,
             actionFilters,
             indexNameExpressionResolver,
             clusterService,
@@ -73,7 +70,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     protected TransportReindexAction(
         String name,
         Settings settings,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
@@ -86,7 +82,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
-        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);
+        this.reindexer = new Reindexer(clusterService, client, scriptService, sslConfig);
     }
 
     @Override

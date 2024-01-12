@@ -9,10 +9,13 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Reindex test for routing.
@@ -73,9 +76,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
             super(
                 ReindexMetadataTests.this.task,
                 ReindexMetadataTests.this.logger,
-                null,
-                null,
-                ReindexMetadataTests.this.threadPool,
+                mock(ParentTaskAssigningClient.class),
+                mock(ParentTaskAssigningClient.class),
                 null,
                 ClusterState.EMPTY_STATE,
                 null,

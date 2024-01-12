@@ -8,6 +8,8 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -29,6 +31,8 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Reindex tests for picking ids.
@@ -100,6 +104,19 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
     }
 
     private Reindexer.AsyncIndexBySearchAction action(ClusterState state) {
-        return new Reindexer.AsyncIndexBySearchAction(task, logger, null, null, threadPool, null, state, null, request(), listener());
+        var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        var parentAssigningClient = new ParentTaskAssigningClient(client, null);
+        return new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            parentAssigningClient,
+            parentAssigningClient,
+            null,
+            state,
+            null,
+            request(),
+            listener()
+        );
     }
 }

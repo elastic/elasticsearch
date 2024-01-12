@@ -17,23 +17,21 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * Implementation of delete-by-query using scrolling and bulk.
  */
-public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
+public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest> {
 
     public AsyncDeleteByQueryAction(
         BulkByScrollTask task,
         Logger logger,
         ParentTaskAssigningClient client,
-        ThreadPool threadPool,
         DeleteByQueryRequest request,
         ScriptService scriptService,
         ActionListener<BulkByScrollResponse> listener
     ) {
-        super(task, false, true, logger, client, threadPool, request, listener, scriptService, null);
+        super(task, false, true, logger, client, request, listener, scriptService, null);
     }
 
     @Override

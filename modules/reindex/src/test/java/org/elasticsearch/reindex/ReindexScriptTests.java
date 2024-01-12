@@ -9,16 +9,19 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.ScriptService;
-import org.mockito.Mockito;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests reindex with a script modifying the documents.
@@ -88,13 +91,15 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
 
     @Override
     protected Reindexer.AsyncIndexBySearchAction action(ScriptService scriptService, ReindexRequest request) {
-        ReindexSslConfig sslConfig = Mockito.mock(ReindexSslConfig.class);
+        ReindexSslConfig sslConfig = mock(ReindexSslConfig.class);
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        var parentTaskAssigningClient = new ParentTaskAssigningClient(client, null);
         return new Reindexer.AsyncIndexBySearchAction(
             task,
             logger,
-            null,
-            null,
-            threadPool,
+            parentTaskAssigningClient,
+            parentTaskAssigningClient,
             scriptService,
             ClusterState.EMPTY_STATE,
             sslConfig,

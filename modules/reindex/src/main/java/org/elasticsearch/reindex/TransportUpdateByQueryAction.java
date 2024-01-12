@@ -15,8 +15,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -31,7 +29,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateByQueryMetadata;
 import org.elasticsearch.script.UpdateByQueryScript;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
@@ -40,25 +37,21 @@ import java.util.function.LongSupplier;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
 
-    private final ThreadPool threadPool;
     private final Client client;
     private final ScriptService scriptService;
-    private final ClusterService clusterService;
+    private final TransportService transportService;
 
     @Inject
     public TransportUpdateByQueryAction(
-        ThreadPool threadPool,
         ActionFilters actionFilters,
         Client client,
         TransportService transportService,
-        ScriptService scriptService,
-        ClusterService clusterService
+        ScriptService scriptService
     ) {
         super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
-        this.clusterService = clusterService;
+        this.transportService = transportService;
     }
 
     @Override
@@ -70,16 +63,14 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             UpdateByQueryAction.INSTANCE,
             listener,
             client,
-            clusterService.localNode(),
+            transportService.getLocalNode(),
             () -> {
-                ClusterState state = clusterService.state();
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
-                    clusterService.localNode(),
+                    transportService.getLocalNode(),
                     bulkByScrollTask
                 );
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, request, state, listener)
-                    .start();
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, scriptService, request, listener).start();
             }
         );
     }
@@ -87,16 +78,14 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     /**
      * Simple implementation of update-by-query using scrolling and bulk.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest> {
 
         AsyncIndexBySearchAction(
             BulkByScrollTask task,
             Logger logger,
             ParentTaskAssigningClient client,
-            ThreadPool threadPool,
             ScriptService scriptService,
             UpdateByQueryRequest request,
-            ClusterState clusterState,
             ActionListener<BulkByScrollResponse> listener
         ) {
             super(
@@ -106,7 +95,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 true,
                 logger,
                 client,
-                threadPool,
                 request,
                 listener,
                 scriptService,

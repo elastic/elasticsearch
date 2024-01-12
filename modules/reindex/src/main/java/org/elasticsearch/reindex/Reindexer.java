@@ -79,20 +79,12 @@ public class Reindexer {
 
     private final ClusterService clusterService;
     private final Client client;
-    private final ThreadPool threadPool;
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
 
-    Reindexer(
-        ClusterService clusterService,
-        Client client,
-        ThreadPool threadPool,
-        ScriptService scriptService,
-        ReindexSslConfig reindexSslConfig
-    ) {
+    Reindexer(ClusterService clusterService, Client client, ScriptService scriptService, ReindexSslConfig reindexSslConfig) {
         this.clusterService = clusterService;
         this.client = client;
-        this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
     }
@@ -117,7 +109,6 @@ public class Reindexer {
                     logger,
                     assigningClient,
                     assigningBulkClient,
-                    threadPool,
                     scriptService,
                     clusterService.state(),
                     reindexSslConfig,
@@ -184,7 +175,7 @@ public class Reindexer {
      * but this makes no attempt to do any of them so it can be as simple
      * possible.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest, TransportReindexAction> {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest> {
         /**
          * Mapper for the {@code _id} of the destination index used to
          * normalize {@code _id}s landing in the index.
@@ -204,7 +195,6 @@ public class Reindexer {
             Logger logger,
             ParentTaskAssigningClient searchClient,
             ParentTaskAssigningClient bulkClient,
-            ThreadPool threadPool,
             ScriptService scriptService,
             ClusterState state,
             ReindexSslConfig sslConfig,
@@ -222,7 +212,6 @@ public class Reindexer {
                 logger,
                 searchClient,
                 bulkClient,
-                threadPool,
                 request,
                 listener,
                 scriptService,

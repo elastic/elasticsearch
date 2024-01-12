@@ -21,5 +21,5 @@ public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
         return new ScrollableHitSource.BasicHit("index", "id", 0);
     }
 
-    protected abstract AbstractAsyncBulkByScrollAction<Request, ?> action();
+    protected abstract AbstractAsyncBulkByScrollAction<Request> action();
 }

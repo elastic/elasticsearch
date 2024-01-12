@@ -80,7 +80,6 @@ abstract class AbstractPreserveAllocations {
 
         AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, deployments);
         for (Node n : nodes) {
-            // TODO (#101612) Should the first loop happen in the builder constructor?
             for (Deployment deploymentAllocationsToPreserve : deployments) {
 
                 // if the model m is already allocated on the node n and I want to preserve this allocation

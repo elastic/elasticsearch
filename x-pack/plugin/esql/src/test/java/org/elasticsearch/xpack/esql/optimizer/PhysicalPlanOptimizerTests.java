@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Grea
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -68,9 +70,13 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
@@ -93,6 +99,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.Expressions.names;
 import static org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC;
@@ -116,12 +123,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataTypes.KEYWORD);
 
     private EsqlParser parser;
-    private Analyzer analyzer;
     private LogicalPlanOptimizer logicalOptimizer;
     private PhysicalPlanOptimizer physicalPlanOptimizer;
     private Mapper mapper;
     private Map<String, EsField> mapping;
+    private Analyzer analyzer;
     private int allFieldRowSize;
+    private static Map<String, EsField> mappingAirports;
+    private static Analyzer analyzerAirports;
 
     private final EsqlConfiguration config;
 
@@ -144,21 +153,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     @Before
     public void init() {
         parser = new EsqlParser();
-
-        mapping = loadMapping("mapping-basic.json");
-        allFieldRowSize = mapping.values()
-            .stream()
-            .mapToInt(
-                f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())) + f.getProperties()
-                    .values()
-                    .stream()
-                    // check one more level since the mapping contains TEXT fields with KEYWORD multi-fields
-                    .mapToInt(x -> EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(x.getDataType())))
-                    .sum())
-            )
-            .sum();
-        EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -174,7 +168,32 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
         enrichResolution.addExistingPolicies(Set.of("foo"));
+
+        // Most tests used data from the test index, so we load it here, and use it in the plan() function.
+        mapping = loadMapping("mapping-basic.json");
+        EsIndex test = new EsIndex("test", mapping);
+        IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
+        allFieldRowSize = mapping.values()
+            .stream()
+            .mapToInt(
+                f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())) + f.getProperties()
+                    .values()
+                    .stream()
+                    // check one more level since the mapping contains TEXT fields with KEYWORD multi-fields
+                    .mapToInt(x -> EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(x.getDataType())))
+                    .sum())
+            )
+            .sum();
+
+        // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
+        mappingAirports = loadMapping("mapping-airports.json");
+        EsIndex airports = new EsIndex("airports", mappingAirports);
+        IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
+        analyzerAirports = new Analyzer(
+            new AnalyzerContext(config, functionRegistry, getIndexResultAirports, enrichResolution),
+            TEST_VERIFIER
+        );
     }
 
     public void testSingleFieldExtractor() {
@@ -2041,6 +2060,76 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(source.output()), contains("sum", "seen", "count", "seen"));
     }
 
+    /**
+     * Before local optimizations:
+     *
+     * imitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],FINAL,null]
+     *   \_ExchangeExec[[xVal{r}#10, xDel{r}#11, yVal{r}#12, yDel{r}#13, count{r}#14],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[<>
+     * Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
+     * \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]<>]]
+     *
+     * After local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],FINAL,50]
+     *   \_ExchangeExec[[xVal{r}#10, xDel{r}#11, yVal{r}#12, yDel{r}#13, count{r}#14],true]
+     *     \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],PARTIAL,50]
+     *       \_FilterExec[ISNOTNULL(location{f}#9)]
+     *         \_FieldExtractExec[location{f}#9][location{f}#9]
+     *           \_EsQueryExec[airports], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[54]
+     *
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     */
+    public void testSpatialTypesAndStatsUseDocValues() {
+        var plan = physicalPlanAirports("""
+            from test
+            | stats centroid = st_centroid(location)
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fAgg = as(fragment.fragment(), Aggregate.class);
+        as(fAgg.child(), EsRelation.class);
+
+        var optimized = optimizedPlan(plan);
+        limit = as(optimized, LimitExec.class);
+        agg = as(limit.child(), AggregateExec.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT);
+        exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT);
+        var filter = as(agg.child(), FilterExec.class);
+        var extract = as(filter.child(), FieldExtractExec.class);
+        source(extract.child());
+        assertTrue("Expect attributes to be forStats", extract.attributesToExtract().stream().allMatch(attr -> {
+            boolean forStats = extract.forStats(attr);
+            return forStats && attr.dataType() == GEO_POINT;
+        }));
+    }
+
+    private static void assertAggregation(
+        PhysicalPlan plan,
+        String aliasName,
+        Class<? extends AggregateFunction> aggClass,
+        DataType fieldType
+    ) {
+        var agg = as(plan, AggregateExec.class);
+        assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
+            var alias = as(aggExp, Alias.class);
+            assertThat(alias.name(), is(aliasName));
+            var aggFunc = as(alias.child(), AggregateFunction.class);
+            assertThat(aggFunc, instanceOf(aggClass));
+            var aggField = as(aggFunc.field(), FieldAttribute.class);
+            return aggField.dataType() == fieldType;
+        }));
+    }
+
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();
@@ -2099,6 +2188,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan physicalPlan(String query) {
         var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        // System.out.println("Logical\n" + logical);
+        var physical = mapper.map(logical);
+        // System.out.println(physical);
+        assertSerialization(physical);
+        return physical;
+    }
+
+    private PhysicalPlan physicalPlanAirports(String query) {
+        var logical = logicalOptimizer.optimize(analyzerAirports.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println(physical);

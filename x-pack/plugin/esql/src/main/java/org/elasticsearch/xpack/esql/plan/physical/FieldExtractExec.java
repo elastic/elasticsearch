@@ -13,17 +13,24 @@ import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
 public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     private final List<Attribute> attributesToExtract;
     private final Attribute sourceAttribute;
+    private final HashSet<Attribute> forStats;
 
-    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
+    private FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract, HashSet<Attribute> forStats) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
+        this.forStats = forStats;
+    }
+
+    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
+        this(source, child, attributesToExtract, new HashSet<>());
     }
 
     public static Attribute extractSourceAttributesFrom(PhysicalPlan plan) {
@@ -32,12 +39,12 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<FieldExtractExec> info() {
-        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract);
+        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, forStats);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, attributesToExtract);
+        return new FieldExtractExec(source(), newChild, attributesToExtract, forStats);
     }
 
     public List<Attribute> attributesToExtract() {
@@ -63,7 +70,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributesToExtract, child());
+        return Objects.hash(attributesToExtract, forStats, child());
     }
 
     @Override
@@ -77,11 +84,26 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         }
 
         FieldExtractExec other = (FieldExtractExec) obj;
-        return Objects.equals(attributesToExtract, other.attributesToExtract) && Objects.equals(child(), other.child());
+        return Objects.equals(attributesToExtract, other.attributesToExtract)
+            && Objects.equals(forStats, other.forStats)
+            && Objects.equals(child(), other.child());
     }
 
     @Override
     public String nodeString() {
-        return nodeName() + NodeUtils.limitedToString(attributesToExtract);
+        return nodeName() + NodeUtils.limitedToString(attributesToExtract) + NodeUtils.limitedToString(forStats);
+    }
+
+    public FieldExtractExec withForStats(Attribute attr) {
+        HashSet<Attribute> newForStats = new HashSet<>(forStats);
+        newForStats.add(attr);
+        return new FieldExtractExec(source(), child(), attributesToExtract, newForStats);
+    }
+
+    /**
+     * Returns true if the given attribute is extracted for usage in STATS.
+     */
+    public boolean forStats(Attribute attr) {
+        return forStats.contains(attr);
     }
 }

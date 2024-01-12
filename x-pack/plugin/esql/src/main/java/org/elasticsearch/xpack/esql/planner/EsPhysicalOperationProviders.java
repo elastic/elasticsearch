@@ -104,7 +104,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ElementType elementType = PlannerUtils.toElementType(dataType);
             String fieldName = attr.name();
             boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
-            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported, false);
+            IntFunction<BlockLoader> loader = s -> shardContexts.get(s)
+                .blockLoader(fieldName, isSupported, fieldExtractExec.forStats(attr));
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());

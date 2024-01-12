@@ -91,6 +91,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -115,15 +116,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Analyzer analyzer;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static Map<String, EsField> mapping;
+    private static Map<String, EsField> mappingAirports;
+    private static Analyzer analyzerAirports;
 
     @BeforeClass
     public static void init() {
         parser = new EsqlParser();
-
-        mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         var enrichResolution = AnalyzerTestUtils.loadEnrichPolicyResolution(
             "languages_idx",
@@ -131,8 +129,27 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             "languages_idx",
             "mapping-languages.json"
         );
+
+        // Most tests used data from the test index, so we load it here, and use it in the plan() function.
+        mapping = loadMapping("mapping-basic.json");
+        EsIndex test = new EsIndex("test", mapping);
+        IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
+            TEST_VERIFIER
+        );
+
+        // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
+        mappingAirports = loadMapping("mapping-airports.json");
+        EsIndex airports = new EsIndex("airports", mappingAirports);
+        IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
+        analyzerAirports = new Analyzer(
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResultAirports,
+                new EnrichResolution(Set.of(policy), Set.of("languages_idx", "something"))
+            ),
             TEST_VERIFIER
         );
     }
@@ -2760,12 +2777,45 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var from = as(eval.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
+     *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]
+     */
+    public void testSpatialTypesAndStatsUseDocValues() {
+        var plan = planAirports("""
+            from test
+            | stats centroid = st_centroid(location)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
+        assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
+            var alias = as(aggExp, Alias.class);
+            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggField = as(aggFunc.field(), FieldAttribute.class);
+            return aggField.dataType() == GEO_POINT;
+        }));
+
+        var from = as(agg.child(), EsRelation.class);
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }
 
     private LogicalPlan plan(String query) {
         var analyzed = analyzer.analyze(parser.createStatement(query));
+        // System.out.println(analyzed);
+        var optimized = logicalOptimizer.optimize(analyzed);
+        // System.out.println(optimized);
+        return optimized;
+    }
+
+    private LogicalPlan planAirports(String query) {
+        var analyzed = analyzerAirports.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);

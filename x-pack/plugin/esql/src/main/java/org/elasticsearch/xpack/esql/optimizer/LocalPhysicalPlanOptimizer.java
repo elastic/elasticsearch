@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.Queries;
 import org.elasticsearch.xpack.ql.util.Queries.Clause;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -73,6 +75,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
@@ -113,7 +116,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
-        var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction());
+        var fieldExtraction = new Batch<>(
+            "Field extraction",
+            Limiter.ONCE,
+            new InsertFieldExtraction(),
+            new SpatialFromDocValuesExtraction()
+        );
         return asList(pushdown, fieldExtraction);
     }
 
@@ -427,4 +435,31 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return false;
     }
 
+    private static class SpatialFromDocValuesExtraction extends OptimizerRule<AggregateExec> {
+        @Override
+        protected PhysicalPlan rule(AggregateExec aggregate) {
+            var foundAttribute = new Holder<Attribute>(null);
+
+            PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
+                if (exec instanceof AggregateExec agg) {
+                    for (NamedExpression aggExpr : agg.aggregates()) {
+                        if (aggExpr instanceof Alias as && as.child() instanceof AggregateFunction af && isSpatial(af.field().dataType())) {
+                            if (af.field() instanceof Attribute fieldAttribute) {
+                                foundAttribute.set(fieldAttribute);
+                            } else {
+                                throw new RuntimeException("Expected field attribute, got " + af.field());
+                            }
+                        }
+                    }
+                }
+                if (exec instanceof FieldExtractExec fieldExtractExec) {
+                    if (foundAttribute.get() != null && fieldExtractExec.attributesToExtract().contains(foundAttribute.get())) {
+                        exec = fieldExtractExec.withForStats(foundAttribute.get());
+                    }
+                }
+                return exec;
+            });
+            return plan;
+        }
+    }
 }

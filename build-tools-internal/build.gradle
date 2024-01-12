@@ -262,6 +262,9 @@ dependencies {
   api buildLibs.asm.tree
 
   compileOnly buildLibs.checkstyle
+
+  implementation 'com.github.javaparser:javaparser-core:3.18.0'
+
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle
   testImplementation buildLibs.wiremock

@@ -15,43 +15,165 @@ setup:
 
   - do:
       index:
-        index: test-histogram-scale1
+        index: test-histogram
+        refresh: true
         body:
           histogram:
-            scale: 1
+            scale: 10
             positive:
-              counts: [1, 0, 0, 2]
+              values: [1, 10, 100, 1000, 10000]
+              counts: [1, 2, 3, 4, 5]
 
   - do:
       index:
-        index: test-histogram-scale2
+        index: test-histogram-scale10
+        refresh: true
         body:
           histogram:
-            scale: 2
+            scale: 10
             positive:
-              counts: [1, 0, 0, 2]
+              values: [1, 10, 100]
+              counts: [1, 2, 3]
 
   - do:
-      indices.refresh: {}
+      index:
+        index: test-histogram-scale8
+        refresh: true
+        body:
+          histogram:
+            scale: 8
+            positive:
+              values: [1000, 10000]
+              counts: [4, 5]
+
+---
+"Search exponential histograms":
+  - do:
+      search:
+        index: test-histogram
+  - length: {hits.hits: 1}
+  - match:
+      hits.hits.0._source.histogram:
+        scale: 10
+        positive:
+          values: [1, 10, 100, 1000, 10000]
+          counts: [1, 2, 3, 4, 5]
 
 ---
 "Merge exponential histograms":
-
   - do:
       search:
-        index: test-histogram-*
+        index: test-histogram
         body:
           size: 0
           aggs:
-            histogram_of_histograms:
-              # TODO(axw) exponential_histogram aggregation
-              histogram:
+            histogram_max_scale_10:
+              exponential_histogram:
                 field: histogram
-#
-#  - match: { aggregations.event_terms.buckets.0.key: "b" }
-#  - match: { aggregations.event_terms.buckets.0.doc_count: 4 }
-#  - match: { aggregations.event_terms.buckets.1.key: "a" }
-#  - match: { aggregations.event_terms.buckets.1.doc_count: 3 }
-#  - match: { aggregations.event_terms.buckets.2.key: "c" }
-#  - match: { aggregations.event_terms.buckets.2.doc_count: 2 }
-#  - length: { aggregations.event_terms.buckets: 3 }
+                max_scale: 10
+            histogram_max_scale_9:
+              exponential_histogram:
+                field: histogram
+                max_scale: 9
+            histogram_max_scale_8:
+              exponential_histogram:
+                field: histogram
+                max_scale: 8
+            histogram_max_buckets_2:
+              exponential_histogram:
+                field: histogram
+                max_buckets: 2
+
+  - match:
+      aggregations:
+        histogram_max_buckets_2:
+          scale: -4
+          buckets:
+            - lower_bound: 1.52587890625E-5
+              upper_bound: 1.0
+              count: 1
+            - lower_bound: 1.0
+              upper_bound: 65536.0
+              count: 14
+        histogram_max_scale_10:
+          scale: 10
+          buckets:
+            - lower_bound: 0.9993233275026507
+              upper_bound: 1.0
+              count: 1
+            - lower_bound: 10.002339854164209
+              upper_bound: 10.009112745481945
+              count: 2
+            - lower_bound: 100.04680255820169
+              upper_bound: 100.11454731895701
+              count: 3
+            - lower_bound: 1000.0249729066105
+              upper_bound: 1000.7021205095984
+              count: 4
+            - lower_bound: 10002.589641663273
+              upper_bound: 10009.362702119792
+              count: 5
+        histogram_max_scale_9:
+          scale: 9
+          buckets:
+            - lower_bound: 0.9986471128909702
+              upper_bound: 1.0
+              count: 1
+            - lower_bound: 10.002339854162791
+              upper_bound: 10.015890222930853
+              count: 2
+            - lower_bound: 100.04680255817334
+              upper_bound: 100.18233795174072
+              count: 3
+            - lower_bound: 999.3482835103575
+              upper_bound: 1000.7021205091731
+              count: 4
+            - lower_bound: 9995.821164344825
+              upper_bound: 10009.36270211412
+              count: 5
+        histogram_max_scale_8:
+          scale: 8
+          buckets:
+            - lower_bound: 0.9972960560854701
+              upper_bound: 1.0
+              count: 1
+            - lower_bound: 9.988807817513946
+              upper_bound: 10.015890222930839
+              count: 2
+            - lower_bound: 100.04680255817307
+              upper_bound: 100.31805695780157
+              count: 3
+            - lower_bound: 999.3482835103533
+              upper_bound: 1002.0577915778977
+              count: 4
+            - lower_bound: 9982.297946747361
+              upper_bound: 10009.362702114064
+              count: 5
+
+---
+"Exponential histogram percentiles":
+
+  - do:
+      search:
+        index: test-histogram
+        body:
+          size: 0
+          aggs:
+            histogram_percentiles:
+              # NOTE(axw) this should ideally be just "percentiles",
+              # which would know how to deal with the exponential
+              # histogram field type.
+              exponential_histogram_percentiles:
+                field: histogram
+
+  - match:
+      aggregations:
+        histogram_percentiles:
+          values:
+            "1.0": 1.0
+            "5.0": 1.0
+            "25.0": 10.002346467721672
+            "50.0": 1000.0256344524229
+            "75.0": 10002.596260311271
+            "95.0": 10002.596260311271
+            "99.0": 10002.596260311271

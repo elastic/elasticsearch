@@ -63,8 +63,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "exponential_histogram";
     // public static final String COUNT_FIELD_NAME_SUFFIX = "_count";
     //
-    // TODO(axw) count, sum, min, max
-
+    // TODO(axw) count, sum, min, max, zero_count, zero_threshold
     public static final ParseField SCALE_FIELD = new ParseField("scale");
     public static final ParseField POSITIVE_FIELD = new ParseField("positive");
     public static final ParseField NEGATIVE_FIELD = new ParseField("negative");
@@ -428,8 +427,6 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 lastBucket = bucket;
             }
             offset = buckets.get(0).getIndex();
-
-            System.out.println("aggregated: offset=" + offset + ", numCounts=" + counts.size());
         }
 
         static ExponentialHistogramBuckets parse(final XContentParser parser, final boolean negative) throws Exception {

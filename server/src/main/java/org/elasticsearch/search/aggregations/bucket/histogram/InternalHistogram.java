@@ -456,9 +456,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
         if (reduceContext.isFinalReduce()) {
             if (minDocCount == 0) {
-                for (Bucket b : reducedBuckets) {
-                    System.out.println("key:" + b.key + " count:" + b.docCount);
-                }
                 addEmptyBuckets(reducedBuckets, reduceContext);
             }
             if (InternalOrder.isKeyDesc(order)) {

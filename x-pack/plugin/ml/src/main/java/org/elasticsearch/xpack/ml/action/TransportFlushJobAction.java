@@ -66,10 +66,17 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
             timeRangeBuilder.endTime(request.getEnd());
         }
         paramsBuilder.forTimeRange(timeRangeBuilder.build());
-        processManager.flushJob(task, paramsBuilder.build(), ActionListener.wrap(flushAcknowledgement -> {
-            listener.onResponse(
-                new FlushJobAction.Response(true, flushAcknowledgement == null ? null : flushAcknowledgement.getLastFinalizedBucketEnd())
-            );
-        }, listener::onFailure));
+        processManager.flushJob(
+            task,
+            paramsBuilder.build(),
+            listener.delegateFailureAndWrap(
+                (l, flushAcknowledgement) -> l.onResponse(
+                    new FlushJobAction.Response(
+                        true,
+                        flushAcknowledgement == null ? null : flushAcknowledgement.getLastFinalizedBucketEnd()
+                    )
+                )
+            )
+        );
     }
 }

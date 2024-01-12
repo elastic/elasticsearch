@@ -16,6 +16,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -48,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
@@ -304,12 +307,53 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
-    public void updateRemoteClusterCredentials(Settings settings) {
-        remoteClusterCredentialsManager.updateClusterCredentials(settings);
+    public synchronized void updateRemoteClusterCredentials(Supplier<Settings> settingsSupplier, ActionListener<Void> listener) {
+        final Settings settings = settingsSupplier.get();
+        final UpdateRemoteClusterCredentialsResult result = remoteClusterCredentialsManager.updateClusterCredentials(settings);
+        // We only need to rebuild connections when a credential was newly added or removed for a cluster alias, not if the credential
+        // value was updated. Therefore, only consider added or removed aliases
+        final int totalConnectionsToRebuild = result.addedClusterAliases().size() + result.removedClusterAliases().size();
+        if (totalConnectionsToRebuild == 0) {
+            logger.debug("no connection rebuilding required after credentials update");
+            listener.onResponse(null);
+            return;
+        }
+        logger.info("rebuilding [{}] connections after credentials update", totalConnectionsToRebuild);
+        try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
+            for (var clusterAlias : result.addedClusterAliases()) {
+                maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, connectionRefs);
+            }
+            for (var clusterAlias : result.removedClusterAliases()) {
+                maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, connectionRefs);
+            }
+        }
     }
 
-    public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {
-        return remoteClusterCredentialsManager;
+    // package-private for testing
+
+    private void maybeRebuildConnectionOnCredentialsChange(String clusterAlias, Settings settings, RefCountingRunnable connectionRefs) {
+        if (false == remoteClusters.containsKey(clusterAlias)) {
+            // A credential was added or removed before a remote connection was configured.
+            // Without an existing connection, there is nothing to rebuild.
+            logger.info("no connection rebuild required for remote cluster [{}] after credentials change", clusterAlias);
+            return;
+        }
+
+        updateRemoteCluster(clusterAlias, settings, true, ActionListener.releaseAfter(new ActionListener<>() {
+            @Override
+            public void onResponse(RemoteClusterConnectionStatus status) {
+                logger.info("remote cluster connection [{}] updated after credentials change: [{}]", clusterAlias, status);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // We don't want to return an error to the upstream listener here since a connection rebuild failure
+                // does *not* imply a failure to reload secure settings; however, that's how it would surface in the reload-settings call.
+                // Instead, we log a warning which is also consistent with how we handle remote cluster settings updates (logging instead of
+                // returning an error)
+                logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "] after credentials change", e);
+            }
+        }, connectionRefs.acquire()));
     }
 
     @Override
@@ -346,9 +390,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param newSettings the updated settings for the remote connection
      * @param listener a listener invoked once every configured cluster has been connected to
      */
-    synchronized void updateRemoteCluster(
+    void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<RemoteClusterConnectionStatus> listener) {
+        updateRemoteCluster(clusterAlias, newSettings, false, listener);
+    }
+
+    private synchronized void updateRemoteCluster(
         String clusterAlias,
         Settings newSettings,
+        boolean forceRebuild,
         ActionListener<RemoteClusterConnectionStatus> listener
     ) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
@@ -373,7 +422,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
-        } else if (remote.shouldRebuildConnection(newSettings)) {
+        } else if (forceRebuild || remote.shouldRebuildConnection(newSettings)) {
             // Changes to connection configuration. Must tear down existing connection
             try {
                 IOUtils.close(remote);

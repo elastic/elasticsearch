@@ -596,6 +596,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
+        assertTrue("expect description to be defined", description.description() != null && description.description().length() > 0);
+
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new HashSet<>();
         for (int i = 0; i < args.size(); i++) {
@@ -611,21 +613,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         for (int i = 0; i < args.size(); i++) {
             Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toCollection(() -> new TreeSet<>()));
-            if (annotationTypes.equals(Set.of("?"))) {
-                continue; // TODO remove this eventually, so that all the functions will have to provide signature info
-            }
             Set<String> signatureTypes = typesFromSignature.get(i);
             if (signatureTypes.isEmpty()) {
                 continue;
             }
-            assertEquals(annotationTypes, signatureTypes);
+            assertEquals(signatureTypes, annotationTypes);
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(() -> new TreeSet<>()));
-        if (returnTypes.equals(Set.of("?")) == false) {
-            // TODO remove this eventually, so that all the functions will have to provide signature info
-            assertEquals(returnTypes, returnFromSignature);
-        }
+        assertEquals(returnFromSignature, returnTypes);
+
     }
 
     /**

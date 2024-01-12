@@ -19,6 +19,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -46,7 +48,8 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
     private final boolean useConnectionPool;
     private final LDAPConnectionPool connectionPool;
 
-    final SimpleBindRequest bindCredentials;
+    private final String bindDn;
+    private final AtomicReference<SimpleBindRequest> bindRequest;
     final LdapSession.GroupsResolver groupResolver;
 
     /**
@@ -69,27 +72,36 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
     ) throws LDAPException {
         super(config, sslService, threadPool);
         this.groupResolver = groupResolver;
+        this.bindDn = bindDn;
+        this.bindRequest = new AtomicReference<>(buildBindRequest(config.settings()));
+        this.useConnectionPool = config.getSetting(poolingEnabled);
+        if (useConnectionPool) {
+            this.connectionPool = createConnectionPool(config, serverSet, timeout, logger, bindRequest.get(), healthCheckDNSupplier);
+        } else {
+            this.connectionPool = null;
+        }
+    }
 
+    private SimpleBindRequest buildBindRequest(Settings settings) {
         final byte[] bindPassword;
-        if (config.hasSetting(LEGACY_BIND_PASSWORD)) {
-            if (config.hasSetting(SECURE_BIND_PASSWORD)) {
+        final Setting<SecureString> legacyPasswordSetting = config.getConcreteSetting(LEGACY_BIND_PASSWORD);
+        final Setting<SecureString> securePasswordSetting = config.getConcreteSetting(SECURE_BIND_PASSWORD);
+
+        if (legacyPasswordSetting.exists(settings)) {
+            if (securePasswordSetting.exists(settings)) {
                 throw new IllegalArgumentException(
-                    "You cannot specify both ["
-                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                        + "] and ["
-                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
-                        + "]"
+                    "You cannot specify both [" + legacyPasswordSetting.getKey() + "] and [" + securePasswordSetting.getKey() + "]"
                 );
             }
-            bindPassword = CharArrays.toUtf8Bytes(config.getSetting(LEGACY_BIND_PASSWORD).getChars());
-        } else if (config.hasSetting(SECURE_BIND_PASSWORD)) {
-            bindPassword = CharArrays.toUtf8Bytes(config.getSetting(SECURE_BIND_PASSWORD).getChars());
+            bindPassword = CharArrays.toUtf8Bytes(legacyPasswordSetting.get(settings).getChars());
+        } else if (securePasswordSetting.exists(settings)) {
+            bindPassword = CharArrays.toUtf8Bytes(securePasswordSetting.get(settings).getChars());
         } else {
             bindPassword = null;
         }
 
-        if (bindDn == null) {
-            bindCredentials = new SimpleBindRequest();
+        if (this.bindDn == null) {
+            return new SimpleBindRequest();
         } else {
             if (bindPassword == null) {
                 deprecationLogger.critical(
@@ -104,15 +116,25 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                     RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
                 );
             }
-            bindCredentials = new SimpleBindRequest(bindDn, bindPassword);
+            return new SimpleBindRequest(this.bindDn, bindPassword);
         }
+    }
 
-        this.useConnectionPool = config.getSetting(poolingEnabled);
-        if (useConnectionPool) {
-            this.connectionPool = createConnectionPool(config, serverSet, timeout, logger, bindCredentials, healthCheckDNSupplier);
-        } else {
-            this.connectionPool = null;
+    @Override
+    public void reload(Settings settings) {
+        final SimpleBindRequest newRequest = buildBindRequest(settings);
+        final SimpleBindRequest oldRequest = bindRequest.get();
+        if (bindRequestEquals(newRequest, oldRequest) == false) {
+            bindRequest.set(newRequest);
+            if (connectionPool != null) {
+                connectionPool.setBindRequest(newRequest);
+                connectionPool.invokeHealthCheck(null, false, true);
+            }
         }
+    }
+
+    private static boolean bindRequestEquals(SimpleBindRequest req1, SimpleBindRequest req2) {
+        return req1.getBindDN().contentEquals(req2.getBindDN()) && req1.getPassword().equalsIgnoreType(req2.getPassword());
     }
 
     @Override
@@ -236,6 +258,10 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
      */
     LDAPConnectionPool getConnectionPool() {
         return connectionPool;
+    }
+
+    SimpleBindRequest getBindRequest() {
+        return bindRequest.get();
     }
 
 }

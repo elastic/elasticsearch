@@ -187,7 +187,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         }
         try {
             final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            LdapUtils.maybeForkThenBind(connection, bindCredentials, true, threadPool, new AbstractRunnable() {
+            LdapUtils.maybeForkThenBind(connection, getBindRequest(), true, threadPool, new AbstractRunnable() {
 
                 @Override
                 public void onFailure(Exception e) {

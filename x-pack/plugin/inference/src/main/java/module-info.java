@@ -22,10 +22,5 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.xpack.inference.registry;
     exports org.elasticsearch.xpack.inference.rest;
     exports org.elasticsearch.xpack.inference.services;
-    exports org.elasticsearch.xpack.inference.external.http.sender;
-    exports org.elasticsearch.xpack.inference.external.http;
-    exports org.elasticsearch.xpack.inference.services.elser;
-    exports org.elasticsearch.xpack.inference.services.huggingface.elser;
-    exports org.elasticsearch.xpack.inference.services.openai;
     exports org.elasticsearch.xpack.inference;
 }

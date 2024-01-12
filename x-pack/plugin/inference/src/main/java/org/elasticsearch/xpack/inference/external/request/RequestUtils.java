@@ -10,12 +10,31 @@ package org.elasticsearch.xpack.inference.external.request;
 import org.apache.http.Header;
 import org.apache.http.HttpHeaders;
 import org.apache.http.message.BasicHeader;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.rest.RestStatus;
+
+import java.net.URI;
+import java.net.URISyntaxException;
 
 public class RequestUtils {
 
     public static Header createAuthBearerHeader(SecureString apiKey) {
         return new BasicHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey.toString());
+    }
+
+    public static URI buildUri(URI accountUri, String service, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
+        try {
+            return accountUri == null ? uriBuilder.get() : accountUri;
+        } catch (URISyntaxException e) {
+            throw new ElasticsearchStatusException(
+                Strings.format("Failed to construct %s URL", service),
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e
+            );
+        }
     }
 
     private RequestUtils() {}

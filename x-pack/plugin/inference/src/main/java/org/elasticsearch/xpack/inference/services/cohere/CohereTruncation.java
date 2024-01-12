@@ -48,11 +48,11 @@ public enum CohereTruncation implements Writeable {
     }
 
     public static CohereTruncation fromStream(StreamInput in) throws IOException {
-        return in.readEnum(CohereTruncation.class);
+        return in.readOptionalEnum(CohereTruncation.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
+        out.writeOptionalEnum(this);
     }
 }

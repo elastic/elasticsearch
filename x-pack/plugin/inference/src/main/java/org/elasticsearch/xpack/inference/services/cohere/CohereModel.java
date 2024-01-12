@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -13,23 +13,19 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
 
-import java.util.Map;
-
-public abstract class OpenAiModel extends Model {
-
-    public OpenAiModel(ModelConfigurations configurations, ModelSecrets secrets) {
+public abstract class CohereModel extends Model {
+    public CohereModel(ModelConfigurations configurations, ModelSecrets secrets) {
         super(configurations, secrets);
     }
 
-    protected OpenAiModel(OpenAiModel model, TaskSettings taskSettings) {
+    protected CohereModel(CohereModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
     }
 
-    protected OpenAiModel(OpenAiModel model, ServiceSettings serviceSettings) {
+    protected CohereModel(CohereModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
     }
 
-    public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings);
+    public abstract ExecutableAction accept();
 }

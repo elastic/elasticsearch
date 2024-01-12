@@ -29,12 +29,16 @@ public enum InputType implements Writeable {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    public static InputType fromString(String name) {
+        return valueOf(name.trim().toUpperCase(Locale.ROOT));
+    }
+
     public static InputType fromStream(StreamInput in) throws IOException {
-        return in.readEnum(InputType.class);
+        return in.readOptionalEnum(InputType.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
+        out.writeOptionalEnum(this);
     }
 }

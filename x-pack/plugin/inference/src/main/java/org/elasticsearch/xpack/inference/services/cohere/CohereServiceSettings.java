@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -33,20 +33,14 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
-/**
- * Defines the base settings for interacting with OpenAI.
- */
-public class OpenAiServiceSettings implements ServiceSettings {
+public class CohereServiceSettings implements ServiceSettings {
+    public static final String NAME = "cohere_service_settings";
 
-    public static final String NAME = "openai_service_settings";
-
-    public static final String ORGANIZATION = "organization_id";
-
-    public static OpenAiServiceSettings fromMap(Map<String, Object> map) {
+    public static CohereServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
@@ -58,7 +52,7 @@ public class OpenAiServiceSettings implements ServiceSettings {
 
         // the url is optional and only for testing
         if (url == null) {
-            return new OpenAiServiceSettings((URI) null, organizationId, similarity, dims, maxInputTokens);
+            return new CohereServiceSettings((URI) null, similarity, dims, maxInputTokens);
         }
 
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -67,59 +61,44 @@ public class OpenAiServiceSettings implements ServiceSettings {
             throw validationException;
         }
 
-        return new OpenAiServiceSettings(uri, organizationId, similarity, dims, maxInputTokens);
+        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens);
     }
 
     private final URI uri;
-    private final String organizationId;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
 
-    public OpenAiServiceSettings(
+    public CohereServiceSettings(
         @Nullable URI uri,
-        @Nullable String organizationId,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens
     ) {
         this.uri = uri;
-        this.organizationId = organizationId;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
     }
 
-    public OpenAiServiceSettings(
-        @Nullable String uri,
-        @Nullable String organizationId,
+    public CohereServiceSettings(
+        @Nullable String url,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens
     ) {
-        this(createOptionalUri(uri), organizationId, similarity, dimensions, maxInputTokens);
+        this(createOptionalUri(url), similarity, dimensions, maxInputTokens);
     }
 
-    public OpenAiServiceSettings(StreamInput in) throws IOException {
+    public CohereServiceSettings(StreamInput in) throws IOException {
         uri = createOptionalUri(in.readOptionalString());
-        organizationId = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
-            similarity = in.readOptionalEnum(SimilarityMeasure.class);
-            dimensions = in.readOptionalVInt();
-            maxInputTokens = in.readOptionalVInt();
-        } else {
-            similarity = null;
-            dimensions = null;
-            maxInputTokens = null;
-        }
+        similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        dimensions = in.readOptionalVInt();
+        maxInputTokens = in.readOptionalVInt();
     }
 
     public URI uri() {
         return uri;
-    }
-
-    public String organizationId() {
-        return organizationId;
     }
 
     public SimilarityMeasure similarity() {
@@ -146,9 +125,6 @@ public class OpenAiServiceSettings implements ServiceSettings {
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
-        if (organizationId != null) {
-            builder.field(ORGANIZATION, organizationId);
-        }
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
@@ -165,28 +141,24 @@ public class OpenAiServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
+        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
-        out.writeOptionalString(organizationId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
-            out.writeOptionalEnum(similarity);
-            out.writeOptionalVInt(dimensions);
-            out.writeOptionalVInt(maxInputTokens);
-        }
+        out.writeOptionalEnum(similarity);
+        out.writeOptionalVInt(dimensions);
+        out.writeOptionalVInt(maxInputTokens);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        OpenAiServiceSettings that = (OpenAiServiceSettings) o;
+        CohereServiceSettings that = (CohereServiceSettings) o;
         return Objects.equals(uri, that.uri)
-            && Objects.equals(organizationId, that.organizationId)
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens);
@@ -194,6 +166,6 @@ public class OpenAiServiceSettings implements ServiceSettings {
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, organizationId, similarity, dimensions, maxInputTokens);
+        return Objects.hash(uri, similarity, dimensions, maxInputTokens);
     }
 }

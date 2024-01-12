@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -107,8 +109,29 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
-    public static String invalidType(String settingName, String scope, String invalidType, String requiredType) {
-        return Strings.format("[%s] Invalid type [%s] received. [%s] must be type [%s]", scope, invalidType, settingName, requiredType);
+    public static String invalidType(String settingName, String scope, String invalidType, String invalidValue, String requiredType) {
+        return Strings.format(
+            "[%s] Invalid type [%s] received for value [%s]. [%s] must be type [%s]",
+            scope,
+            invalidType,
+            invalidValue,
+            settingName,
+            requiredType
+        );
+    }
+
+    public static String invalidValue(String settingName, String scope, String invalidValue, String validValue) {
+        return invalidValue(settingName, scope, invalidValue, new String[] { validValue });
+    }
+
+    public static String invalidValue(String settingName, String scope, String invalidType, String... requiredTypes) {
+        return Strings.format(
+            "[%s] Invalid value [%s] received. [%s] must be one of [%s]",
+            scope,
+            invalidType,
+            settingName,
+            String.join(", ", requiredTypes)
+        );
     }
 
     // TODO improve URI validation logic
@@ -129,6 +152,14 @@ public class ServiceUtils {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(format("unable to parse url [%s]", url), e);
         }
+    }
+
+    public static URI createOptionalUri(String url) {
+        if (url == null) {
+            return null;
+        }
+
+        return createUri(url);
     }
 
     public static SecureString extractRequiredSecureString(
@@ -185,7 +216,7 @@ public class ServiceUtils {
             if (type.isAssignableFrom(listEntry.getClass()) == false) {
                 // TODO should we just throw here like removeAsType
                 validationException.addValidationError(
-                    invalidType(settingName, scope, listEntry.getClass().getSimpleName(), type.getSimpleName())
+                    invalidType(settingName, scope, listEntry.getClass().getSimpleName(), listEntry.toString(), type.getSimpleName())
                 );
                 return null;
             }
@@ -241,28 +272,22 @@ public class ServiceUtils {
         String settingName,
         String scope,
         CheckedFunction<String, T, IllegalArgumentException> converter,
+        T[] validTypes,
         ValidationException validationException
     ) {
-        var s = extractOptionalString(map, settingName, scope, validationException);
-        if (s == null) {
+        var enumString = extractOptionalString(map, settingName, scope, validationException);
+        if (enumString == null) {
             return null;
         }
 
+        var validTypesAsStrings = Arrays.stream(validTypes).map(type -> type.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
         try {
-            var e = converter.apply(s);
+            return converter.apply(enumString);
         } catch (IllegalArgumentException e) {
-            validationException.addValidationError(invalidType(settingName, scope, s, ))
+            validationException.addValidationError(invalidValue(settingName, scope, enumString, validTypesAsStrings));
         }
 
-        if (s.isEmpty()) {
-            validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
-        }
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            return null;
-        }
-
-        return optionalField;
+        return null;
     }
 
     public static String parsePersistedConfigErrorMsg(String modelId, String serviceName) {

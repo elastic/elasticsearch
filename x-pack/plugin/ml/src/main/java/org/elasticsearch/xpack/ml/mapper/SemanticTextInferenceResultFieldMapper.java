@@ -261,15 +261,11 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         MapperBuilderContext mapperBuilderContext,
         String fieldName
     ) {
-
-        // TODO: Use keyword field type for text?
-        // TODO: Why add text field to mapper if it's not indexed or stored?
         IndexVersion indexVersionCreated = context.indexSettings().getIndexVersionCreated();
         ObjectMapper.Builder sparseVectorMapperBuilder = new ObjectMapper.Builder(
             SPARSE_VECTOR_SUBFIELD_NAME,
             ObjectMapper.Defaults.SUBOBJECTS
         ).add(
-            // TODO: How to add this field mapper without indexing the value?
             new BooleanFieldMapper.Builder(SparseEmbeddingResults.Embedding.IS_TRUNCATED, ScriptCompiler.NONE, false, indexVersionCreated)
         ).add(new SparseVectorFieldMapper.Builder(SparseEmbeddingResults.Embedding.EMBEDDING));
         TextFieldMapper.Builder textMapperBuilder = new TextFieldMapper.Builder(

@@ -41,7 +41,7 @@ public class ToLower extends ConfigurationFunction implements EvaluatorMapper {
     )
     public ToLower(
         Source source,
-        @Param(name = "v", type = { "keyword", "text" }, description = "The input string") Expression field,
+        @Param(name = "str", type = { "keyword", "text" }, description = "The input string") Expression field,
         Configuration configuration
     ) {
         super(source, List.of(field), configuration);
@@ -81,8 +81,6 @@ public class ToLower extends ConfigurationFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         return new ToLowerEvaluator.Factory(source(), fieldEvaluator, ((EsqlConfiguration) configuration()).locale());
-        // return dvrCtx -> new ToLowerEvaluator(source(), fieldEvaluator.get(dvrCtx), ((EsqlConfiguration) configuration()).locale(),
-        // dvrCtx);
     }
 
     @Override

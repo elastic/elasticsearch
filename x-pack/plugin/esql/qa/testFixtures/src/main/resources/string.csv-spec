@@ -997,3 +997,11 @@ from employees | sort emp_no | eval name_upper = TO_UPPER(first_name) | keep emp
 emp_no:integer  | first_name:keyword    | name_upper:keyword
 10001           | Georgi                | GEORGI
 ;
+
+
+toUpperLowerUnicode#[skip:-8.12.99]
+row a = "π/2 + a + B + Λ ºC" | eval lower = to_lower(a), upper = to_upper(a) | keep a, upper, lower;
+
+a:keyword           | upper:keyword         | lower:keyword
+π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
+;

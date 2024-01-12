@@ -34,8 +34,10 @@ public class ToUpperTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        suppliers.add(supplier("keyword", DataTypes.KEYWORD, () -> randomAlphaOfLengthBetween(1, 10)));
-        suppliers.add(supplier("text", DataTypes.TEXT, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
+        suppliers.add(supplier("keyword ascii", DataTypes.KEYWORD, () -> randomAlphaOfLengthBetween(1, 10)));
+        suppliers.add(supplier("keyword unicode", DataTypes.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10)));
+        suppliers.add(supplier("text ascii", DataTypes.TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
+        suppliers.add(supplier("text unicode", DataTypes.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
 
         // add null as parameter
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));

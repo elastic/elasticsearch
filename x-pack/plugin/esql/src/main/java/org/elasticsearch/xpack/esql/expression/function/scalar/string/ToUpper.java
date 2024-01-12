@@ -41,7 +41,7 @@ public class ToUpper extends ConfigurationFunction implements EvaluatorMapper {
     )
     public ToUpper(
         Source source,
-        @Param(name = "v", type = { "keyword", "text" }, description = "The input string") Expression field,
+        @Param(name = "str", type = { "keyword", "text" }, description = "The input string") Expression field,
         Configuration configuration
     ) {
         super(source, List.of(field), configuration);

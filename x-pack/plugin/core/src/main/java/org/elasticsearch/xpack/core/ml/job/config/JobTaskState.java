@@ -106,6 +106,11 @@ public class JobTaskState implements PersistentTaskState, MlTaskState {
         return lastStateChangeTime;
     }
 
+    @Override
+    public boolean isFailed() {
+        return JobState.FAILED.equals(state);
+    }
+
     /**
      * The job state stores the allocation ID at the time it was last set.
      * This method compares the allocation ID in the state with the allocation

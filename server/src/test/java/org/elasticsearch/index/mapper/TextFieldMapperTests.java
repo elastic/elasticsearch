@@ -1121,8 +1121,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         boolean storeTextField = randomBoolean();
         boolean storedKeywordField = storeTextField || randomBoolean();
         String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
+        Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
-            randomBoolean() ? null : between(10, 100),
+            ignoreAbove,
             storedKeywordField,
             nullValue,
             false == storeTextField
@@ -1130,25 +1131,33 @@ public class TextFieldMapperTests extends MapperTestCase {
         return new SyntheticSourceSupport() {
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                SyntheticSourceExample delegate = keywordSupport.example(maxValues);
                 if (storeTextField) {
+                    SyntheticSourceExample delegate = keywordSupport.example(maxValues, true);
                     return new SyntheticSourceExample(
                         delegate.inputValue(),
-                        delegate.result(),
-                        delegate.result(),
+                        delegate.expectedForSyntheticSource(),
+                        delegate.expectedForBlockLoader(),
                         b -> b.field("type", "text").field("store", true)
                     );
                 }
-                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), delegate.blockLoaderResult(), b -> {
-                    b.field("type", "text");
-                    b.startObject("fields");
-                    {
-                        b.startObject(randomAlphaOfLength(4));
-                        delegate.mapping().accept(b);
+                // We'll load from _source if ignore_above is defined, otherwise we load from the keyword field.
+                boolean loadingFromSource = ignoreAbove != null;
+                SyntheticSourceExample delegate = keywordSupport.example(maxValues, loadingFromSource);
+                return new SyntheticSourceExample(
+                    delegate.inputValue(),
+                    delegate.expectedForSyntheticSource(),
+                    delegate.expectedForBlockLoader(),
+                    b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject(randomAlphaOfLength(4));
+                            delegate.mapping().accept(b);
+                            b.endObject();
+                        }
                         b.endObject();
                     }
-                    b.endObject();
-                });
+                );
             }
 
             @Override
@@ -1186,8 +1195,23 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String fieldName) {
+        if (nullLoaderExpected(mapper, fieldName)) {
+            return null;
+        }
         return v -> ((BytesRef) v).utf8ToString();
+    }
+
+    private boolean nullLoaderExpected(MapperService mapper, String fieldName) {
+        MappedFieldType type = mapper.fieldType(fieldName);
+        if (type instanceof TextFieldType t) {
+            if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegateForQuerying() || t.isStored()) {
+                return false;
+            }
+            String parentField = mapper.mappingLookup().parentField(fieldName);
+            return parentField == null || nullLoaderExpected(mapper, parentField);
+        }
+        return false;
     }
 
     @Override
@@ -1332,7 +1356,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         String parentName = mapper.mappingLookup().parentField(ft.name());
         if (parentName == null) {
             TextFieldMapper.TextFieldType text = (TextFieldType) ft;
-            return text.syntheticSourceDelegate() != null && text.syntheticSourceDelegate().hasDocValues();
+            return text.syntheticSourceDelegate() != null
+                && text.syntheticSourceDelegate().hasDocValues()
+                && text.canUseSyntheticSourceDelegateForQuerying();
         }
         MappedFieldType parent = mapper.fieldType(parentName);
         if (false == parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {

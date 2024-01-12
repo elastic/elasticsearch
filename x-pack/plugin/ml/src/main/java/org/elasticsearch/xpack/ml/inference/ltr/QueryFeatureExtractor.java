@@ -29,14 +29,21 @@ public class QueryFeatureExtractor implements FeatureExtractor {
     private final List<String> featureNames;
     private final List<Weight> weights;
     private final List<Scorer> scorers;
+    private final List<Float> defaultScores;
     private DisjunctionDISIApproximation rankerIterator;
 
-    public QueryFeatureExtractor(List<String> featureNames, List<Weight> weights) {
+    public QueryFeatureExtractor(List<String> featureNames, List<Weight> weights, List<Float> defaultScores) {
         if (featureNames.size() != weights.size()) {
             throw new IllegalArgumentException("[featureNames] and [weights] must be the same size.");
         }
+
+        if (featureNames.size() != defaultScores.size()) {
+            throw new IllegalArgumentException("[featureNames] and [defaultScores] must be the same size.");
+        }
+
         this.featureNames = featureNames;
         this.weights = weights;
+        this.defaultScores = defaultScores;
         this.scorers = new ArrayList<>(weights.size());
     }
 
@@ -63,10 +70,13 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         rankerIterator.advance(docId);
         for (int i = 0; i < featureNames.size(); i++) {
             Scorer scorer = scorers.get(i);
+            float featureValue = defaultScores.get(i);
             // Do we have a scorer, and does it match the provided document?
             if (scorer != null && scorer.docID() == docId) {
-                featureMap.put(featureNames.get(i), scorer.score());
+                featureValue = scorer.score();
             }
+
+            featureMap.put(featureNames.get(i), featureValue);
         }
     }
 

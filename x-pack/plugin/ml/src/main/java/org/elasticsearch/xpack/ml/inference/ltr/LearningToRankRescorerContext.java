@@ -59,6 +59,7 @@ public class LearningToRankRescorerContext extends RescoreContext {
             );
         }
         List<Weight> weights = new ArrayList<>();
+        List<Float> defaultScores = new ArrayList<>();
         List<String> queryFeatureNames = new ArrayList<>();
         for (LearningToRankFeatureExtractorBuilder featureExtractorBuilder : learningToRankConfig.getFeatureExtractorBuilders()) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
@@ -66,10 +67,11 @@ public class LearningToRankRescorerContext extends RescoreContext {
                 Weight weight = searcher.rewrite(query).createWeight(searcher, ScoreMode.COMPLETE, 1f);
                 weights.add(weight);
                 queryFeatureNames.add(queryExtractorBuilder.featureName());
+                defaultScores.add(queryExtractorBuilder.defaultScore());
             }
         }
         if (weights.isEmpty() == false) {
-            featureExtractors.add(new QueryFeatureExtractor(queryFeatureNames, weights));
+            featureExtractors.add(new QueryFeatureExtractor(queryFeatureNames, weights, defaultScores));
         }
 
         return featureExtractors;

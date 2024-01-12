@@ -32,11 +32,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 
 public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
 
@@ -82,19 +79,22 @@ public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
             ).rewrite(ctx),
             new QueryExtractorBuilder(
                 "matching_missing_field",
-                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("missing_text", "quick fox"))
+                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("missing_text", "quick fox")),
+                1f
             ).rewrite(ctx)
         );
         SearchExecutionContext dummySEC = createSearchExecutionContext();
         List<Weight> weights = new ArrayList<>();
         List<String> featureNames = new ArrayList<>();
+        List<Float> defaultScores = new ArrayList<>();
         for (QueryExtractorBuilder qeb : queryExtractorBuilders) {
             Query q = qeb.query().getParsedQuery().toQuery(dummySEC);
             Weight weight = searcher.rewrite(q).createWeight(searcher, ScoreMode.COMPLETE, 1f);
             weights.add(weight);
             featureNames.add(qeb.featureName());
+            defaultScores.add(qeb.defaultScore());
         }
-        QueryFeatureExtractor queryFeatureExtractor = new QueryFeatureExtractor(featureNames, weights);
+        QueryFeatureExtractor queryFeatureExtractor = new QueryFeatureExtractor(featureNames, weights, defaultScores);
         List<Map<String, Object>> extractedFeatures = new ArrayList<>();
         for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
             int maxDoc = leafReaderContext.reader().maxDoc();
@@ -106,21 +106,24 @@ public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
             }
         }
         assertThat(extractedFeatures, hasSize(4));
-        // Should never add features for queries that don't match a document or on documents where the field is missing
+        // Should use query extractor default value for queries that don't match a document or on documents where the field is missing
         for (Map<String, Object> features : extractedFeatures) {
-            assertThat(features, not(hasKey("matching_none")));
-            assertThat(features, not(hasKey("matching_missing_field")));
+            assertThat(features, hasEntry("matching_none", 0f));
+            assertThat(features, hasEntry("matching_missing_field", 1f));
         }
         // First two only match the text field
         assertThat(extractedFeatures.get(0), hasEntry("text_score", 1.7135582f));
-        assertThat(extractedFeatures.get(0), not(hasKey("number_score")));
+        assertThat(extractedFeatures.get(0), hasEntry("number_score", 0f));
         assertThat(extractedFeatures.get(1), hasEntry("text_score", 0.7554128f));
-        assertThat(extractedFeatures.get(1), not(hasKey("number_score")));
+        assertThat(extractedFeatures.get(1), hasEntry("number_score", 0f));
         // Only matches the range query
+        assertThat(extractedFeatures.get(2), hasEntry("text_score", 0f));
         assertThat(extractedFeatures.get(2), hasEntry("number_score", 1f));
-        assertThat(extractedFeatures.get(2), not(hasKey("text_score")));
+
         // No query matches
-        assertThat(extractedFeatures.get(3), anEmptyMap());
+        assertThat(extractedFeatures.get(3), hasEntry("text_score", 0f));
+        assertThat(extractedFeatures.get(3), hasEntry("number_score", 0f));
+
         reader.close();
         dir.close();
     }

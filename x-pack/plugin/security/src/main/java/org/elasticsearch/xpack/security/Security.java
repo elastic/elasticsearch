@@ -635,6 +635,10 @@ public class Security extends Plugin
         return realms.get();
     }
 
+    protected List<ReloadableSecurityComponent> getReloadableSecurityComponents() {
+        return this.reloadableComponents.get();
+    }
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
         try {
@@ -1046,7 +1050,7 @@ public class Security extends Plugin
             components.stream()
                 .filter(ReloadableSecurityComponent.class::isInstance)
                 .map(ReloadableSecurityComponent.class::cast)
-                .collect(Collectors.toList())
+                .collect(Collectors.toUnmodifiableList())
         );
 
         return components;
@@ -1943,19 +1947,19 @@ public class Security extends Plugin
     public void reload(Settings settings) throws Exception {
         if (enabled) {
             final List<Exception> reloadExceptions = new ArrayList<>();
-            this.reloadableComponents.get().forEach(component -> {
+            try {
+                reloadRemoteClusterCredentials(settings);
+            } catch (Exception ex) {
+                reloadExceptions.add(ex);
+            }
+
+            this.getReloadableSecurityComponents().forEach(component -> {
                 try {
                     component.reload(settings);
                 } catch (Exception e) {
                     reloadExceptions.add(e);
                 }
             });
-
-            try {
-                reloadRemoteClusterCredentials(settings);
-            } catch (Exception ex) {
-                reloadExceptions.add(ex);
-            }
 
             if (false == reloadExceptions.isEmpty()) {
                 final var combinedException = new ElasticsearchException(

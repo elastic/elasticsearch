@@ -151,7 +151,9 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
                                 it.remove();
                             }
                         } catch (IndexNotFoundException e) {
-                            logger.trace(() -> Strings.format("Exception handling commit [{}] to delete of relocating primary", commit), e);
+                            logger.trace(() -> Strings.format("Exception handling commit [%s] to delete of relocating primary", commit), e);
+                            pendingCommitsToDelete.add(commit);
+                            anyMoved = true;
                             it.remove();
                         }
                     }

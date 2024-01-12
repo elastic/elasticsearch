@@ -150,7 +150,7 @@ public class TaskRetrieverTests extends ESTestCase {
     public static Client mockListTasksClient(Client client) {
         var cluster = client.admin().cluster();
 
-        when(cluster.prepareListTasks()).thenReturn(new ListTasksRequestBuilder(client, TransportListTasksAction.TYPE));
+        when(cluster.prepareListTasks()).thenReturn(new ListTasksRequestBuilder(client));
 
         return client;
     }

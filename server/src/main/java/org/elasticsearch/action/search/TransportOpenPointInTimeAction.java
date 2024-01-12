@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -32,7 +34,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,9 +55,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private static final Logger logger = LogManager.getLogger(TransportOpenPointInTimeAction.class);
 
     public static final String OPEN_SHARD_READER_CONTEXT_NAME = "indices:data/read/open_reader_context";
+    public static final ActionType<OpenPointInTimeResponse> TYPE = new ActionType<>(
+        "indices:data/read/open_point_in_time",
+        OpenPointInTimeResponse::new
+    );
 
     private final TransportSearchAction transportSearchAction;
     private final SearchTransportService searchTransportService;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
 
@@ -66,19 +72,15 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         SearchService searchService,
         ActionFilters actionFilters,
         TransportSearchAction transportSearchAction,
-        SearchTransportService searchTransportService
+        SearchTransportService searchTransportService,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
-        super(
-            OpenPointInTimeAction.NAME,
-            transportService,
-            actionFilters,
-            OpenPointInTimeRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -195,6 +197,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             return new AbstractSearchAsyncAction<>(
                 actionName,
                 logger,
+                namedWriteableRegistry,
                 searchTransportService,
                 connectionLookup,
                 aliasFilter,
@@ -253,7 +256,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
                                 @Override
                                 protected void doRun() {
-                                    sendSearchResponse(InternalSearchResponse.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
+                                    sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
                                 }
 
                                 @Override

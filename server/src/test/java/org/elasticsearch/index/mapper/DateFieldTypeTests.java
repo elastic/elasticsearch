@@ -43,7 +43,6 @@ import org.elasticsearch.script.field.DateNanosDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -331,10 +330,6 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         reader.close();
         w.close();
         dir.close();
-    }
-
-    private Instant instant(String str) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(str)).toInstant();
     }
 
     private static DateFieldType fieldType(Resolution resolution, String format, String nullValue) {

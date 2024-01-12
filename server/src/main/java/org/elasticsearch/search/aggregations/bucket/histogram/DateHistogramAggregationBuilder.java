@@ -157,9 +157,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
         extendedBounds = in.readOptionalWriteable(LongBounds::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            hardBounds = in.readOptionalWriteable(LongBounds::new);
-        }
+        hardBounds = in.readOptionalWriteable(LongBounds::new);
     }
 
     @Override
@@ -180,9 +178,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval.writeTo(out);
         out.writeLong(offset);
         out.writeOptionalWriteable(extendedBounds);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeOptionalWriteable(hardBounds);
-        }
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /**

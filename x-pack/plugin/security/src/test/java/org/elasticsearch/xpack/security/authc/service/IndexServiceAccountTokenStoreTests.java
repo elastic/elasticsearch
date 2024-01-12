@@ -42,7 +42,6 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -270,28 +269,25 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                         )
                     )
                     .toArray(SearchHit[]::new);
-                final InternalSearchResponse internalSearchResponse;
-                internalSearchResponse = new InternalSearchResponse(
-                    new SearchHits(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null),
-                    null,
-                    null,
-                    null,
-                    false,
-                    null,
-                    0
+                ActionListener.respondAndRelease(
+                    l,
+                    new SearchResponse(
+                        new SearchHits(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null),
+                        null,
+                        null,
+                        false,
+                        null,
+                        null,
+                        0,
+                        randomAlphaOfLengthBetween(3, 8),
+                        1,
+                        1,
+                        0,
+                        10,
+                        null,
+                        null
+                    )
                 );
-
-                final SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
-                    randomAlphaOfLengthBetween(3, 8),
-                    1,
-                    1,
-                    0,
-                    10,
-                    null,
-                    null
-                );
-                l.onResponse(searchResponse);
             } else if (r instanceof ClearScrollRequest) {
                 l.onResponse(new ClearScrollResponse(true, 1));
             } else {

@@ -11,11 +11,14 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.internal.file.FileOperations;
@@ -37,7 +40,6 @@ import org.gradle.tooling.events.task.TaskFinishEvent;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import javax.inject.Inject;
@@ -46,12 +48,15 @@ import static org.elasticsearch.gradle.util.GradleUtils.noop;
 
 public class TestClustersPlugin implements Plugin<Project> {
 
+    public static final Attribute<Boolean> BUNDLE_ATTRIBUTE = Attribute.of("bundle", Boolean.class);
+
     public static final String EXTENSION_NAME = "testClusters";
     public static final String THROTTLE_SERVICE_NAME = "testClustersThrottle";
 
     private static final String LIST_TASK_NAME = "listTestClusters";
     public static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
+    public static final String TEST_CLUSTER_TASKS_SERVICE = "testClusterTasksService";
     private final ProviderFactory providerFactory;
     private Provider<File> runtimeJavaProvider;
     private Function<Version, Boolean> isReleasedVersion = v -> true;
@@ -110,7 +115,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getGradle().getSharedServices().registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistry.class, noop());
 
         // register throttle so we only run at most max-workers/2 nodes concurrently
-        project.getGradle()
+        Provider<TestClustersThrottle> testClustersThrottleProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent(
                 THROTTLE_SERVICE_NAME,
@@ -118,8 +123,23 @@ public class TestClustersPlugin implements Plugin<Project> {
                 spec -> spec.getMaxParallelUsages().set(Math.max(1, project.getGradle().getStartParameter().getMaxWorkerCount() / 2))
             );
 
-        // register cluster hooks
+        project.getTasks().withType(TestClustersAware.class).configureEach(task -> { task.usesService(testClustersThrottleProvider); });
         project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
+        configureArtifactTransforms(project);
+    }
+
+    private void configureArtifactTransforms(Project project) {
+        project.getDependencies().getAttributesSchema().attribute(BUNDLE_ATTRIBUTE);
+        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
+        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+            transformSpec.getFrom()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(BUNDLE_ATTRIBUTE, true);
+            transformSpec.getTo()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(BUNDLE_ATTRIBUTE, true);
+            transformSpec.getParameters().setAsFiletreeOutput(true);
+        });
     }
 
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(
@@ -157,13 +177,13 @@ public class TestClustersPlugin implements Plugin<Project> {
                 (Task t) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
             );
         });
-
     }
 
     static abstract class TestClustersHookPlugin implements Plugin<Project> {
         @Inject
         public abstract BuildEventsListenerRegistry getEventsListenerRegistry();
 
+        @SuppressWarnings("checkstyle:RedundantModifier")
         @Inject
         public TestClustersHookPlugin() {}
 
@@ -178,10 +198,9 @@ public class TestClustersPlugin implements Plugin<Project> {
 
             Provider<TaskEventsService> testClusterTasksService = project.getGradle()
                 .getSharedServices()
-                .registerIfAbsent("testClusterTasksService", TaskEventsService.class, spec -> {});
+                .registerIfAbsent(TEST_CLUSTER_TASKS_SERVICE, TaskEventsService.class, spec -> {});
 
             TestClustersRegistry registry = registryProvider.get();
-
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
             // we use this information to determine when the last task that required the cluster executed so that we can
@@ -220,7 +239,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                     .filter(task -> task instanceof TestClustersAware)
                     .map(task -> (TestClustersAware) task)
                     .forEach(awareTask -> {
-                        testClusterTasksService.get().register(awareTask.getPath(), awareTask);
                         awareTask.doFirst(task -> {
                             awareTask.beforeStart();
                             awareTask.getClusters().forEach(awareTask.getRegistery().get()::maybeStartCluster);
@@ -230,25 +248,17 @@ public class TestClustersPlugin implements Plugin<Project> {
         }
     }
 
-    public static void maybeStartCluster(ElasticsearchCluster cluster, Set<ElasticsearchCluster> runningClusters) {
-        if (runningClusters.contains(cluster)) {
-            return;
-        }
-        runningClusters.add(cluster);
-        cluster.start();
-    }
-
     static public abstract class TaskEventsService implements BuildService<BuildServiceParameters.None>, OperationCompletionListener {
 
         Map<String, TestClustersAware> tasksMap = new HashMap<>();
         private TestClustersRegistry registryProvider;
 
-        public void register(String path, TestClustersAware task) {
-            tasksMap.put(path, task);
+        public void register(TestClustersAware task) {
+            tasksMap.put(task.getPath(), task);
         }
 
         public void registry(TestClustersRegistry registry) {
-            registryProvider = registry;
+            this.registryProvider = registry;
         }
 
         @Override

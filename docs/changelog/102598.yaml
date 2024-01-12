@@ -1,0 +1,5 @@
+pr: 102598
+summary: Add apm api for asynchronous counters (always increasing)
+area: Infra/Core
+type: enhancement
+issues: []

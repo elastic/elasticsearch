@@ -759,38 +759,4 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
     }
 
-    private static final class PrivilegedWriteChannelStream extends OutputStream {
-
-        private final OutputStream stream;
-
-        PrivilegedWriteChannelStream(WritableByteChannel channel) {
-            stream = Channels.newOutputStream(channel);
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(() -> stream.write(b));
-        }
-
-        @Override
-        public void write(byte[] b) throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(() -> stream.write(b));
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(() -> stream.write(b, off, len));
-        }
-
-        @Override
-        public void flush() throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(stream::flush);
-        }
-
-        @Override
-        public void close() throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(stream::close);
-        }
-    }
-
 }

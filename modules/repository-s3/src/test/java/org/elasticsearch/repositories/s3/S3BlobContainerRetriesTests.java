@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -35,8 +36,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -55,6 +57,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
@@ -158,7 +162,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 repositoryMetadata,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new DeterministicTaskQueue().getThreadPool(),
-                MeterRegistry.NOOP
+                RepositoriesMetrics.NOOP
             )
         ) {
             @Override
@@ -216,7 +220,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-            blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_blob_max_retries", stream, bytes.length, false);
+            blobContainer.writeBlob(randomPurpose(), "write_blob_max_retries", stream, bytes.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
     }
@@ -239,7 +243,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         Exception exception = expectThrows(IOException.class, () -> {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-                blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_blob_timeout", stream, bytes.length, false);
+                blobContainer.writeBlob(randomPurpose(), "write_blob_timeout", stream, bytes.length, false);
             }
         });
         assertThat(
@@ -345,7 +349,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_large_blob", new ZeroInputStream(blobSize), blobSize, false);
+        blobContainer.writeBlob(randomPurpose(), "write_large_blob", new ZeroInputStream(blobSize), blobSize, false);
 
         assertThat(countDownInitiate.isCountedDown(), is(true));
         assertThat(countDownUploads.get(), equalTo(0));
@@ -443,7 +447,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        blobContainer.writeMetadataBlob(OperationPurpose.SNAPSHOT, "write_large_blob_streaming", false, randomBoolean(), out -> {
+        blobContainer.writeMetadataBlob(randomNonDataPurpose(), "write_large_blob_streaming", false, randomBoolean(), out -> {
             final byte[] buffer = new byte[16 * 1024];
             long outstanding = blobSize;
             while (outstanding > 0) {
@@ -518,7 +522,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_max_retries"), new FlakyReadHandler());
 
-        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_max_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_max_retries")) {
             final int readLimit;
             final InputStream wrappedStream;
             if (randomBoolean()) {
@@ -534,10 +538,51 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         }
     }
 
+    public void testReadDoesNotRetryForRepositoryAnalysis() {
+        final int maxRetries = between(0, 5);
+        final int bufferSizeBytes = scaledRandomIntBetween(
+            0,
+            randomFrom(1000, Math.toIntExact(S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY).getBytes()))
+        );
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, ByteSizeValue.ofBytes(bufferSizeBytes));
+
+        final byte[] bytes = randomBlobContent();
+
+        @SuppressForbidden(reason = "use a http server")
+        class FlakyReadHandler implements HttpHandler {
+            private int failureCount;
+
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                if (failureCount != 0) {
+                    ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("failureCount=" + failureCount));
+                }
+                failureCount += 1;
+                Streams.readFully(exchange.getRequestBody());
+                sendIncompleteContent(exchange, bytes);
+                exchange.close();
+            }
+        }
+
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_repo_analysis"), new FlakyReadHandler());
+
+        expectThrows(Exception.class, () -> {
+            try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.REPOSITORY_ANALYSIS, "read_blob_repo_analysis")) {
+                final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(inputStream));
+                assertArrayEquals(Arrays.copyOfRange(bytes, 0, bytes.length), bytesRead);
+            }
+        });
+    }
+
     @Override
     protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
         // some attempts make meaningful progress and do not count towards the max retry limit
         return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
+    }
+
+    @Override
+    protected OperationPurpose randomRetryingPurpose() {
+        return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
     }
 
     /**

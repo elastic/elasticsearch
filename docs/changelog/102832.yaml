@@ -1,0 +1,5 @@
+pr: 102832
+summary: Disable concurrency for sampler and diversified sampler
+area: Aggregations
+type: enhancement
+issues: []

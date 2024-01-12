@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -42,9 +43,13 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
     private final Expression length;
 
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Return the substring that extracts length chars from the string starting from the left."
+    )
     public Left(
         Source source,
-        @Param(name = "string", type = { "keyword" }) Expression str,
+        @Param(name = "str", type = { "keyword", "text" }) Expression str,
         @Param(name = "length", type = { "integer" }) Expression length
     ) {
         super(source, Arrays.asList(str, length));
@@ -74,6 +79,7 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return new LeftEvaluator.Factory(
+            source,
             context -> new BytesRef(),
             context -> new UnicodeUtil.UTF8CodePoint(),
             toEvaluator.apply(str),

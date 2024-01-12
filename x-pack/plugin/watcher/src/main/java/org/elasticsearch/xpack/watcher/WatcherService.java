@@ -385,12 +385,14 @@ public class WatcherService {
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
                 request.scroll(scrollTimeout);
+                response.decRef();
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
             if (response != null) {
                 ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
                 clearScrollRequest.addScrollId(response.getScrollId());
+                response.decRef();
                 client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }

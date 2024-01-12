@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -86,22 +87,16 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
-        InstanceTypeService instanceTypeService = createInstanceTypeService();
         if (enabled) {
             registry.get().initialize();
             indexManager.get().initialize();
             dataStreamManager.get().initialize();
-            instanceTypeService.load();
         }
-        return List.of(createLicenseChecker(), instanceTypeService);
+        return List.of(createLicenseChecker());
     }
 
     protected ProfilingLicenseChecker createLicenseChecker() {
         return new ProfilingLicenseChecker(XPackPlugin::getSharedLicenseState);
-    }
-
-    protected InstanceTypeService createInstanceTypeService() {
-        return new InstanceTypeService();
     }
 
     public void updateCheckOutdatedIndices(boolean newValue) {
@@ -123,6 +118,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         final RestController restController,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,

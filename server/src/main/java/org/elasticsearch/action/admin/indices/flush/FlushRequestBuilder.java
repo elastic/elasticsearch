@@ -13,8 +13,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushRequest, FlushResponse, FlushRequestBuilder> {
 
-    public FlushRequestBuilder(ElasticsearchClient client, FlushAction action) {
-        super(client, action, new FlushRequest());
+    public FlushRequestBuilder(ElasticsearchClient client) {
+        super(client, FlushAction.INSTANCE, new FlushRequest());
     }
 
     public FlushRequestBuilder setForce(boolean force) {

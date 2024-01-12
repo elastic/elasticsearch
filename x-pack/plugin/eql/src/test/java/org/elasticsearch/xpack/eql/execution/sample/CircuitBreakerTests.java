@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
@@ -100,6 +100,7 @@ public class CircuitBreakerTests extends ESTestCase {
     private void testMemoryCleared(boolean fail) {
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Collections.singletonList(EqlTestUtils.circuitBreakerSettings(Settings.EMPTY)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -220,21 +221,26 @@ public class CircuitBreakerTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             Aggregations aggs = new Aggregations(List.of(newInternalComposite()));
-
-            SearchResponseSections internal = new SearchResponseSections(null, aggs, null, false, false, null, 0);
-            SearchResponse response = new SearchResponse(
-                internal,
-                null,
-                2,
-                0,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                Clusters.EMPTY,
-                searchRequest.pointInTimeBuilder().getEncodedId()
+            ActionListener.respondAndRelease(
+                listener,
+                (Response) new SearchResponse(
+                    null,
+                    aggs,
+                    null,
+                    false,
+                    false,
+                    null,
+                    0,
+                    null,
+                    2,
+                    0,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    Clusters.EMPTY,
+                    searchRequest.pointInTimeBuilder().getEncodedId()
+                )
             );
-
-            listener.onResponse((Response) response);
         }
 
         private InternalComposite newInternalComposite() {
@@ -287,7 +293,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     }
 
                     @Override
-                    public Map<String, Object> readMap() throws IOException {
+                    public Map<String, Object> readGenericMap() throws IOException {
                         return emptyMap();
                     }
                 });

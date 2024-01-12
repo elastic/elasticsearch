@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": ${xpack.application.connector.template.version},
   "description": "Generic Enterprise Search ingest pipeline",
   "_meta": {
     "managed_by": "Enterprise Search",

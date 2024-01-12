@@ -1,0 +1,5 @@
+pr: 102888
+summary: "Optimize `_count` type API requests"
+area: Search
+type: enhancement
+issues: []

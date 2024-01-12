@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.security.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,7 +42,7 @@ public class SecurityActionMapperTests extends ESTestCase {
         String randomAction = actionNameBuilder.toString();
         assumeFalse(
             "Random action is one of the known mapped values: " + randomAction,
-            randomAction.equals(ClearScrollAction.NAME)
+            randomAction.equals(TransportClearScrollAction.NAME)
                 || randomAction.equals(AnalyzeAction.NAME)
                 || randomAction.equals(AnalyzeAction.NAME + "[s]")
         );
@@ -56,7 +56,10 @@ public class SecurityActionMapperTests extends ESTestCase {
         for (int i = 0; i < scrollIds; i++) {
             clearScrollRequest.addScrollId(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
-        assertThat(SecurityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest), equalTo(ClearScrollAction.NAME));
+        assertThat(
+            SecurityActionMapper.action(TransportClearScrollAction.NAME, clearScrollRequest),
+            equalTo(TransportClearScrollAction.NAME)
+        );
     }
 
     public void testClearScrollAll() {
@@ -70,7 +73,7 @@ public class SecurityActionMapperTests extends ESTestCase {
         Collections.shuffle(clearScrollRequest.getScrollIds(), random());
 
         assertThat(
-            SecurityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest),
+            SecurityActionMapper.action(TransportClearScrollAction.NAME, clearScrollRequest),
             equalTo(SecurityActionMapper.CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME)
         );
     }

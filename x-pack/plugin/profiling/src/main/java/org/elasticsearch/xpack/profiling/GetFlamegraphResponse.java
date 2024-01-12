@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
@@ -25,10 +25,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final double samplingRate;
     private final long selfCPU;
     private final long totalCPU;
-    private final double selfAnnualCO2Tons;
-    private final double totalAnnualCO2Tons;
-    private final double selfAnnualCostsUSD;
-    private final double totalAnnualCostsUSD;
     private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;
@@ -46,34 +42,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final List<Double> annualCO2TonsExclusive;
     private final List<Double> annualCostsUSDInclusive;
     private final List<Double> annualCostsUSDExclusive;
-
-    public GetFlamegraphResponse(StreamInput in) throws IOException {
-        this.size = in.readInt();
-        this.samplingRate = in.readDouble();
-        this.edges = in.readCollectionAsList(i -> i.readMap(StreamInput::readInt));
-        this.fileIds = in.readCollectionAsList(StreamInput::readString);
-        this.frameTypes = in.readCollectionAsList(StreamInput::readInt);
-        this.inlineFrames = in.readCollectionAsList(StreamInput::readBoolean);
-        this.fileNames = in.readCollectionAsList(StreamInput::readString);
-        this.addressOrLines = in.readCollectionAsList(StreamInput::readInt);
-        this.functionNames = in.readCollectionAsList(StreamInput::readString);
-        this.functionOffsets = in.readCollectionAsList(StreamInput::readInt);
-        this.sourceFileNames = in.readCollectionAsList(StreamInput::readString);
-        this.sourceLines = in.readCollectionAsList(StreamInput::readInt);
-        this.countInclusive = in.readCollectionAsList(StreamInput::readLong);
-        this.countExclusive = in.readCollectionAsList(StreamInput::readLong);
-        this.annualCO2TonsInclusive = in.readCollectionAsList(StreamInput::readDouble);
-        this.annualCO2TonsExclusive = in.readCollectionAsList(StreamInput::readDouble);
-        this.annualCostsUSDInclusive = in.readCollectionAsList(StreamInput::readDouble);
-        this.annualCostsUSDExclusive = in.readCollectionAsList(StreamInput::readDouble);
-        this.selfCPU = in.readLong();
-        this.totalCPU = in.readLong();
-        this.selfAnnualCO2Tons = in.readDouble();
-        this.totalAnnualCO2Tons = in.readDouble();
-        this.selfAnnualCostsUSD = in.readDouble();
-        this.totalAnnualCostsUSD = in.readDouble();
-        this.totalSamples = in.readLong();
-    }
 
     public GetFlamegraphResponse(
         int size,
@@ -96,10 +64,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         List<Double> annualCostsUSDExclusive,
         long selfCPU,
         long totalCPU,
-        double selfAnnualCO2Tons,
-        double totalAnnualCO2Tons,
-        double selfAnnualCostsUSD,
-        double totalAnnualCostsUSD,
         long totalSamples
     ) {
         this.size = size;
@@ -122,40 +86,12 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         this.annualCostsUSDExclusive = annualCostsUSDExclusive;
         this.selfCPU = selfCPU;
         this.totalCPU = totalCPU;
-        this.selfAnnualCO2Tons = selfAnnualCO2Tons;
-        this.totalAnnualCO2Tons = totalAnnualCO2Tons;
-        this.selfAnnualCostsUSD = selfAnnualCostsUSD;
-        this.totalAnnualCostsUSD = totalAnnualCostsUSD;
         this.totalSamples = totalSamples;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(this.size);
-        out.writeDouble(this.samplingRate);
-        out.writeCollection(this.edges, (o, v) -> o.writeMap(v, StreamOutput::writeString, StreamOutput::writeInt));
-        out.writeCollection(this.fileIds, StreamOutput::writeString);
-        out.writeCollection(this.frameTypes, StreamOutput::writeInt);
-        out.writeCollection(this.inlineFrames, StreamOutput::writeBoolean);
-        out.writeCollection(this.fileNames, StreamOutput::writeString);
-        out.writeCollection(this.addressOrLines, StreamOutput::writeInt);
-        out.writeCollection(this.functionNames, StreamOutput::writeString);
-        out.writeCollection(this.functionOffsets, StreamOutput::writeInt);
-        out.writeCollection(this.sourceFileNames, StreamOutput::writeString);
-        out.writeCollection(this.sourceLines, StreamOutput::writeInt);
-        out.writeCollection(this.countInclusive, StreamOutput::writeLong);
-        out.writeCollection(this.countExclusive, StreamOutput::writeLong);
-        out.writeCollection(this.annualCO2TonsInclusive, StreamOutput::writeDouble);
-        out.writeCollection(this.annualCO2TonsExclusive, StreamOutput::writeDouble);
-        out.writeCollection(this.annualCostsUSDInclusive, StreamOutput::writeDouble);
-        out.writeCollection(this.annualCostsUSDExclusive, StreamOutput::writeDouble);
-        out.writeLong(this.selfCPU);
-        out.writeLong(this.totalCPU);
-        out.writeDouble(this.selfAnnualCO2Tons);
-        out.writeDouble(this.totalAnnualCO2Tons);
-        out.writeDouble(this.selfAnnualCostsUSD);
-        out.writeDouble(this.totalAnnualCostsUSD);
-        out.writeLong(this.totalSamples);
+        TransportAction.localOnly();
     }
 
     public int getSize() {
@@ -212,6 +148,14 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
 
     public List<Integer> getSourceLines() {
         return sourceLines;
+    }
+
+    public List<Double> getAnnualCO2TonsInclusive() {
+        return annualCO2TonsInclusive;
+    }
+
+    public List<Double> getAnnualCostsUSDInclusive() {
+        return annualCostsUSDInclusive;
     }
 
     public long getSelfCPU() {
@@ -272,10 +216,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
             Iterators.single((b, p) -> b.field("SamplingRate", samplingRate)),
             Iterators.single((b, p) -> b.field("SelfCPU", selfCPU)),
             Iterators.single((b, p) -> b.field("TotalCPU", totalCPU)),
-            Iterators.single((b, p) -> b.field("SelfAnnualCO2Tons", selfAnnualCO2Tons)),
-            Iterators.single((b, p) -> b.field("TotalAnnualCO2Tons", totalAnnualCO2Tons)),
-            Iterators.single((b, p) -> b.field("SelfAnnualCostsUSD", selfAnnualCostsUSD)),
-            Iterators.single((b, p) -> b.field("TotalAnnualCostsUSD", totalAnnualCostsUSD)),
             Iterators.single((b, p) -> b.field("TotalSamples", totalSamples)),
             ChunkedToXContentHelper.endObject()
         );

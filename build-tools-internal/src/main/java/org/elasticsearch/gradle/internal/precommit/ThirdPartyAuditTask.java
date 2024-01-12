@@ -59,6 +59,7 @@ import javax.inject.Inject;
 
 import static org.gradle.api.JavaVersion.VERSION_20;
 import static org.gradle.api.JavaVersion.VERSION_21;
+import static org.gradle.api.JavaVersion.VERSION_22;
 
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
@@ -262,10 +263,6 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
     }
 
-    private void throwNotConfiguredCorrectlyException() {
-        throw new IllegalArgumentException("Audit of third party dependencies is not configured correctly");
-    }
-
     /**
      * Ideally we would do unpacking already via artifact transform and keep unpacked jars across builds.
      * At the moment transform target folder is not configurable and forbidden CLI only takes one common
@@ -339,8 +336,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
-            // Enable explicitly for each release as appropriate. Just JDK 20/21 for now, and just the vector module.
-            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21)) {
+            // Enable explicitly for each release as appropriate. Just JDK 20/21/22 for now, and just the vector module.
+            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21) || isJavaVersion(VERSION_22)) {
                 spec.jvmArgs("--add-modules", "jdk.incubator.vector");
             }
             spec.jvmArgs("-Xmx1g");

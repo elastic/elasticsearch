@@ -17,6 +17,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.util.AWSRequestMetrics;
+import com.amazonaws.util.TimingInfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,8 +32,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -43,14 +43,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
 
 class S3BlobStore implements BlobStore {
 
@@ -80,8 +81,7 @@ class S3BlobStore implements BlobStore {
 
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
-    private final MeterRegistry meterRegistry;
-    private final LongCounter requestCounter;
+    private final RepositoriesMetrics repositoriesMetrics;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
@@ -99,7 +99,7 @@ class S3BlobStore implements BlobStore {
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
-        MeterRegistry meterRegistry
+        RepositoriesMetrics repositoriesMetrics
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -111,8 +111,7 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        this.meterRegistry = meterRegistry;
-        this.requestCounter = this.meterRegistry.getLongCounter(METRIC_REQUESTS_COUNT);
+        this.repositoriesMetrics = repositoriesMetrics;
         s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
         threadPool.scheduleWithFixedDelay(() -> {
             var priorRetryStats = s3RequestRetryStats;
@@ -168,11 +167,42 @@ class S3BlobStore implements BlobStore {
 
         @Override
         public final void collectMetrics(Request<?> request, Response<?> response) {
+            assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
+            final AWSRequestMetrics awsRequestMetrics = request.getAWSRequestMetrics();
+            final TimingInfo timingInfo = awsRequestMetrics.getTimingInfo();
+            final long requestCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.RequestCount);
+            final long exceptionCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.Exception);
+            final long throttleCount = getCountForMetric(timingInfo, AWSRequestMetrics.Field.ThrottleException);
+
+            // For stats reported by API, do not collect stats for null response for BWC.
+            // See https://github.com/elastic/elasticsearch/pull/71406
+            // TODO Is this BWC really necessary?
             if (response != null) {
-                assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
-                counter.add(getRequestCount(request));
-                requestCounter.incrementBy(getRequestCount(request), attributes);
+                counter.add(requestCount);
             }
+
+            // We collect all metrics regardless whether response is null
+            // There are many situations other than network where a null response can be returned.
+            // In addition, we are interested in the stats when there is a network outage.
+            final int numberOfAwsErrors = Optional.ofNullable(awsRequestMetrics.getProperty(AWSRequestMetrics.Field.AWSErrorCode))
+                .map(List::size)
+                .orElse(0);
+
+            repositoriesMetrics.operationCounter().incrementBy(1, attributes);
+            if (numberOfAwsErrors == requestCount) {
+                repositoriesMetrics.unsuccessfulOperationCounter().incrementBy(1, attributes);
+            }
+
+            repositoriesMetrics.requestCounter().incrementBy(requestCount, attributes);
+            if (exceptionCount > 0) {
+                repositoriesMetrics.exceptionCounter().incrementBy(exceptionCount, attributes);
+                repositoriesMetrics.exceptionHistogram().record(exceptionCount, attributes);
+            }
+            if (throttleCount > 0) {
+                repositoriesMetrics.throttleCounter().incrementBy(throttleCount, attributes);
+                repositoriesMetrics.throttleHistogram().record(throttleCount, attributes);
+            }
+            repositoriesMetrics.httpRequestTimeInMicroHistogram().record(getHttpRequestTimeInMicros(request), attributes);
         }
 
         private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
@@ -197,13 +227,44 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static long getRequestCount(Request<?> request) {
-        Number requestCount = request.getAWSRequestMetrics().getTimingInfo().getCounter(AWSRequestMetrics.Field.RequestCount.name());
-        if (requestCount == null) {
-            logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);
+    private static long getCountForMetric(TimingInfo info, AWSRequestMetrics.Field field) {
+        var count = info.getCounter(field.name());
+        if (count == null) {
+            if (field == AWSRequestMetrics.Field.RequestCount) {
+                final String message = "Expected request count to be tracked but found not count.";
+                assert false : message;
+                logger.warn(message);
+            }
+            return 0L;
+        } else {
+            return count.longValue();
+        }
+    }
+
+    /**
+     * Used for APM style metrics to measure statics about performance. This is not for billing.
+     */
+    private static long getHttpRequestTimeInMicros(Request<?> request) {
+        List<TimingInfo> requestTimesIncludingRetries;
+        requestTimesIncludingRetries = request.getAWSRequestMetrics()
+            .getTimingInfo()
+            .getAllSubMeasurements(AWSRequestMetrics.Field.HttpRequestTime.name());
+
+        // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
+        // (time to first byte). We calculate the time in micros for later use with an APM style counter (exposed as a long), rather than
+        // using the default double exposed by getTimeTakenMillisIfKnown().
+        long totalTimeInMicros = 0;
+        for (TimingInfo timingInfo : requestTimesIncludingRetries) {
+            var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
+            if (endTimeInNanos != null) {
+                totalTimeInMicros += TimeUnit.NANOSECONDS.toMicros(endTimeInNanos - timingInfo.getStartTimeNano());
+            }
+        }
+        if (totalTimeInMicros == 0) {
+            logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
             return 0L;
         }
-        return requestCount.longValue();
+        return totalTimeInMicros;
     }
 
     @Override

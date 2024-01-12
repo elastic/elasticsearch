@@ -112,7 +112,7 @@ public class CcrRetentionLeases {
             retainingSequenceNumber,
             "ccr"
         );
-        remoteClient.execute(RetentionLeaseActions.Add.INSTANCE, request, listener);
+        remoteClient.execute(RetentionLeaseActions.ADD, request, listener);
     }
 
     /**
@@ -167,7 +167,7 @@ public class CcrRetentionLeases {
             retainingSequenceNumber,
             "ccr"
         );
-        remoteClient.execute(RetentionLeaseActions.Renew.INSTANCE, request, listener);
+        remoteClient.execute(RetentionLeaseActions.RENEW, request, listener);
     }
 
     /**
@@ -187,7 +187,7 @@ public class CcrRetentionLeases {
         final ActionListener<ActionResponse.Empty> listener
     ) {
         final RetentionLeaseActions.RemoveRequest request = new RetentionLeaseActions.RemoveRequest(leaderShardId, retentionLeaseId);
-        remoteClient.execute(RetentionLeaseActions.Remove.INSTANCE, request, listener);
+        remoteClient.execute(RetentionLeaseActions.REMOVE, request, listener);
     }
 
 }

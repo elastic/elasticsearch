@@ -126,11 +126,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
             }
         })).start();
 
-        waitUntil(
-            () -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty(),
-            60,
-            TimeUnit.SECONDS
-        );
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty(), 60, TimeUnit.SECONDS);
         ensureStableCluster(cluster.numDataAndMasterNodes());
 
         final String targetIndex = "downsample-5m-" + sourceIndex;

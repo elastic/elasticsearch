@@ -183,6 +183,13 @@ The minimum improvement in weight which triggers a rebalancing shard movement.
 Defaults to `1.0f`. Raising this value will cause {es} to stop rebalancing
 shards sooner, leaving the cluster in a more unbalanced state.
 
-NOTE: Regardless of the result of the balancing algorithm, rebalancing might
+[NOTE]
+====
+* It is not recommended to adjust the values of the heuristics settings. The
+default values are generally good, and although different values may improve
+the current balance, it is possible that they create problems in the future
+if the cluster or workload changes.
+* Regardless of the result of the balancing algorithm, rebalancing might
 not be allowed due to allocation rules such as forced awareness and allocation
 filtering.
+====

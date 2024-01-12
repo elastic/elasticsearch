@@ -1,0 +1,6 @@
+pr: 102944
+summary: "If trained model download task is in progress, wait for it to finish before\
+  \ executing start trained model deployment"
+area: Machine Learning
+type: bug
+issues: []

@@ -13,7 +13,6 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -71,9 +70,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -169,12 +170,12 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         return numDocs;
     }
 
-    public void testSearchAction_MatchAllQuery() {
+    public void testSearchAction_MatchAllQuery() throws ExecutionException, InterruptedException {
         testSearchAction(QueryBuilders.matchAllQuery(), true, localOldDocs + localNewDocs + remoteOldDocs + remoteNewDocs, 0);
         testSearchAction(QueryBuilders.matchAllQuery(), false, localOldDocs + localNewDocs + remoteOldDocs + remoteNewDocs, 0);
     }
 
-    public void testSearchAction_RangeQuery() {
+    public void testSearchAction_RangeQuery() throws ExecutionException, InterruptedException {
         testSearchAction(
             QueryBuilders.rangeQuery("@timestamp").from(timestamp),  // This query only matches new documents
             true,
@@ -189,7 +190,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
     }
 
-    public void testSearchAction_RangeQueryThatMatchesNoShards() {
+    public void testSearchAction_RangeQueryThatMatchesNoShards() throws ExecutionException, InterruptedException {
         testSearchAction(
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),  // This query matches no documents
             true,
@@ -206,17 +207,19 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
     }
 
-    private void testSearchAction(QueryBuilder query, boolean ccsMinimizeRoundtrips, long expectedHitCount, int expectedSkippedShards) {
+    private void testSearchAction(QueryBuilder query, boolean ccsMinimizeRoundtrips, long expectedHitCount, int expectedSkippedShards)
+        throws ExecutionException, InterruptedException {
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest("local_*", "*:remote_*");
         request.source(source).setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
-        SearchResponse response = client().search(request).actionGet();
-        ElasticsearchAssertions.assertHitCount(response, expectedHitCount);
-        int expectedTotalShards = oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards;
-        assertThat("Response was: " + response, response.getTotalShards(), is(equalTo(expectedTotalShards)));
-        assertThat("Response was: " + response, response.getSuccessfulShards(), is(equalTo(expectedTotalShards)));
-        assertThat("Response was: " + response, response.getFailedShards(), is(equalTo(0)));
-        assertThat("Response was: " + response, response.getSkippedShards(), is(equalTo(expectedSkippedShards)));
+        assertResponse(client().search(request), response -> {
+            ElasticsearchAssertions.assertHitCount(response, expectedHitCount);
+            int expectedTotalShards = oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards;
+            assertThat("Response was: " + response, response.getTotalShards(), is(equalTo(expectedTotalShards)));
+            assertThat("Response was: " + response, response.getSuccessfulShards(), is(equalTo(expectedTotalShards)));
+            assertThat("Response was: " + response, response.getFailedShards(), is(equalTo(0)));
+            assertThat("Response was: " + response, response.getSkippedShards(), is(equalTo(expectedSkippedShards)));
+        });
     }
 
     public void testGetCheckpointAction_MatchAllQuery() throws InterruptedException {

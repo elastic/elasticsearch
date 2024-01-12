@@ -9,10 +9,10 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * A task that can be cancelled
@@ -21,7 +21,7 @@ public class CancellableTask extends Task {
 
     private volatile String reason;
     private volatile boolean isCancelled;
-    private final ConcurrentLinkedQueue<CancellationListener> listeners = new ConcurrentLinkedQueue<>();
+    private final SubscribableListener<Void> listeners = new SubscribableListener<>();
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);
@@ -39,7 +39,7 @@ public class CancellableTask extends Task {
             this.isCancelled = true;
             this.reason = reason;
         }
-        listeners.forEach(CancellationListener::onCancelled);
+        listeners.onResponse(null);
         onCancelled();
     }
 
@@ -74,14 +74,7 @@ public class CancellableTask extends Task {
      * This method adds a listener that needs to be notified if this task is cancelled.
      */
     public final void addListener(CancellationListener listener) {
-        synchronized (this) {
-            if (this.isCancelled == false) {
-                listeners.add(listener);
-            }
-        }
-        if (isCancelled) {
-            listener.onCancelled();
-        }
+        listeners.addListener(new CancellationListenerAdapter(listener));
     }
 
     /**
@@ -126,5 +119,17 @@ public class CancellableTask extends Task {
      */
     public interface CancellationListener {
         void onCancelled();
+    }
+
+    private record CancellationListenerAdapter(CancellationListener cancellationListener) implements ActionListener<Void> {
+        @Override
+        public void onResponse(Void unused) {
+            cancellationListener.onCancelled();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            assert false : e;
+        }
     }
 }

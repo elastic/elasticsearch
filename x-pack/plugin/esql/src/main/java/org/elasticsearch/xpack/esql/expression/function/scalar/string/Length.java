@@ -12,6 +12,8 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -27,7 +29,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 public class Length extends UnaryScalarFunction implements EvaluatorMapper {
 
-    public Length(Source source, Expression field) {
+    @FunctionInfo(returnType = "integer", description = "Returns the character length of a string.")
+    public Length(Source source, @Param(name = "str", type = { "keyword", "text" }) Expression field) {
         super(source, field);
     }
 
@@ -72,6 +75,6 @@ public class Length extends UnaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return new LengthEvaluator.Factory(toEvaluator.apply(field()));
+        return new LengthEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 }

@@ -52,6 +52,10 @@ public class CsvTestsDataLoader {
     private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
     private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs", "mapping-ul_logs.json", "ul_logs.csv");
+    private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data", "mapping-sample_data.json", "sample_data.csv");
+    private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
+    private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
+    private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(
         EMPLOYEES.indexName,
@@ -63,12 +67,21 @@ public class CsvTestsDataLoader {
         LANGUAGES.indexName,
         LANGUAGES,
         UL_LOGS.indexName,
-        UL_LOGS
+        UL_LOGS,
+        SAMPLE_DATA.indexName,
+        SAMPLE_DATA,
+        CLIENT_IPS.indexName,
+        CLIENT_IPS,
+        AIRPORTS.indexName,
+        AIRPORTS,
+        AIRPORTS_WEB.indexName,
+        AIRPORTS_WEB
     );
 
-    private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enricy-policy-languages.json");
+    private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
+    private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
 
-    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH);
+    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH);
 
     /**
      * <p>

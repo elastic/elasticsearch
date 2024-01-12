@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.DateTimeException;
@@ -54,7 +55,14 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (datetimeBlock.isNull(p) || datetimeBlock.getValueCount(p) != 1) {
+        if (datetimeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (datetimeBlock.getValueCount(p) != 1) {
+          if (datetimeBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

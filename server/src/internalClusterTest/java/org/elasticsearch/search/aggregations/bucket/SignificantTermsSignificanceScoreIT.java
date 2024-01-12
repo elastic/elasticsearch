@@ -237,8 +237,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             );
         }
 
-        request.get();
-
+        request.get().decRef();
     }
 
     @Override

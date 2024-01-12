@@ -14,7 +14,9 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -33,7 +35,11 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInte
  * Reduce a multivalued field to a single valued field containing the average value.
  */
 public class MvMedian extends AbstractMultivalueFunction {
-    public MvMedian(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Converts a multivalued field into a single valued field containing the median value."
+    )
+    public MvMedian(Source source, @Param(name = "v", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 
@@ -44,7 +50,7 @@ public class MvMedian extends AbstractMultivalueFunction {
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
+        return switch (PlannerUtils.toElementType(field().dataType())) {
             case DOUBLE -> new MvMedianDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvMedianIntEvaluator.Factory(fieldEval);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG

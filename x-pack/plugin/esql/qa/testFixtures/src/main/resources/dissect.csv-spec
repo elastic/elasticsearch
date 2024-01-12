@@ -158,3 +158,60 @@ emp_no:integer | a:keyword            | b:keyword         | c:keyword
 10005          | null                 | null              | null 
 10006          | [Principal, Senior]  | [Support, Team]   | [Engineer, Lead]
 ;
+
+docsGettingStartedDissect
+// tag::gs-dissect[]
+FROM sample_data
+| DISSECT message "Connected to %{server_ip}"
+// end::gs-dissect[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword | server_ip:keyword
+;
+
+docsGettingStartedDissectStatsBy
+// tag::gs-dissect-stats-by[]
+FROM sample_data
+| WHERE STARTS_WITH(message, "Connected to")
+| DISSECT message "Connected to %{server_ip}"
+| STATS COUNT(*) BY server_ip
+// end::gs-dissect-stats-by[]
+| SORT server_ip
+;
+
+COUNT(*):long  | server_ip:keyword
+1              |10.1.0.1       
+1              |10.1.0.2       
+1              |10.1.0.3      
+;
+
+emptyPattern#[skip:-8.11.99]
+ROW a="b c d"| DISSECT a "%{b} %{} %{d}";
+
+a:keyword | b:keyword | d:keyword
+b c d     | b         | d
+;
+
+
+multipleEmptyPatterns#[skip:-8.11.99]
+ROW a="b c d e"| DISSECT a "%{b} %{} %{} %{e}";
+
+a:keyword | b:keyword | e:keyword
+b c d e   | b         | e
+;
+
+firstEmptyPattern#[skip:-8.11.99]
+ROW a="x b c d"| DISSECT a "%{} %{b} %{} %{d}";
+
+a:keyword   | b:keyword | d:keyword
+x b c d     | b         | d
+;
+
+
+lastEmptyPattern#[skip:-8.11.99]
+ROW a="b c d x"| DISSECT a "%{b} %{} %{d} %{}";
+
+a:keyword  | b:keyword | d:keyword
+b c d x    | b         | d
+;

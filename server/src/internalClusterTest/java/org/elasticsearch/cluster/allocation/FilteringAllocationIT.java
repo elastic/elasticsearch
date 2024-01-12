@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -51,7 +52,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
         indicesAdmin().prepareRefresh().get();
-        assertThat(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
 
         final boolean closed = randomBoolean();
         if (closed) {
@@ -79,7 +80,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         indicesAdmin().prepareRefresh().get();
-        assertThat(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
     }
 
     public void testAutoExpandReplicasToFilteredNodes() {
@@ -132,7 +133,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
         indicesAdmin().prepareRefresh().get();
-        assertThat(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
 
         final boolean closed = randomBoolean();
         if (closed) {
@@ -191,9 +192,8 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
-                .get()
         );
         assertEquals("invalid IP address [192.168.1.1.] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
     }

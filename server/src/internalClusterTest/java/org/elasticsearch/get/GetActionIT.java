@@ -100,7 +100,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getIndex(), equalTo("test"));
         Set<String> fields = new HashSet<>(response.getFields().keySet());
         assertThat(fields, equalTo(Collections.<String>emptySet()));
-        assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getSourceAsBytesRef(), nullValue());
 
         logger.info("--> realtime get 1 (no source, explicit)");
         response = client().prepareGet(indexOrAlias(), "1").setFetchSource(false).get();
@@ -108,7 +108,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getIndex(), equalTo("test"));
         fields = new HashSet<>(response.getFields().keySet());
         assertThat(fields, equalTo(Collections.<String>emptySet()));
-        assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getSourceAsBytesRef(), nullValue());
 
         logger.info("--> realtime get 1 (no type)");
         response = client().prepareGet(indexOrAlias(), "1").get();
@@ -121,7 +121,7 @@ public class GetActionIT extends ESIntegTestCase {
         response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getSourceAsBytesRef(), nullValue());
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
@@ -155,7 +155,7 @@ public class GetActionIT extends ESIntegTestCase {
         response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getSourceAsBytesRef(), nullValue());
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
@@ -163,7 +163,7 @@ public class GetActionIT extends ESIntegTestCase {
         response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").setFetchSource(true).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getSourceAsBytes(), not(nullValue()));
+        assertThat(response.getSourceAsBytesRef(), not(nullValue()));
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
@@ -205,10 +205,7 @@ public class GetActionIT extends ESIntegTestCase {
         DocWriteResponse indexResponse = prepareIndex("index1").setId("id").setSource(Collections.singletonMap("foo", "bar")).get();
         assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().prepareGet("alias1", "_alias_id").get()
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, client().prepareGet("alias1", "_alias_id"));
         assertThat(exception.getMessage(), endsWith("can't execute a single index op"));
     }
 
@@ -268,7 +265,7 @@ public class GetActionIT extends ESIntegTestCase {
             .get();
 
         assertThat(response.getResponses().length, equalTo(2));
-        assertThat(response.getResponses()[0].getResponse().getSourceAsBytes(), nullValue());
+        assertThat(response.getResponses()[0].getResponse().getSourceAsBytesRef(), nullValue());
         assertThat(response.getResponses()[0].getResponse().getField("field").getValues().get(0).toString(), equalTo("value1"));
     }
 
@@ -550,13 +547,13 @@ public class GetActionIT extends ESIntegTestCase {
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get()
+            client().prepareGet(indexOrAlias(), "1").setStoredFields("field1")
         );
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
 
         flush();
 
-        exc = expectThrows(IllegalArgumentException.class, () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get());
+        exc = expectThrows(IllegalArgumentException.class, client().prepareGet(indexOrAlias(), "1").setStoredFields("field1"));
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
     }
 
@@ -822,7 +819,7 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetRemoteIndex() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> client().prepareGet("cluster:index", "id").get());
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, client().prepareGet("cluster:index", "id"));
         assertEquals(
             "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
             iae.getMessage()

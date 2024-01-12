@@ -26,6 +26,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -38,7 +39,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 
@@ -49,21 +49,40 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final String groupName;
     private final String testName;
     private final Integer lineNumber;
-    private final CsvTestCase testCase;
+    protected final CsvTestCase testCase;
+    protected final Mode mode;
+
+    public enum Mode {
+        SYNC,
+        ASYNC
+    }
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
-        return SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> specs = SpecReader.readScriptSpec(urls, specParser());
+
+        int len = specs.get(0).length;
+        List<Object[]> testcases = new ArrayList<>();
+        for (var spec : specs) {
+            for (Mode mode : Mode.values()) {
+                Object[] obj = new Object[len + 1];
+                System.arraycopy(spec, 0, obj, 0, len);
+                obj[len] = mode;
+                testcases.add(obj);
+            }
+        }
+        return testcases;
     }
 
-    public EsqlSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
+    protected EsqlSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.testCase = testCase;
+        this.mode = mode;
     }
 
     @Before
@@ -71,6 +90,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
             loadDataSetIntoEs(client());
         }
+    }
+
+    protected boolean supportsAsync() {
+        return Version.CURRENT.onOrAfter(Version.V_8_13_0); // the Async API was introduced in 8.13.0
     }
 
     @AfterClass
@@ -104,7 +127,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        Map<String, Object> answer = runEsql(builder.query(testCase.query).build(), testCase.expectedWarnings);
+        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(false));
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");
@@ -119,6 +142,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
+    }
+
+    private Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
+        if (mode == Mode.ASYNC) {
+            assert supportsAsync();
+            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings);
+        } else {
+            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings);
+        }
     }
 
     protected void assertResults(

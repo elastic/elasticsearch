@@ -1,0 +1,195 @@
+###############################################
+# Tests for GEO_POINT type
+#
+
+convertFromStringQuantize#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
+row wkt = "POINT(42.97109629958868 14.7552534006536)"
+| eval pt = to_geopoint(wkt);
+
+wkt:keyword           |pt:geo_point
+POINT(42.97109629958868 14.7552534006536) |POINT(42.97109629958868 14.7552534006536)
+;
+
+convertFromString#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
+// tag::to_geopoint-str[]
+row wkt = "POINT(42.97109630194 14.7552534413725)"
+| eval pt = to_geopoint(wkt)
+// end::to_geopoint-str[]
+;
+
+// tag::to_geopoint-str-result[]
+wkt:keyword                              |pt:geo_point
+"POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
+// end::to_geopoint-str-result[]
+;
+
+convertFromStringArray#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
+row wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| eval pt = to_geopoint(wkt);
+
+wkt:keyword                                                                           |pt:geo_point
+["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
+;
+
+simpleLoad#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
+FROM airports | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
+
+abbrev:keyword | location:geo_point                        | name:text                   | scalerank:i | type:k     
+CJJ            | POINT(127.495916124681 36.7220227766673)  | Cheongju Int'l              | 9           | major
+HOD            | POINT(42.97109630194 14.7552534413725)    | Hodeidah Int'l              | 9           | mid
+IDR            | POINT(75.8092915005895 22.727749187571)   | Devi Ahilyabai Holkar Int'l | 9           | mid
+IXC            | POINT(76.8017261105242 30.6707248949667)  | Chandigarh Int'l            | 9           | [major, military]
+LYP            | POINT(72.9878190922305 31.3627435480862)  | Faisalabad Int'l            | 9           | [mid, military]
+MLG            | POINT(112.711418617258 -7.92998002840567) | Abdul Rachman Saleh         | 9           | [mid, military]
+OMS            | POINT(73.3163595376585 54.9576482934059)  | Omsk Tsentralny             | 9           | mid
+OVB            | POINT(82.6671524525865 55.0095847136264)  | Novosibirsk Tolmachev       | 9           | mid
+OZH            | POINT(35.3018728575279 47.8732635579023)  | Zaporozhye Int'l            | 9           | [mid, military]
+TRZ            | POINT(78.7089578747476 10.7603571306554)  | Tiruchirappalli             | 9           | mid
+WIIT           | POINT(105.176060419161 -5.242566777132)   | Radin Inten II              | 9           | mid
+ZAH            | POINT(60.900708564915 29.4752941956573)   | Zahedan Int'l               | 9           | mid
+;
+
+geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+// tag::to_geopoint-equals[]
+ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geopoint(wkt)
+| WHERE pt == to_geopoint("POINT(42.97109630194 14.7552534413725)")
+// end::to_geopoint-equals[]
+;
+
+// tag::to_geopoint-equals-result[]
+wkt:keyword                              |pt:geo_point
+"POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
+// end::to_geopoint-equals-result[]
+;
+
+geoPointNotEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+// tag::to_geopoint-not-equals[]
+ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geopoint(wkt)
+| WHERE pt != to_geopoint("POINT(42.97109630194 14.7552534413725)")
+// end::to_geopoint-not-equals[]
+;
+
+// tag::to_geopoint-not-equals-result[]
+wkt:keyword                               |pt:geo_point
+"POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
+// end::to_geopoint-not-equals-result[]
+;
+
+convertFromStringParseError#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+// tag::to_geopoint-str-parse-error[]
+row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)", "POINT(111)"]
+| mv_expand wkt
+| eval pt = to_geopoint(wkt)
+// end::to_geopoint-str-parse-error[]
+;
+
+// tag::to_geopoint-str-parse-error-warning[]
+warning:Line 3:13: evaluation of [to_geopoint(wkt)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+// end::to_geopoint-str-parse-error-warning[]
+
+// tag::to_geopoint-str-parse-error-result[]
+wkt:keyword                               |pt:geo_point
+"POINTX(42.97109630194 14.7552534413725)" |null
+"POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
+"POINT(111)"                              |null
+// end::to_geopoint-str-parse-error-result[]
+;
+
+###############################################
+# Tests for CARTESIAN_POINT type
+#
+
+convertCartesianFromString#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
+// tag::to_cartesianpoint-str[]
+row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| mv_expand wkt
+| eval pt = to_cartesianpoint(wkt)
+// end::to_cartesianpoint-str[]
+;
+
+// tag::to_cartesianpoint-str-result[]
+wkt:keyword               |pt:cartesian_point 
+"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
+"POINT(7580.93 2272.77)"  |POINT(7580.93 2272.77)
+// end::to_cartesianpoint-str-result[]
+;
+
+convertCartesianFromStringArray#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
+row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| eval pt = to_cartesianpoint(wkt);
+
+wkt:keyword                                                                           |pt:cartesian_point
+["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
+;
+
+simpleCartesianLoad#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
+FROM airports_web | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
+
+abbrev:keyword | location:cartesian_point                      | name:text                   | scalerank:i | type:k
+CJJ            | POINT(14192780.461221408 4400430.851323913)   | Cheongju Int'l              | 9           | major
+HOD            | POINT (4783520.559160681 1661010.0197476079)  | Hodeidah Int'l              | 9           | mid
+IDR            | POINT (8439051.727244465 2599127.5424638605)  | Devi Ahilyabai Holkar Int'l | 9           | mid
+OMS            | POINT (8161539.810548711 7353650.845101996)   | Omsk Tsentralny             | 9           | mid
+OVB            | POINT (9202465.316351846 7363726.532780712)   | Novosibirsk Tolmachev       | 9           | mid
+TRZ            | POINT (8761841.111486122 1204941.537981898)   | Tiruchirappalli             | 9           | mid
+WIIT           | POINT (11708145.489503577 -584415.9142832769) | Radin Inten II              | 9           | mid
+ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l               | 9           | mid
+;
+
+cartesianPointEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+// tag::to_cartesianpoint-equals[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = to_cartesianpoint(wkt)
+| WHERE pt == to_cartesianpoint("POINT(4297.11 -1475.53)")
+// end::to_cartesianpoint-equals[]
+;
+
+// tag::to_cartesianpoint-equals-result[]
+wkt:keyword               |pt:cartesian_point
+"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
+// end::to_cartesianpoint-equals-result[]
+;
+
+cartesianPointNotEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+// tag::to_cartesianpoint-not-equals[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = to_cartesianpoint(wkt)
+| WHERE pt != to_cartesianpoint("POINT(4297.11 -1475.53)")
+// end::to_cartesianpoint-not-equals[]
+;
+
+// tag::to_cartesianpoint-not-equals-result[]
+wkt:keyword              |pt:cartesian_point
+"POINT(7580.93 2272.77)" |POINT(7580.93 2272.77)
+// end::to_cartesianpoint-not-equals-result[]
+;
+
+convertCartesianFromStringParseError#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+// tag::to_cartesianpoint-str-parse-error[]
+row wkt = ["POINTX(4297.11 -1475.53)", "POINT(7580.93 2272.77)", "POINT(111)"]
+| mv_expand wkt
+| eval pt = to_cartesianpoint(wkt)
+// end::to_cartesianpoint-str-parse-error[]
+;
+
+// tag::to_cartesianpoint-str-parse-error-warning[]
+warning:Line 3:13: evaluation of [to_cartesianpoint(wkt)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+// end::to_cartesianpoint-str-parse-error-warning[]
+
+// tag::to_cartesianpoint-str-parse-error-result[]
+wkt:keyword                |pt:cartesian_point
+"POINTX(4297.11 -1475.53)" |null
+"POINT(7580.93 2272.77)"   |POINT(7580.93 2272.77)
+"POINT(111)"               |null
+// end::to_cartesianpoint-str-parse-error-result[]
+;

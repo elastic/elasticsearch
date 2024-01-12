@@ -1,0 +1,6 @@
+pr: 102490
+summary: "ESQL: Load text field from parent keyword field"
+area: ES|QL
+type: enhancement
+issues:
+ - 102473

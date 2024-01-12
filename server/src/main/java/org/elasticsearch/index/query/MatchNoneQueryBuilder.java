@@ -39,14 +39,14 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
      */
     public MatchNoneQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
             rewriteReason = in.readOptionalString();
         }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
             out.writeOptionalString(rewriteReason);
         }
     }

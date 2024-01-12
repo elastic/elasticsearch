@@ -78,6 +78,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -231,6 +232,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -241,6 +243,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<RestHandler> handlers = new ArrayList<>(
             super.getRestHandlers(
                 settings,
+                namedWriteableRegistry,
                 restController,
                 clusterSettings,
                 indexScopedSettings,
@@ -253,6 +256,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             p -> handlers.addAll(
                 p.getRestHandlers(
                     settings,
+                    namedWriteableRegistry,
                     restController,
                     clusterSettings,
                     indexScopedSettings,
@@ -447,7 +451,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public Function<String, Predicate<String>> getFieldFilter() {
-        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream().map(p -> p.getFieldFilter()).toList();
+        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream()
+            .map(p -> p.getFieldFilter())
+            .filter(p -> p.equals(NOOP_FIELD_FILTER) == false)
+            .toList();
         if (items.size() > 1) {
             throw new UnsupportedOperationException("Only the security MapperPlugin should override this");
         } else if (items.size() == 1) {
@@ -493,13 +500,16 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         HashMap<String, Repository.Factory> repositories = new HashMap<>(
-            super.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+            super.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, repositoriesMetrics)
         );
         filterPlugins(RepositoryPlugin.class).forEach(
-            r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings))
+            r -> repositories.putAll(
+                r.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, RepositoriesMetrics.NOOP)
+            )
         );
         return repositories;
     }

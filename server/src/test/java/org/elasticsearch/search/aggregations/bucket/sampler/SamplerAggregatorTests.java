@@ -132,4 +132,14 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testSupportsParallelCollection() {
+        SamplerAggregationBuilder sampler = new SamplerAggregationBuilder("name");
+        if (randomBoolean()) {
+            sampler.subAggregation(new TermsAggregationBuilder("name").field("field"));
+        }
+        if (randomBoolean()) {
+            sampler.shardSize(randomIntBetween(1, 1000));
+        }
+        assertFalse(sampler.supportsParallelCollection(null));
+    }
 }

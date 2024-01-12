@@ -1,9 +1,5 @@
 ---
 "Basic mlt query with docs - explicitly on same shard":
-  - skip:
-      version: "all"
-      reason: temporarily disabling for investigation
-
   - do:
       indices.create:
         index: mlt_one_shard_test_index
@@ -11,7 +7,7 @@
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
+              number_of_replicas: 1
 
   - do:
       index:

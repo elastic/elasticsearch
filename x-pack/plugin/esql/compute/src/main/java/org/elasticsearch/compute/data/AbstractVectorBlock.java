@@ -57,6 +57,7 @@ abstract class AbstractVectorBlock extends AbstractBlock {
 
     @Override
     public final Block expand() {
+        incRef();
         return this;
     }
 }

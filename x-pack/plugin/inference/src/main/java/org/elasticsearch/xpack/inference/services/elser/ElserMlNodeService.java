@@ -3,27 +3,34 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file has been contributed to by a Generative AI
  */
 
 package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceExtension;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,8 +38,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class ElserMlNodeService implements InferenceService {
 
@@ -51,7 +58,7 @@ public class ElserMlNodeService implements InferenceService {
 
     private final OriginSettingClient client;
 
-    public ElserMlNodeService(InferenceServicePlugin.InferenceServiceFactoryContext context) {
+    public ElserMlNodeService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
     }
 
@@ -69,16 +76,8 @@ public class ElserMlNodeService implements InferenceService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
 
-        // choose a default model version based on the cluster architecture
         if (serviceSettingsBuilder.getModelVariant() == null) {
-            boolean homogenous = modelArchitectures.size() == 1;
-            if (homogenous && modelArchitectures.iterator().next().equals("linux-x86_64")) {
-                // Use the hardware optimized model
-                serviceSettingsBuilder.setModelVariant(ELSER_V2_MODEL_LINUX_X86);
-            } else {
-                // default to the platform-agnostic model
-                serviceSettingsBuilder.setModelVariant(ELSER_V2_MODEL);
-            }
+            serviceSettingsBuilder.setModelVariant(selectDefaultModelVersionBasedOnClusterArchitecture(modelArchitectures));
         }
 
         Map<String, Object> taskSettingsMap;
@@ -98,13 +97,30 @@ public class ElserMlNodeService implements InferenceService {
         return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
     }
 
+    private static String selectDefaultModelVersionBasedOnClusterArchitecture(Set<String> modelArchitectures) {
+        // choose a default model version based on the cluster architecture
+        boolean homogenous = modelArchitectures.size() == 1;
+        if (homogenous && modelArchitectures.iterator().next().equals("linux-x86_64")) {
+            // Use the hardware optimized model
+            return ELSER_V2_MODEL_LINUX_X86;
+        } else {
+            // default to the platform-agnostic model
+            return ELSER_V2_MODEL;
+        }
+    }
+
     @Override
-    public ElserMlNodeModel parsePersistedConfig(
+    public ElserMlNodeModel parsePersistedConfigWithSecrets(
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
+        return parsePersistedConfig(modelId, taskType, config);
+    }
+
+    @Override
+    public ElserMlNodeModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
 
@@ -148,23 +164,49 @@ public class ElserMlNodeService implements InferenceService {
         startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
         startRequest.setWaitForState(STARTED);
 
+        client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, elserNotDownloadedListener(model, listener));
+    }
+
+    private static ActionListener<CreateTrainedModelAssignmentAction.Response> elserNotDownloadedListener(
+        Model model,
+        ActionListener<Boolean> listener
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(CreateTrainedModelAssignmentAction.Response response) {
+                listener.onResponse(Boolean.TRUE);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                    listener.onFailure(
+                        new ResourceNotFoundException(
+                            "Could not start the ELSER service as the ELSER model for this platform cannot be found."
+                                + " ELSER needs to be downloaded before it can be started"
+                        )
+                    );
+                    return;
+                }
+                listener.onFailure(e);
+            }
+        };
+    }
+
+    @Override
+    public void stop(String modelId, ActionListener<Boolean> listener) {
         client.execute(
-            StartTrainedModelDeploymentAction.INSTANCE,
-            startRequest,
-            ActionListener.wrap(r -> listener.onResponse(Boolean.TRUE), listener::onFailure)
+            StopTrainedModelDeploymentAction.INSTANCE,
+            new StopTrainedModelDeploymentAction.Request(modelId),
+            listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
         );
     }
 
     @Override
-    public void infer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        ActionListener<List<? extends InferenceResults>> listener
-    ) {
+    public void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener) {
         // No task settings to override with requestTaskSettings
 
-        if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
+        if (TaskType.SPARSE_EMBEDDING.isAnyOrSame(model.getConfigurations().getTaskType()) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME),
@@ -180,9 +222,11 @@ public class ElserMlNodeService implements InferenceService {
             input,
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request
         );
-        client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, ActionListener.wrap(inferenceResult -> {
-            listener.onResponse(inferenceResult.getResults());
-        }, listener::onFailure));
+        client.execute(
+            InferTrainedModelDeploymentAction.INSTANCE,
+            request,
+            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getResults())))
+        );
     }
 
     private static ElserMlNodeTaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {

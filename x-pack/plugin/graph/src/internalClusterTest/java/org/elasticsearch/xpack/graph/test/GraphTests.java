@@ -29,7 +29,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreRequestBuilder;
 import org.elasticsearch.xpack.graph.Graph;
 
@@ -117,7 +116,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testSignificanceQueryCrawl() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));
         hop1.addVertexRequest("people").size(10).minDocCount(1); // members of beatles
         grb.createNextHop(null).addVertexRequest("people").size(100).minDocCount(1); // friends of members of beatles
@@ -145,7 +144,7 @@ public class GraphTests extends ESSingleNodeTestCase {
 
     public void testTargetedQueryCrawl() {
         // Tests use of a client-provided query to steer exploration
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));
         hop1.addVertexRequest("people").size(10).minDocCount(1); // members of beatles
         // 70s friends of beatles
@@ -161,7 +160,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testLargeNumberTermsStartCrawl() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
         Hop hop1 = grb.createNextHop(null);
         VertexRequest peopleNames = hop1.addVertexRequest("people").minDocCount(1);
         peopleNames.addInclude("john", 1);
@@ -179,7 +178,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testTargetedQueryCrawlDepth2() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));
         hop1.addVertexRequest("people").size(10).minDocCount(1); // members of beatles
         // 00s friends of beatles
@@ -196,7 +195,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testPopularityQueryCrawl() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
         // Turning off the significance feature means we reward popularity
         grb.useSignificance(false);
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));
@@ -213,7 +212,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testTimedoutQueryCrawl() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
         grb.setTimeout(TimeValue.timeValueMillis(400));
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));
         hop1.addVertexRequest("people").size(10).minDocCount(1); // members of beatles
@@ -237,7 +236,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testNonDiversifiedCrawl() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
 
         Hop hop1 = grb.createNextHop(QueryBuilders.termsQuery("people", "dave", "other"));
         hop1.addVertexRequest("people").size(10).minDocCount(1);
@@ -249,7 +248,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testDiversifiedCrawl() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
         grb.sampleDiversityField("description").maxDocsPerDiversityValue(1);
 
         Hop hop1 = grb.createNextHop(QueryBuilders.termsQuery("people", "dave", "other"));
@@ -262,7 +261,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testInvalidDiversifiedCrawl() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
         grb.sampleDiversityField("description").maxDocsPerDiversityValue(1);
 
         Hop hop1 = grb.createNextHop(QueryBuilders.termsQuery("people", "roy", "other"));
@@ -283,10 +282,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testMappedAndUnmappedQueryCrawl() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices(
-            "test",
-            "idx_unmapped"
-        );
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test", "idx_unmapped");
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));
         hop1.addVertexRequest("people").size(10).minDocCount(1); // members of beatles
         grb.createNextHop(null).addVertexRequest("people").size(100).minDocCount(1); // friends of members of beatles
@@ -301,7 +297,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testUnmappedQueryCrawl() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("idx_unmapped");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("idx_unmapped");
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));
         hop1.addVertexRequest("people").size(10).minDocCount(1);
 
@@ -312,7 +308,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     }
 
     public void testRequestValidation() {
-        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
+        GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client()).setIndices("test");
 
         try {
             grb.get();

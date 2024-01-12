@@ -85,5 +85,11 @@ public class SearchContextIdTests extends ESTestCase {
         assertThat(node3.getNode(), equalTo("node_3"));
         assertThat(node3.getSearchContextId().getId(), equalTo(42L));
         assertThat(node3.getSearchContextId().getSessionId(), equalTo("c"));
+
+        final String[] indices = SearchContextId.decodeIndices(id);
+        assertThat(indices.length, equalTo(3));
+        assertThat(indices[0], equalTo("cluster_x:idx"));
+        assertThat(indices[1], equalTo("cluster_y:idy"));
+        assertThat(indices[2], equalTo("idy"));
     }
 }

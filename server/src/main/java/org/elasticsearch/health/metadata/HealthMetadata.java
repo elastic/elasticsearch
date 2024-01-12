@@ -131,8 +131,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         private Disk disk;
         private ShardLimits shardLimits;
 
-        private Builder() {}
-
         private Builder(HealthMetadata healthMetadata) {
             this.disk = healthMetadata.diskMetadata;
             this.shardLimits = healthMetadata.shardLimitsMetadata;

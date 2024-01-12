@@ -35,8 +35,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
+    public static final int KEY_ORDER_CONCURRENCY_THRESHOLD = 50;
+
     public static final String NAME = "terms";
     public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -106,13 +109,13 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
     private SubAggCollectionMode collectMode = null;
-    private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
-        DEFAULT_BUCKET_COUNT_THRESHOLDS
-    );
+    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+
     private boolean showTermDocCountError = false;
 
     public TermsAggregationBuilder(String name) {
         super(name);
+        this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 
     protected TermsAggregationBuilder(
@@ -135,7 +138,34 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     @Override
-    public boolean supportsParallelCollection() {
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        /*
+         * we parallelize only if the cardinality of the field is lower than shard size, this is to minimize precision issues.
+         * When ordered by term, we still take cardinality into account to avoid overhead that concurrency may cause against
+         * high cardinality fields.
+         */
+        if (script() == null
+            && (executionHint == null || executionHint.equals(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString()))) {
+            long cardinality = fieldCardinalityResolver.applyAsLong(field());
+            if (supportsParallelCollection(cardinality, order, bucketCountThresholds)) {
+                return super.supportsParallelCollection(fieldCardinalityResolver);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a terms aggregation with the provided order and bucket count thresholds against a field
+     * with the given cardinality should be executed concurrency.
+     */
+    public static boolean supportsParallelCollection(long cardinality, BucketOrder order, BucketCountThresholds bucketCountThresholds) {
+        if (cardinality != -1) {
+            if (InternalOrder.isKeyOrder(order)) {
+                return cardinality <= KEY_ORDER_CONCURRENCY_THRESHOLD;
+            }
+            BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
+            return cardinality <= adjusted.getShardSize();
+        }
         return false;
     }
 

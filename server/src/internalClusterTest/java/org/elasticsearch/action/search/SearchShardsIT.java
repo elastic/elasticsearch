@@ -24,7 +24,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.Queue;
+import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +72,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean() ? null : randomAlphaOfLength(10)
             );
-            var resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
+            var resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             int skipped = 0;
             for (SearchShardsGroup g : resp.getGroups()) {
@@ -97,7 +99,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean() ? null : randomAlphaOfLength(10)
             );
-            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             for (SearchShardsGroup g : resp.getGroups()) {
                 assertFalse(g.skipped());
@@ -105,7 +107,7 @@ public class SearchShardsIT extends ESIntegTestCase {
         }
     }
 
-    public void testRandom() {
+    public void testRandom() throws ExecutionException, InterruptedException {
         int numIndices = randomIntBetween(1, 10);
         for (int i = 0; i < numIndices; i++) {
             String index = "index-" + i;
@@ -127,21 +129,22 @@ public class SearchShardsIT extends ESIntegTestCase {
             RangeQueryBuilder rangeQuery = new RangeQueryBuilder("value").from(from).to(to).includeUpper(true).includeLower(true);
             SearchRequest searchRequest = new SearchRequest().indices("index-*").source(new SearchSourceBuilder().query(rangeQuery));
             searchRequest.setPreFilterShardSize(1);
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            var searchShardsRequest = new SearchShardsRequest(
-                new String[] { "index-*" },
-                SearchRequest.DEFAULT_INDICES_OPTIONS,
-                rangeQuery,
-                null,
-                preference,
-                randomBoolean(),
-                randomBoolean() ? null : randomAlphaOfLength(10)
-            );
-            var searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+            assertResponse(client().search(searchRequest), searchResponse -> {
+                var searchShardsRequest = new SearchShardsRequest(
+                    new String[] { "index-*" },
+                    SearchRequest.DEFAULT_INDICES_OPTIONS,
+                    rangeQuery,
+                    null,
+                    preference,
+                    randomBoolean(),
+                    randomBoolean() ? null : randomAlphaOfLength(10)
+                );
+                var searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
 
-            assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
-            long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();
-            assertThat(skippedShards, equalTo((long) searchResponse.getSkippedShards()));
+                assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
+                long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();
+                assertThat(skippedShards, equalTo((long) searchResponse.getSkippedShards()));
+            });
         }
     }
 
@@ -182,7 +185,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 null
             );
-            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(totalShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertFalse(group.skipped());

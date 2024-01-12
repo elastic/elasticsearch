@@ -26,10 +26,7 @@ import java.util.Objects;
  */
 public class DeleteDataStreamLifecycleAction {
 
-    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(
-        "indices:admin/data_stream/lifecycle/delete",
-        AcknowledgedResponse::readFrom
-    );
+    public static final ActionType<AcknowledgedResponse> INSTANCE = ActionType.localOnly("indices:admin/data_stream/lifecycle/delete");
 
     private DeleteDataStreamLifecycleAction() {/* no instances */}
 

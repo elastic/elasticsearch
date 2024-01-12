@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -321,7 +322,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = services.repositoriesServiceSupplier();
         this.threadPool.set(threadPool);
-        this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
+        this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), services.rerouteService()));
         if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
@@ -357,12 +358,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), threadPool.generic());
         }
 
-        this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService(), frozenCacheInfoService));
+        this.allocator.set(new SearchableSnapshotAllocator(client, services.rerouteService(), frozenCacheInfoService));
         components.add(new FrozenCacheServiceSupplier(frozenCacheService.get()));
         components.add(new CacheServiceSupplier(cacheService.get()));
         if (DiscoveryNode.isMasterNode(settings)) {
             new SearchableSnapshotIndexMetadataUpgrader(clusterService, threadPool).initialize();
-            clusterService.addListener(new RepositoryUuidWatcher(clusterService.getRerouteService()));
+            clusterService.addListener(new RepositoryUuidWatcher(services.rerouteService()));
         }
         return Collections.unmodifiableList(components);
     }
@@ -500,6 +501,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

@@ -55,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -142,11 +143,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> trying to create another snapshot in order for repository to be marked as corrupt");
         final SnapshotException snapshotException = expectThrows(
             SnapshotException.class,
-            () -> clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot2")
-                .setIndices(indexFast)
-                .setWaitForCompletion(true)
-                .execute()
-                .actionGet()
+            clusterAdmin().prepareCreateSnapshot(repoName, "fast-snapshot2").setIndices(indexFast).setWaitForCompletion(true)
         );
         assertThat(snapshotException.getMessage(), containsString("failed to update snapshot in repository"));
         assertEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryMetadata(repoName).generation());
@@ -242,7 +239,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         clusterAdmin().prepareCreateSnapshot(otherRepoName, "snapshot").setIndices("does-not-exist-*").setWaitForCompletion(false).get();
 
         unblockNode(blockedRepoName, internalCluster().getMasterName());
-        expectThrows(SnapshotException.class, createSlowFuture::actionGet);
+        expectThrows(SnapshotException.class, createSlowFuture);
 
         assertBusy(() -> assertThat(currentSnapshots(otherRepoName), empty()), 30L, TimeUnit.SECONDS);
     }
@@ -336,7 +333,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, "second-snapshot");
 
         unblockNode(repoName, masterNode);
-        final UncategorizedExecutionException ex = expectThrows(UncategorizedExecutionException.class, deleteFuture::actionGet);
+        final UncategorizedExecutionException ex = expectThrows(UncategorizedExecutionException.class, deleteFuture);
         assertThat(ex.getRootCause(), instanceOf(IOException.class));
 
         assertSuccessful(snapshotFuture);
@@ -509,7 +506,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for delete to be enqueued in cluster state");
         awaitClusterState(state -> {
             final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-            return deletionsInProgress.getEntries().size() == 1 && deletionsInProgress.getEntries().get(0).getSnapshots().size() == 3;
+            return deletionsInProgress.getEntries().size() == 1 && deletionsInProgress.getEntries().get(0).snapshots().size() == 3;
         });
 
         logger.info("--> waiting for second snapshot to finish and the other two snapshots to become aborted");
@@ -541,7 +538,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 assertThat(sme.getSnapshotName(), is(firstSnapshot));
             }
         }
-        expectThrows(SnapshotException.class, snapshotThreeFuture::actionGet);
+        expectThrows(SnapshotException.class, snapshotThreeFuture);
 
         logger.info("--> verify that all snapshots are gone and no more work is left in the cluster state");
         awaitNoMoreRunningOperations();
@@ -596,12 +593,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNDeletionsInProgress(2);
 
         unblockNode(repoName, masterNode);
-        expectThrows(UncategorizedExecutionException.class, firstDeleteFuture::actionGet);
+        expectThrows(UncategorizedExecutionException.class, firstDeleteFuture);
 
         // Second delete works out cleanly since the repo is unblocked now
         assertThat(secondDeleteFuture.get().isAcknowledged(), is(true));
         // Snapshot should have been aborted
-        final SnapshotException snapshotException = expectThrows(SnapshotException.class, snapshotFuture::actionGet);
+        final SnapshotException snapshotException = expectThrows(SnapshotException.class, snapshotFuture);
         assertThat(snapshotException.getMessage(), containsString(SnapshotsInProgress.ABORTED_FAILURE_TEXT));
 
         assertThat(clusterAdmin().prepareGetSnapshots(repoName).get().getSnapshots(), empty());
@@ -628,7 +625,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // Second delete works out cleanly since the repo is unblocked now
         assertThat(secondDeleteFuture.get().isAcknowledged(), is(true));
         // Snapshot should have been aborted
-        final SnapshotException snapshotException = expectThrows(SnapshotException.class, snapshotFuture::actionGet);
+        final SnapshotException snapshotException = expectThrows(SnapshotException.class, snapshotFuture);
         assertThat(snapshotException.getMessage(), containsString(SnapshotsInProgress.ABORTED_FAILURE_TEXT));
 
         assertThat(clusterAdmin().prepareGetSnapshots(repoName).get().getSnapshots(), empty());
@@ -695,7 +692,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> make sure all failing requests get a response");
         assertAcked(firstDeleteFuture.get());
         assertAcked(secondDeleteFuture.get());
-        expectThrows(SnapshotException.class, createThirdSnapshot::actionGet);
+        expectThrows(SnapshotException.class, createThirdSnapshot);
 
         awaitNoMoreRunningOperations();
     }
@@ -736,8 +733,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
 
         logger.info("--> make sure all failing requests get a response");
-        expectThrows(SnapshotException.class, firstFailedSnapshotFuture::actionGet);
-        expectThrows(SnapshotException.class, secondFailedSnapshotFuture::actionGet);
+        expectThrows(SnapshotException.class, firstFailedSnapshotFuture);
+        expectThrows(SnapshotException.class, secondFailedSnapshotFuture);
         assertAcked(deleteFuture.get());
 
         awaitNoMoreRunningOperations();
@@ -807,8 +804,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
-        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        expectThrows(ElasticsearchException.class, snapshotThree);
+        expectThrows(ElasticsearchException.class, snapshotFour);
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver2() throws Exception {
@@ -840,8 +837,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, masterNode);
         networkDisruption.stopDisrupting();
         awaitNoMoreRunningOperations();
-        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
-        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        expectThrows(ElasticsearchException.class, snapshotThree);
+        expectThrows(ElasticsearchException.class, snapshotFour);
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOverMultipleRepos() throws Exception {
@@ -884,8 +881,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
-        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        expectThrows(ElasticsearchException.class, snapshotThree);
+        expectThrows(ElasticsearchException.class, snapshotFour);
         assertAcked(deleteFuture.get());
         try {
             createBlockedSnapshot.actionGet();
@@ -953,7 +950,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             indexDoc(testIndex, Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(prepareSearch(testIndex).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(prepareSearch(testIndex).setSize(0), 100);
 
         logger.info("--> start relocations");
         allowNodes(testIndex, 1);
@@ -1030,7 +1027,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         unblockNode(repoName, masterName);
 
-        expectThrows(SnapshotException.class, snapshotThree::actionGet);
+        expectThrows(SnapshotException.class, snapshotThree);
         assertAcked(deleteSnapshotOne.get());
     }
 
@@ -1078,7 +1075,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101876")
     public void testMasterFailoverOnFinalizationLoop() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
@@ -1317,7 +1313,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final ConcurrentSnapshotExecutionException cse = expectThrows(
             ConcurrentSnapshotExecutionException.class,
-            () -> clusterAdmin().prepareCreateSnapshot(repoName, "expected-to-fail").get()
+            clusterAdmin().prepareCreateSnapshot(repoName, "expected-to-fail")
         );
         assertThat(
             cse.getMessage(),
@@ -1407,7 +1403,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNDeletionsInProgress(1);
         unblockNode(repoName, masterNode);
         assertAcked(deleteFuture.get());
-        final SnapshotException sne = expectThrows(SnapshotException.class, snapshotFuture::actionGet);
+        final SnapshotException sne = expectThrows(SnapshotException.class, snapshotFuture);
         assertThat(sne.getCause().getMessage(), containsString("exception after block"));
     }
 
@@ -1430,7 +1426,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNumberOfSnapshotsInProgress(2);
 
         assertAcked(startDeleteSnapshot(repoName, snapshotTwo).get());
-        final SnapshotException sne = expectThrows(SnapshotException.class, createSnapshot2Future::actionGet);
+        final SnapshotException sne = expectThrows(SnapshotException.class, createSnapshot2Future);
 
         assertFalse(createSnapshot1Future.isDone());
         unblockNode(repoName, dataNode);

@@ -11,10 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -134,32 +132,6 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
         @Nullable
         public void setParams(PersistentTaskParams params) {
             this.params = params;
-        }
-
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
-        StartPersistentTaskAction.Request,
-        PersistentTaskResponse,
-        StartPersistentTaskAction.RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, StartPersistentTaskAction action) {
-            super(client, action, new Request());
-        }
-
-        public RequestBuilder setTaskId(String taskId) {
-            request.setTaskId(taskId);
-            return this;
-        }
-
-        public RequestBuilder setAction(String action) {
-            request.setTaskName(action);
-            return this;
-        }
-
-        public RequestBuilder setRequest(PersistentTaskParams params) {
-            request.setParams(params);
-            return this;
         }
 
     }

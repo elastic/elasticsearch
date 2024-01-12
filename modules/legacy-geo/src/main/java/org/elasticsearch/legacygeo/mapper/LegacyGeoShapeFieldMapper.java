@@ -130,17 +130,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public static final String GEOHASH = "geohash";
     }
 
-    @Deprecated
-    public static class DeprecatedParameters {
-
-        private static void checkPrefixTreeSupport(String fieldName) {
-            if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
-                throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type", fieldName, CONTENT_TYPE);
-            }
-
-        }
-    }
-
     private static Builder builder(FieldMapper in) {
         return ((LegacyGeoShapeFieldMapper) in).builder;
     }

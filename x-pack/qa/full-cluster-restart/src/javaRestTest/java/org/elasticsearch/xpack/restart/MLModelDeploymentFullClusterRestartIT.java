@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.restart;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
@@ -35,6 +37,7 @@ import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103808")
 public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
 
     // See PyTorchModelIT for how this model was created
@@ -90,7 +93,10 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
-        assumeTrue("NLP model deployments added in 8.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        @UpdateForV9 // upgrade will always be from v8, condition can be removed
+        var originalClusterAtLeastV8 = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_8_0_0)).orElse(true);
+        // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
+        assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
 
         String modelId = "trained-model-full-cluster-restart";
 

@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.close;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -39,6 +40,8 @@ import java.util.Collections;
  */
 public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
+    public static final String NAME = "indices:admin/close";
+    public static final ActionType<CloseIndexResponse> TYPE = new ActionType<>(NAME, CloseIndexResponse::new);
     private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
     private final MetadataIndexStateService indexStateService;
@@ -64,7 +67,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
         DestructiveOperations destructiveOperations
     ) {
         super(
-            CloseIndexAction.NAME,
+            NAME,
             transportService,
             clusterService,
             threadPool,

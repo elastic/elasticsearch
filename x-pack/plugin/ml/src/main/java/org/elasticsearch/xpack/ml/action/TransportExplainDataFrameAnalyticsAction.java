@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -153,11 +154,20 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
                 );
             });
         } else {
+            var responseHeaderPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
+                listener,
+                threadPool.getThreadContext()
+            );
             extractedFieldsDetectorFactory.createFromSource(
                 request.getConfig(),
                 ActionListener.wrap(
-                    extractedFieldsDetector -> explain(parentTaskId, request.getConfig(), extractedFieldsDetector, listener),
-                    listener::onFailure
+                    extractedFieldsDetector -> explain(
+                        parentTaskId,
+                        request.getConfig(),
+                        extractedFieldsDetector,
+                        responseHeaderPreservingListener
+                    ),
+                    responseHeaderPreservingListener::onFailure
                 )
             );
         }

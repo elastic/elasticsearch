@@ -1,0 +1,80 @@
+[role="xpack"]
+[[list-connector-sync-jobs-api]]
+=== List connector sync jobs API
+
+preview::[]
+
+++++
+<titleabbrev>List connector sync jobs</titleabbrev>
+++++
+
+Returns information about all stored connector sync jobs ordered by their creation date in ascending order.
+
+
+[[list-connector-sync-jobs-api-request]]
+==== {api-request-title}
+
+`GET _connector/_sync_job`
+
+[[list-connector-sync-jobs-api-prereq]]
+==== {api-prereq-title}
+
+* To sync data using connectors, it's essential to have the Elastic connectors service running.
+
+[[list-connector-sync-jobs-api-path-params]]
+==== {api-path-parms-title}
+
+`size`::
+(Optional, integer) Maximum number of results to retrieve. Defaults to `100`.
+
+`from`::
+(Optional, integer) The offset from the first result to fetch. Defaults to `0`.
+
+`status`::
+(Optional, job status) The job status the fetched sync jobs need to have.
+
+`connector_id`::
+(Optional, string) The connector id the fetched sync jobs need to have.
+
+[[list-connector-sync-jobs-api-example]]
+==== {api-examples-title}
+
+The following example lists all connector sync jobs:
+
+
+[source,console]
+----
+GET _connector/_sync_job
+----
+// TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
+
+The following example lists the first two connector sync jobs:
+
+[source,console]
+----
+GET _connector/_sync_job?from=0&size=2
+----
+// TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
+
+The following example lists pending connector sync jobs (the first 100 per default):
+[source,console]
+----
+GET _connector/_sync_job?status=pending
+----
+// TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
+
+The following example lists connector sync jobs (the first 100 per default) for the connector with id `connector-1`:
+[source,console]
+----
+GET _connector/_sync_job?connector_id=connector-1
+----
+// TEST[skip:there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time]
+
+[[list-connector-sync-jobs-api-response-codes]]
+==== {api-response-codes-title}
+
+`200`:
+Indicates that results were successfully returned (results can also be empty).
+
+`400`:
+Indicates that the request was malformed.

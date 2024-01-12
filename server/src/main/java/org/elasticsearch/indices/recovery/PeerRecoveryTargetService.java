@@ -19,6 +19,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -320,7 +321,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
             try (onCompletion) {
                 client.execute(
-                    StatelessPrimaryRelocationAction.INSTANCE,
+                    StatelessPrimaryRelocationAction.TYPE,
                     new StatelessPrimaryRelocationAction.Request(
                         recoveryId,
                         indexShard.shardId(),
@@ -375,26 +376,32 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         });
 
         if (preExistingRequest == null) {
-            ActionListener.run(toSendListener.map(v -> {
-                logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
-                indexShard.prepareForIndexRecovery();
-                if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
-                    // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
-                    indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
-                    final Store store = indexShard.store();
-                    store.incRef();
-                    try {
-                        StoreRecovery.bootstrap(indexShard, store);
-                    } finally {
-                        store.decRef();
+            SubscribableListener
+                // run pre-recovery activities
+                .newForked(indexShard::preRecovery)
+                // recover the shard locally and construct the start-recovery request
+                .andThenApply(v -> {
+                    logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
+                    indexShard.prepareForIndexRecovery();
+                    if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
+                        // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
+                        indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
+                        final Store store = indexShard.store();
+                        store.incRef();
+                        try {
+                            StoreRecovery.bootstrap(indexShard, store);
+                        } finally {
+                            store.decRef();
+                        }
                     }
-                }
-                final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
-                assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
-                    : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
-                final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
-                return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
-            }), indexShard::preRecovery);
+                    final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
+                    assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
+                        : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
+                    final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
+                    return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
+                })
+                // finally send the start-recovery request
+                .addListener(toSendListener);
         } else {
             toSendListener.onResponse(
                 new StartRecoveryRequestToSend(

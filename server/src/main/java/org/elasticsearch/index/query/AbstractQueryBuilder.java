@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
@@ -121,6 +122,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 }
             }
             if (queryName != null) {
+                if (context.rewriteToNamedQuery()) {
+                    query = NamedMatches.wrapQuery(queryName, query);
+                }
                 context.addNamedQuery(queryName, query);
             }
         }

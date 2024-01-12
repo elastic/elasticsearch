@@ -56,6 +56,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -173,6 +174,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
+import static org.elasticsearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -2959,7 +2961,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
         shard.recoveryState().getIndex().setFileDetailsComplete();
-        shard.openEngineAndRecoverFromTranslog();
+        PlainActionFuture.get(shard::openEngineAndRecoverFromTranslog, 30, TimeUnit.SECONDS);
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);
@@ -4148,6 +4150,44 @@ public class IndexShardTests extends IndexShardTestCase {
         assertBusy(() -> assertThat(shard.flushStats().getPeriodic(), equalTo(flushesBefore + 2)));
         assertThat(shard.translogStats().getUncommittedOperations(), equalTo(0));
         assertFalse(shard.isActive());
+
+        closeShards(shard);
+    }
+
+    public void testMultiplePeriodicFlushesCanBeTriggeredBeforeTheyAreDurable() throws Exception {
+        List<ActionListener<Engine.FlushResult>> pendingListeners = Collections.synchronizedList(new ArrayList<>());
+        // Ensure that a single document forces a flush after each write
+        var indexSettings = Settings.builder()
+            .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1))
+            .build();
+        var shardStarted = new AtomicBoolean();
+        var flushExecutedBarrier = new CyclicBarrier(2);
+        var shard = newStartedShard(true, indexSettings, config -> new InternalEngine(config) {
+            @Override
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+                if (shardStarted.get()) {
+                    super.flushHoldingLock(force, waitIfOngoing, ActionListener.noop());
+                    pendingListeners.add(listener);
+                    safeAwait(flushExecutedBarrier);
+                } else {
+                    super.flushHoldingLock(force, waitIfOngoing, listener);
+                }
+            }
+        });
+        shardStarted.set(true);
+
+        int numberOfFlushes = randomIntBetween(5, 10);
+        for (int i = 0; i < numberOfFlushes; i++) {
+            indexDoc(shard, "_doc", Integer.toString(i));
+            shard.afterWriteOperation();
+            safeAwait(flushExecutedBarrier);
+        }
+
+        assertThat(pendingListeners.size(), is(numberOfFlushes));
+        assertThat(shard.flushStats().getPeriodic(), is(equalTo(0L)));
+
+        pendingListeners.forEach(l -> l.onResponse(new Engine.FlushResult(true, 1)));
+        assertThat(shard.flushStats().getPeriodic(), is(equalTo((long) numberOfFlushes)));
 
         closeShards(shard);
     }

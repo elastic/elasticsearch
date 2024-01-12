@@ -1,0 +1,5 @@
+pr: 102426
+summary: Patterns support for allowed subjects by the JWT realm
+area: Authentication
+type: feature
+issues: []

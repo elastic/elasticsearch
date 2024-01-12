@@ -21,6 +21,7 @@ import org.hamcrest.Matchers;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
@@ -69,8 +70,7 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
         index("test", "test", "{}");
 
-        assertThat(prepareSearch("test").setScroll("30m").get().getScrollId(), is(notNullValue()));
-
+        assertResponse(prepareSearch("test").setScroll("30m"), response -> assertThat(response.getScrollId(), is(notNullValue())));
         loseMaster.accept(master, dataNode);
         // in the past, this failed because the search context for the scroll would prevent the shard lock from being released.
         ensureYellow();

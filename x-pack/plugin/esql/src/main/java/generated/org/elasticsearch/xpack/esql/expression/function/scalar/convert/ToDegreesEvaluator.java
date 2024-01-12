@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -34,11 +35,21 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     DoubleVector vector = (DoubleVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
+      try {
+        return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
+      } catch (ArithmeticException  e) {
+        registerException(e);
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
+      }
     }
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendDouble(evalValue(vector, p));
+        try {
+          builder.appendDouble(evalValue(vector, p));
+        } catch (ArithmeticException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
       return builder.build();
     }
@@ -61,13 +72,17 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          double value = evalValue(block, i);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+          try {
+            double value = evalValue(block, i);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendDouble(value);
+            valuesAppended = true;
+          } catch (ArithmeticException  e) {
+            registerException(e);
           }
-          builder.appendDouble(value);
-          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

@@ -64,11 +64,11 @@ public final class CcrRequests {
         if (metadataVersion > 0) {
             request.waitForMetadataVersion(metadataVersion).waitForTimeout(timeoutSupplier.get());
         }
-        client.admin().cluster().state(request, ActionListener.wrap(response -> {
+        client.admin().cluster().state(request, listener.delegateFailureAndWrap((delegate, response) -> {
             if (response.getState() == null) { // timeout on wait_for_metadata_version
                 assert metadataVersion > 0 : metadataVersion;
                 if (timeoutSupplier.get().nanos() < 0) {
-                    listener.onFailure(
+                    delegate.onFailure(
                         new IllegalStateException(
                             "timeout to get cluster state with"
                                 + " metadata version ["
@@ -79,25 +79,25 @@ public final class CcrRequests {
                         )
                     );
                 } else {
-                    getIndexMetadata(client, index, mappingVersion, metadataVersion, timeoutSupplier, listener);
+                    getIndexMetadata(client, index, mappingVersion, metadataVersion, timeoutSupplier, delegate);
                 }
             } else {
                 final Metadata metadata = response.getState().metadata();
                 final IndexMetadata indexMetadata = metadata.getIndexSafe(index);
                 if (indexMetadata.getMappingVersion() >= mappingVersion) {
-                    listener.onResponse(indexMetadata);
+                    delegate.onResponse(indexMetadata);
                     return;
                 }
                 if (timeoutSupplier.get().nanos() < 0) {
-                    listener.onFailure(
+                    delegate.onFailure(
                         new IllegalStateException("timeout to get cluster state with mapping version [" + mappingVersion + "]")
                     );
                 } else {
                     // ask for the next version.
-                    getIndexMetadata(client, index, mappingVersion, metadata.version() + 1, timeoutSupplier, listener);
+                    getIndexMetadata(client, index, mappingVersion, metadata.version() + 1, timeoutSupplier, delegate);
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     public static final RequestValidators.RequestValidator<PutMappingRequest> CCR_PUT_MAPPING_REQUEST_VALIDATOR = (

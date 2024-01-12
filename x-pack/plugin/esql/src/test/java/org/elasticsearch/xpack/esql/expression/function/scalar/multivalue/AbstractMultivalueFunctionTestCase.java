@@ -9,14 +9,19 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.NumericUtils;
+import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
@@ -26,10 +31,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     /**
@@ -376,6 +385,107 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))
+                );
+            }));
+        }
+    }
+
+    /**
+     * Build many test cases with {@code geo_point} values.
+     * This assumes that the function consumes {@code geo_point} values and produces {@code geo_point} values.
+     */
+    protected static void geoPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
+    ) {
+        geoPoints(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code geo_point} values that are converted to another type.
+     * This assumes that the function consumes {@code geo_point} values and produces another type.
+     * For example, mv_count() can consume points and produce an integer count.
+     */
+    protected static void geoPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
+    ) {
+        points(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, GEO, GeometryTestUtils::randomPoint, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code cartesian_point} values.
+     * This assumes that the function consumes {@code cartesian_point} values and produces {@code cartesian_point} values.
+     */
+    protected static void cartesianPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
+    ) {
+        cartesianPoints(cases, name, evaluatorName, EsqlDataTypes.CARTESIAN_POINT, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code cartesian_point} values that are converted to another type.
+     * This assumes that the function consumes {@code cartesian_point} values and produces another type.
+     * For example, mv_count() can consume points and produce an integer count.
+     */
+    protected static void cartesianPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
+    ) {
+        points(
+            cases,
+            name,
+            evaluatorName,
+            EsqlDataTypes.CARTESIAN_POINT,
+            expectedDataType,
+            CARTESIAN,
+            ShapeTestUtils::randomPoint,
+            matcher
+        );
+    }
+
+    /**
+     * Build many test cases with either {@code geo_point} or {@code cartesian_point} values.
+     */
+    protected static void points(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType dataType,
+        DataType expectedDataType,
+        SpatialCoordinateTypes spatial,
+        Supplier<Point> randomPoint,
+        BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
+    ) {
+        cases.add(new TestCaseSupplier(name + "(" + dataType.typeName() + ")", List.of(dataType), () -> {
+            BytesRef wkb = spatial.asWkb(randomPoint.get());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(wkb), dataType, "field")),
+                evaluatorName + "[field=Attribute[channel=0]]",
+                expectedDataType,
+                matcher.apply(1, Stream.of(wkb))
+            );
+        }));
+        for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
+            cases.add(new TestCaseSupplier(name + "(<" + dataType.typeName() + "s>) " + ordering, List.of(dataType), () -> {
+                List<BytesRef> mvData = randomList(1, 100, () -> spatial.asWkb(randomPoint.get()));
+                putInOrder(mvData, ordering);
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(mvData, dataType, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(mvData.size(), mvData.stream())
                 );
             }));
         }

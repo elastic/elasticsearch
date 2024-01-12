@@ -1,0 +1,5 @@
+pr: 102177
+summary: "GEO_POINT and CARTESIAN_POINT type support"
+area: ES|QL
+type: feature
+issues: []

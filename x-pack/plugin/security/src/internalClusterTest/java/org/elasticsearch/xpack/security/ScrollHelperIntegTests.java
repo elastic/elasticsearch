@@ -20,7 +20,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
@@ -83,30 +82,29 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
 
         String scrollId = randomAlphaOfLength(5);
         SearchHit[] hits = new SearchHit[] { new SearchHit(1), new SearchHit(2) };
-        InternalSearchResponse internalResponse = new InternalSearchResponse(
-            new SearchHits(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1),
-            null,
-            null,
-            null,
-            false,
-            false,
-            1
-        );
-        SearchResponse response = new SearchResponse(
-            internalResponse,
-            scrollId,
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
 
         Answer<?> returnResponse = invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            listener.onResponse(response);
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(
+                    new SearchHits(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1),
+                    null,
+                    null,
+                    false,
+                    false,
+                    null,
+                    1,
+                    scrollId,
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                )
+            );
             return null;
         };
         doAnswer(returnResponse).when(client).search(eq(request), any());

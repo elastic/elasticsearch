@@ -30,7 +30,19 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 10_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, 1.0d, 1.0d, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            requestedSamples,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         request.setAdjustSampleCount(false);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);
@@ -45,7 +57,19 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 10_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, 1.0d, 1.0d, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            requestedSamples,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         request.setAdjustSampleCount(true);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);
@@ -60,7 +84,19 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 40_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, 1.0d, 1.0d, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            requestedSamples,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         request.setAdjustSampleCount(false);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);
@@ -87,6 +123,8 @@ public class ResamplerTests extends ESTestCase {
             null,
             null,
             null,
+            null,
+            null,
             null
         );
 
@@ -103,7 +141,19 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 40_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, 1.0d, 1.0d, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            requestedSamples,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         request.setAdjustSampleCount(true);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);

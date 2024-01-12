@@ -69,9 +69,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBui
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
@@ -149,27 +146,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * The segments of one or more indices.
      */
     IndicesSegmentsRequestBuilder prepareSegments(String... indices);
-
-    /**
-     * The shard stores info of one or more indices.
-     *
-     * @param request The indices shard stores request
-     * @return The result future
-     */
-    ActionFuture<IndicesShardStoresResponse> shardStores(IndicesShardStoresRequest request);
-
-    /**
-     * The shard stores info of one or more indices.
-     *
-     * @param request The indices shard stores request
-     * @param listener A listener to be notified with a result
-     */
-    void shardStores(IndicesShardStoresRequest request, ActionListener<IndicesShardStoresResponse> listener);
-
-    /**
-     * The shard stores info of one or more indices.
-     */
-    IndicesShardStoreRequestBuilder prepareShardStores(String... indices);
 
     /**
      * Creates an index using an explicit request allowing to specify the settings of the index.

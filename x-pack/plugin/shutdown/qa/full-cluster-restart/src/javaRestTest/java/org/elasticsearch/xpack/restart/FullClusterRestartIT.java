@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -63,6 +64,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
         .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -88,7 +90,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     @BeforeClass
     public static void checkClusterVersion() {
-        assumeTrue("no shutdown in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
+        @UpdateForV9 // always true
+        var originalClusterSupportsShutdown = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_15_0))
+            .orElse(true);
+        assumeTrue("no shutdown in versions before 7.15", originalClusterSupportsShutdown);
     }
 
     @SuppressWarnings("unchecked")

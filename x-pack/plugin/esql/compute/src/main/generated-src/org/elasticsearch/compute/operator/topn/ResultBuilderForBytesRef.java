@@ -28,7 +28,7 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     ResultBuilderForBytesRef(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         this.encoder = encoder;
         this.inKey = inKey;
-        this.builder = BytesRefBlock.newBlockBuilder(initialSize, blockFactory);
+        this.builder = blockFactory.newBytesRefBlockBuilder(initialSize);
     }
 
     @Override

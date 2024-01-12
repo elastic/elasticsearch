@@ -8,9 +8,9 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -49,10 +49,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
     private final SearchUsageHolder searchUsageHolder;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder) {
+    public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder, NamedWriteableRegistry namedWriteableRegistry) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.searchUsageHolder = searchUsageHolder;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -74,16 +76,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final MultiSearchRequest multiSearchRequest = parseRequest(
-            request,
-            client.getNamedWriteableRegistry(),
-            allowExplicitIndex,
-            searchUsageHolder
-        );
+        final MultiSearchRequest multiSearchRequest = parseRequest(request, namedWriteableRegistry, allowExplicitIndex, searchUsageHolder);
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(
-                MultiSearchAction.INSTANCE,
+                TransportMultiSearchAction.TYPE,
                 multiSearchRequest,
                 new RestRefCountedChunkedToXContentListener<>(channel)
             );
@@ -142,7 +139,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             searchRequest.source(new SearchSourceBuilder().parseXContent(parser, false, searchUsageHolder));
             RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             if (searchRequest.pointInTimeBuilder() != null) {
-                RestSearchAction.preparePointInTime(searchRequest, restRequest, namedWriteableRegistry);
+                RestSearchAction.preparePointInTime(searchRequest, restRequest);
             } else {
                 searchRequest.setCcsMinimizeRoundtrips(
                     restRequest.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())

@@ -16,7 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AnyOperatorTestCase;
@@ -32,9 +32,9 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
@@ -63,11 +62,11 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneTopNSourceOperator.Factory simple(BigArrays bigArrays) {
-        return simple(bigArrays, DataPartitioning.SHARD, 10_000, 100);
+    protected LuceneTopNSourceOperator.Factory simple() {
+        return simple(DataPartitioning.SHARD, 10_000, 100);
     }
 
-    private LuceneTopNSourceOperator.Factory simple(BigArrays bigArrays, DataPartitioning dataPartitioning, int size, int limit) {
+    private LuceneTopNSourceOperator.Factory simple(DataPartitioning dataPartitioning, int size, int limit) {
         int commitEvery = Math.max(1, size / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -89,24 +88,23 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        SearchContext ctx = LuceneSourceOperatorTests.mockSearchContext(reader);
-        SearchExecutionContext ectx = mock(SearchExecutionContext.class);
-        when(ctx.getSearchExecutionContext()).thenReturn(ectx);
-        when(ectx.getFieldType(anyString())).thenAnswer(inv -> {
+        SearchContext ctx = LuceneSourceOperatorTests.mockSearchContext(reader, 0);
+        when(ctx.getSearchExecutionContext().getFieldType(anyString())).thenAnswer(inv -> {
             String name = inv.getArgument(0);
             return switch (name) {
                 case "s" -> S_FIELD;
                 default -> throw new IllegalArgumentException("don't support [" + name + "]");
             };
         });
-        when(ectx.getForField(any(), any())).thenAnswer(inv -> {
+        when(ctx.getSearchExecutionContext().getForField(any(), any())).thenAnswer(inv -> {
             MappedFieldType ft = inv.getArgument(0);
             IndexFieldData.Builder builder = ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"));
-            return builder.build(new IndexFieldDataCache.None(), bigArrays.breakerService());
+            // This breaker is used for fielddata but we're not testing that.
+            return builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
-        when(ectx.nestedScope()).thenReturn(new NestedScope());
-        when(ectx.nestedLookup()).thenReturn(NestedLookup.EMPTY);
-        when(ectx.getIndexReader()).thenReturn(reader);
+        when(ctx.getSearchExecutionContext().nestedScope()).thenReturn(new NestedScope());
+        when(ctx.getSearchExecutionContext().nestedLookup()).thenReturn(NestedLookup.EMPTY);
+        when(ctx.getSearchExecutionContext().getIndexReader()).thenReturn(reader);
         Function<SearchContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
@@ -176,8 +174,8 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     private void testSimple(DriverContext ctx, int size, int limit) {
-        LuceneTopNSourceOperator.Factory factory = simple(ctx.bigArrays(), DataPartitioning.SHARD, size, limit);
-        Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD);
+        LuceneTopNSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
+        Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(

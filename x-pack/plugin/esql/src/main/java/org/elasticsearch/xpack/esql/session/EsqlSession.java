@@ -167,7 +167,7 @@ public class EsqlSession {
 
             preAnalyzeIndices(
                 parsed,
-                ActionListener.wrap(indexResolution -> l.onResponse(action.apply(indexResolution, resolution)), listener::onFailure),
+                l.delegateFailureAndWrap((ll, indexResolution) -> ll.onResponse(action.apply(indexResolution, resolution))),
                 matchFields
             );
         });

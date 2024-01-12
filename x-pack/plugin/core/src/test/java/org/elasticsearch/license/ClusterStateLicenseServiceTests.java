@@ -240,11 +240,6 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
         return clusterService;
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> newMockTaskQueue() {
-        return mock(MasterServiceTaskQueue.class);
-    }
-
     private void assertRegisterValidLicense(Settings baseSettings, License.LicenseType licenseType) throws IOException {
         tryRegisterLicense(baseSettings, licenseType, future -> assertThat(future.actionGet().status(), equalTo(LicensesStatus.VALID)));
     }

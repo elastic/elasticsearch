@@ -81,7 +81,6 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             .execute()
             .get();
         assertTrue("Creation of [" + name + "] is not acknowledged.", response.isAcknowledged());
-        assertTrue("Shards for [" + name + "] are not acknowledged.", response.isShardsAcknowledged());
     }
 
     /**
@@ -113,9 +112,12 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     @Before
     public void setupData() throws Exception {
-        if (requiresDataSetup() == false) {
-            return;
+        if (requiresDataSetup()) {
+            doSetupData();
         }
+    }
+
+    protected final void doSetupData() throws Exception {
         final String apmTestIndex = "apm-test-001";
         // only enable index management while setting up indices to avoid interfering with the rest of the test infrastructure
         updateProfilingTemplatesEnabled(true);

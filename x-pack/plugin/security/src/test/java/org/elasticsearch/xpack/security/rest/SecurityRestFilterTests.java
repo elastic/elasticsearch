@@ -230,13 +230,17 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         assertEquals(restRequest, handlerRequest.get());
         assertEquals(restRequest.content(), handlerRequest.get().content());
-        Map<String, Object> original = XContentType.JSON.xContent()
-            .createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                handlerRequest.get().content().streamInput()
-            )
-            .map();
+        Map<String, Object> original;
+        try (
+            var parser = XContentType.JSON.xContent()
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    handlerRequest.get().content().streamInput()
+                )
+        ) {
+            original = parser.map();
+        }
         assertEquals(2, original.size());
         assertEquals(SecuritySettingsSourceField.TEST_PASSWORD, original.get("password"));
         assertEquals("bar", original.get("foo"));
@@ -244,13 +248,17 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertNotEquals(restRequest, auditTrailRequest.get());
         assertNotEquals(restRequest.content(), auditTrailRequest.get().content());
 
-        Map<String, Object> map = XContentType.JSON.xContent()
-            .createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                auditTrailRequest.get().content().streamInput()
-            )
-            .map();
+        Map<String, Object> map;
+        try (
+            var parser = XContentType.JSON.xContent()
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    auditTrailRequest.get().content().streamInput()
+                )
+        ) {
+            map = parser.map();
+        }
         assertEquals(1, map.size());
         assertEquals("bar", map.get("foo"));
     }

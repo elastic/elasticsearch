@@ -7,15 +7,24 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
 
@@ -50,6 +59,35 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
     private static final ParseField NAME_FIELD = new ParseField("name");
     private static final ParseField REDUCE_WHITESPACE_FIELD = new ParseField("reduce_whitespace");
     private static final ParseField RUN_ML_INFERENCE_FIELD = new ParseField("run_ml_inference");
+
+    private static final ConstructingObjectParser<ConnectorIngestPipeline, Void> PARSER = new ConstructingObjectParser<>(
+        "connector_ingest_pipeline",
+        true,
+        args -> new Builder().setExtractBinaryContent((Boolean) args[0])
+            .setName((String) args[1])
+            .setReduceWhitespace((Boolean) args[2])
+            .setRunMlInference((Boolean) args[3])
+            .build()
+    );
+
+    static {
+        PARSER.declareBoolean(constructorArg(), EXTRACT_BINARY_CONTENT_FIELD);
+        PARSER.declareString(constructorArg(), NAME_FIELD);
+        PARSER.declareBoolean(constructorArg(), REDUCE_WHITESPACE_FIELD);
+        PARSER.declareBoolean(constructorArg(), RUN_ML_INFERENCE_FIELD);
+    }
+
+    public static ConnectorIngestPipeline fromXContentBytes(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return ConnectorIngestPipeline.fromXContent(parser);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
+        }
+    }
+
+    public static ConnectorIngestPipeline fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

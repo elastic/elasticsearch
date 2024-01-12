@@ -1,0 +1,5 @@
+pr: 102919
+summary: Error log when license verification fails locally
+area: License
+type: bug
+issues: []

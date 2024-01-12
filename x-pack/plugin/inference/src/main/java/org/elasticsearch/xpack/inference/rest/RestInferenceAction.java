@@ -11,7 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,8 +33,9 @@ public class RestInferenceAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String taskType = restRequest.param("task_type");
         String modelId = restRequest.param("model_id");
-        var request = InferenceAction.Request.parseRequest(modelId, taskType, restRequest.contentParser());
-
-        return channel -> client.execute(InferenceAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        try (var parser = restRequest.contentParser()) {
+            var request = InferenceAction.Request.parseRequest(modelId, taskType, parser);
+            return channel -> client.execute(InferenceAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        }
     }
 }

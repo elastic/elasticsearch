@@ -11,6 +11,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -27,7 +28,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
-    public Sqrt(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+    @FunctionInfo(returnType = "double", description = "Returns the square root of a number.")
+    public Sqrt(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 
@@ -46,7 +48,7 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
             return new SqrtLongEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return new SqrtUnsignedLongEvaluator.Factory(field);
+            return new SqrtUnsignedLongEvaluator.Factory(source(), field);
         }
 
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);

@@ -55,7 +55,7 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
             else if (type == DataTypes.LONG) {
                 factory = new NegLongsEvaluator.Factory(source(), f);
             } else if (type == DataTypes.DOUBLE) {
-                factory = new NegDoublesEvaluator.Factory(f);
+                factory = new NegDoublesEvaluator.Factory(source(), f);
             }
 
             if (factory != null) {

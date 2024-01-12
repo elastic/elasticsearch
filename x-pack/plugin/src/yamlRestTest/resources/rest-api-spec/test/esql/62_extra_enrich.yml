@@ -1,0 +1,70 @@
+---
+"Enrich fields includes match field":
+  - skip:
+      version: " - 8.11.99"
+      reason: "enrich match field was mistakenly excluded in 8.11"
+  - do:
+      indices.create:
+        index: departments
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              employees:
+                type: integer
+
+  - do:
+      bulk:
+        index: departments
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name": "engineering", "employees": 1024 }
+          - { "index": { } }
+          - { "name": "marketing", "employees": 56 }
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+
+  - do:
+      enrich.put_policy:
+        name: departments-policy
+        body:
+          match:
+            indices: [ "departments" ]
+            match_field: "name"
+            enrich_fields: [ "name", "employees" ]
+
+  - do:
+      enrich.execute_policy:
+        name: departments-policy
+  - do:
+      esql.query:
+        body:
+          query: 'ROW name="engineering" | ENRICH departments-policy | LIMIT 10 | KEEP name, employees'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "employees" }
+  - match: { columns.1.type: "integer" }
+
+  - length: { values: 1 }
+  - match: { values.0.0: "engineering" }
+  - match: { values.0.1: 1024 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'ROW name="sales" | ENRICH departments-policy ON name WITH department=name | WHERE name==department | KEEP name, department | LIMIT 10'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "department" }
+  - match: { columns.1.type: "keyword" }
+  - length: { values: 0 }
+
+  - do:
+      enrich.delete_policy:
+        name: departments-policy

@@ -53,9 +53,6 @@ public class ValuesSourceRegistry {
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey<>("unregistered", RegistryKey.class);
-
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
         private final Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();

@@ -115,8 +115,8 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         var leftType = left().dataType();
         if (leftType.isNumeric()) {
 
-            var lhs = Cast.cast(left().dataType(), commonType, toEvaluator.apply(left()));
-            var rhs = Cast.cast(right().dataType(), commonType, toEvaluator.apply(right()));
+            var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
+            var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
 
             ArithmeticEvaluator eval;
             if (commonType == INTEGER) {

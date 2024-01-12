@@ -155,7 +155,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
                 clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE)
             );
             if (singleNodeProcessors.count() > 0) {
-                limits.put("max_single_ml_node_processors", singleNodeProcessors.roundDown());
+                limits.put("max_single_ml_node_processors", singleNodeProcessors.roundUp());
             }
             Processors totalMlProcessors = MlProcessors.getTotalMlNodeProcessors(
                 nodes,
@@ -163,8 +163,8 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
             );
             if (totalMlProcessors.count() > 0) {
                 int potentialExtraProcessors = Math.max(0, clusterSettings.get(MachineLearning.MAX_LAZY_ML_NODES) - mlNodes.size())
-                    * singleNodeProcessors.roundDown();
-                limits.put("total_ml_processors", totalMlProcessors.roundDown() + potentialExtraProcessors);
+                    * singleNodeProcessors.roundUp();
+                limits.put("total_ml_processors", totalMlProcessors.roundUp() + potentialExtraProcessors);
             }
         }
         return limits;

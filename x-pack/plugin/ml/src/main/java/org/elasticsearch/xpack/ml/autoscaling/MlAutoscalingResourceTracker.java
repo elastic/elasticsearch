@@ -90,7 +90,7 @@ public final class MlAutoscalingResourceTracker {
             : 0L;
         int processorsAvailableFirstNode = (firstMlNode != null)
             ? MlProcessors.get(clusterState.nodes().get(firstMlNode), clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE))
-                .roundDown()
+                .roundUp()
             : 0;
 
         MlDummyAutoscalingEntity mlDummyAutoscalingEntity = new MlDummyAutoscalingEntity(

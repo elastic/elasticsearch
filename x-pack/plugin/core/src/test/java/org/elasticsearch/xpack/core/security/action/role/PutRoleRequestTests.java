@@ -246,10 +246,6 @@ public class PutRoleRequestTests extends ESTestCase {
         return request;
     }
 
-    private PutRoleRequest buildRandomRequest() {
-        return buildRandomRequest(true);
-    }
-
     private PutRoleRequest buildRandomRequest(boolean allowRemoteIndices) {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));

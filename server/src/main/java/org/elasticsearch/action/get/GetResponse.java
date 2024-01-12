@@ -89,13 +89,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     }
 
     /**
-     * The source of the document if exists.
-     */
-    public byte[] getSourceAsBytes() {
-        return getResult.source();
-    }
-
-    /**
      * Returns the internal source bytes, as they are returned without munging (for example,
      * might still be compressed).
      */
@@ -132,7 +125,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     }
 
     public Map<String, Object> getSource() {
-        return getResult.getSource();
+        return getResult.sourceAsMap();
     }
 
     public Map<String, DocumentField> getFields() {

@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -110,6 +111,7 @@ public class ActionModuleTests extends ESTestCase {
         ActionModule actionModule = new ActionModule(
             settings.getSettings(),
             TestIndexNameExpressionResolver.newInstance(),
+            null,
             settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
@@ -121,6 +123,7 @@ public class ActionModuleTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
+            null,
             List.of(),
             RestExtension.allowAll()
         );
@@ -146,6 +149,7 @@ public class ActionModuleTests extends ESTestCase {
             @Override
             public List<RestHandler> getRestHandlers(
                 Settings settings,
+                NamedWriteableRegistry namedWriteableRegistry,
                 RestController restController,
                 ClusterSettings clusterSettings,
                 IndexScopedSettings indexScopedSettings,
@@ -170,6 +174,7 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 settings.getSettings(),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                null,
                 settings.getIndexScopedSettings(),
                 settings.getClusterSettings(),
                 settings.getSettingsFilter(),
@@ -181,6 +186,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );
@@ -205,6 +211,7 @@ public class ActionModuleTests extends ESTestCase {
             @Override
             public List<RestHandler> getRestHandlers(
                 Settings settings,
+                NamedWriteableRegistry namedWriteableRegistry,
                 RestController restController,
                 ClusterSettings clusterSettings,
                 IndexScopedSettings indexScopedSettings,
@@ -223,6 +230,7 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 settings.getSettings(),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                null,
                 settings.getIndexScopedSettings(),
                 settings.getClusterSettings(),
                 settings.getSettingsFilter(),
@@ -234,6 +242,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );
@@ -271,6 +280,7 @@ public class ActionModuleTests extends ESTestCase {
                 () -> new ActionModule(
                     settingsModule.getSettings(),
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                    null,
                     settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
@@ -282,6 +292,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     null,
                     mock(ClusterService.class),
+                    null,
                     List.of(),
                     RestExtension.allowAll()
                 )
@@ -310,17 +321,19 @@ public class ActionModuleTests extends ESTestCase {
                 () -> new ActionModule(
                     settingsModule.getSettings(),
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                    null,
                     settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
                     threadPool,
-                    Arrays.asList(secPlugin),
+                    List.of(secPlugin),
                     null,
                     null,
                     usageService,
                     null,
                     null,
                     mock(ClusterService.class),
+                    null,
                     List.of(),
                     RestExtension.allowAll()
                 )

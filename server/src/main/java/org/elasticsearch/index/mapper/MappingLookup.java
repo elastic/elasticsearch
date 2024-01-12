@@ -405,6 +405,13 @@ public final class MappingLookup {
     }
 
     /**
+     * If field is a leaf multi-field return the path to the parent field. Otherwise, return null.
+     */
+    public String parentField(String field) {
+        return fieldTypesLookup().parentField(field);
+    }
+
+    /**
      * Returns true if the index has mappings. An index does not have mappings only if it was created
      * without providing mappings explicitly, and no documents have yet been indexed in it.
      * @return true if the current index has mappings, false otherwise

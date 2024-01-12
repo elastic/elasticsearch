@@ -94,7 +94,8 @@
 "Downsample datastream with tier preference":
   - skip:
       version: " - 8.4.99"
-      reason: "rollup renamed to downsample in 8.5.0"
+      features: default_shards
+      reason: "rollup renamed to downsample in 8.5.0, avoid globalTemplateIndexSettings with overlapping index pattern"
 
   - do:
       indices.put_index_template:

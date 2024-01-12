@@ -93,27 +93,6 @@ public class TransportVersions {
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_500_020 = def(8_500_020);
-    public static final TransportVersion V_8_500_040 = def(8_500_040);
-    public static final TransportVersion V_8_500_041 = def(8_500_041);
-    public static final TransportVersion V_8_500_042 = def(8_500_042);
-    public static final TransportVersion V_8_500_043 = def(8_500_043);
-    public static final TransportVersion V_8_500_044 = def(8_500_044);
-    public static final TransportVersion V_8_500_045 = def(8_500_045);
-    public static final TransportVersion V_8_500_046 = def(8_500_046);
-    public static final TransportVersion V_8_500_047 = def(8_500_047);
-    public static final TransportVersion V_8_500_048 = def(8_500_048);
-    public static final TransportVersion V_8_500_049 = def(8_500_049);
-    public static final TransportVersion V_8_500_050 = def(8_500_050);
-    public static final TransportVersion V_8_500_051 = def(8_500_051);
-    public static final TransportVersion V_8_500_052 = def(8_500_052);
-    public static final TransportVersion V_8_500_053 = def(8_500_053);
-    public static final TransportVersion V_8_500_054 = def(8_500_054);
-    public static final TransportVersion V_8_500_055 = def(8_500_055);
-    public static final TransportVersion V_8_500_056 = def(8_500_056);
-    public static final TransportVersion V_8_500_057 = def(8_500_057);
-    public static final TransportVersion V_8_500_058 = def(8_500_058);
-    public static final TransportVersion V_8_500_059 = def(8_500_059);
-    public static final TransportVersion V_8_500_060 = def(8_500_060);
     public static final TransportVersion V_8_500_061 = def(8_500_061);
     public static final TransportVersion V_8_500_062 = def(8_500_062);
     public static final TransportVersion V_8_500_063 = def(8_500_063);
@@ -179,7 +158,33 @@ public class TransportVersions {
     public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_546_00_0);
     public static final TransportVersion NODE_INFO_VERSION_AS_STRING = def(8_547_00_0);
     public static final TransportVersion GET_API_KEY_INVALIDATION_TIME_ADDED = def(8_548_00_0);
-    public static final TransportVersion PENDING_CLUSTER_TASKS_DETAILS_ADDED = def(8_549_00_0);
+    public static final TransportVersion ML_INFERENCE_GET_MULTIPLE_MODELS = def(8_549_00_0);
+    public static final TransportVersion INFERENCE_SERVICE_RESULTS_ADDED = def(8_550_00_0);
+    public static final TransportVersion ESQL_PROFILE = def(8_551_00_0);
+    public static final TransportVersion CLUSTER_STATS_RESCORER_USAGE_ADDED = def(8_552_00_0);
+    public static final TransportVersion ML_INFERENCE_HF_SERVICE_ADDED = def(8_553_00_0);
+    public static final TransportVersion INFERENCE_USAGE_ADDED = def(8_554_00_0);
+    public static final TransportVersion UPGRADE_TO_LUCENE_9_9 = def(8_555_00_0);
+    public static final TransportVersion HEALTH_INFO_ENRICHED_WITH_DSL_STATUS = def(8_556_00_0);
+    public static final TransportVersion SOURCE_IN_SINGLE_VALUE_QUERY_ADDED = def(8_557_00_0);
+    public static final TransportVersion MISSED_INDICES_UPDATE_EXCEPTION_ADDED = def(8_558_00_0);
+    public static final TransportVersion INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED = def(8_559_00_0);
+    public static final TransportVersion ENRICH_ELASTICSEARCH_VERSION_REMOVED = def(8_560_00_0);
+    public static final TransportVersion NODE_STATS_REQUEST_SIMPLIFIED = def(8_561_00_0);
+    public static final TransportVersion TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED = def(8_562_00_0);
+    public static final TransportVersion ESQL_ASYNC_QUERY = def(8_563_00_0);
+    public static final TransportVersion ESQL_STATUS_INCLUDE_LUCENE_QUERIES = def(8_564_00_0);
+    public static final TransportVersion ESQL_CLUSTER_ALIAS = def(8_565_00_0);
+    public static final TransportVersion SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED = def(8_566_00_0);
+    public static final TransportVersion SMALLER_RELOAD_SECURE_SETTINGS_REQUEST = def(8_567_00_0);
+    public static final TransportVersion UPDATE_API_KEY_EXPIRATION_TIME_ADDED = def(8_568_00_0);
+    public static final TransportVersion LAZY_ROLLOVER_ADDED = def(8_569_00_0);
+    public static final TransportVersion ESQL_PLAN_POINT_LITERAL_WKB = def(8_570_00_0);
+    public static final TransportVersion HOT_THREADS_AS_BYTES = def(8_571_00_0);
+    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED = def(8_572_00_0);
+    public static final TransportVersion ESQL_ENRICH_POLICY_CCQ_MODE = def(8_573_00_0);
+    public static final TransportVersion PENDING_CLUSTER_TASKS_DETAILS_ADDED = def(8_574_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

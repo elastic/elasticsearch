@@ -143,7 +143,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     );
                 }
             };
-            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
+            ActionListener.respondAndRelease(listener, processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
         }, listener::onFailure));
     }
 
@@ -154,14 +154,16 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     ) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
-            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContextBuilder);
+            return RollupResponseTranslator.combineResponses(msearchResponse, reduceContextBuilder);
         } else if (rollupContext.hasLiveIndices()) {
             // Only live
             assert msearchResponse.getResponses().length == 1;
-            return RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            var res = RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            res.mustIncRef();
+            return res;
         } else if (rollupContext.hasRollupIndices()) {
             // Only rollup
-            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses(), reduceContextBuilder);
+            return RollupResponseTranslator.translateResponse(msearchResponse, reduceContextBuilder);
         }
         throw new RuntimeException("MSearch response was empty, cannot unroll RollupSearch results");
     }

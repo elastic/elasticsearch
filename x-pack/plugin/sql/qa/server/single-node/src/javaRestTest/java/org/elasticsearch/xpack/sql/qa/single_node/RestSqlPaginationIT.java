@@ -13,7 +13,7 @@ import org.junit.ClassRule;
 
 public class RestSqlPaginationIT extends RestSqlPaginationTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
 
     @Override
     protected String getTestRestCluster() {

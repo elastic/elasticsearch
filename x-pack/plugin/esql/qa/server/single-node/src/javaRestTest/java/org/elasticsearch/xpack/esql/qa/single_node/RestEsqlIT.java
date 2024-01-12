@@ -6,24 +6,49 @@
  */
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.Assert;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.core.Is.is;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RestEsqlIT extends RestEsqlTestCase {
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.testCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @ParametersFactory
+    public static List<Object[]> modes() {
+        return Arrays.stream(Mode.values()).map(m -> new Object[] { m }).toList();
+    }
+
+    public RestEsqlIT(Mode mode) {
+        super(mode);
+    }
 
     public void testBasicEsql() throws IOException {
         StringBuilder b = new StringBuilder();
@@ -44,7 +69,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
         if (Build.current().isSnapshot()) {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
-        builder.build();
         Map<String, Object> result = runEsql(builder);
         assertEquals(2, result.size());
         Map<String, String> colA = Map.of("name", "avg(value)", "type", "double");
@@ -63,17 +87,17 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         RequestObjectBuilder builder = new RequestObjectBuilder().query("from test-index | limit 1 | keep f");
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
-        builder.build();
-        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder));
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
+
+        assertThat(deleteIndex("test-index").isAcknowledged(), is(true)); // clean up
     }
 
     public void testPragmaNotAllowed() throws IOException {
         assumeFalse("pragma only disabled on release builds", Build.current().isSnapshot());
         RequestObjectBuilder builder = new RequestObjectBuilder().query("row a = 1, b = 2");
         builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
-        builder.build();
-        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder));
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
     }
 }

@@ -190,7 +190,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
     public void testTransportMultiGetAction() {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
+        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client);
         request.add(new TermVectorsRequest("index1", "1"));
         request.add(new TermVectorsRequest("index2", "2"));
 
@@ -222,7 +222,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
     public void testTransportMultiGetAction_withMissingRouting() {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
+        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client);
         request.add(new TermVectorsRequest("index2", "1").routing("1"));
         request.add(new TermVectorsRequest("index2", "2"));
 

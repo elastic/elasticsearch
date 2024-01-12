@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +57,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         SearchRequest request = new SearchRequest("foo");
 
         final var policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, Collections.emptyMap());
-        policyClient.execute(SearchAction.INSTANCE, request, listener);
+        policyClient.execute(TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -89,7 +89,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         headers.put("bar", "bar");
 
         final var policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, headers);
-        policyClient.execute(SearchAction.INSTANCE, request, listener);
+        policyClient.execute(TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -123,7 +123,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
         headers.put("_xpack_security_authentication", "bar");
 
         final var policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, headers);
-        policyClient.execute(SearchAction.INSTANCE, request, listener);
+        policyClient.execute(TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }

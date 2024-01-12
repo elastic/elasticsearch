@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -54,8 +53,6 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final String nodeName;
 
-    private RerouteService rerouteService;
-
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this(
             settings,
@@ -88,16 +85,6 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
         clusterApplierService.setNodeConnectionsService(nodeConnectionsService);
-    }
-
-    public void setRerouteService(RerouteService rerouteService) {
-        assert this.rerouteService == null : "RerouteService is already set";
-        this.rerouteService = rerouteService;
-    }
-
-    public RerouteService getRerouteService() {
-        assert this.rerouteService != null : "RerouteService not set";
-        return rerouteService;
     }
 
     @Override

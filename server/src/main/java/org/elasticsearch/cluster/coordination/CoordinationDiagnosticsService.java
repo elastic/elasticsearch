@@ -68,7 +68,7 @@ import java.util.stream.Collectors;
  * this will report GREEN.
  * If we have had a master within the last 30 seconds, but that master has changed more than 3 times in the last 30 minutes (and that is
  * confirmed by checking with the last-known master), then this will report YELLOW.
- * If we have not had a master within the last 30 seconds, then this will will report RED with one exception. That exception is when:
+ * If we have not had a master within the last 30 seconds, then this will report RED with one exception. That exception is when:
  * (1) no node is elected master, (2) this node is not master eligible, (3) some node is master eligible, (4) we ask a master-eligible node
  * to run this service, and (5) it comes back with a result that is not RED.
  * Since this service needs to be able to run when there is no master at all, it does not depend on the dedicated health node (which
@@ -99,7 +99,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     /*
      * This is a Map of tasks that are periodically reaching out to other master eligible nodes to get their ClusterFormationStates for
-     * diagnosis. The key is the DisoveryNode for the master eligible node being polled, and the value is a Cancellable.
+     * diagnosis. The key is the DiscoveryNode for the master eligible node being polled, and the value is a Cancellable.
      * The field is accessed (reads/writes) from multiple threads, but the reference itself is only ever changed on the cluster change
      * event thread.
      */
@@ -121,7 +121,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     volatile AtomicReference<Scheduler.Cancellable> remoteCoordinationDiagnosisTask = null;
     /*
      * This field holds the result of the task in the remoteCoordinationDiagnosisTask field above. The field is accessed
-     * (reads/writes) from multiple threads, but is only ever reassigned on a the initialization thread and the cluster change event thread.
+     * (reads/writes) from multiple threads, but is only ever reassigned on the initialization thread and the cluster change event thread.
      */
     volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = null;
 
@@ -294,7 +294,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     /**
      * Returns the health result when we have detected locally that the master has changed to null repeatedly (by default more than 3 times
-     * in the last 30 minutes). This method attemtps to use the master history from a remote node to confirm what we are seeing locally.
+     * in the last 30 minutes). This method attempts to use the master history from a remote node to confirm what we are seeing locally.
      * If the information from the remote node confirms that the master history has been unstable, a YELLOW status is returned. If the
      * information from the remote node shows that the master history has been stable, then we assume that the problem is with this node
      * and a GREEN status is returned (the problems with this node will be covered in a separate health indicator). If there had been
@@ -1133,7 +1133,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             );
             responseConsumer.accept(responseTransformationFunction.apply(response, null));
         }, e -> {
-            logger.warn("Exception in remote request to master" + masterEligibleNode, e);
+            logger.warn("Exception in remote request to master " + masterEligibleNode, e);
             responseConsumer.accept(responseTransformationFunction.apply(null, e));
         }));
 
@@ -1143,7 +1143,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 if (masterEligibleNode == null) {
                     /*
                      * This node's PeerFinder hasn't yet discovered the master-eligible nodes. By notifying the responseConsumer with a null
-                     * value we effectively do nothing, and allow this request to be recheduled.
+                     * value we effectively do nothing, and allow this request to be rescheduled.
                      */
                     responseConsumer.accept(null);
                 } else {

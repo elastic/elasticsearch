@@ -17,8 +17,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 final class StackTrace implements ToXContentObject {
+    static final int NATIVE_FRAME_TYPE = 3;
+    static final int KERNEL_FRAME_TYPE = 4;
     List<Integer> addressOrLines;
     List<String> fileIds;
     List<String> frameIds;
@@ -213,6 +216,15 @@ final class StackTrace implements ToXContentObject {
         List<Integer> typeIDs = runLengthDecodeBase64Url(inputFrameTypes, inputFrameTypes.length(), countsFrameIDs);
 
         return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs, 0, 0, 0);
+    }
+
+    public void forNativeAndKernelFrames(Consumer<String> consumer) {
+        for (int i = 0; i < this.fileIds.size(); i++) {
+            Integer frameType = this.typeIds.get(i);
+            if (frameType != null && (frameType == NATIVE_FRAME_TYPE || frameType == KERNEL_FRAME_TYPE)) {
+                consumer.accept(this.fileIds.get(i));
+            }
+        }
     }
 
     @Override

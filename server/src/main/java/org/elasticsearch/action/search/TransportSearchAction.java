@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -59,12 +60,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
@@ -111,6 +111,8 @@ import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
+    public static final String NAME = "indices:data/read/search";
+    public static final ActionType<SearchResponse> TYPE = new ActionType<>(NAME, SearchResponse::new);
     private static final Logger logger = LogManager.getLogger(TransportSearchAction.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportSearchAction.class);
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
@@ -158,15 +160,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
-        ExecutorSelector executorSelector
+        ExecutorSelector executorSelector,
+        SearchTransportAPMMetrics searchTransportMetrics
     ) {
-        super(SearchAction.NAME, transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService);
+        SearchTransportService.registerRequestHandler(transportService, searchService, searchTransportMetrics);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;
@@ -537,19 +540,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         ? null
                         : new SearchProfileResults(profileResults);
 
-                    InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-                        searchResponse.getHits(),
-                        (InternalAggregations) searchResponse.getAggregations(),
-                        searchResponse.getSuggest(),
-                        profile,
-                        searchResponse.isTimedOut(),
-                        searchResponse.isTerminatedEarly(),
-                        searchResponse.getNumReducePhases()
-                    );
-
-                    listener.onResponse(
+                    ActionListener.respondAndRelease(
+                        listener,
                         new SearchResponse(
-                            internalSearchResponse,
+                            searchResponse.getHits(),
+                            searchResponse.getAggregations(),
+                            searchResponse.getSuggest(),
+                            searchResponse.isTimedOut(),
+                            searchResponse.isTerminatedEarly(),
+                            profile,
+                            searchResponse.getNumReducePhases(),
                             searchResponse.getScrollId(),
                             searchResponse.getTotalShards(),
                             searchResponse.getSuccessfulShards(),
@@ -568,7 +568,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     logCCSError(failure, clusterAlias, skipUnavailable);
                     ccsClusterInfoUpdate(failure, clusters, clusterAlias, skipUnavailable);
                     if (skipUnavailable) {
-                        listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
+                        ActionListener.respondAndRelease(listener, SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
                     } else {
                         listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
                     }
@@ -706,7 +706,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterService.maybeEnsureConnectedAndGetConnection(
                 clusterAlias,
                 skipUnavailable == false,
-                ActionListener.wrap(connection -> {
+                singleListener.delegateFailureAndWrap((delegate, connection) -> {
                     final String[] indices = entry.getValue().indices();
                     final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                     // TODO: support point-in-time
@@ -722,10 +722,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         );
                         transportService.sendRequest(
                             connection,
-                            SearchShardsAction.NAME,
+                            TransportSearchShardsAction.TYPE.name(),
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new, responseExecutor)
+                            new ActionListenerResponseHandler<>(delegate, SearchShardsResponse::new, responseExecutor)
                         );
                     } else {
                         // does not do a can-match
@@ -738,13 +738,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchShardsRequest,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                singleListener.map(SearchShardsResponse::fromLegacyResponse),
+                                delegate.map(SearchShardsResponse::fromLegacyResponse),
                                 ClusterSearchShardsResponse::new,
                                 responseExecutor
                             )
                         );
                     }
-                }, singleListener::onFailure)
+                })
             );
         }
     }
@@ -761,7 +761,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         ActionListener<SearchResponse> originalListener
     ) {
-        return new CCSActionListener<>(clusterAlias, skipUnavailable, countDown, exceptions, clusters, originalListener) {
+        return new CCSActionListener<>(
+            clusterAlias,
+            skipUnavailable,
+            countDown,
+            exceptions,
+            clusters,
+            ActionListener.releaseAfter(originalListener, searchResponseMerger)
+        ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
                 // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
@@ -772,6 +779,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             @Override
             SearchResponse createFinalResponse() {
                 return searchResponseMerger.getMergedResponse(clusters);
+            }
+
+            @Override
+            protected void releaseResponse(SearchResponse searchResponse) {
+                searchResponse.decRef();
             }
         };
     }
@@ -1283,7 +1295,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     && task.getProgressListener() == SearchProgressListener.NOOP) {
                     task.setProgressListener(new CCSSingleCoordinatorSearchProgressListener());
                 }
-                final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
+                final SearchPhaseResults<SearchPhaseResult> queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                     executor,
                     circuitBreaker,
                     task::isCancelled,
@@ -1295,6 +1307,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
                     return new SearchDfsQueryThenFetchAsyncAction(
                         logger,
+                        namedWriteableRegistry,
                         searchTransportService,
                         connectionLookup,
                         aliasFilter,
@@ -1313,6 +1326,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
                     return new SearchQueryThenFetchAsyncAction(
                         logger,
+                        namedWriteableRegistry,
                         searchTransportService,
                         connectionLookup,
                         aliasFilter,
@@ -1489,12 +1503,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         originalListener.onFailure(e);
                         return;
                     }
-                    originalListener.onResponse(response);
+                    try {
+                        originalListener.onResponse(response);
+                    } finally {
+                        releaseResponse(response);
+                    }
                 } else {
                     originalListener.onFailure(exceptions.get());
                 }
             }
         }
+
+        protected void releaseResponse(FinalResponse response) {}
 
         abstract FinalResponse createFinalResponse();
     }

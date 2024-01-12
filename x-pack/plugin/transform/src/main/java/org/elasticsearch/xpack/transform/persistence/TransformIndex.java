@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -233,7 +233,7 @@ public final class TransformIndex {
             config.getHeaders(),
             TRANSFORM_ORIGIN,
             client,
-            IndicesAliasesAction.INSTANCE,
+            TransportIndicesAliasesAction.TYPE,
             request,
             ActionListener.wrap(aliasesResponse -> {
                 listener.onResponse(true);

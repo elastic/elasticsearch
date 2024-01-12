@@ -157,13 +157,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     queryResult.size(1);
                     successfulOps.incrementAndGet();
                     queryResult.incRef();
-                    new Thread(() -> {
-                        try {
-                            listener.onResponse(queryResult);
-                        } finally {
-                            queryResult.decRef();
-                        }
-                    }).start();
+                    new Thread(() -> ActionListener.respondAndRelease(listener, queryResult)).start();
                 } finally {
                     queryResult.decRef();
                 }
@@ -206,6 +200,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         try {
             SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
                 logger,
+                null,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -357,6 +352,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         final List<Object> responses = new ArrayList<>();
         SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -505,6 +501,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -654,6 +651,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),

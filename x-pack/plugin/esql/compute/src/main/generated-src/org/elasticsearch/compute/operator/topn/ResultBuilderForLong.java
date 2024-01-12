@@ -24,7 +24,7 @@ class ResultBuilderForLong implements ResultBuilder {
     ResultBuilderForLong(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
-        this.builder = LongBlock.newBlockBuilder(initialSize, blockFactory);
+        this.builder = blockFactory.newLongBlockBuilder(initialSize);
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -96,6 +97,7 @@ public class RestControllerTests extends ESTestCase {
     @Before
     public void setup() {
         circuitBreakerService = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.builder()
                 .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), BREAKER_LIMIT)
                 // We want to have reproducible results in this test, hence we disable real memory usage accounting
@@ -471,11 +473,19 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchWithContentStream() {
         final String mediaType = randomFrom("application/json", "application/smile");
-        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> contentTypeHeader = Collections.singletonList(mediaType);
+        XContentType contentType = RestRequest.parseContentType(contentTypeHeader);
+        byte[] content = randomByteArrayOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
+        if (contentType == XContentType.SMILE) {
+            // fake smile bytes to make parser happy
+            content[0] = (byte) ':';
+            content[1] = (byte) ')';
+            content[2] = (byte) '\n';
+            content[3] = 0;
+        }
         RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
             new BytesArray(content),
-            RestRequest.parseContentType(contentTypeHeader)
+            contentType
         ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", contentTypeHeader)).build();
         if (randomBoolean()) {
             fakeRestRequest = new RestRequest(fakeRestRequest);
@@ -816,12 +826,20 @@ public class RestControllerTests extends ESTestCase {
     }
 
     private FakeRestRequest requestWithContent(String mediaType) {
-        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
+        byte[] content = randomByteArrayOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> mediaTypeList = Collections.singletonList(mediaType);
-        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray(content),
-            RestRequest.parseContentType(mediaTypeList)
-        ).withPath("/foo").withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList)).build();
+        XContentType contentType = RestRequest.parseContentType(mediaTypeList);
+        if (contentType == XContentType.SMILE || contentType == XContentType.VND_SMILE) {
+            // fake smile bytes to make parser happy
+            content[0] = (byte) ':';
+            content[1] = (byte) ')';
+            content[2] = (byte) '\n';
+            content[3] = 0;
+        }
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray(content), contentType)
+            .withPath("/foo")
+            .withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList))
+            .build();
     }
 
     public void testCurrentVersionVNDMediaTypeIsNotUsingCompatibility() {

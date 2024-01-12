@@ -378,8 +378,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         assertNotHighlighted(
             prepareSearch().setQuery(matchPhraseQuery("no_long_term", "test foo highlighed").slop(3))
-                .highlighter(new HighlightBuilder().field("no_long_term", 18, 1).highlighterType("fvh").postTags("</b>").preTags("<b>"))
-                .get(),
+                .highlighter(new HighlightBuilder().field("no_long_term", 18, 1).highlighterType("fvh").postTags("</b>").preTags("<b>")),
             0,
             "no_long_term"
         );

@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -331,6 +332,13 @@ public class NodeTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
     }
 
+    public void testStartOnClosedTransport() throws IOException {
+        try (Node node = new MockNode(baseSettings().build(), basePlugins())) {
+            node.prepareForClose();
+            expectThrows(AssertionError.class, node::start);    // this would be IllegalStateException in a real Node with assertions off
+        }
+    }
+
     public void testCreateWithCircuitBreakerPlugins() throws IOException {
         Settings.Builder settings = baseSettings().put("breaker.test_breaker.limit", "50b");
         List<Class<? extends Plugin>> plugins = basePlugins();
@@ -366,8 +374,8 @@ public class NodeTests extends ESTestCase {
         Settings.Builder settings = baseSettings();
         try (Node node = new MockNode(settings.build(), basePlugins())) {
             final TransportService transportService = node.injector().getInstance(TransportService.class);
-            final List<String> taskHeaders = transportService.getTaskManager().getTaskHeaders();
-            assertThat(taskHeaders, containsInAnyOrder(Task.HEADERS_TO_COPY.toArray(new String[] {})));
+            final Set<String> taskHeaders = transportService.getTaskManager().getTaskHeaders();
+            assertThat(taskHeaders, containsInAnyOrder(Task.HEADERS_TO_COPY.toArray()));
         }
     }
 

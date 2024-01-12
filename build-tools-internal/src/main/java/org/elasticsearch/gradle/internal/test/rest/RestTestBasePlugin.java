@@ -63,7 +63,6 @@ import javax.inject.Inject;
 public class RestTestBasePlugin implements Plugin<Project> {
 
     private static final String TESTS_MAX_PARALLEL_FORKS_SYSPROP = "tests.max.parallel.forks";
-    private static final String TESTS_RUNTIME_JAVA_SYSPROP = "tests.runtime.java";
     private static final String DEFAULT_DISTRIBUTION_SYSPROP = "tests.default.distribution";
     private static final String INTEG_TEST_DISTRIBUTION_SYSPROP = "tests.integ-test.distribution";
     private static final String BWC_SNAPSHOT_DISTRIBUTION_SYSPROP_PREFIX = "tests.snapshot.distribution.";
@@ -168,7 +167,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
-            task.getInputs().property(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, false);
+            task.getExtensions().getExtraProperties().set(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, false);
 
             // Disable the security manager and syscall filter since the test framework needs to fork processes
             task.systemProperty("tests.security.manager", "false");
@@ -189,7 +188,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
             // Wire up integ-test distribution by default for all test tasks
             FileCollection extracted = integTestDistro.getExtracted();
             nonInputSystemProperties.systemProperty(INTEG_TEST_DISTRIBUTION_SYSPROP, () -> extracted.getSingleFile().getPath());
-            nonInputSystemProperties.systemProperty(TESTS_RUNTIME_JAVA_SYSPROP, BuildParams.getRuntimeJavaHome());
 
             // Add `usesDefaultDistribution()` extension method to test tasks to indicate they require the default distro
             task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {

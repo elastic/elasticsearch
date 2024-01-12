@@ -418,6 +418,11 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     ) {
         return ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
             final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
+            if (entriesForRepo.isEmpty()) {
+                // it's (just about) possible for the data node to apply the initial snapshot state, start on the first shard snapshot, and
+                // hit the IO block, before the master even applies this cluster state, in which case we simply retry:
+                return false;
+            }
             assertThat(entriesForRepo, hasSize(1));
             final var shardSnapshotStatuses = entriesForRepo.iterator()
                 .next()

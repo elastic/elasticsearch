@@ -271,7 +271,11 @@ public class ComputeService {
         ActionListener<Void> parentListener,
         Supplier<ActionListener<ComputeResponse>> dataNodeListenerSupplier
     ) {
-        QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);
+        // The lambda is to say if a TEXT field has an identical exact subfield
+        // We cannot use SearchContext because we don't have it yet.
+        // Since it's used only for @timestamp, it is relatively safe to assume it's not needed
+        // but it would be better to have a proper impl.
+        QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan, x -> true);
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> parentListener.onResponse(null))) {
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to

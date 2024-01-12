@@ -183,6 +183,7 @@ public class TransportVersions {
     public static final TransportVersion HOT_THREADS_AS_BYTES = def(8_571_00_0);
     public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED = def(8_572_00_0);
     public static final TransportVersion ESQL_ENRICH_POLICY_CCQ_MODE = def(8_573_00_0);
+    public static final TransportVersion SEMANTIC_TEXT_FIELD_ADDED = def(8_574_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

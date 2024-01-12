@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.SpatialCentroidCartesianPointAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.SpatialCentroidGeoPointAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -56,11 +58,24 @@ public class SpatialCentroid extends AggregateFunction implements ToAggregator {
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (type == EsqlDataTypes.GEO_POINT) {
-            return new SpatialCentroidGeoPointAggregatorFunctionSupplier(inputChannels);
-        }
-        if (type == EsqlDataTypes.CARTESIAN_POINT) {
-            return new SpatialCentroidCartesianPointAggregatorFunctionSupplier(inputChannels);
+        // TODO: Figure out how to know whether to use doc-values or source-values here
+        boolean useDocValues = true;
+        if (useDocValues) {
+            // When the points are read as doc-values (eg. from the index), feed them into the doc-values aggregator
+            if (type == EsqlDataTypes.GEO_POINT) {
+                return new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
+            }
+            if (type == EsqlDataTypes.CARTESIAN_POINT) {
+                return new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
+            }
+        } else {
+            // When the points are read as WKB from source or as point literals, feed them into the source-values aggregator
+            if (type == EsqlDataTypes.GEO_POINT) {
+                return new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+            }
+            if (type == EsqlDataTypes.CARTESIAN_POINT) {
+                return new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+            }
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

@@ -67,7 +67,7 @@ public class AggregateMapper {
     );
 
     /** Record of agg Class, type, and grouping (or non-grouping). */
-    record AggDef(Class<?> aggClazz, String type, boolean grouping) {}
+    record AggDef(Class<?> aggClazz, String type, String extra, boolean grouping) {}
 
     /** Map of AggDef types to intermediate named expressions. */
     private final Map<AggDef, List<IntermediateStateDesc>> mapper;
@@ -137,30 +137,40 @@ public class AggregateMapper {
         return l;
     }
 
-    static Stream<Tuple<Class<?>, String>> typeAndNames(Class<?> clazz) {
+    private static Stream<Tuple<Class<?>, Tuple<String, String>>> typeAndNames(Class<?> clazz) {
         List<String> types;
+        List<String> extraConfigs = List.of("");
         if (NumericAggregate.class.isAssignableFrom(clazz)) {
             types = NUMERIC;
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
         } else if (clazz == SpatialCentroid.class) {
             types = SPATIAL;
+            extraConfigs = List.of("SourceValues", "DocValues");
         } else {
             assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();
         }
-        return types.stream().map(type -> new Tuple<>(clazz, type));
+        return combinations(types, extraConfigs).map(combo -> new Tuple<>(clazz, combo));
     }
 
-    static Stream<AggDef> groupingAndNonGrouping(Tuple<Class<?>, String> tuple) {
-        return Stream.of(new AggDef(tuple.v1(), tuple.v2(), true), new AggDef(tuple.v1(), tuple.v2(), false));
+    private static Stream<Tuple<String, String>> combinations(List<String> types, List<String> extraConfigs) {
+        return types.stream().flatMap(type -> extraConfigs.stream().map(config -> new Tuple<>(type, config)));
     }
 
-    static AggDef aggDefOrNull(Expression aggregate, boolean grouping) {
+    private static Stream<AggDef> groupingAndNonGrouping(Tuple<Class<?>, Tuple<String, String>> tuple) {
+        return Stream.of(
+            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
+            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false)
+        );
+    }
+
+    private static AggDef aggDefOrNull(Expression aggregate, boolean grouping) {
         if (aggregate instanceof AggregateFunction aggregateFunction) {
             return new AggDef(
                 aggregateFunction.getClass(),
                 dataTypeToString(aggregateFunction.field().dataType(), aggregateFunction.getClass()),
+                aggregate instanceof SpatialCentroid ? "SourceValues" : "",
                 grouping
             );
         }
@@ -168,9 +178,9 @@ public class AggregateMapper {
     }
 
     /** Retrieves the intermediate state description for a given class, type, and grouping. */
-    static List<IntermediateStateDesc> lookupIntermediateState(AggDef aggDef) {
+    private static List<IntermediateStateDesc> lookupIntermediateState(AggDef aggDef) {
         try {
-            return (List<IntermediateStateDesc>) lookup(aggDef.aggClazz(), aggDef.type(), aggDef.grouping()).invokeExact();
+            return (List<IntermediateStateDesc>) lookup(aggDef.aggClazz(), aggDef.type(), aggDef.extra(), aggDef.grouping()).invokeExact();
         } catch (Throwable t) {
             // invokeExact forces us to handle any Throwable thrown by lookup.
             throw new EsqlIllegalArgumentException(t);
@@ -178,11 +188,11 @@ public class AggregateMapper {
     }
 
     /** Looks up the intermediate state method for a given class, type, and grouping. */
-    static MethodHandle lookup(Class<?> clazz, String type, boolean grouping) {
+    private static MethodHandle lookup(Class<?> clazz, String type, String extra, boolean grouping) {
         try {
             return MethodHandles.lookup()
                 .findStatic(
-                    Class.forName(determineAggName(clazz, type, grouping)),
+                    Class.forName(determineAggName(clazz, type, extra, grouping)),
                     "intermediateStateDesc",
                     MethodType.methodType(List.class)
                 );
@@ -192,24 +202,25 @@ public class AggregateMapper {
     }
 
     /** Determines the engines agg class name, for the given class, type, and grouping. */
-    static String determineAggName(Class<?> clazz, String type, boolean grouping) {
+    private static String determineAggName(Class<?> clazz, String type, String extra, boolean grouping) {
         StringBuilder sb = new StringBuilder();
         sb.append("org.elasticsearch.compute.aggregation.");
         sb.append(clazz.getSimpleName());
         sb.append(type);
+        sb.append(extra);
         sb.append(grouping ? "Grouping" : "");
         sb.append("AggregatorFunction");
         return sb.toString();
     }
 
     /** Maps intermediate state description to named expressions.  */
-    static Stream<NamedExpression> isToNE(List<IntermediateStateDesc> intermediateStateDescs) {
+    private static Stream<NamedExpression> isToNE(List<IntermediateStateDesc> intermediateStateDescs) {
         return intermediateStateDescs.stream().map(is -> new ReferenceAttribute(Source.EMPTY, is.name(), toDataType(is.type())));
     }
 
     /** Returns the data type for the engines element type. */
     // defaults to aggstate, but we'll eventually be able to remove this
-    static DataType toDataType(ElementType elementType) {
+    private static DataType toDataType(ElementType elementType) {
         return switch (elementType) {
             case BOOLEAN -> DataTypes.BOOLEAN;
             case BYTES_REF -> DataTypes.KEYWORD;
@@ -221,7 +232,7 @@ public class AggregateMapper {
     }
 
     /** Returns the string representation for the data type. This reflects the engine's aggs naming structure. */
-    static String dataTypeToString(DataType type, Class<?> aggClass) {
+    private static String dataTypeToString(DataType type, Class<?> aggClass) {
         if (aggClass == Count.class) {
             return "";  // no type distinction
         }
@@ -244,7 +255,7 @@ public class AggregateMapper {
         }
     }
 
-    static Expression unwrapAlias(Expression expression) {
+    private static Expression unwrapAlias(Expression expression) {
         if (expression instanceof Alias alias) return alias.child();
         return expression;
     }

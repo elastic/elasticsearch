@@ -9,7 +9,10 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -19,10 +22,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialCentroidGeoPointAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialCentroidCartesianPointSourceValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialCentroidGeoPointAggregatorFunction implements AggregatorFunction {
+public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("xVal", ElementType.DOUBLE),
       new IntermediateStateDesc("xDel", ElementType.DOUBLE),
@@ -36,16 +39,16 @@ public final class SpatialCentroidGeoPointAggregatorFunction implements Aggregat
 
   private final List<Integer> channels;
 
-  public SpatialCentroidGeoPointAggregatorFunction(DriverContext driverContext,
+  public SpatialCentroidCartesianPointSourceValuesAggregatorFunction(DriverContext driverContext,
       List<Integer> channels, CentroidPointAggregator.CentroidState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SpatialCentroidGeoPointAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new SpatialCentroidGeoPointAggregatorFunction(driverContext, channels, SpatialCentroidGeoPointAggregator.initSingle());
+  public static SpatialCentroidCartesianPointSourceValuesAggregatorFunction create(
+      DriverContext driverContext, List<Integer> channels) {
+    return new SpatialCentroidCartesianPointSourceValuesAggregatorFunction(driverContext, channels, SpatialCentroidCartesianPointSourceValuesAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -59,8 +62,8 @@ public final class SpatialCentroidGeoPointAggregatorFunction implements Aggregat
 
   @Override
   public void addRawInput(Page page) {
-    LongBlock block = page.getBlock(channels.get(0));
-    LongVector vector = block.asVector();
+    BytesRefBlock block = page.getBlock(channels.get(0));
+    BytesRefVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
     } else {
@@ -68,13 +71,15 @@ public final class SpatialCentroidGeoPointAggregatorFunction implements Aggregat
     }
   }
 
-  private void addRawVector(LongVector vector) {
+  private void addRawVector(BytesRefVector vector) {
+    BytesRef scratch = new BytesRef();
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialCentroidGeoPointAggregator.combine(state, vector.getLong(i));
+      SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
     }
   }
 
-  private void addRawBlock(LongBlock block) {
+  private void addRawBlock(BytesRefBlock block) {
+    BytesRef scratch = new BytesRef();
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
         continue;
@@ -82,7 +87,7 @@ public final class SpatialCentroidGeoPointAggregatorFunction implements Aggregat
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialCentroidGeoPointAggregator.combine(state, block.getLong(i));
+        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
       }
     }
   }
@@ -121,7 +126,7 @@ public final class SpatialCentroidGeoPointAggregatorFunction implements Aggregat
     }
     LongVector count = ((LongBlock) countUncast).asVector();
     assert count.getPositionCount() == 1;
-    SpatialCentroidGeoPointAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), count.getLong(0));
+    SpatialCentroidCartesianPointSourceValuesAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), count.getLong(0));
   }
 
   @Override
@@ -131,7 +136,7 @@ public final class SpatialCentroidGeoPointAggregatorFunction implements Aggregat
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = SpatialCentroidGeoPointAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialCentroidCartesianPointSourceValuesAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

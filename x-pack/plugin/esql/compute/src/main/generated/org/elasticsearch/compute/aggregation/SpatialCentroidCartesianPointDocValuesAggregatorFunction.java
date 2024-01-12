@@ -19,10 +19,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialCentroidCartesianPointAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialCentroidCartesianPointDocValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialCentroidCartesianPointAggregatorFunction implements AggregatorFunction {
+public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("xVal", ElementType.DOUBLE),
       new IntermediateStateDesc("xDel", ElementType.DOUBLE),
@@ -36,16 +36,16 @@ public final class SpatialCentroidCartesianPointAggregatorFunction implements Ag
 
   private final List<Integer> channels;
 
-  public SpatialCentroidCartesianPointAggregatorFunction(DriverContext driverContext,
+  public SpatialCentroidCartesianPointDocValuesAggregatorFunction(DriverContext driverContext,
       List<Integer> channels, CentroidPointAggregator.CentroidState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SpatialCentroidCartesianPointAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new SpatialCentroidCartesianPointAggregatorFunction(driverContext, channels, SpatialCentroidCartesianPointAggregator.initSingle());
+  public static SpatialCentroidCartesianPointDocValuesAggregatorFunction create(
+      DriverContext driverContext, List<Integer> channels) {
+    return new SpatialCentroidCartesianPointDocValuesAggregatorFunction(driverContext, channels, SpatialCentroidCartesianPointDocValuesAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -70,7 +70,7 @@ public final class SpatialCentroidCartesianPointAggregatorFunction implements Ag
 
   private void addRawVector(LongVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialCentroidCartesianPointAggregator.combine(state, vector.getLong(i));
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
     }
   }
 
@@ -82,7 +82,7 @@ public final class SpatialCentroidCartesianPointAggregatorFunction implements Ag
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialCentroidCartesianPointAggregator.combine(state, block.getLong(i));
+        SpatialCentroidCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
       }
     }
   }
@@ -121,7 +121,7 @@ public final class SpatialCentroidCartesianPointAggregatorFunction implements Ag
     }
     LongVector count = ((LongBlock) countUncast).asVector();
     assert count.getPositionCount() == 1;
-    SpatialCentroidCartesianPointAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), count.getLong(0));
+    SpatialCentroidCartesianPointDocValuesAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), count.getLong(0));
   }
 
   @Override
@@ -131,7 +131,7 @@ public final class SpatialCentroidCartesianPointAggregatorFunction implements Ag
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = SpatialCentroidCartesianPointAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialCentroidCartesianPointDocValuesAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

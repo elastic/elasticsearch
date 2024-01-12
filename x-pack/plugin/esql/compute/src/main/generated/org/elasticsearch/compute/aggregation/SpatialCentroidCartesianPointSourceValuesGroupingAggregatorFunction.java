@@ -9,7 +9,10 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -21,10 +24,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidCartesianPointAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidCartesianPointSourceValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialCentroidCartesianPointGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("xVal", ElementType.DOUBLE),
       new IntermediateStateDesc("xDel", ElementType.DOUBLE),
@@ -38,16 +41,16 @@ public final class SpatialCentroidCartesianPointGroupingAggregatorFunction imple
 
   private final DriverContext driverContext;
 
-  public SpatialCentroidCartesianPointGroupingAggregatorFunction(List<Integer> channels,
+  public SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction(List<Integer> channels,
       CentroidPointAggregator.GroupingCentroidState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static SpatialCentroidCartesianPointGroupingAggregatorFunction create(
+  public static SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new SpatialCentroidCartesianPointGroupingAggregatorFunction(channels, SpatialCentroidCartesianPointAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction(channels, SpatialCentroidCartesianPointSourceValuesAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -62,8 +65,8 @@ public final class SpatialCentroidCartesianPointGroupingAggregatorFunction imple
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    LongBlock valuesBlock = page.getBlock(channels.get(0));
-    LongVector valuesVector = valuesBlock.asVector();
+    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
+    BytesRefVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
@@ -93,7 +96,8 @@ public final class SpatialCentroidCartesianPointGroupingAggregatorFunction imple
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
+    BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
       if (values.isNull(groupPosition + positionOffset)) {
@@ -102,19 +106,21 @@ public final class SpatialCentroidCartesianPointGroupingAggregatorFunction imple
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        SpatialCentroidCartesianPointAggregator.combine(state, groupId, values.getLong(v));
+        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefVector values) {
+    BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      SpatialCentroidCartesianPointAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
+      SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, LongBlock values) {
+  private void addRawInput(int positionOffset, IntBlock groups, BytesRefBlock values) {
+    BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -129,13 +135,14 @@ public final class SpatialCentroidCartesianPointGroupingAggregatorFunction imple
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          SpatialCentroidCartesianPointAggregator.combine(state, groupId, values.getLong(v));
+          SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, LongVector values) {
+  private void addRawInput(int positionOffset, IntBlock groups, BytesRefVector values) {
+    BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -144,7 +151,7 @@ public final class SpatialCentroidCartesianPointGroupingAggregatorFunction imple
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getInt(g));
-        SpatialCentroidCartesianPointAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
+        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
       }
     }
   }
@@ -161,7 +168,7 @@ public final class SpatialCentroidCartesianPointGroupingAggregatorFunction imple
     assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == count.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      SpatialCentroidCartesianPointAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      SpatialCentroidCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
     }
   }
 
@@ -170,9 +177,9 @@ public final class SpatialCentroidCartesianPointGroupingAggregatorFunction imple
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    CentroidPointAggregator.GroupingCentroidState inState = ((SpatialCentroidCartesianPointGroupingAggregatorFunction) input).state;
+    CentroidPointAggregator.GroupingCentroidState inState = ((SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialCentroidCartesianPointAggregator.combineStates(state, groupId, inState, position);
+    SpatialCentroidCartesianPointSourceValuesAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -183,7 +190,7 @@ public final class SpatialCentroidCartesianPointGroupingAggregatorFunction imple
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = SpatialCentroidCartesianPointAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = SpatialCentroidCartesianPointSourceValuesAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

@@ -26,7 +26,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "count", type = "LONG") }
 )
 @GroupingAggregator
-class SpatialCentroidGeoPointAggregator extends CentroidPointAggregator {
+class SpatialCentroidGeoPointDocValuesAggregator extends CentroidPointAggregator {
 
     public static CentroidState initSingle() {
         return new CentroidState();

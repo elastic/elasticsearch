@@ -21,10 +21,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidGeoPointAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidCartesianPointDocValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialCentroidGeoPointGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("xVal", ElementType.DOUBLE),
       new IntermediateStateDesc("xDel", ElementType.DOUBLE),
@@ -38,16 +38,16 @@ public final class SpatialCentroidGeoPointGroupingAggregatorFunction implements 
 
   private final DriverContext driverContext;
 
-  public SpatialCentroidGeoPointGroupingAggregatorFunction(List<Integer> channels,
+  public SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction(List<Integer> channels,
       CentroidPointAggregator.GroupingCentroidState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static SpatialCentroidGeoPointGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new SpatialCentroidGeoPointGroupingAggregatorFunction(channels, SpatialCentroidGeoPointAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+  public static SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction create(
+      List<Integer> channels, DriverContext driverContext) {
+    return new SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction(channels, SpatialCentroidCartesianPointDocValuesAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -102,7 +102,7 @@ public final class SpatialCentroidGeoPointGroupingAggregatorFunction implements 
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        SpatialCentroidGeoPointAggregator.combine(state, groupId, values.getLong(v));
+        SpatialCentroidCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(v));
       }
     }
   }
@@ -110,7 +110,7 @@ public final class SpatialCentroidGeoPointGroupingAggregatorFunction implements 
   private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      SpatialCentroidGeoPointAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
   }
 
@@ -129,7 +129,7 @@ public final class SpatialCentroidGeoPointGroupingAggregatorFunction implements 
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          SpatialCentroidGeoPointAggregator.combine(state, groupId, values.getLong(v));
+          SpatialCentroidCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(v));
         }
       }
     }
@@ -144,7 +144,7 @@ public final class SpatialCentroidGeoPointGroupingAggregatorFunction implements 
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = Math.toIntExact(groups.getInt(g));
-        SpatialCentroidGeoPointAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
+        SpatialCentroidCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
       }
     }
   }
@@ -161,7 +161,7 @@ public final class SpatialCentroidGeoPointGroupingAggregatorFunction implements 
     assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == count.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      SpatialCentroidGeoPointAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      SpatialCentroidCartesianPointDocValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
     }
   }
 
@@ -170,9 +170,9 @@ public final class SpatialCentroidGeoPointGroupingAggregatorFunction implements 
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    CentroidPointAggregator.GroupingCentroidState inState = ((SpatialCentroidGeoPointGroupingAggregatorFunction) input).state;
+    CentroidPointAggregator.GroupingCentroidState inState = ((SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialCentroidGeoPointAggregator.combineStates(state, groupId, inState, position);
+    SpatialCentroidCartesianPointDocValuesAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -183,7 +183,7 @@ public final class SpatialCentroidGeoPointGroupingAggregatorFunction implements 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = SpatialCentroidGeoPointAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = SpatialCentroidCartesianPointDocValuesAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

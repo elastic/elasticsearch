@@ -20,23 +20,35 @@ public class APMAgentSettingsTests extends ESTestCase {
     /**
      * Check that when the tracer is enabled, it also sets the APM agent's recording system property to true.
      */
-    public void testEnableRecording() {
+    public void testEnableTracing() {
+        boolean metricsEnabled = randomBoolean();
+
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
-        apmAgentSettings.syncAgentSystemProperties(settings);
+        Settings settings = Settings.builder()
+            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+            .put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
+            .build();
+        apmAgentSettings.initAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
+        verify(apmAgentSettings).setAgentSetting("instrument", "true");
     }
 
     /**
-     * Check that when the tracer is disabled, it also sets the APM agent's recording system property to false.
+     * Check that when the tracer is disabled, it also sets the APM agent's recording system property to false unless metrics are enabled.
      */
-    public void testDisableRecording() {
-        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), false).build();
-        apmAgentSettings.syncAgentSystemProperties(settings);
+    public void testDisableTracing() {
+        boolean metricsEnabled = randomBoolean();
 
-        verify(apmAgentSettings).setAgentSetting("recording", "false");
+        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
+        Settings settings = Settings.builder()
+            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), false)
+            .put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), metricsEnabled)
+            .build();
+        apmAgentSettings.initAgentSystemProperties(settings);
+
+        verify(apmAgentSettings).setAgentSetting("recording", Boolean.toString(metricsEnabled));
+        verify(apmAgentSettings).setAgentSetting("instrument", "false");
     }
 
     /**
@@ -48,7 +60,7 @@ public class APMAgentSettingsTests extends ESTestCase {
             .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
             .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "span_compression_enabled", "true")
             .build();
-        apmAgentSettings.syncAgentSystemProperties(settings);
+        apmAgentSettings.initAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
     }

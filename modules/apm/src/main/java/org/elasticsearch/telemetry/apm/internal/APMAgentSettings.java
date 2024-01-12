@@ -48,12 +48,17 @@ public class APMAgentSettings {
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
             this.setAgentSetting("instrument", Boolean.toString(enabled));
+            // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
+            // minimise its impact to a running Elasticsearch.
+            boolean recording = enabled || clusterSettings.get(TELEMETRY_METRICS_ENABLED_SETTING);
+            this.setAgentSetting("recording", Boolean.toString(recording));
         });
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, enabled -> {
             apmMeterService.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
-            this.setAgentSetting("recording", Boolean.toString(enabled));
+            boolean recording = enabled || clusterSettings.get(APM_ENABLED_SETTING);
+            this.setAgentSetting("recording", Boolean.toString(recording));
         });
         clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
         clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
@@ -62,12 +67,18 @@ public class APMAgentSettings {
     }
 
     /**
-     * Copies APM settings from the provided settings object into the corresponding system properties.
+     * Initialize APM settings from the provided settings object into the corresponding system properties.
+     * Later updates to these settings are synchronized using update consumers.
      * @param settings the settings to apply
      */
-    public void syncAgentSystemProperties(Settings settings) {
-        this.setAgentSetting("recording", Boolean.toString(APM_ENABLED_SETTING.get(settings)));
-        // Apply values from the settings in the cluster state
+
+    public void initAgentSystemProperties(Settings settings) {
+        boolean tracing = APM_ENABLED_SETTING.get(settings);
+        boolean metrics = TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
+
+        this.setAgentSetting("recording", Boolean.toString(tracing || metrics));
+        this.setAgentSetting("instrument", Boolean.toString(tracing));
+
         APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
     }
 

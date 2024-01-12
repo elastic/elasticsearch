@@ -49,6 +49,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.TransportConsiste
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -176,6 +177,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -702,7 +704,14 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
                     Lucene.cleanLuceneIndex(in);
-                    return new IndexDirectory(in, createSearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId()));
+                    return new IndexDirectory(
+                        in,
+                        createSearchDirectory(
+                            sharedBlobCacheService.get(),
+                            shardRouting.shardId(),
+                            (termGen -> statelessCommitService.closedGenerationalFiles(shardRouting.shardId(), termGen))
+                        )
+                    );
                 } else {
                     return in;
                 }
@@ -720,7 +729,7 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
                     in.close();
-                    return createSearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
+                    return createSearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId(), null);
                 } else {
                     return in;
                 }
@@ -839,8 +848,12 @@ public class Stateless extends Plugin
     }
 
     // protected to allow tests to override
-    protected SearchDirectory createSearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
-        return new SearchDirectory(cacheService, shardId);
+    protected SearchDirectory createSearchDirectory(
+        SharedBlobCacheService<FileCacheKey> cacheService,
+        ShardId shardId,
+        Consumer<PrimaryTermAndGeneration> generationalFilesClosed
+    ) {
+        return new SearchDirectory(cacheService, shardId, generationalFilesClosed);
     }
 
     @Override

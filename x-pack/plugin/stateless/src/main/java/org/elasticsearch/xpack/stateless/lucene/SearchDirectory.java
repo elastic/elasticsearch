@@ -18,7 +18,10 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.RefCountedBlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,8 +42,10 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
@@ -50,13 +55,16 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
@@ -76,13 +84,22 @@ public class SearchDirectory extends ByteSizeDirectory {
 
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
     private final AtomicReference<StatelessCompoundCommit> currentCommit = new AtomicReference<>(null);
-    private volatile Map<String, BlobLocation> currentMetadata = Map.of();
+    private volatile Map<String, RefCountedBlobLocation> currentMetadata = Map.of();
+    private final Set<PrimaryTermAndGeneration> acquiredGenerationalFiles = ConcurrentCollections.newConcurrentSet();
+    // called when a commit's generational files have been closed. null on search nodes.
+    @Nullable
+    private final Consumer<PrimaryTermAndGeneration> generationalFilesClosed;
     private volatile long currentDataSetSizeInBytes = 0L;
 
-    public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
+    public SearchDirectory(
+        SharedBlobCacheService<FileCacheKey> cacheService,
+        ShardId shardId,
+        Consumer<PrimaryTermAndGeneration> generationalFilesClosed
+    ) {
         super(EmptyDirectory.INSTANCE);
         this.cacheService = cacheService;
         this.shardId = shardId;
+        this.generationalFilesClosed = generationalFilesClosed;
     }
 
     @Override
@@ -114,6 +131,13 @@ public class SearchDirectory extends ByteSizeDirectory {
     }
 
     /**
+     * Returns the acquired {@link PrimaryTermAndGeneration} due to open {@link SearchIndexInput} only on generational files.
+     */
+    public Set<PrimaryTermAndGeneration> getAcquiredGenerationalFilesPrimaryTermAndGenerations() {
+        return acquiredGenerationalFiles;
+    }
+
+    /**
      * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
      *
      * @param newCommit map of file name to store metadata
@@ -122,15 +146,48 @@ public class SearchDirectory extends ByteSizeDirectory {
     public boolean updateCommit(StatelessCompoundCommit newCommit) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
-        try {
-            final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
+        try (var generationalFilesCloseListener = new RefCountingListener(ActionListener.running(() -> {
+            if (acquiredGenerationalFiles.remove(newCommit.primaryTermAndGeneration())) {
+                logger.trace(() -> "acquired generational files for " + newCommit.primaryTermAndGeneration() + " closed");
+            }
+            if (generationalFilesClosed != null) {
+                generationalFilesClosed.accept(newCommit.primaryTermAndGeneration());
+            }
+        }))) {
+            final Map<String, RefCountedBlobLocation> updated = new HashMap<>(currentMetadata);
+            final List<RefCountedBlobLocation> toDecRef = new ArrayList<>();
             long commitSize = 0L;
             for (var entry : newCommit.commitFiles().entrySet()) {
-                updated.put(entry.getKey(), entry.getValue());
+                final var fileName = entry.getKey();
+                final var blobLocation = entry.getValue();
+                final boolean isGenerationalFile = StatelessCommitService.isGenerationalFile(fileName);
+                final var previous = updated.get(fileName);
+                RefCountedBlobLocation toPut;
+                if (previous == null) {
+                    toPut = new RefCountedBlobLocation(blobLocation);
+                } else {
+                    if (previous.getBlobLocation().equals(blobLocation)) {
+                        assert isGenerationalFile == false : "generational files are expected to be copied to newer commits";
+                        toPut = previous;
+                    } else {
+                        if (isGenerationalFile) {
+                            toDecRef.add(previous);
+                        }
+                        toPut = new RefCountedBlobLocation(entry.getValue());
+                    }
+                }
+                if (isGenerationalFile) {
+                    toPut.addCloseListener(generationalFilesCloseListener.acquire());
+                    if (acquiredGenerationalFiles.add(newCommit.primaryTermAndGeneration())) {
+                        logger.trace(() -> "acquired generational files for " + newCommit.primaryTermAndGeneration() + " added");
+                    }
+                }
+                updated.put(fileName, toPut);
                 commitSize += entry.getValue().fileLength();
             }
             currentMetadata = Map.copyOf(updated);
             currentDataSetSizeInBytes = commitSize;
+            toDecRef.forEach(refCountedBlobLocation -> { refCountedBlobLocation.decRef(); });
             // TODO: Commits may not arrive in order. However, the maximum commit we have received is the commit of this directory since the
             // TODO: files always accumulate
             return currentCommit.accumulateAndGet(newCommit, (current, contender) -> {
@@ -147,23 +204,37 @@ public class SearchDirectory extends ByteSizeDirectory {
         }
     }
 
+    private void retainFilesInternal(Set<String> filesToRetain, boolean assertMissingFiles) {
+        if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
+            assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+            try {
+                final Map<String, RefCountedBlobLocation> updated = new HashMap<>(currentMetadata);
+                final List<RefCountedBlobLocation> toDecRef = new ArrayList<>();
+                for (var it = updated.entrySet().iterator(); it.hasNext();) {
+                    var entry = it.next();
+                    if (filesToRetain.contains(entry.getKey()) == false) {
+                        if (StatelessCommitService.isGenerationalFile(entry.getKey())) {
+                            toDecRef.add(entry.getValue());
+                        }
+                        it.remove();
+                    }
+                }
+                assert (assertMissingFiles ? updated.keySet().containsAll(filesToRetain) : true)
+                    : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";
+                currentMetadata = Map.copyOf(updated);
+                toDecRef.forEach(refCountedBlobLocation -> { refCountedBlobLocation.decRef(); });
+            } finally {
+                assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+            }
+        }
+    }
+
     /**
      * Removes superfluous files
      * @param filesToRetain the files to retain
      */
     public void retainFiles(Set<String> filesToRetain) {
-        if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
-            assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
-            try {
-                final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
-                updated.keySet().retainAll(filesToRetain);
-                assert updated.keySet().containsAll(filesToRetain)
-                    : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";
-                currentMetadata = Map.copyOf(updated);
-            } finally {
-                assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
-            }
-        }
+        retainFilesInternal(filesToRetain, true);
     }
 
     /**
@@ -172,16 +243,7 @@ public class SearchDirectory extends ByteSizeDirectory {
      * @param filesToRetain the files to retain
      */
     public void retainFilesIndexing(Set<String> filesToRetain) {
-        if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
-            assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
-            try {
-                final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
-                updated.keySet().retainAll(filesToRetain);
-                currentMetadata = Map.copyOf(updated);
-            } finally {
-                assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
-            }
-        }
+        retainFilesInternal(filesToRetain, false);
     }
 
     /**
@@ -189,13 +251,17 @@ public class SearchDirectory extends ByteSizeDirectory {
      */
     void setMetadata(Map<String, BlobLocation> blobLocations) {
         assert currentMetadata.isEmpty();
-        currentMetadata = Map.copyOf(blobLocations);
+        final Map<String, RefCountedBlobLocation> updated = new HashMap<>();
+        for (var entry : blobLocations.entrySet()) {
+            updated.put(entry.getKey(), new RefCountedBlobLocation(entry.getValue()));
+        }
+        currentMetadata = Map.copyOf(updated);
     }
 
     /**
      * For test usage only.
      */
-    BlobLocation getBlobLocation(String fileName) {
+    RefCountedBlobLocation getRefCountedBlobLocation(String fileName) {
         return currentMetadata.get(fileName);
     }
 
@@ -208,9 +274,9 @@ public class SearchDirectory extends ByteSizeDirectory {
 
     // TODO this method works because we never prune old commits files
     public OptionalLong getPrimaryTerm(String segmentsFileName) throws FileNotFoundException {
-        final BlobLocation location = currentMetadata.get(segmentsFileName);
-        if (location != null) {
-            return OptionalLong.of(location.primaryTerm());
+        final RefCountedBlobLocation refCountedBlobLocation = currentMetadata.get(segmentsFileName);
+        if (refCountedBlobLocation != null) {
+            return OptionalLong.of(refCountedBlobLocation.getBlobLocation().primaryTerm());
         }
         if (segmentsFileName.equals(EmptyDirectory.INSTANCE.getSegmentsFileName())) {
             return OptionalLong.empty();
@@ -270,11 +336,11 @@ public class SearchDirectory extends ByteSizeDirectory {
         if (current.isEmpty()) {
             return super.fileLength(name);
         }
-        BlobLocation location = current.get(name);
-        if (location == null) {
+        RefCountedBlobLocation refCountedBlobLocation = current.get(name);
+        if (refCountedBlobLocation == null) {
             throw new FileNotFoundException(name);
         }
-        return location.fileLength();
+        return refCountedBlobLocation.getBlobLocation().fileLength();
     }
 
     @Override
@@ -312,28 +378,41 @@ public class SearchDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        final var current = currentMetadata;
-        if (current.isEmpty()) {
-            return super.openInput(name, context);
+        while (true) {
+            final var current = currentMetadata;
+            if (current.isEmpty()) {
+                return super.openInput(name, context);
+            }
+            final RefCountedBlobLocation refCountedBlobLocation = current.get(name);
+            if (refCountedBlobLocation == null) {
+                throw new FileNotFoundException(name);
+            }
+            boolean isGenerationalFile = StatelessCommitService.isGenerationalFile(name);
+            // we incRef generational files, but it can fail if closed by a competing updateCommit's decRef, so we retry.
+            if (isGenerationalFile == false || refCountedBlobLocation.tryIncRef()) {
+                final BlobLocation location = refCountedBlobLocation.getBlobLocation();
+                return new SearchIndexInput(
+                    name,
+                    isGenerationalFile ? refCountedBlobLocation : null,
+                    cacheService.getCacheFile(
+                        new FileCacheKey(shardId, location.primaryTerm(), location.blobName()),
+                        location.blobLength()
+                    ),
+                    context,
+                    blobContainer.get().apply(location.primaryTerm()),
+                    cacheService,
+                    location.fileLength(),
+                    location.offset()
+                );
+            }
+            assert isGenerationalFile : "retrying for a non-generational file " + name;
         }
-        final BlobLocation location = current.get(name);
-        if (location == null) {
-            throw new FileNotFoundException(name);
-        }
-        return new SearchIndexInput(
-            name,
-            cacheService.getCacheFile(new FileCacheKey(shardId, location.primaryTerm(), location.blobName()), location.blobLength()),
-            context,
-            blobContainer.get().apply(location.primaryTerm()),
-            cacheService,
-            location.fileLength(),
-            location.offset()
-        );
     }
 
     @Override
     public void close() throws IOException {
         // do not close EmptyDirectory
+        retainFiles(Set.of());
         if (isMarkedAsCorrupted()) {
             forceEvict();
         }

@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.RefCountedBlobLocation;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 
@@ -31,8 +32,12 @@ public class SearchDirectoryTestUtils {
         target.setMetadata(source);
     }
 
-    public static BlobLocation getBlobLocation(SearchDirectory target, String fileName) {
-        return target.getBlobLocation(fileName);
+    public static RefCountedBlobLocation getRefCountedBlobLocation(SearchDirectory target, String fileName) {
+        return target.getRefCountedBlobLocation(fileName);
+    }
+
+    public static RefCountedBlobLocation getRefCountedBlobLocation(SearchIndexInput searchIndexInput) {
+        return searchIndexInput.refCountedBlobLocation;
     }
 
     public static FileCacheKey getCacheKey(SearchIndexInput target) {

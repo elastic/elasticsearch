@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.commits.RefCountedBlobLocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +33,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -52,12 +54,17 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     private final long length;
     private final BlobContainer blobContainer;
+    // package-private for test usage only
+    @Nullable
+    final RefCountedBlobLocation refCountedBlobLocation; // null for non-generational files or slices/clones
 
     private final SharedBlobCacheService<FileCacheKey> cacheService;
     private final long offset;
 
     public SearchIndexInput(
         String name,
+        // null for non-generational files or slices/clones. Should be incremented before passing it to the constructor.
+        @Nullable RefCountedBlobLocation refCountedBlobLocation,
         SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile,
         IOContext context,
         BlobContainer blobContainer,
@@ -72,6 +79,8 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         this.offset = offset;
         this.context = context;
         this.cacheFile = cacheFile.copy();
+        this.refCountedBlobLocation = refCountedBlobLocation;
+        assert refCountedBlobLocation == null || refCountedBlobLocation.hasReferences() : name;
     }
 
     @Override
@@ -81,7 +90,9 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     @Override
     public void close() throws IOException {
-
+        if (refCountedBlobLocation != null) {
+            refCountedBlobLocation.decRef();
+        }
     }
 
     @Override
@@ -94,6 +105,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         BlobCacheUtils.ensureSlice(sliceDescription, offset, length, this);
         return new SearchIndexInput(
             "(" + sliceDescription + ") " + super.toString(),
+            null,
             cacheFile,
             context,
             blobContainer,
@@ -107,6 +119,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     public SearchIndexInput clone() {
         SearchIndexInput searchIndexInput = new SearchIndexInput(
             "(clone of) " + super.toString(),
+            null,
             cacheFile,
             context,
             blobContainer,

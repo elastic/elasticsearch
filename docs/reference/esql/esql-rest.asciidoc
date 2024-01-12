@@ -263,7 +263,7 @@ run an async {esql} query.
 Queries initiated by the async query API may return results or not. The
 `wait_for_completion_timeout` property determines how long to wait for
 the results. If the results are not available by this time, a
-<<esql-async-query-api-response-body-query-id,query id>> is return which
+<<esql-async-query-api-response-body-query-id,query id>> is returned which
 can be later used to retrieve the results. For example:
 
 [source,console]
@@ -303,7 +303,7 @@ requests.
 
 To check the progress of an async query, use the <<esql-async-query-get-api,
 {esql} async query get API>> with the query ID. Specify how long you'd like
-for complete results in the `wait_for_completion_timeout` parameter.
+to wait for complete results in the `wait_for_completion_timeout` parameter.
 
 [source,console]
 ----
@@ -311,7 +311,7 @@ GET /_query/async/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUT
 ----
 // TEST[skip: no access to query ID - may return response values]
 
-If the response's `is_running` value is `false`, the query has finished,
+If the response's `is_running` value is `false`, the query has finished
 and the results are returned.
 
 [source,console-result]

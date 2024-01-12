@@ -11,7 +11,7 @@ monitor its progress, and retrieve results when they become available.
 
 The API accepts the same parameters and request body as the synchronous
 <<esql-query-api,query API>>, along with additional async related
-properties as outline below.
+properties as outlined below.
 
 [source,console]
 ----
@@ -49,7 +49,7 @@ requests.
 // TEST[skip: no access to query ID - may return response values]
 
 Otherwise, if the response's `is_running` value is `false`, the async
-query has  finished, and the results are returned.
+query has finished and the results are returned.
 
 [source,console-result]
 ----

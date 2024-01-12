@@ -13,16 +13,22 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.security.Security;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * This is a local-only action which updates remote cluster credentials for remote cluster connections, from keystore settings reloaded via
@@ -39,18 +45,38 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
     ActionResponse.Empty> {
 
     private final RemoteClusterService remoteClusterService;
+    private final ClusterService clusterService;
 
     @Inject
-    public TransportReloadRemoteClusterCredentialsAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportReloadRemoteClusterCredentialsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters
+    ) {
         super(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION.name(), actionFilters, transportService.getTaskManager());
         this.remoteClusterService = transportService.getRemoteClusterService();
+        this.clusterService = clusterService;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
-        // We avoid stashing and marking context as system to keep the action as minimal as possible (i.e., avoid copying context)
-        remoteClusterService.updateRemoteClusterCredentials(request.getSettings());
-        listener.onResponse(ActionResponse.Empty.INSTANCE);
+        assert Transports.assertNotTransportThread("Remote connection re-building is too much for a transport thread");
+        final ClusterState clusterState = clusterService.state();
+        final ClusterBlockException clusterBlockException = checkBlock(clusterState);
+        if (clusterBlockException != null) {
+            throw clusterBlockException;
+        }
+        // Use a supplier to ensure we resolve cluster settings inside a synchronized block, to prevent race conditions
+        final Supplier<Settings> settingsSupplier = () -> {
+            final Settings persistentSettings = clusterState.metadata().persistentSettings();
+            final Settings transientSettings = clusterState.metadata().transientSettings();
+            return Settings.builder().put(request.getSettings(), true).put(persistentSettings, false).put(transientSettings, false).build();
+        };
+        remoteClusterService.updateRemoteClusterCredentials(settingsSupplier, listener.safeMap(ignored -> ActionResponse.Empty.INSTANCE));
+    }
+
+    private ClusterBlockException checkBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     public static class Request extends ActionRequest {

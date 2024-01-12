@@ -15,9 +15,16 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+
+import java.util.concurrent.Executor;
+
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class ParentTaskAssigningClientTests extends ESTestCase {
     public void testSetsParentId() {
@@ -49,6 +56,25 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
             client.unwrap().bulk(new BulkRequest());
             client.unwrap().search(new SearchRequest());
             client.unwrap().clearScroll(new ClearScrollRequest());
+        }
+    }
+
+    public void testRemoteClientIsAlsoAParentAssigningClient() {
+        TaskId parentTaskId = new TaskId(randomAlphaOfLength(3), randomLong());
+
+        try (var threadPool = createThreadPool()) {
+            final var mockClient = new NoOpClient(threadPool) {
+                @Override
+                public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+                    return mock(Client.class);
+                }
+            };
+
+            final var client = new ParentTaskAssigningClient(mockClient, parentTaskId);
+            assertThat(
+                client.getRemoteClusterClient("remote-cluster", EsExecutors.DIRECT_EXECUTOR_SERVICE),
+                is(instanceOf(ParentTaskAssigningClient.class))
+            );
         }
     }
 }

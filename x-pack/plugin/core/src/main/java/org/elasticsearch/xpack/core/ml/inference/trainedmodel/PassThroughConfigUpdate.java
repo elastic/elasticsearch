@@ -97,30 +97,6 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField())) && super.isNoop()) {
-            return originalConfig;
-        }
-
-        if (originalConfig instanceof PassThroughConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        PassThroughConfig passThroughConfig = (PassThroughConfig) originalConfig;
-        return new PassThroughConfig(
-            passThroughConfig.getVocabularyConfig(),
-            (tokenizationUpdate == null)
-                ? passThroughConfig.getTokenization()
-                : tokenizationUpdate.apply(passThroughConfig.getTokenization()),
-            resultsField == null ? originalConfig.getResultsField() : resultsField
-        );
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return config instanceof PassThroughConfig;
     }

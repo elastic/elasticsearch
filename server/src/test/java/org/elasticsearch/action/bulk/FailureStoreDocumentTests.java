@@ -35,7 +35,7 @@ public class FailureStoreDocumentTests extends ESTestCase {
         String targetIndexName = "rerouted_index";
         long testTime = 1702357200000L; // 2023-12-12T05:00:00.000Z
 
-        IndexRequest convertedRequest = new FailureStoreDocument(source, exception, targetIndexName, () -> testTime).convert();
+        IndexRequest convertedRequest = FailureStoreDocument.transformFailedRequest(source, exception, targetIndexName, () -> testTime);
 
         // Retargeting write
         assertThat(convertedRequest.id(), is(nullValue()));

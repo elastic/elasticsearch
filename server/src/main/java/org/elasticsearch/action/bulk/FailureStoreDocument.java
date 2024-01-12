@@ -19,32 +19,58 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class FailureStoreDocument {
+/**
+ * Transforms an indexing request using error information into a new index request to be stored in a data stream's failure store.
+ */
+public final class FailureStoreDocument {
 
-    private final IndexRequest source;
-    private final Exception exception;
-    private final String targetIndexName;
-    private final Supplier<Long> timeSupplier;
+    private FailureStoreDocument() {}
 
-    public FailureStoreDocument(IndexRequest source, Exception exception, String targetIndexName) {
-        this(source, exception, targetIndexName, System::currentTimeMillis);
+    /**
+     * Combines an {@link IndexRequest} that has failed during the bulk process with the error thrown for that request. The result is a
+     * new {@link IndexRequest} that can be stored in a data stream's failure store.
+     * @param source The original request that has failed to be ingested
+     * @param exception The exception that was thrown that caused the request to fail to be ingested
+     * @param targetIndexName The index that the request was targeting at time of failure
+     * @return A new {@link IndexRequest} with a failure store compliant structure
+     * @throws IOException If there is a problem when the document's new source is serialized
+     */
+    public static IndexRequest transformFailedRequest(IndexRequest source, Exception exception, String targetIndexName) throws IOException {
+        return transformFailedRequest(source, exception, targetIndexName, System::currentTimeMillis);
     }
 
-    public FailureStoreDocument(IndexRequest source, Exception exception, String targetIndexName, Supplier<Long> timeSupplier) {
-        this.source = Objects.requireNonNull(source, "source must not be null");
-        this.exception = Objects.requireNonNull(exception, "exception must not be null");
-        this.targetIndexName = Objects.requireNonNull(targetIndexName, "targetIndexName must not be null");
-        this.timeSupplier = Objects.requireNonNull(timeSupplier, "timeSupplier must not be null");
-    }
-
-    public IndexRequest convert() throws IOException {
+    /**
+     * Combines an {@link IndexRequest} that has failed during the bulk process with the error thrown for that request. The result is a
+     * new {@link IndexRequest} that can be stored in a data stream's failure store.
+     * @param source The original request that has failed to be ingested
+     * @param exception The exception that was thrown that caused the request to fail to be ingested
+     * @param targetIndexName The index that the request was targeting at time of failure
+     * @param timeSupplier Supplies the value for the document's timestamp
+     * @return A new {@link IndexRequest} with a failure store compliant structure
+     * @throws IOException If there is a problem when the document's new source is serialized
+     */
+    public static IndexRequest transformFailedRequest(
+        IndexRequest source,
+        Exception exception,
+        String targetIndexName,
+        Supplier<Long> timeSupplier
+    ) throws IOException {
         return new IndexRequest().index(targetIndexName)
-            .source(createSource())
+            .source(createSource(source, exception, targetIndexName, timeSupplier))
             .opType(DocWriteRequest.OpType.CREATE)
             .setWriteToFailureStore(true);
     }
 
-    private XContentBuilder createSource() throws IOException {
+    private static XContentBuilder createSource(
+        IndexRequest source,
+        Exception exception,
+        String targetIndexName,
+        Supplier<Long> timeSupplier
+    ) throws IOException {
+        Objects.requireNonNull(source, "source must not be null");
+        Objects.requireNonNull(exception, "exception must not be null");
+        Objects.requireNonNull(targetIndexName, "targetIndexName must not be null");
+        Objects.requireNonNull(timeSupplier, "timeSupplier must not be null");
         Throwable unwrapped = ExceptionsHelper.unwrapCause(exception);
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();

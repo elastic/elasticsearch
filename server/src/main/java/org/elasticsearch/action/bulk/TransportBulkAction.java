@@ -1128,7 +1128,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             } else {
                 IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
                 try {
-                    IndexRequest errorDocument = new FailureStoreDocument(indexRequest, e, targetIndexName).convert();
+                    IndexRequest errorDocument = FailureStoreDocument.transformFailedRequest(indexRequest, e, targetIndexName);
                     // This is a fresh index request! We need to do some preprocessing on it. If we do not, when this is returned to
                     // the bulk action, the action will see that it hasn't been processed by ingest yet and attempt to ingest it again.
                     errorDocument.isPipelineResolved(true);

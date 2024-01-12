@@ -1,0 +1,5 @@
+pr: 104122
+summary: Consider old version map in `IndexBufferRAMBytesUsed`
+area: Engine
+type: bug
+issues: []

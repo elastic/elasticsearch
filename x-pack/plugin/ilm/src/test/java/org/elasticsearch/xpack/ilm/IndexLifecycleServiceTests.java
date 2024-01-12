@@ -282,6 +282,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
         SetOnce<Boolean> changedOperationMode = new SetOnce<>();
         doAnswer(invocationOnMock -> {
+            OperationModeUpdateTask task = (OperationModeUpdateTask) invocationOnMock.getArguments()[1];
+            assertEquals(task.getILMOperationMode(), OperationMode.STOPPED);
             changedOperationMode.set(true);
             return null;
         }).when(clusterService)

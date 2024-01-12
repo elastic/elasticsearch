@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
@@ -21,12 +20,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104238")
 public class TransformChainIT extends TransformRestTestCase {
 
     private static final String DEST_INDEX_TEMPLATE = """
@@ -137,19 +134,14 @@ public class TransformChainIT extends TransformRestTestCase {
             startTransform(transformId, RequestOptions.DEFAULT);
         }
 
-        // Wait for the transforms to finish processing. Since the transforms are continuous, we cannot wait for them to be STOPPED.
-        // Instead, we wait for the expected number of processed documents.
-        assertBusy(() -> {
-            for (String transformId : transformIds) {
-                Map<?, ?> stats = getTransformStats(transformId);
-                // Verify that all the documents got processed.
-                assertThat(
-                    "Stats were: " + stats,
-                    XContentMapValues.extractValue(stats, "stats", "documents_processed"),
-                    is(equalTo(numDocs))
-                );
-            }
-        }, 60, TimeUnit.SECONDS);
+        // Give the transforms some time to finish processing. Since the transforms are continuous, we cannot wait for them to be STOPPED.
+        Thread.sleep(60_000);
+
+        // Verify that each transform processed an expected number of documents.
+        for (String transformId : transformIds) {
+            Map<?, ?> stats = getTransformStats(transformId);
+            assertThat("Stats were: " + stats, XContentMapValues.extractValue(stats, "stats", "documents_processed"), is(equalTo(numDocs)));
+        }
 
         // Stop all the transforms.
         for (String transformId : transformIds) {

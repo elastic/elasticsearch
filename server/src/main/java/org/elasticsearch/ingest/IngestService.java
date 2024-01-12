@@ -669,18 +669,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    private record IngestPipelinesExecutionResult(boolean success, boolean kept, Exception exception, String failedIndex) {}
-
-    private static IngestPipelinesExecutionResult successResult() {
-        return new IngestPipelinesExecutionResult(true, true, null, null);
-    }
-
-    private static IngestPipelinesExecutionResult discardResult() {
-        return new IngestPipelinesExecutionResult(true, false, null, null);
-    }
-
-    private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
-        return new IngestPipelinesExecutionResult(false, true, e, index);
+    private record IngestPipelinesExecutionResult(boolean success, boolean kept, Exception exception, String failedIndex) {
+        private static final IngestPipelinesExecutionResult SUCCESSFUL_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
+        private static final IngestPipelinesExecutionResult DISCARD_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
+        private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
+            return new IngestPipelinesExecutionResult(false, true, e, index);
+        }
     }
 
     public void executeBulkRequest(
@@ -884,7 +878,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         e
                     );
                     if (shouldStoreFailure.test(originalIndex)) {
-                        listener.onResponse(failAndStoreFor(originalIndex, e));
+                        listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
                     } else {
                         listener.onFailure(e);
                     }
@@ -892,7 +886,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (keep == false) {
-                    listener.onResponse(discardResult());
+                    listener.onResponse(IngestPipelinesExecutionResult.DISCARD_RESULT);
                     return; // document dropped!
                 }
 
@@ -917,7 +911,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         ex
                     );
                     if (shouldStoreFailure.test(originalIndex)) {
-                        listener.onResponse(failAndStoreFor(originalIndex, documentContainsSelfReferenceException));
+                        listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, documentContainsSelfReferenceException));
                     } else {
                         listener.onFailure(documentContainsSelfReferenceException);
                     }
@@ -940,7 +934,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             )
                         );
                         if (shouldStoreFailure.test(originalIndex)) {
-                            listener.onResponse(failAndStoreFor(originalIndex, finalPipelineChangedIndexException));
+                            listener.onResponse(
+                                IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, finalPipelineChangedIndexException)
+                            );
                         } else {
                             listener.onFailure(finalPipelineChangedIndexException);
                         }
@@ -961,7 +957,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             )
                         );
                         if (shouldStoreFailure.test(originalIndex)) {
-                            listener.onResponse(failAndStoreFor(originalIndex, indexCycleDetectedException));
+                            listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, indexCycleDetectedException));
                         } else {
                             listener.onFailure(indexCycleDetectedException);
                         }
@@ -987,7 +983,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     cacheRawTimestamp(indexRequest, ingestDocument);
-                    listener.onResponse(successResult()); // document succeeded!
+                    listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
                 }
             });
         } catch (Exception e) {
@@ -996,7 +992,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 e
             );
             if (shouldStoreFailure.test(originalIndex)) {
-                listener.onResponse(failAndStoreFor(originalIndex, e));
+                listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
             } else {
                 listener.onFailure(e); // document failed!
             }

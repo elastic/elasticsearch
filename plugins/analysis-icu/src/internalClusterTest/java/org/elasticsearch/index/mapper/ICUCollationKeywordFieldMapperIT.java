@@ -11,6 +11,7 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
@@ -67,7 +68,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // both values should collate to same value
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
             prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
@@ -109,7 +110,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // everything should be indexed fine, no exceptions
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex(index).setId("1")
                 .setSource("{\"id\":\"1\", \"collate\":[\"" + equivalent[0] + "\", \"" + equivalent[1] + "\"]}", XContentType.JSON),
@@ -173,7 +174,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
             prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
@@ -219,7 +220,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
             prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
@@ -265,7 +266,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
             prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
@@ -311,7 +312,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"foo bar\"}", XContentType.JSON),
             prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"foobar\"}", XContentType.JSON),
@@ -353,7 +354,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(true, prepareIndex(index).setId("1").setSource("""
+        indexRandomAndDecRefRequests(true, prepareIndex(index).setId("1").setSource("""
             {"collate":"foobar-10"}""", XContentType.JSON), prepareIndex(index).setId("2").setSource("""
             {"collate":"foobar-9"}""", XContentType.JSON));
 
@@ -391,7 +392,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(true, prepareIndex(index).setId("1").setSource("""
+        indexRandomAndDecRefRequests(true, prepareIndex(index).setId("1").setSource("""
             {"id":"1","collate":"résumé"}""", XContentType.JSON), prepareIndex(index).setId("2").setSource("""
             {"id":"2","collate":"Resume"}""", XContentType.JSON), prepareIndex(index).setId("3").setSource("""
             {"id":"3","collate":"resume"}""", XContentType.JSON), prepareIndex(index).setId("4").setSource("""
@@ -428,7 +429,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex(index).setId("1").setSource("{\"collate\":\"resume\"}", XContentType.JSON),
             prepareIndex(index).setId("2").setSource("{\"collate\":\"Resume\"}", XContentType.JSON)
@@ -477,7 +478,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
             prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
@@ -496,5 +497,15 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             assertHitCount(response, 2L);
             assertOrderedSearchHits(response, "2", "1");
         });
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

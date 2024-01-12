@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -178,6 +179,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             model,
             listener.delegateFailureAndWrap(
                 // model is valid good to persist then start
+                // TODO insert call to put model
                 (delegate, verifiedModel) -> modelRegistry.storeModel(
                     verifiedModel,
                     delegate.delegateFailureAndWrap((l, r) -> startModel(service, verifiedModel, l))
@@ -186,11 +188,20 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         );
     }
 
-    private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
-        service.start(
-            model,
-            listener.delegateFailureAndWrap((l, ok) -> l.onResponse(new PutInferenceModelAction.Response(model.getConfigurations())))
-        );
+    private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
+        SubscribableListener.<Boolean>newForked((listener1) -> { service.putModel(model, listener1); }).<
+            PutInferenceModelAction.Response>andThen((listener2, modelDidPut) -> {
+                if (modelDidPut) {
+                    service.start(
+                        model,
+                        listener2.delegateFailureAndWrap(
+                            (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
+                        )
+                    );
+                } else {
+                    logger.warn("Failed to put model [{}]", model.getModelId());
+                }
+            }).addListener(finalListener);
     }
 
     private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {

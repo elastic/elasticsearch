@@ -39,15 +39,13 @@ public class BulkRequestModifierTests extends ESTestCase {
         CaptureActionListener actionListener = new CaptureActionListener();
         TransportBulkAction.BulkRequestModifier bulkRequestModifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);
 
-        int i = 0;
         Set<Integer> failedSlots = new HashSet<>();
-        while (bulkRequestModifier.hasNext()) {
+        for (int i = 0; bulkRequestModifier.hasNext(); i++) {
             bulkRequestModifier.next();
             if (randomBoolean()) {
                 bulkRequestModifier.markItemAsFailed(i, new RuntimeException());
                 failedSlots.add(i);
             }
-            i++;
         }
 
         assertThat(bulkRequestModifier.getBulkRequest().requests().size(), equalTo(numRequests - failedSlots.size()));
@@ -58,13 +56,13 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         BulkResponse bulkResponse = actionListener.getResponse();
         assertThat(bulkResponse.getIngestTookInMillis(), equalTo(ingestTook));
-        for (int j = 0; j < bulkResponse.getItems().length; j++) {
-            BulkItemResponse item = bulkResponse.getItems()[j];
-            if (failedSlots.contains(j)) {
+        for (int i = 0; i < bulkResponse.getItems().length; i++) {
+            BulkItemResponse item = bulkResponse.getItems()[i];
+            if (failedSlots.contains(i)) {
                 assertThat(item.isFailed(), is(true));
                 BulkItemResponse.Failure failure = item.getFailure();
                 assertThat(failure.getIndex(), equalTo("_index"));
-                assertThat(failure.getId(), equalTo(String.valueOf(j)));
+                assertThat(failure.getId(), equalTo(String.valueOf(i)));
                 assertThat(failure.getMessage(), equalTo("java.lang.RuntimeException"));
             } else {
                 assertThat(item, nullValue());

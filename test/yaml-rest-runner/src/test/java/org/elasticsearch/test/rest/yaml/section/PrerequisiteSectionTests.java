@@ -13,6 +13,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.junit.AssumptionViolatedException;
 
@@ -376,6 +377,9 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertThat(skipSectionBuilder.requiredYamlRunnerFeatures, hasSize(1));
         assertThat(skipSectionBuilder.operatingSystems, containsInAnyOrder("debian-9", "windows-95", "ms-dos"));
         assertThat(skipSectionBuilder.skipReason, is("see gh#xyz"));
+
+        assertThat(parser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+        assertThat(parser.nextToken(), nullValue());
     }
 
     public void testParseSkipSectionOsNoFeatureNoVersion() throws Exception {
@@ -434,6 +438,9 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertThat(skipSectionBuilder.requiredClusterFeatures, contains("needed-feature"));
         assertThat(skipSectionBuilder.skipReason, is("test cannot run when undesired-feature are present"));
         assertThat(skipSectionBuilder.requiresReason, is("test needs needed-feature to run"));
+
+        assertThat(parser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+        assertThat(parser.nextToken(), nullValue());
     }
 
     public void testParseRequireAndSkipSectionMultipleClusterFeatures() throws Exception {
@@ -453,6 +460,9 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertThat(skipSectionBuilder.requiredClusterFeatures, containsInAnyOrder("needed-feature-1", "needed-feature-2"));
         assertThat(skipSectionBuilder.skipReason, is("test cannot run when some are present"));
         assertThat(skipSectionBuilder.requiresReason, is("test needs some to run"));
+
+        assertThat(parser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+        assertThat(parser.nextToken(), nullValue());
     }
 
     public void testParseSameRequireAndSkipClusterFeatures() throws Exception {
@@ -467,6 +477,9 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
         var e = expectThrows(ParsingException.class, () -> PrerequisiteSection.parseInternal(parser));
         assertThat(e.getMessage(), is("a cluster feature can be specified either in [requires] or [skip], not both"));
+
+        assertThat(parser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+        assertThat(parser.nextToken(), nullValue());
     }
 
     public void testSkipClusterFeaturesAllRequiredMatch() {

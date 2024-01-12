@@ -183,12 +183,9 @@ public class PrerequisiteSection {
         return parseInternal(parser).build();
     }
 
-    private static void advanceToNextField(XContentParser parser) throws IOException {
-        var token = parser.currentToken();
-        while (token == XContentParser.Token.END_OBJECT || token == XContentParser.Token.END_ARRAY) {
-            token = parser.nextToken();
-        }
-        if (token != null) {
+    private static void maybeAdvanceToNextField(XContentParser parser) throws IOException {
+        var token = parser.nextToken();
+        if (token != null && token != XContentParser.Token.END_ARRAY) {
             ParserUtils.advanceToFieldName(parser);
         }
     }
@@ -202,11 +199,11 @@ public class PrerequisiteSection {
             if ("skip".equals(parser.currentName())) {
                 parseSkipSection(parser, builder);
                 hasPrerequisiteSection = true;
-                advanceToNextField(parser);
+                maybeAdvanceToNextField(parser);
             } else if ("requires".equals(parser.currentName())) {
                 parseRequiresSection(parser, builder);
                 hasPrerequisiteSection = true;
-                advanceToNextField(parser);
+                maybeAdvanceToNextField(parser);
             } else {
                 unknownFieldName = true;
             }

@@ -34,6 +34,51 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentParserTestCase {
+
+    public void testParseTestSetupWithSkip() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            setup:
+              - skip:
+                  version: "8.7.00 - 8.9.99"
+                  reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+
+            ---
+            date:
+              - skip:
+                  version: " - 8.1.99"
+                  reason: tsdb indexing changed in 8.2.0
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+
+              - match: {test_index.test_type.properties.text.type:     string}
+              - match: {test_index.test_type.properties.text.analyzer: whitespace}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection(), notNullValue());
+
+        assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection().getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection().getExecutableSections().isEmpty(), equalTo(true));
+
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("date"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(3));
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(0), instanceOf(DoSection.class));
+        DoSection doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(0);
+        assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_mapping"));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(1));
+        assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
+    }
+
     public void testParseTestSetupTeardownAndSections() throws Exception {
         final boolean includeSetup = randomBoolean();
         final boolean includeTeardown = randomBoolean();

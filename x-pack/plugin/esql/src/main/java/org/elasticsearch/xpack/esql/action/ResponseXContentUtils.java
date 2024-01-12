@@ -26,9 +26,9 @@ final class ResponseXContentUtils {
     /**
      * Returns the column headings for the given columns.
      */
-    static Iterator<? extends ToXContent> columnHeadings(List<ColumnInfo> columns) {
+    static Iterator<? extends ToXContent> allColumns(List<ColumnInfo> columns, String name) {
         return ChunkedToXContentHelper.singleChunk((builder, params) -> {
-            builder.startArray("columns");
+            builder.startArray(name);
             for (ColumnInfo col : columns) {
                 col.toXContent(builder, params);
             }
@@ -40,16 +40,9 @@ final class ResponseXContentUtils {
      * Returns the column headings for the given columns, moving the heading
      * for always-null columns to a {@code null_columns} section.
      */
-    static Iterator<? extends ToXContent> columnHeadingsNullColumnsMoved(List<ColumnInfo> columns, boolean[] nullColumns) {
+    static Iterator<? extends ToXContent> nonNullColumns(List<ColumnInfo> columns, boolean[] nullColumns, String name) {
         return ChunkedToXContentHelper.singleChunk((builder, params) -> {
-            builder.startArray("null_columns");
-            for (int c = 0; c < columns.size(); c++) {
-                if (nullColumns[c]) {
-                    columns.get(c).toXContent(builder, params);
-                }
-            }
-            builder.endArray();
-            builder.startArray("columns");
+            builder.startArray(name);
             for (int c = 0; c < columns.size(); c++) {
                 if (nullColumns[c] == false) {
                     columns.get(c).toXContent(builder, params);

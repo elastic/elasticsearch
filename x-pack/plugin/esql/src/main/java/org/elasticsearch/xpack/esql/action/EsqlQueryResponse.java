@@ -165,8 +165,11 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
         boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
         Iterator<? extends ToXContent> columnHeadings = dropNullColumns
-            ? ResponseXContentUtils.columnHeadingsNullColumnsMoved(columns, nullColumns)
-            : ResponseXContentUtils.columnHeadings(columns);
+            ? Iterators.concat(
+                ResponseXContentUtils.allColumns(columns, "all_columns"),
+                ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns")
+            )
+            : ResponseXContentUtils.allColumns(columns, "columns");
         Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
         Iterator<ToXContent> profileRender = profile == null
             ? List.<ToXContent>of().iterator()

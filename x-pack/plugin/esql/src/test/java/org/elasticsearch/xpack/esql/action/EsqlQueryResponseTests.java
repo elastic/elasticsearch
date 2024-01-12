@@ -337,7 +337,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             assertThat(
                 Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
                 equalTo("""
-                    {"null_columns":[],"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}""")
+                    {"all_columns":[{"name":"foo","type":"integer"}],"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}""")
             );
         }
     }
@@ -395,7 +395,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             assertThat(
                 Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
                 equalTo("{" + """
-                    "null_columns":[{"name":"all_null","type":"integer"}],""" + """
+                    "all_columns":[{"name":"foo","type":"integer"},{"name":"all_null","type":"integer"}],""" + """
                     "columns":[{"name":"foo","type":"integer"}],""" + """
                     "values":[[40],[80]]}""")
             );
@@ -424,7 +424,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 assertThat(
                     Strings.toString(wrapAsToXContent(response), new ToXContent.MapParams(Map.of(DROP_NULL_COLUMNS_OPTION, "true"))),
                     equalTo("{" + """
-                        "null_columns":[{"name":"all_null","type":"integer"}],""" + """
+                        "all_columns":[{"name":"foo","type":"integer"},{"name":"all_null","type":"integer"}],""" + """
                         "columns":[{"name":"foo","type":"integer"}],""" + """
                         "values":[[40],[80]]}""")
                 );

@@ -154,11 +154,23 @@ row wise and drop null:
           query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
           columnar: false
 
-  - length: {null_columns: 2}
-  - match: {null_columns.0.name: "always_null"}
-  - match: {null_columns.0.type: "keyword"}
-  - match: {null_columns.1.name: "non_null_out_of_match"}
-  - match: {null_columns.1.type: "keyword"}
+  - length: {all_columns: 8}
+  - match: {all_columns.0.name: "always_null"}
+  - match: {all_columns.0.type: "keyword"}
+  - match: {all_columns.1.name: "color"}
+  - match: {all_columns.1.type: "keyword"}
+  - match: {all_columns.2.name: "count"}
+  - match: {all_columns.2.type: "long"}
+  - match: {all_columns.3.name: "count_d"}
+  - match: {all_columns.3.type: "double"}
+  - match: {all_columns.4.name: "data"}
+  - match: {all_columns.4.type: "long"}
+  - match: {all_columns.5.name: "data_d"}
+  - match: {all_columns.5.type: "double"}
+  - match: {all_columns.6.name: "non_null_out_of_match"}
+  - match: {all_columns.6.type: "keyword"}
+  - match: {all_columns.7.name: "time"}
+  - match: {all_columns.7.type: "long"}
   - length: {columns: 6}
   - match: {columns.0.name: "color"}
   - match: {columns.0.type: "keyword"}
@@ -216,11 +228,23 @@ columnar and drop null:
           query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
           columnar: true
 
-  - length: {null_columns: 2}
-  - match: {null_columns.0.name: "always_null"}
-  - match: {null_columns.0.type: "keyword"}
-  - match: {null_columns.1.name: "non_null_out_of_match"}
-  - match: {null_columns.1.type: "keyword"}
+  - length: {all_columns: 8}
+  - match: {all_columns.0.name: "always_null"}
+  - match: {all_columns.0.type: "keyword"}
+  - match: {all_columns.1.name: "color"}
+  - match: {all_columns.1.type: "keyword"}
+  - match: {all_columns.2.name: "count"}
+  - match: {all_columns.2.type: "long"}
+  - match: {all_columns.3.name: "count_d"}
+  - match: {all_columns.3.type: "double"}
+  - match: {all_columns.4.name: "data"}
+  - match: {all_columns.4.type: "long"}
+  - match: {all_columns.5.name: "data_d"}
+  - match: {all_columns.5.type: "double"}
+  - match: {all_columns.6.name: "non_null_out_of_match"}
+  - match: {all_columns.6.type: "keyword"}
+  - match: {all_columns.7.name: "time"}
+  - match: {all_columns.7.type: "long"}
   - length: {columns: 6}
   - match: {columns.0.name: "color"}
   - match: {columns.0.type: "keyword"}

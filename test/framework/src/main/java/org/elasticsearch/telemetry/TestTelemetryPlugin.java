@@ -41,6 +41,10 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
         return meter.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name);
     }
 
+    public List<Measurement> getLongAsyncCounterMeasurement(String name) {
+        return meter.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, name);
+    }
+
     public List<Measurement> getDoubleUpDownCounterMeasurement(String name) {
         return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
     }

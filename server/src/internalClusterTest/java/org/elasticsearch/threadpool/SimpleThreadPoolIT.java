@@ -11,6 +11,10 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -19,18 +23,26 @@ import org.elasticsearch.test.hamcrest.RegexMatcher;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.util.Collection;
+import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SimpleThreadPoolIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder().build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(TestTelemetryPlugin.class);
     }
 
     public void testThreadNames() throws Exception {
@@ -93,6 +105,47 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 + ")";
             assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
         }
+    }
+
+    public void testThreadPoolMetrics() throws Exception {
+        internalCluster().startNode();
+
+        final String dataNodeName = internalCluster().getRandomNodeName();
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        logger.info("do some indexing, flushing, optimize, and searches");
+        int numDocs = randomIntBetween(2, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; ++i) {
+            builders[i] = prepareIndex("idx").setSource(
+                jsonBuilder().startObject()
+                    .field("str_value", "s" + i)
+                    .array("str_values", new String[] { "s" + (i * 2), "s" + (i * 2 + 1) })
+                    .field("l_value", i)
+                    .array("l_values", new int[] { i * 2, i * 2 + 1 })
+                    .field("d_value", i)
+                    .array("d_values", new double[] { i * 2, i * 2 + 1 })
+                    .endObject()
+            );
+        }
+        indexRandom(true, builders);
+        int numSearches = randomIntBetween(2, 100);
+        for (int i = 0; i < numSearches; i++) {
+            assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)));
+            assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)));
+        }
+        final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
+        ThreadPoolStats tps = tp.stats();
+        tps.forEach(stats -> {
+            String name = "es.thread_pool." + stats.name() + ".completed.total";
+            final List<Measurement> measurements = plugin.getLongAsyncCounterMeasurement(name);
+            logger.info("Trying for " + name + ":" + measurements.size());
+            assertThat(measurements.size(), greaterThanOrEqualTo(0));
+        });
+        assert (false);
     }
 
 }

@@ -1109,15 +1109,13 @@ public final class PlanNamedTypes {
         var source = in.readSource();
         var left = in.readExpression();
         var right = in.readExpression();
-        var zoneId = in.readOptionalZoneId();
-        return new InsensitiveEquals(source, left, right, zoneId);
+        return new InsensitiveEquals(source, left, right);
     }
 
     static void writeInsensitiveEquals(PlanStreamOutput out, InsensitiveEquals eq) throws IOException {
         out.writeSource(eq.source());
         out.writeExpression(eq.left());
         out.writeExpression(eq.right());
-        out.writeOptionalZoneId(eq.zoneId());
     }
 
     // -- InComparison

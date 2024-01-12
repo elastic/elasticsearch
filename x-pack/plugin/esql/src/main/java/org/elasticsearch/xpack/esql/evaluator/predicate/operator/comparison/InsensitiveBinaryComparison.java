@@ -12,19 +12,10 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.time.ZoneId;
-
 public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
 
-    private final ZoneId zoneId;
-
-    protected InsensitiveBinaryComparison(Source source, Expression left, Expression right, ZoneId zoneId) {
+    protected InsensitiveBinaryComparison(Source source, Expression left, Expression right) {
         super(source, left, right);
-        this.zoneId = zoneId;
-    }
-
-    public ZoneId zoneId() {
-        return zoneId;
     }
 
     @Override

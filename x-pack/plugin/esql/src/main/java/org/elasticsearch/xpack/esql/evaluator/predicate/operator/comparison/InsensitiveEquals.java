@@ -19,22 +19,20 @@ import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.time.ZoneId;
-
 public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
-    public InsensitiveEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, zoneId);
+    public InsensitiveEquals(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override
     protected NodeInfo<InsensitiveEquals> info() {
-        return NodeInfo.create(this, InsensitiveEquals::new, left(), right(), zoneId());
+        return NodeInfo.create(this, InsensitiveEquals::new, left(), right());
     }
 
     @Override
     protected InsensitiveEquals replaceChildren(Expression newLeft, Expression newRight) {
-        return new InsensitiveEquals(source(), newLeft, newRight, zoneId());
+        return new InsensitiveEquals(source(), newLeft, newRight);
     }
 
     @Evaluator

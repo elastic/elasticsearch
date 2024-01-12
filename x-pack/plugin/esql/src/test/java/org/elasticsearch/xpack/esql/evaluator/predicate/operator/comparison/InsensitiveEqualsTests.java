@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 
-import java.time.ZoneId;
-
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class InsensitiveEqualsTests extends ESTestCase {
@@ -78,7 +76,7 @@ public class InsensitiveEqualsTests extends ESTestCase {
     }
 
     protected InsensitiveEquals insensitiveEquals(Expression left, Expression right) {
-        return new InsensitiveEquals(EMPTY, left, right, ZoneId.of("UTC"));
+        return new InsensitiveEquals(EMPTY, left, right);
     }
 
     private static Literal l(Object value) {

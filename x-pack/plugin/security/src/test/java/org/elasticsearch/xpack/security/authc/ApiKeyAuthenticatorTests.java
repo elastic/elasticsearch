@@ -14,10 +14,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -27,7 +25,6 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.AuditableRequest;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
@@ -43,7 +40,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ApiKeyAuthenticatorTests extends ESTestCase {
+public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
 
     public void testAuditingOnAuthenticationTermination() {
         final ApiKeyService apiKeyService = mock(ApiKeyService.class);
@@ -113,29 +110,29 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         final AuthenticationResult<Authentication> authResult = future.actionGet();
         assertThat(authResult.isAuthenticated(), equalTo(true));
 
-        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(
-            SecurityMetricType.AUTHC_API_KEY.successMetricInfo().name()
-        );
-        assertThat(successMetrics.size(), equalTo(1));
-
         // verify that we always record a single authentication
-        assertThat(successMetrics.get(0).getLong(), equalTo(1L));
-        // and that all attributes are present
-        assertThat(
-            successMetrics.get(0).attributes(),
-            equalTo(
-                Map.ofEntries(
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-                )
+        assertSingleSuccessAuthMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_API_KEY,
+            Map.ofEntries(
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
             )
         );
 
         // verify that there were no failures recorded
-        assertZeroFailedAuthMetrics(telemetryPlugin);
+        assertZeroFailedAuthMetrics(telemetryPlugin, SecurityMetricType.AUTHC_API_KEY);
 
         // verify we recorded authentication time
-        assertAuthenticationTimeMetric(telemetryPlugin, apiKeyCredentials, executionTimeInNanos);
+        assertAuthenticationTimeMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_API_KEY,
+            executionTimeInNanos,
+            Map.ofEntries(
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
+            )
+        );
     }
 
     public void testRecordingFailedAuthenticationMetrics() {
@@ -175,18 +172,42 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
             } else {
                 assertThat(e, sameInstance(exception));
             }
-            assertSingleFailedAuthMetric(telemetryPlugin, apiKeyCredentials, "terminated API key auth");
+            assertSingleFailedAuthMetric(
+                telemetryPlugin,
+                SecurityMetricType.AUTHC_API_KEY,
+                Map.ofEntries(
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, "terminated API key auth")
+                )
+            );
         } else {
             var authResult = future.actionGet();
             assertThat(authResult.isAuthenticated(), equalTo(false));
-            assertSingleFailedAuthMetric(telemetryPlugin, apiKeyCredentials, "unsuccessful API key auth");
+            assertSingleFailedAuthMetric(
+                telemetryPlugin,
+                SecurityMetricType.AUTHC_API_KEY,
+                Map.ofEntries(
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, "unsuccessful API key auth")
+                )
+            );
         }
 
         // verify that there were no successes recorded
-        assertZeroSuccessAuthMetrics(telemetryPlugin);
+        assertZeroSuccessAuthMetrics(telemetryPlugin, SecurityMetricType.AUTHC_API_KEY);
 
         // verify we recorded authentication time
-        assertAuthenticationTimeMetric(telemetryPlugin, apiKeyCredentials, executionTimeInNanos);
+        assertAuthenticationTimeMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_API_KEY,
+            executionTimeInNanos,
+            Map.ofEntries(
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
+            )
+        );
     }
 
     public void testRecordingFailedAuthenticationMetricsOnExceptions() {
@@ -217,69 +238,29 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         assertThat(e, sameInstance(exception));
 
         // expecting single recorded auth failure with message same as the thrown exception
-        assertSingleFailedAuthMetric(telemetryPlugin, apiKeyCredentials, "API key auth exception");
+        assertSingleFailedAuthMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_API_KEY,
+            Map.ofEntries(
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, "API key auth exception")
+            )
+        );
 
         // verify that there were no successes recorded
-        assertZeroSuccessAuthMetrics(telemetryPlugin);
+        assertZeroSuccessAuthMetrics(telemetryPlugin, SecurityMetricType.AUTHC_API_KEY);
 
         // verify we recorded authentication time
-        assertAuthenticationTimeMetric(telemetryPlugin, apiKeyCredentials, executionTimeInNanos);
-    }
-
-    private void assertSingleFailedAuthMetric(
-        TestTelemetryPlugin telemetryPlugin,
-        ApiKeyCredentials apiKeyCredentials,
-        String failureMessage
-    ) {
-        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(
-            SecurityMetricType.AUTHC_API_KEY.failuresMetricInfo().name()
-        );
-        assertThat(failuresMetrics.size(), equalTo(1));
-        assertThat(
-            failuresMetrics.get(0).attributes(),
-            equalTo(
-                Map.ofEntries(
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, failureMessage)
-                )
+        assertAuthenticationTimeMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_API_KEY,
+            executionTimeInNanos,
+            Map.ofEntries(
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
             )
         );
-    }
-
-    private void assertAuthenticationTimeMetric(
-        TestTelemetryPlugin telemetryPlugin,
-        ApiKeyCredentials credentials,
-        long expectedAuthenticationTime
-    ) {
-        List<Measurement> authTimeMetrics = telemetryPlugin.getLongHistogramMeasurement(
-            SecurityMetricType.AUTHC_API_KEY.timeMetricInfo().name()
-        );
-        assertThat(authTimeMetrics.size(), equalTo(1));
-        assertThat(authTimeMetrics.get(0).getLong(), equalTo(expectedAuthenticationTime));
-        assertThat(
-            authTimeMetrics.get(0).attributes(),
-            equalTo(
-                Map.ofEntries(
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, credentials.getId()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value())
-                )
-            )
-        );
-    }
-
-    private void assertZeroSuccessAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
-        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(
-            SecurityMetricType.AUTHC_API_KEY.successMetricInfo().name()
-        );
-        assertThat(successMetrics.size(), equalTo(0));
-    }
-
-    private void assertZeroFailedAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
-        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(
-            SecurityMetricType.AUTHC_API_KEY.failuresMetricInfo().name()
-        );
-        assertThat(failuresMetrics.size(), equalTo(0));
     }
 
     private static ApiKeyCredentials randomApiKeyCredentials() {
@@ -311,24 +292,6 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         final AuditableRequest auditableRequest = mock(AuditableRequest.class);
         when(context.getRequest()).thenReturn(auditableRequest);
         return context;
-    }
-
-    private static class TestNanoTimeSupplier implements LongSupplier {
-
-        private long currentTime;
-
-        TestNanoTimeSupplier(long initialTime) {
-            this.currentTime = initialTime;
-        }
-
-        public void advanceTime(long timeToAdd) {
-            this.currentTime += timeToAdd;
-        }
-
-        @Override
-        public long getAsLong() {
-            return currentTime;
-        }
     }
 
 }

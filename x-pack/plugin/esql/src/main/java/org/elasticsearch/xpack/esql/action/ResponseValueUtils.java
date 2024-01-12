@@ -101,8 +101,8 @@ public final class ResponseValueUtils {
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
-            case "geo_point" -> GEO.wkbAsString(((BytesRefBlock) block).getBytesRef(offset, scratch));
-            case "cartesian_point" -> CARTESIAN.wkbAsString(((BytesRefBlock) block).getBytesRef(offset, scratch));
+            case "geo_point" -> GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
+            case "cartesian_point" -> CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -163,12 +163,12 @@ public final class ResponseValueUtils {
                     }
                     case "geo_point" -> {
                         // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
-                        BytesRef wkb = GEO.stringAsWKB(value.toString());
+                        BytesRef wkb = GEO.wktToWkb(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     case "cartesian_point" -> {
                         // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
-                        BytesRef wkb = CARTESIAN.stringAsWKB(value.toString());
+                        BytesRef wkb = CARTESIAN.wktToWkb(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));

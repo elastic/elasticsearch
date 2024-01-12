@@ -631,10 +631,6 @@ public class Security extends Plugin
         return client.get();
     }
 
-    protected Realms getRealms() {
-        return realms.get();
-    }
-
     protected List<ReloadableSecurityComponent> getReloadableSecurityComponents() {
         return this.reloadableComponents.get();
     }

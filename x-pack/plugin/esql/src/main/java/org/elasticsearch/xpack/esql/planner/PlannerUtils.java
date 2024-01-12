@@ -211,6 +211,14 @@ public class PlannerUtils {
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
      */
     public static ElementType toElementType(DataType dataType) {
+        // TODO: Remove this method and update all calls to pass the extra boolean
+        return toElementType(dataType, false);
+    }
+
+    /**
+     * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
+     */
+    public static ElementType toElementType(DataType dataType, boolean forStats) {
         if (dataType == DataTypes.LONG || dataType == DataTypes.DATETIME || dataType == DataTypes.UNSIGNED_LONG) {
             return ElementType.LONG;
         }
@@ -238,12 +246,11 @@ public class PlannerUtils {
         if (dataType == EsQueryExec.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
-        // TODO: Spatial types can be read from source into BYTES_REF, or read from doc-values into LONG
         if (dataType == EsqlDataTypes.GEO_POINT) {
-            return ElementType.BYTES_REF;
+            return forStats ? ElementType.LONG : ElementType.BYTES_REF;
         }
         if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
-            return ElementType.BYTES_REF;
+            return forStats ? ElementType.LONG : ElementType.BYTES_REF;
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }

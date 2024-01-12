@@ -7,20 +7,21 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
-import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.nio.ByteOrder;
 
 /**
  * This aggregator calculates the centroid of a set of geo points or cartesian_points.
@@ -28,11 +29,6 @@ import java.util.function.Function;
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
 abstract class CentroidPointAggregator {
-    protected record Encoder(BiFunction<Double, Double, Long> encode, Function<Long, Point> decode) {}
-
-    public static void combine(CentroidState current, long v) {
-        current.add(v);
-    }
 
     public static void combine(CentroidState current, double xVal, double xDel, double yVal, double yDel, long count) {
         current.add(xVal, xDel, yVal, yDel, count);
@@ -59,11 +55,7 @@ abstract class CentroidPointAggregator {
     }
 
     public static Block evaluateFinal(CentroidState state, DriverContext driverContext) {
-        return driverContext.blockFactory().newConstantLongBlockWith(state.encodeCentroidResult(), 1);
-    }
-
-    public static void combine(GroupingCentroidState current, int groupId, long encoded) {
-        current.add(encoded, groupId);
+        return driverContext.blockFactory().newConstantBytesRefBlockWith(state.encodeCentroidResult(), 1);
     }
 
     public static void combineStates(GroupingCentroidState current, int groupId, GroupingCentroidState state, int statePosition) {
@@ -133,12 +125,12 @@ abstract class CentroidPointAggregator {
     }
 
     public static Block evaluateFinal(GroupingCentroidState state, IntVector selected, DriverContext driverContext) {
-        try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
+        try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (state.hasValue(si) && si < state.xValues.size()) {
-                    long result = state.encodeCentroidResult(si);
-                    builder.appendLong(result);
+                    BytesRef result = state.encodeCentroidResult(si);
+                    builder.appendBytesRef(result);
                 } else {
                     builder.appendNull();
                 }
@@ -147,15 +139,14 @@ abstract class CentroidPointAggregator {
         }
     }
 
+    private static BytesRef encode(double x, double y) {
+        return new BytesRef(WellKnownBinary.toWKB(new Point(x, y), ByteOrder.LITTLE_ENDIAN));
+    }
+
     static class CentroidState implements AggregatorState {
         protected final CompensatedSum xSum = new CompensatedSum(0, 0);
         protected final CompensatedSum ySum = new CompensatedSum(0, 0);
-        private final CentroidPointAggregator.Encoder encoder;
         protected long count = 0;
-
-        protected CentroidState(CentroidPointAggregator.Encoder encoder) {
-            this.encoder = encoder;
-        }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
@@ -175,11 +166,6 @@ abstract class CentroidPointAggregator {
             count += other.count;
         }
 
-        public void add(long v) {
-            Point point = encoder.decode.apply(v);
-            add(point.getX(), point.getY());
-        }
-
         public void add(double x, double y) {
             xSum.add(x);
             ySum.add(y);
@@ -192,16 +178,15 @@ abstract class CentroidPointAggregator {
             this.count += count;
         }
 
-        protected long encodeCentroidResult() {
+        protected BytesRef encodeCentroidResult() {
             double x = xSum.value() / count;
             double y = ySum.value() / count;
-            return encoder.encode.apply(x, y);
+            return encode(x, y);
         }
     }
 
     static class GroupingCentroidState implements GroupingAggregatorState {
         private final BigArrays bigArrays;
-        private final Encoder encoder;
 
         DoubleArray xValues;
         DoubleArray xDeltas;
@@ -210,9 +195,8 @@ abstract class CentroidPointAggregator {
 
         LongArray counts;
 
-        GroupingCentroidState(BigArrays bigArrays, CentroidPointAggregator.Encoder encoder) {
+        GroupingCentroidState(BigArrays bigArrays) {
             this.bigArrays = bigArrays;
-            this.encoder = encoder;
             boolean success = false;
             try {
                 this.xValues = bigArrays.newDoubleArray(1);
@@ -226,11 +210,6 @@ abstract class CentroidPointAggregator {
                     close();
                 }
             }
-        }
-
-        public void add(long encoded, int groupId) {
-            Point point = encoder.decode.apply(encoded);
-            add(point.getX(), 0d, point.getY(), 0d, 1, groupId);
         }
 
         void add(double x, double dx, double y, double dy, long count, int groupId) {
@@ -279,11 +258,11 @@ abstract class CentroidPointAggregator {
             }
         }
 
-        protected long encodeCentroidResult(int si) {
+        protected BytesRef encodeCentroidResult(int si) {
             long count = counts.get(si);
             double x = xValues.get(si) / count;
             double y = yValues.get(si) / count;
-            return encoder.encode.apply(x, y);
+            return encode(x, y);
         }
 
         @Override

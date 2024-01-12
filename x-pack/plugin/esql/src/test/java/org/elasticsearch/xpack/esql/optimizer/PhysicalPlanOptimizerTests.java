@@ -2066,9 +2066,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * imitExec[500[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#9) AS centroid],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#10, xDel{r}#11, yVal{r}#12, yDel{r}#13, count{r}#14],true]
-     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[<>
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
      * Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
-     * \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]<>]]
+     * \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]]]
      *
      * After local optimizations:
      *

@@ -101,11 +101,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
             DataType dataType = attr.dataType();
-            ElementType elementType = PlannerUtils.toElementType(dataType);
+            boolean forStats = fieldExtractExec.forStats(attr);
+            ElementType elementType = PlannerUtils.toElementType(dataType, forStats);
             String fieldName = attr.name();
             boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
-            IntFunction<BlockLoader> loader = s -> shardContexts.get(s)
-                .blockLoader(fieldName, isSupported, fieldExtractExec.forStats(attr));
+            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported, forStats);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());

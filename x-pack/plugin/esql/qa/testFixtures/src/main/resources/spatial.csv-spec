@@ -58,6 +58,13 @@ WIIT           | POINT(105.176060419161 -5.242566777132)   | Radin Inten II     
 ZAH            | POINT(60.900708564915 29.4752941956573)   | Zahedan Int'l               | 9           | mid
 ;
 
+centroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports | STATS centroid=ST_CENTROID(location);
+
+centroid:geo_point
+POINT(-0.030548143003023033 24.37553649504829)
+;
+
 geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
 // tag::to_geopoint-equals[]
 ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
@@ -150,7 +157,7 @@ simpleCartesianLoad#[skip:-8.12.99, reason:spatial type cartesian_point improved
 FROM airports_web | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
 
 abbrev:keyword | location:cartesian_point                      | name:text                   | scalerank:i | type:k
-CJJ            | POINT(14192780.461221408 4400430.851323913)   | Cheongju Int'l              | 9           | major
+CJJ            | POINT (14192780.461221408 4400430.851323913)  | Cheongju Int'l              | 9           | major
 HOD            | POINT (4783520.559160681 1661010.0197476079)  | Hodeidah Int'l              | 9           | mid
 IDR            | POINT (8439051.727244465 2599127.5424638605)  | Devi Ahilyabai Holkar Int'l | 9           | mid
 OMS            | POINT (8161539.810548711 7353650.845101996)   | Omsk Tsentralny             | 9           | mid
@@ -158,6 +165,13 @@ OVB            | POINT (9202465.316351846 7363726.532780712)   | Novosibirsk Tol
 TRZ            | POINT (8761841.111486122 1204941.537981898)   | Tiruchirappalli             | 9           | mid
 WIIT           | POINT (11708145.489503577 -584415.9142832769) | Radin Inten II              | 9           | mid
 ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l               | 9           | mid
+;
+
+cartesianCentroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports_web | STATS centroid=ST_CENTROID(location);
+
+centroid:cartesian_point
+POINT(-266681.67563861894 3053301.5120195406)
 ;
 
 cartesianPointEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]

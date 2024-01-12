@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
@@ -1022,16 +1021,11 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                     }
                   }
                 }""");
-            createIndex.setOptions(
-                RequestOptions.DEFAULT.toBuilder()
-                    .setWarningsHandler(
-                        warnings -> switch (warnings.size()) {
-                            case 0 -> false;  // old versions don't return a warning
-                            case 1 -> false == warnings.get(0).contains("_field_names");
-                            default -> true;
-                        }
-                    )
-            );
+            createIndex.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> switch (warnings.size()) {
+                case 0 -> false;  // old versions don't return a warning
+                case 1 -> false == warnings.get(0).contains("_field_names");
+                default -> true;
+            }));
             client().performRequest(createIndex);
 
             Request createDoc = new Request("PUT", docLocation);

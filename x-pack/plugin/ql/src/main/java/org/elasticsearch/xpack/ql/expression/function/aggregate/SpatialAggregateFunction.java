@@ -39,4 +39,8 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
         }
         return false;
     }
+
+    public boolean useDocValues() {
+        return useDocValues;
+    }
 }

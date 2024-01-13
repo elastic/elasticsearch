@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -2090,20 +2091,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT);
+        // Before optimization the aggregation does not use doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
         var exchange = as(agg.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
         var fAgg = as(fragment.fragment(), Aggregate.class);
         as(fAgg.child(), EsRelation.class);
 
+        // Now optimize the plan and assert the aggregation uses doc-values
         var optimized = optimizedPlan(plan);
         limit = as(optimized, LimitExec.class);
         agg = as(limit.child(), AggregateExec.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT);
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT);
+        // below the exchange (in data node) the aggregation is using doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
         var filter = as(agg.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
         source(extract.child());
@@ -2117,7 +2122,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan plan,
         String aliasName,
         Class<? extends AggregateFunction> aggClass,
-        DataType fieldType
+        DataType fieldType,
+        boolean useDocValues
     ) {
         var agg = as(plan, AggregateExec.class);
         assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
@@ -2126,6 +2132,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var aggFunc = as(alias.child(), AggregateFunction.class);
             assertThat(aggFunc, instanceOf(aggClass));
             var aggField = as(aggFunc.field(), FieldAttribute.class);
+            var spatialAgg = as(aggFunc, SpatialAggregateFunction.class);
+            assertThat("Expected spatial aggregation to use doc-values", spatialAgg.useDocValues(), equalTo(useDocValues));
             return aggField.dataType() == fieldType;
         }));
     }

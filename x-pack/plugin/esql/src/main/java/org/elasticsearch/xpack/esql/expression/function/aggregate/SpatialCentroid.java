@@ -12,6 +12,8 @@ import org.elasticsearch.compute.aggregation.SpatialCentroidCartesianPointSource
 import org.elasticsearch.compute.aggregation.SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -30,12 +32,13 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
  */
 public class SpatialCentroid extends SpatialAggregateFunction implements ToAggregator {
 
-    private SpatialCentroid(Source source, Expression field, boolean useDocValues) {
-        super(source, field, useDocValues);
+    @FunctionInfo(returnType = { "geo_point", "cartesian_point" }, description = "The centroid of a spatial field.", isAggregation = true)
+    public SpatialCentroid(Source source, @Param(name = "field", type = { "geo_point", "cartesian_point" }) Expression field) {
+        super(source, field, false);
     }
 
-    public SpatialCentroid(Source source, Expression field) {
-        super(source, field, false);
+    private SpatialCentroid(Source source, Expression field, boolean useDocValues) {
+        super(source, field, useDocValues);
     }
 
     @Override

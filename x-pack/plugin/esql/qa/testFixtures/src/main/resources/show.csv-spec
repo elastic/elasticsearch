@@ -66,7 +66,7 @@ sin                      |"double sin(n:double|integer|long|unsigned_long)" |n  
 sinh                     |"double sinh(n:double|integer|long|unsigned_long)"|n                        |"double|integer|long|unsigned_long"           |"The number to return the hyperbolic sine of"      |double                    | "Returns the hyperbolic sine of a number"                      | false                | false | false
 split                    |"keyword split(str:keyword|text, delim:keyword|text)"                                 |[str, delim]             |["keyword|text", "keyword|text"]            |["", ""]                                            |keyword                    | "Split a single valued string into multiple strings."                      | [false, false]       | false | false
 sqrt                     |"double sqrt(n:double|integer|long|unsigned_long)"     |n                        |"double|integer|long|unsigned_long"                 | ""                                                 |double                    | "Returns the square root of a number."                      | false                | false | false
-st_centroid              |? st_centroid(arg1:?)                                  |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+st_centroid              |"geo_point|cartesian_point st_centroid(field:geo_point|cartesian_point)" |field  |"geo_point|cartesian_point"                         | ""                                                 |"geo_point|cartesian_point"   | "The centroid of a spatial field."                      | false                | false | true
 starts_with              |"boolean starts_with(str:keyword|text, prefix:keyword|text)"                           |[str, prefix]             |["keyword|text", "keyword|text"]            |["", ""]                                            |boolean                    | "Returns a boolean that indicates whether a keyword string starts with another string"                      | [false, false]       | false | false
 substring                |"keyword substring(str:keyword|text, start:integer, ?length:integer)"                     |[str, start, length]       |["keyword|text", "integer", "integer"]         |["", "", ""]                                        |keyword                    | "Returns a substring of a string, specified by a start position and an optional length"                      | [false, false, true]| false | false
 sum                      |"long sum(field:double|integer|long|unsigned_long)"                                          |field                     |"double|integer|long|unsigned_long"                 | ""                                                 |long                    | "The sum of a numeric field."                      | false                | false | true
@@ -160,7 +160,7 @@ double pi()
 "double sinh(n:double|integer|long|unsigned_long)"
 "keyword split(str:keyword|text, delim:keyword|text)"
 "double sqrt(n:double|integer|long|unsigned_long)"
-? st_centroid(arg1:?)
+"geo_point|cartesian_point st_centroid(field:geo_point|cartesian_point)"
 "boolean starts_with(str:keyword|text, prefix:keyword|text)"
 "keyword substring(str:keyword|text, start:integer, ?length:integer)"
 "long sum(field:double|integer|long|unsigned_long)"

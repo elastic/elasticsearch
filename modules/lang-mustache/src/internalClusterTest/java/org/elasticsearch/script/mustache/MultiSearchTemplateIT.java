@@ -63,6 +63,9 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
             indexRequestBuilders[i] = prepareIndex("msearch").setId(String.valueOf(i)).setSource("odd", (i % 2 == 0), "group", (i % 3));
         }
         indexRandom(true, indexRequestBuilders);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+            indexRequestBuilder.request().decRef();
+        }
 
         final String template = Strings.toString(
             jsonBuilder().startObject()

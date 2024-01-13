@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -24,6 +25,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -207,9 +209,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSimpleQuery() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text"));
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
+        indexDocWithRefreshPolicy("test", "1", IMMEDIATE, "field1", "value1", IMMEDIATE);
+        indexDocWithRefreshPolicy("test", "2", IMMEDIATE, "field2", "value2", IMMEDIATE);
+        indexDocWithRefreshPolicy("test", "3", IMMEDIATE, "field3", "value3", IMMEDIATE);
 
         assertSearchHitsWithoutFailures(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -239,9 +241,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     public void testGetApi() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text"));
 
-        prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").get();
-        prepareIndex("test").setId("3").setSource("field3", "value3").get();
+        indexDoc("test", "1", "field1", "value1");
+        indexDoc("test", "2", "field2", "value2");
+        indexDoc("test", "3", "field3", "value3");
 
         // test documents users can see
         boolean realtime = randomBoolean();
@@ -305,8 +307,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         final boolean realtime = true;
         final boolean refresh = false;
 
-        prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").get();
+        indexDoc("test", "1", "field1", "value1");
+        indexDoc("test", "2", "field2", "value2");
         // do a realtime get beforehand to flip an internal translog flag so that subsequent realtime gets are
         // served from the translog (this first one is NOT, it internally forces a refresh of the index)
         client().prepareMultiGet().add("test", "1").add("test", "2").setRealtime(realtime).setRefresh(refresh).get();
@@ -314,17 +316,17 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // updates don't change the doc visibility for users
         // but updates populate the translog and the DLS filter must apply to the translog operations as well
         if (randomBoolean()) {
-            prepareIndex("test").setId("1")
-                .setSource("field1", "value1", "field3", "value3")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
-                .get();
-            prepareIndex("test").setId("2")
-                .setSource("field2", "value2", "field3", "value3")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
-                .get();
+            indexDocWithRefreshPolicy("test", "1", WriteRequest.RefreshPolicy.NONE, "field1", "value1", "field3", "value3");
+            indexDocWithRefreshPolicy("test", "2", WriteRequest.RefreshPolicy.NONE, "field2", "value2", "field3", "value3");
         } else {
-            client().prepareUpdate("test", "1").setDoc(Map.of("field3", "value3")).setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
-            client().prepareUpdate("test", "2").setDoc(Map.of("field3", "value3")).setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
+            UpdateRequestBuilder updateRequestBuilder1 = client().prepareUpdate("test", "1")
+                .setDoc(Map.of("field3", "value3"), WriteRequest.RefreshPolicy.NONE);
+            updateRequestBuilder1.get();
+            updateRequestBuilder1.request().decRef();
+            UpdateRequestBuilder updateRequestBuilder2 = client().prepareUpdate("test", "2")
+                .setDoc(Map.of("field3", "value3"), WriteRequest.RefreshPolicy.NONE);
+            updateRequestBuilder2.get();
+            updateRequestBuilder2.request().decRef();
         }
 
         GetResponse getResponse;
@@ -370,9 +372,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     public void testMGetApi() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text"));
 
-        prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").get();
-        prepareIndex("test").setId("3").setSource("field3", "value3").get();
+        indexDoc("test", "1", "field1", "value1");
+        indexDoc("test", "2", "field2", "value2");
+        indexDoc("test", "3", "field3", "value3");
 
         boolean realtime = randomBoolean();
         MultiGetResponse response = client().filterWithHeader(
@@ -444,12 +446,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text", "id", "type=integer")
         );
 
-        prepareIndex("test1").setId("1").setSource("field1", "value1", "id", 1).get();
-        prepareIndex("test1").setId("2").setSource("field2", "value2", "id", 2).get();
-        prepareIndex("test1").setId("3").setSource("field3", "value3", "id", 3).get();
-        prepareIndex("test2").setId("1").setSource("field1", "value1", "id", 1).get();
-        prepareIndex("test2").setId("2").setSource("field2", "value2", "id", 2).get();
-        prepareIndex("test2").setId("3").setSource("field3", "value3", "id", 3).get();
+        indexDoc("test1", "1", "field1", "value1", "id", 1);
+        indexDoc("test1", "2", "field2", "value2", "id", 2);
+        indexDoc("test1", "3", "field3", "value3", "id", 3);
+        indexDoc("test2", "1", "field1", "value1", "id", 1);
+        indexDoc("test2", "2", "field2", "value2", "id", 2);
+        indexDoc("test2", "3", "field3", "value3", "id", 3);
         indicesAdmin().prepareRefresh("test1", "test2").get();
 
         {
@@ -535,15 +537,15 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("message", "type=text", "query", "type=percolator", "field1", "type=text", "field2", "type=text")
         );
         assertAcked(indicesAdmin().prepareCreate("doc_index").setMapping("message", "type=text", "field1", "type=text"));
-        prepareIndex("query_index").setId("1")
-            .setSource("""
-                {"field1": "value1", "field2": "value2", "query": {"match": {"message": "bonsai tree"}}}""", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        prepareIndex("doc_index").setId("1")
-            .setSource("{\"field1\": \"value1\", \"message\": \"A new bonsai tree in the office\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexWithRefreshPolicy("query_index", "1", IMMEDIATE, """
+            {"field1": "value1", "field2": "value2", "query": {"match": {"message": "bonsai tree"}}}""", XContentType.JSON);
+        indexWithRefreshPolicy(
+            "doc_index",
+            "1",
+            IMMEDIATE,
+            "{\"field1\": \"value1\", \"message\": \"A new bonsai tree in the office\"}",
+            XContentType.JSON
+        );
         // user1 can preform the percolate search for doc#1 in the doc_index because user1 has access to the doc
         assertHitCountAndNoFailures(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -578,16 +580,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             indicesAdmin().prepareCreate("shape_index")
                 .setMapping("shape_field", "type=shape", "field1", "type=text", "field2", "type=text")
         );
-        prepareIndex("search_index").setId("1")
-            .setSource("""
-                {"field1": "value1", "field2": "value2", "search_field": { "type": "point", "coordinates":[1, 1] }}""", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        prepareIndex("shape_index").setId("1")
-            .setSource("""
-                {"field1": "value1", "shape_field": { "type": "envelope", "coordinates": [[0, 2], [2, 0]]}}""", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexWithRefreshPolicy("search_index", "1", IMMEDIATE, """
+            {"field1": "value1", "field2": "value2", "search_field": { "type": "point", "coordinates":[1, 1] }}""", XContentType.JSON);
+        indexWithRefreshPolicy("shape_index", "1", IMMEDIATE, """
+            {"field1": "value1", "shape_field": { "type": "envelope", "coordinates": [[0, 2], [2, 0]]}}""", XContentType.JSON);
         ShapeQueryBuilder shapeQuery = new ShapeQueryBuilder("search_field", "1").relation(ShapeRelation.WITHIN)
             .indexedShapeIndex("shape_index")
             .indexedShapePath("shape_field");
@@ -639,31 +635,51 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             indicesAdmin().prepareCreate("lookup_index")
                 .setMapping("lookup_field", "type=keyword", "field1", "type=text", "field2", "type=text")
         );
-        prepareIndex("search_index").setId("1")
-            .setSource("field1", "value1", "search_field", List.of("value1", "value2", "value3"))
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        prepareIndex("search_index").setId("2")
-            .setSource("field1", "value1", "field2", "value2", "search_field", List.of("value1", "value2"))
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        prepareIndex("search_index").setId("3")
-            .setSource("field1", "value1", "field2", "value1", "search_field", "value1")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        prepareIndex("search_index").setId("4").setSource("field2", "value2", "search_field", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("search_index").setId("5")
-            .setSource("field2", "value2", "search_field", List.of("value1", "value2"))
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        prepareIndex("lookup_index").setId("1")
-            .setSource("field1", "value1", "field2", "value1", "lookup_field", List.of("value1", "value2"))
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        prepareIndex("lookup_index").setId("2")
-            .setSource("field1", "value2", "field2", "value2", "lookup_field", List.of("value2"))
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexDocWithRefreshPolicy(
+            "search_index",
+            "1",
+            IMMEDIATE,
+            "field1",
+            "value1",
+            "search_field",
+            List.of("value1", "value2", "value3")
+        );
+        indexDocWithRefreshPolicy(
+            "search_index",
+            "2",
+            IMMEDIATE,
+            "field1",
+            "value1",
+            "field2",
+            "value2",
+            "search_field",
+            List.of("value1", "value2")
+        );
+        indexDocWithRefreshPolicy("search_index", "3", IMMEDIATE, "field1", "value1", "field2", "value1", "search_field", "value1");
+        indexDocWithRefreshPolicy("search_index", "4", IMMEDIATE, "field2", "value2", "search_field", "value1");
+        indexDocWithRefreshPolicy("search_index", "5", IMMEDIATE, "field2", "value2", "search_field", List.of("value1", "value2"));
+        indexDocWithRefreshPolicy(
+            "lookup_index",
+            "1",
+            IMMEDIATE,
+            "field1",
+            "value1",
+            "field2",
+            "value1",
+            "lookup_field",
+            List.of("value1", "value2")
+        );
+        indexDocWithRefreshPolicy(
+            "lookup_index",
+            "2",
+            IMMEDIATE,
+            "field1",
+            "value2",
+            "field2",
+            "value2",
+            "lookup_field",
+            List.of("value2")
+        );
 
         // Lookup doc#1 is: visible to user1 and user3, but hidden from user2
         TermsQueryBuilder lookup = QueryBuilders.termsLookupQuery("search_field", new TermsLookup("lookup_index", "1", "lookup_field"));
@@ -729,9 +745,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     "type=text,term_vector=with_positions_offsets_payloads"
                 )
         );
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
+        indexDocWithRefreshPolicy("test", "1", IMMEDIATE, "field1", "value1");
+        indexDocWithRefreshPolicy("test", "2", IMMEDIATE, "field2", "value2");
+        indexDocWithRefreshPolicy("test", "3", IMMEDIATE, "field3", "value3");
 
         boolean realtime = randomBoolean();
         TermVectorsResponse response = client().filterWithHeader(
@@ -792,9 +808,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     "type=text,term_vector=with_positions_offsets_payloads"
                 )
         );
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
+        indexDocWithRefreshPolicy("test", "1", IMMEDIATE, "field1", "value1");
+        indexDocWithRefreshPolicy("test", "2", IMMEDIATE, "field2", "value2");
+        indexDocWithRefreshPolicy("test", "3", IMMEDIATE, "field3", "value3");
 
         boolean realtime = randomBoolean();
         MultiTermVectorsResponse response = client().filterWithHeader(
@@ -861,8 +877,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings).setMapping(builder));
 
         for (int i = 0; i < 5; i++) {
-            prepareIndex("test").setSource("field1", "value1", "other", "valueA", "vector", new float[] { i, i, i }).get();
-            prepareIndex("test").setSource("field2", "value2", "other", "valueB", "vector", new float[] { i, i, i }).get();
+            indexDoc("test", "field1", "value1", "other", "valueA", "vector", new float[] { i, i, i });
+            indexDoc("test", "field2", "value2", "other", "valueB", "vector", new float[] { i, i, i });
         }
 
         indicesAdmin().prepareRefresh("test").get();
@@ -926,9 +942,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             indicesAdmin().prepareCreate("test")
                 .setMapping("field1", "type=text", "field2", "type=text,fielddata=true", "field3", "type=text")
         );
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
+        indexDocWithRefreshPolicy("test", "1", IMMEDIATE, "field1", "value1");
+        indexDocWithRefreshPolicy("test", "2", IMMEDIATE, "field2", "value2");
+        indexDocWithRefreshPolicy("test", "3", IMMEDIATE, "field3", "value3");
 
         assertResponse(
             prepareSearch("test").addAggregation(
@@ -1016,7 +1032,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         ensureGreen();
 
         // index simple data
-        prepareIndex("test").setId("p1").setSource("join_field", "parent", "field1", "value1").get();
+        indexDoc("test", "p1", "join_field", "parent", "field1", "value1");
 
         Map<String, Object> source = new HashMap<>();
         source.put("field2", "value2");
@@ -1025,14 +1041,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         joinField.put("name", "child");
         joinField.put("parent", "p1");
         source.put("join_field", joinField);
-        prepareIndex("test").setId("c1").setSource(source).setRouting("p1").get();
+        indexWithRouting("test", "c1", "p1", source);
         source.put("id", "c2");
-        prepareIndex("test").setId("c2").setSource(source).setRouting("p1").get();
+        indexWithRouting("test", "c2", "p1", source);
         source = new HashMap<>();
         source.put("field3", "value3");
         source.put("join_field", joinField);
         source.put("id", "c3");
-        prepareIndex("test").setId("c3").setSource(source).setRouting("p1").get();
+        indexWithRouting("test", "c3", "p1", source);
         refresh();
         verifyParentChild();
     }
@@ -1115,12 +1131,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         final int numInVisible = scaledRandomIntBetween(2, 10);
         int id = 1;
         for (int i = 0; i < numVisible; i++) {
-            prepareIndex("test").setId(String.valueOf(id++)).setSource("field1", "value1").get();
+            indexDoc("test", String.valueOf(id++), "field1", "value1");
         }
 
         for (int i = 0; i < numInVisible; i++) {
-            prepareIndex("test").setId(String.valueOf(id++)).setSource("field2", "value2").get();
-            prepareIndex("test").setId(String.valueOf(id++)).setSource("field3", "value3").get();
+            indexDoc("test", String.valueOf(id++), "field2", "value2");
+            indexDoc("test", String.valueOf(id++), "field3", "value3");
         }
         refresh();
 
@@ -1168,12 +1184,12 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         final int numInvisible = scaledRandomIntBetween(2, 10);
         int id = 1;
         for (int i = 0; i < numVisible; i++) {
-            prepareIndex("test").setId(String.valueOf(id++)).setSource("field1", "value1").get();
+            indexDoc("test", String.valueOf(id++), "field1", "value1");
         }
 
         for (int i = 0; i < numInvisible; i++) {
-            prepareIndex("test").setId(String.valueOf(id++)).setSource("field2", "value2").get();
-            prepareIndex("test").setId(String.valueOf(id++)).setSource("field3", "value3").get();
+            indexDoc("test", String.valueOf(id++), "field2", "value2");
+            indexDoc("test", String.valueOf(id++), "field3", "value3");
         }
         refresh();
 
@@ -1210,9 +1226,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").get();
-        prepareIndex("test").setId("3").setSource("field3", "value3").get();
+        indexDoc("test", "1", "field1", "value1");
+        indexDoc("test", "2", "field2", "value2");
+        indexDoc("test", "3", "field3", "value3");
         refresh();
 
         int max = scaledRandomIntBetween(4, 32);
@@ -1247,14 +1263,15 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testUpdateApiIsBlocked() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        indexDocWithRefreshPolicy("test", "1", IMMEDIATE, "field1", "value1");
 
         // With document level security enabled the update is not allowed:
         try {
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareUpdate("test", "1")
-                .setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2")
-                .get();
+            UpdateRequestBuilder updateRequestBuilder = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+            ).prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2");
+            updateRequestBuilder.get();
+            updateRequestBuilder.request().decRef();
             fail("failed, because update request shouldn't be allowed if document level security is enabled");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -1263,7 +1280,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value1"));
 
         // With no document level security enabled the update is allowed:
-        client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2").get();
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "1")
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2");
+        updateRequestBuilder.get();
+        updateRequestBuilder.request().decRef();
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 
         // With document level security enabled the update in bulk is not allowed:
@@ -1272,9 +1292,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
             ).prepareBulk()
         ) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(
-                new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3")
-            ).get();
+            UpdateRequest updateRequest = new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3");
+            BulkResponse bulkResponse = bulkRequestBuilder.add(updateRequest).get();
+            updateRequest.decRef();
             assertEquals(1, bulkResponse.getItems().length);
             BulkItemResponse bulkItem = bulkResponse.getItems()[0];
             assertTrue(bulkItem.isFailed());
@@ -1289,40 +1309,42 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value2"));
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            bulkRequestBuilder.add(new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3")).get();
+            UpdateRequest updateRequest = new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value3");
+            bulkRequestBuilder.add(updateRequest).get();
+            updateRequest.decRef();
         }
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value3"));
     }
 
     public void testNestedInnerHits() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "nested_field", "type=nested"));
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", "value1")
-                    .startArray("nested_field")
-                    .startObject()
-                    .field("field2", "value2")
-                    .endObject()
-                    .startObject()
-                    .array("field2", "value2", "value3")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", "value2")
-                    .startArray("nested_field")
-                    .startObject()
-                    .field("field2", "value2")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("field1", "value1")
+                .startArray("nested_field")
+                .startObject()
+                .field("field2", "value2")
+                .endObject()
+                .startObject()
+                .array("field2", "value2", "value3")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("field1", "value2")
+                .startArray("nested_field")
+                .startObject()
+                .field("field2", "value2")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         refresh("test");
 
         assertResponse(
@@ -1363,21 +1385,19 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion")
         );
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", "value1")
-                    .field("suggest_field1", "value")
-                    .startObject("suggest_field2")
-                    .field("input", "value")
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("field1", "value1")
+                .field("suggest_field1", "value")
+                .startObject("suggest_field2")
+                .field("input", "value")
+                .endObject()
+                .endObject()
+        );
         // A document that is always included by role query of both roles:
-        prepareIndex("test").setId("2")
-            .setSource(jsonBuilder().startObject().field("field1", "value1").field("field2", "value2").endObject())
-            .get();
+        index("test", "2", jsonBuilder().startObject().field("field1", "value1").field("field2", "value2").endObject());
         refresh("test");
 
         assertAcked(
@@ -1479,13 +1499,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("field1", "type=text", "other_field", "type=text")
         );
 
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("field1", "value1").field("other_field", "value").endObject())
-            .get();
+        index("test", "1", jsonBuilder().startObject().field("field1", "value1").field("other_field", "value").endObject());
         // A document that is always included by role query of both roles:
-        prepareIndex("test").setId("2")
-            .setSource(jsonBuilder().startObject().field("field1", "value1").field("field2", "value2").endObject())
-            .get();
+        index("test", "2", jsonBuilder().startObject().field("field1", "value1").field("field2", "value2").endObject());
         refresh("test");
 
         assertAcked(
@@ -1524,4 +1540,36 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), equalTo("A search request cannot be profiled if document level security is enabled"));
     }
 
+    private void indexDocWithRefreshPolicy(String index, String id, WriteRequest.RefreshPolicy refreshPolicy, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(refreshPolicy).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private void indexWithRefreshPolicy(
+        String index,
+        String id,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        String source,
+        XContentType contentType
+    ) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource(source, contentType).setRefreshPolicy(refreshPolicy).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private void indexWithRouting(String index, String id, String routing, Map<String, ?> source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource(source).setRouting(routing).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
 }

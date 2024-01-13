@@ -254,45 +254,52 @@ public class NativeUsersStore {
         }
 
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(docType, username))
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()))
-                    .setRefreshPolicy(request.getRefreshPolicy())
-                    .request(),
-                new ActionListener<UpdateResponse>() {
-                    @Override
-                    public void onResponse(UpdateResponse updateResponse) {
-                        assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
-                            || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
-                        clearRealmCache(request.username(), listener, null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (isIndexNotFoundOrDocumentMissing(e)) {
-                            if (docType.equals(RESERVED_USER_TYPE)) {
-                                updateReservedUser(
-                                    username,
-                                    request.passwordHash(),
-                                    DocWriteRequest.OpType.INDEX,
-                                    request.getRefreshPolicy(),
-                                    listener
-                                );
-                            } else {
-                                logger.debug(() -> format("failed to change password for user [%s]", request.username()), e);
-                                ValidationException validationException = new ValidationException();
-                                validationException.addValidationError("user must exist in order to change password");
-                                listener.onFailure(validationException);
-                            }
-                        } else {
-                            listener.onFailure(e);
+            UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(docType, username));
+            try {
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    updateRequestBuilder.setDoc(
+                        Requests.INDEX_CONTENT_TYPE,
+                        Fields.PASSWORD.getPreferredName(),
+                        String.valueOf(request.passwordHash())
+                    ).setRefreshPolicy(request.getRefreshPolicy()).request(),
+                    ActionListener.runAfter(new ActionListener<UpdateResponse>() {
+                        @Override
+                        public void onResponse(UpdateResponse updateResponse) {
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                                || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
+                            clearRealmCache(request.username(), listener, null);
                         }
-                    }
-                },
-                client::update
-            );
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (isIndexNotFoundOrDocumentMissing(e)) {
+                                if (docType.equals(RESERVED_USER_TYPE)) {
+                                    updateReservedUser(
+                                        username,
+                                        request.passwordHash(),
+                                        DocWriteRequest.OpType.INDEX,
+                                        request.getRefreshPolicy(),
+                                        listener
+                                    );
+                                } else {
+                                    logger.debug(() -> format("failed to change password for user [%s]", request.username()), e);
+                                    ValidationException validationException = new ValidationException();
+                                    validationException.addValidationError("user must exist in order to change password");
+                                    listener.onFailure(validationException);
+                                }
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    }, () -> updateRequestBuilder.request().decRef()),
+                    client::update
+                );
+            } catch (Exception e) {
+                updateRequestBuilder.request().decRef();
+                throw e;
+            }
         });
     }
 
@@ -367,11 +374,15 @@ public class NativeUsersStore {
         assert putUserRequest.passwordHash() == null;
         // We must have an existing document
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
-                    .setDoc(
+            UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(
+                SECURITY_MAIN_ALIAS,
+                getIdForUser(USER_DOC_TYPE, putUserRequest.username())
+            );
+            try {
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    updateRequestBuilder.setDoc(
                         Requests.INDEX_CONTENT_TYPE,
                         Fields.USERNAME.getPreferredName(),
                         putUserRequest.username(),
@@ -387,34 +398,41 @@ public class NativeUsersStore {
                         putUserRequest.enabled(),
                         Fields.TYPE.getPreferredName(),
                         USER_DOC_TYPE
-                    )
-                    .setRefreshPolicy(putUserRequest.getRefreshPolicy())
-                    .request(),
-                new ActionListener<UpdateResponse>() {
-                    @Override
-                    public void onResponse(UpdateResponse updateResponse) {
-                        assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
-                            || updateResponse.getResult() == DocWriteResponse.Result.NOOP
-                            : "Expected 'UPDATED' or 'NOOP' result [" + updateResponse + "] for request [" + putUserRequest + "]";
-                        clearRealmCache(putUserRequest.username(), listener, false);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        Exception failure = e;
-                        if (isIndexNotFoundOrDocumentMissing(e)) {
-                            // if the index doesn't exist we can never update a user
-                            // if the document doesn't exist, then this update is not valid
-                            logger.debug(() -> format("failed to update user document with username [%s]", putUserRequest.username()), e);
-                            ValidationException validationException = new ValidationException();
-                            validationException.addValidationError("password must be specified unless you are updating an existing user");
-                            failure = validationException;
+                    ).setRefreshPolicy(putUserRequest.getRefreshPolicy()).request(),
+                    ActionListener.runAfter(new ActionListener<UpdateResponse>() {
+                        @Override
+                        public void onResponse(UpdateResponse updateResponse) {
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                                || updateResponse.getResult() == DocWriteResponse.Result.NOOP
+                                : "Expected 'UPDATED' or 'NOOP' result [" + updateResponse + "] for request [" + putUserRequest + "]";
+                            clearRealmCache(putUserRequest.username(), listener, false);
                         }
-                        listener.onFailure(failure);
-                    }
-                },
-                client::update
-            );
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            Exception failure = e;
+                            if (isIndexNotFoundOrDocumentMissing(e)) {
+                                // if the index doesn't exist we can never update a user
+                                // if the document doesn't exist, then this update is not valid
+                                logger.debug(
+                                    () -> format("failed to update user document with username [%s]", putUserRequest.username()),
+                                    e
+                                );
+                                ValidationException validationException = new ValidationException();
+                                validationException.addValidationError(
+                                    "password must be specified unless you are updating an existing user"
+                                );
+                                failure = validationException;
+                            }
+                            listener.onFailure(failure);
+                        }
+                    }, () -> updateRequestBuilder.request().decRef()),
+                    client::update
+                );
+            } catch (Exception e) {
+                updateRequestBuilder.request().decRef();
+                throw e;
+            }
         });
     }
 
@@ -490,35 +508,40 @@ public class NativeUsersStore {
         final ActionListener<Void> listener
     ) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, username))
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
-                    .setRefreshPolicy(refreshPolicy)
-                    .request(),
-                new ActionListener<UpdateResponse>() {
-                    @Override
-                    public void onResponse(UpdateResponse updateResponse) {
-                        clearRealmCache(username, listener, null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        Exception failure = e;
-                        if (isIndexNotFoundOrDocumentMissing(e)) {
-                            // if the index doesn't exist we can never update a user
-                            // if the document doesn't exist, then this update is not valid
-                            logger.debug(() -> format("failed to %s user [%s]", enabled ? "enable" : "disable", username), e);
-                            ValidationException validationException = new ValidationException();
-                            validationException.addValidationError("only existing users can be " + (enabled ? "enabled" : "disabled"));
-                            failure = validationException;
+            UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, username));
+            try {
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    updateRequestBuilder.setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
+                        .setRefreshPolicy(refreshPolicy)
+                        .request(),
+                    ActionListener.runAfter(new ActionListener<UpdateResponse>() {
+                        @Override
+                        public void onResponse(UpdateResponse updateResponse) {
+                            clearRealmCache(username, listener, null);
                         }
-                        listener.onFailure(failure);
-                    }
-                },
-                client::update
-            );
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            Exception failure = e;
+                            if (isIndexNotFoundOrDocumentMissing(e)) {
+                                // if the index doesn't exist we can never update a user
+                                // if the document doesn't exist, then this update is not valid
+                                logger.debug(() -> format("failed to %s user [%s]", enabled ? "enable" : "disable", username), e);
+                                ValidationException validationException = new ValidationException();
+                                validationException.addValidationError("only existing users can be " + (enabled ? "enabled" : "disabled"));
+                                failure = validationException;
+                            }
+                            listener.onFailure(failure);
+                        }
+                    }, () -> updateRequestBuilder.request().decRef()),
+                    client::update
+                );
+            } catch (Exception e) {
+                updateRequestBuilder.request().decRef();
+                throw e;
+            }
         });
     }
 

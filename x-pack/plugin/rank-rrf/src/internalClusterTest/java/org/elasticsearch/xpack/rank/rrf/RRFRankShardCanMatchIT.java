@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -129,13 +130,17 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         int shardB = -1;
 
         for (int i = 0; i < 10; i++) {
-            DocWriteResponse ir = prepareIndex("value_index").setSource("value", "" + i).setRouting("a").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("value_index");
+            DocWriteResponse ir = indexRequestBuilder.setSource("value", "" + i).setRouting("a").get();
+            indexRequestBuilder.request().decRef();
             int a = ir.getShardId().id();
             assertTrue(shardA == a || shardA == -1);
             shardA = a;
         }
         for (int i = 10; i < 20; i++) {
-            DocWriteResponse ir = prepareIndex("value_index").setSource("value", "" + i).setRouting("b").get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("value_index");
+            DocWriteResponse ir = indexRequestBuilder.setSource("value", "" + i).setRouting("b").get();
+            indexRequestBuilder.request().decRef();
             int b = ir.getShardId().id();
             assertTrue(shardB == b || shardB == -1);
             shardB = b;

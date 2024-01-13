@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -73,8 +74,16 @@ public class FieldLevelSecurityFeatureUsageTests extends AbstractDocumentAndFiel
 
     public void testFlsFeatureUsageTracking() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field1", "value2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder1 = prepareIndex("test").setId("1")
+            .setSource("field1", "value1", "field2", "value1")
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder1.get();
+        indexRequestBuilder1.request().decRef();
+        IndexRequestBuilder indexRequestBuilder2 = prepareIndex("test").setId("2")
+            .setSource("field1", "value2", "field2", "value2")
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder2.get();
+        indexRequestBuilder2.request().decRef();
 
         assertHitCount(
             internalCluster().coordOnlyNodeClient()

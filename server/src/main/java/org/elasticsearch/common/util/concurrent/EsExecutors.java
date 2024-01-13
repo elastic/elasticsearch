@@ -329,6 +329,23 @@ public class EsExecutors {
             }
         }
 
+        // The following three methods, put, add, and timed offer, are
+        // overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public void put(E e) {
+            super.offer(e);
+        }
+
+        @Override
+        public boolean add(E e) {
+            return super.offer(e);
+        }
+
+        @Override
+        public boolean offer(E e, long timeout, TimeUnit unit) {
+            return super.offer(e);
+        }
     }
 
     /**

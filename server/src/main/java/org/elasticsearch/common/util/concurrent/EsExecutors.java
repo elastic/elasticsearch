@@ -334,17 +334,22 @@ public class EsExecutors {
         // https://bugs.openjdk.org/browse/JDK-8323659
         @Override
         public void put(E e) {
-            super.offer(e);
+            boolean added = super.offer(e);
+            assert added;
         }
 
         @Override
         public boolean add(E e) {
-            return super.offer(e);
+            boolean added = super.offer(e);
+            assert added;
+            return added;
         }
 
         @Override
         public boolean offer(E e, long timeout, TimeUnit unit) {
-            return super.offer(e);
+            boolean added = super.offer(e);
+            assert added;
+            return added;
         }
     }
 

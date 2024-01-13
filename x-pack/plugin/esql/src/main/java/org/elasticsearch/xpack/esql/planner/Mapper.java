@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -139,13 +140,14 @@ public class Mapper {
         }
 
         if (p instanceof Enrich enrich) {
+            final Object policyName = enrich.policyName().fold();
             return new EnrichExec(
                 enrich.source(),
                 child,
                 enrich.matchField(),
-                enrich.policy().policyName(),
-                enrich.policy().policy().getMatchField(),
-                enrich.policy().index().get(),
+                policyName instanceof BytesRef bytes ? bytes.utf8ToString() : policyName.toString(),
+                enrich.policy().getMatchField(),
+                enrich.concreteIndices(),
                 enrich.enrichFields()
             );
         }

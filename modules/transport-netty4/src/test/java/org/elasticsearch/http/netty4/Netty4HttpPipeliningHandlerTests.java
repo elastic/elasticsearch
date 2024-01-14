@@ -114,12 +114,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private EmbeddedChannel makeEmbeddedChannelWithSimulatedWork(int numberOfRequests) {
-        return new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests, null) {
-            @Override
-            protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
-                ctx.fireChannelRead(pipelinedRequest);
-            }
-        }, new WorkEmulatorHandler());
+        return new EmbeddedChannel(createTestHandler(numberOfRequests), new WorkEmulatorHandler());
     }
 
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
@@ -178,9 +173,9 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertFalse(embeddedChannel.isOpen());
     }
 
-    public void testPipeliningRequestsAreReleased() throws InterruptedException {
+    public void testPipeliningRequestsAreReleased() {
         final int numberOfRequests = 10;
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests + 1, null));
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(createTestHandler(numberOfRequests + 1));
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));
@@ -505,6 +500,16 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     private DefaultFullHttpRequest createHttpRequest(String uri) {
         return new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri);
+    }
+
+    private Netty4HttpPipeliningHandler createTestHandler(int numberOfRequests) {
+        return new Netty4HttpPipeliningHandler(logger, numberOfRequests, null) {
+            @Override
+            protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
+                // we don't use a real server transport, so we just short-circuit any request handling after reading the full request.
+                ctx.fireChannelRead(pipelinedRequest);
+            }
+        };
     }
 
     private class WorkEmulatorHandler extends SimpleChannelInboundHandler<Netty4HttpRequest> {

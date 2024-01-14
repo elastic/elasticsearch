@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -49,7 +48,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -101,27 +99,26 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     @Override
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        ActionListener<DatafeedConfig> datafeedConfigActionListener = ActionListener.wrap(datafeedConfig -> {
+        ActionListener<DatafeedConfig> datafeedConfigActionListener = listener.delegateFailureAndWrap((delegate, datafeedConfig) -> {
             if (request.getJobConfig() != null) {
-                previewDatafeed(parentTaskId, datafeedConfig, request.getJobConfig().build(new Date()), request, listener);
+                previewDatafeed(parentTaskId, datafeedConfig, request.getJobConfig().build(new Date()), request, delegate);
                 return;
             }
             jobConfigProvider.getJob(
                 datafeedConfig.getJobId(),
                 parentTaskId,
-                ActionListener.wrap(
-                    jobBuilder -> previewDatafeed(parentTaskId, datafeedConfig, jobBuilder.build(), request, listener),
-                    listener::onFailure
+                delegate.delegateFailureAndWrap(
+                    (l, jobBuilder) -> previewDatafeed(parentTaskId, datafeedConfig, jobBuilder.build(), request, l)
                 )
             );
-        }, listener::onFailure);
+        });
         if (request.getDatafeedConfig() != null) {
             datafeedConfigActionListener.onResponse(request.getDatafeedConfig());
         } else {
             datafeedConfigProvider.getDatafeedConfig(
                 request.getDatafeedId(),
                 parentTaskId,
-                ActionListener.wrap(builder -> datafeedConfigActionListener.onResponse(builder.build()), listener::onFailure)
+                datafeedConfigActionListener.delegateFailureAndWrap((l, builder) -> l.onResponse(builder.build()))
             );
         }
     }
@@ -209,10 +206,11 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             client,
             TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
-            ActionListener.wrap(fieldCapsResponse -> {
-                Map<String, FieldCapabilities> timeFieldCaps = fieldCapsResponse.getField(timeField);
-                listener.onResponse(timeFieldCaps.containsKey(DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
-            }, listener::onFailure)
+            listener.delegateFailureAndWrap(
+                (l, fieldCapsResponse) -> l.onResponse(
+                    fieldCapsResponse.getField(timeField).containsKey(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)
+                )
+            )
         );
     }
 

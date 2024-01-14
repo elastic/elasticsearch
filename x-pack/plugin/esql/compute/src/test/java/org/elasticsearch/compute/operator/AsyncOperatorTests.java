@@ -316,6 +316,10 @@ public class AsyncOperatorTests extends ESTestCase {
                     break;
                 }
             }
+            driverContext.finish();
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            driverContext.waitForAsyncActions(future);
+            future.actionGet(30, TimeUnit.SECONDS);
         }
     }
 

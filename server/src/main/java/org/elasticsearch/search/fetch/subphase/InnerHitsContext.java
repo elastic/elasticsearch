@@ -25,6 +25,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.profile.Profilers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -86,6 +87,11 @@ public final class InnerHitsContext {
 
         public String getName() {
             return name;
+        }
+
+        @Override
+        public Profilers getProfilers() {
+            return null;
         }
 
         @Override

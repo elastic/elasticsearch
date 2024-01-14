@@ -852,7 +852,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), is(nullValue()));
 
         agg = createGeoCentroid(new GeoPoint(100.0, 101.0), randomIntBetween(1, 100));
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo("100.0, 101.0"));
+        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo("POINT (101.0 100.0)"));
     }
 
     private GeoBounds createGeoBounds(GeoPoint tl, GeoPoint br) {

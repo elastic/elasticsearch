@@ -231,7 +231,7 @@ public final class GeoPoint implements SpatialPoint, ToXContentFragment {
 
     @Override
     public String toString() {
-        return lat + ", " + lon;
+        return "POINT (" + lon + " " + lat + ")";
     }
 
     public static GeoPoint fromGeohash(String geohash) {

@@ -26,7 +26,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -607,20 +606,6 @@ public abstract class AbstractStreamTests extends ESTestCase {
         var list = new ArrayList<>(set);
         Collections.reverse(list);
         assertGenericRoundtrip(new LinkedHashSet<>(list));
-    }
-
-    public void testReadArraySize() throws IOException {
-        BytesStreamOutput stream = new BytesStreamOutput();
-        byte[] array = new byte[randomIntBetween(1, 10)];
-        for (int i = 0; i < array.length; i++) {
-            array[i] = randomByte();
-        }
-        stream.writeByteArray(array);
-        StreamInput streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), array.length - 1);
-        expectThrows(EOFException.class, streamInput::readByteArray);
-        streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), BytesReference.toBytes(stream.bytes()).length);
-
-        assertArrayEquals(array, streamInput.readByteArray());
     }
 
     public void testFilterStreamInputDelegatesAvailable() throws IOException {

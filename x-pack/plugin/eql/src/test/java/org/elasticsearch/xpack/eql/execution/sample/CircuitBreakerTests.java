@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.EsField;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -265,11 +264,6 @@ public class CircuitBreakerTests extends ESTestCase {
                     @Override
                     public int available() throws IOException {
                         return 0;
-                    }
-
-                    @Override
-                    protected void ensureCanReadBytes(int length) throws EOFException {
-
                     }
 
                     @Override

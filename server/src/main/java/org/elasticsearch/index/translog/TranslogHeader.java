@@ -112,7 +112,7 @@ final class TranslogHeader {
         try {
             // This input is intentionally not closed because closing it will close the FileChannel.
             final BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(
-                new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel), channel.size()),
+                new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel)),
                 path.toString()
             );
             final int version = readHeaderVersion(path, channel, in);

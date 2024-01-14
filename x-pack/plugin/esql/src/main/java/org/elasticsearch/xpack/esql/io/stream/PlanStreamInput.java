@@ -161,7 +161,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
     }
 
     public AttributeSet readAttributeSet(Writeable.Reader<Attribute> reader) throws IOException {
-        int count = readArraySize();
+        int count = readVInt();
         if (count == 0) {
             return new AttributeSet();
         }

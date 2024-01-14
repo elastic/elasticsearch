@@ -156,7 +156,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
             @Override
             public ReleasableBytesReference readReleasableBytesReference() throws IOException {
-                final int len = readArraySize();
+                final int len = readVInt();
                 return retainAndSkip(len);
             }
 

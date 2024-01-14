@@ -586,7 +586,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     BytesRef qbSource = binaryDocValues.binaryValue();
                     try (
                         InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length);
-                        StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, qbSource.length), registry)
+                        StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
                     ) {
                         // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
                         // to encode multiple binary values into a single binary doc values field.

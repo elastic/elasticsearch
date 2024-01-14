@@ -11,7 +11,6 @@ package org.elasticsearch.common.io.stream;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
-import java.io.EOFException;
 import java.io.IOException;
 
 /**
@@ -106,11 +105,6 @@ public abstract class FilterStreamInput extends StreamInput {
         delegate.setTransportVersion(version);
         // also set the version on this stream directly, so that any uses of this.version are still correct
         super.setTransportVersion(version);
-    }
-
-    @Override
-    protected void ensureCanReadBytes(int length) throws EOFException {
-        delegate.ensureCanReadBytes(length);
     }
 
     @Override

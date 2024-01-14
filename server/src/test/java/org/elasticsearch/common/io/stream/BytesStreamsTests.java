@@ -763,7 +763,7 @@ public class BytesStreamsTests extends ESTestCase {
                 for (int i = 0; i < 10; i++) {
                     assertEquals(i, ints[i]);
                 }
-                expectThrows(IllegalStateException.class, () -> streamInput.readIntArray());
+                expectThrows(OutOfMemoryError.class, streamInput::readIntArray);
             }
         }
     }
@@ -784,8 +784,7 @@ public class BytesStreamsTests extends ESTestCase {
                 for (int i = 0; i < 10; i++) {
                     assertEquals(i, ints[i]);
                 }
-                EOFException eofException = expectThrows(EOFException.class, () -> streamInput.readIntArray());
-                assertEquals("tried to read: 100 bytes but only 40 remaining", eofException.getMessage());
+                expectThrows(EOFException.class, streamInput::readIntArray);
             }
         }
     }
@@ -806,8 +805,7 @@ public class BytesStreamsTests extends ESTestCase {
                 for (int i = 0; i < 10; i++) {
                     assertEquals(i, ints[i]);
                 }
-                NegativeArraySizeException exception = expectThrows(NegativeArraySizeException.class, () -> streamInput.readIntArray());
-                assertEquals("array size must be positive but was: -2147483648", exception.getMessage());
+                expectThrows(NegativeArraySizeException.class, streamInput::readIntArray);
             }
         }
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 
-import java.io.EOFException;
 import java.io.IOException;
 
 /**
@@ -73,14 +72,6 @@ public final class ByteArrayStreamInput extends StreamInput {
     @Override
     public int available() {
         return limit - pos;
-    }
-
-    @Override
-    protected void ensureCanReadBytes(int length) throws EOFException {
-        final int available = limit - pos;
-        if (length > available) {
-            throwEOF(length, available);
-        }
     }
 
     @Override

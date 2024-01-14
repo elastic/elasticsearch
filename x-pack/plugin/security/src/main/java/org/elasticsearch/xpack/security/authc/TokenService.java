@@ -631,7 +631,7 @@ public class TokenService {
      */
     void decodeToken(String token, boolean validateUserToken, ActionListener<UserToken> listener) {
         final byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
-        try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
+        try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)))) {
             final TransportVersion version = TransportVersion.readVersion(in);
             in.setTransportVersion(version);
             if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
@@ -1102,7 +1102,7 @@ public class TokenService {
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         } else {
             final byte[] bytes = refreshToken.getBytes(StandardCharsets.UTF_8);
-            try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
+            try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)))) {
                 final TransportVersion version = TransportVersion.readVersion(in);
                 in.setTransportVersion(version);
                 if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {

@@ -130,7 +130,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
         // try to read more than the stream contains
         si.reset();
-        expectThrows(IndexOutOfBoundsException.class, () -> si.readBytes(targetBuf, 0, length * 2));
+        expectThrows(EOFException.class, () -> si.readBytes(new byte[length * 2], 0, length * 2));
     }
 
     public void testStreamInputMarkAndReset() throws IOException {

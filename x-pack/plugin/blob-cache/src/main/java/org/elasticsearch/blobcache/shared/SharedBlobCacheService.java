@@ -60,9 +60,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class SharedBlobCacheService<KeyType> implements Releasable {
 
@@ -304,6 +304,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final BlobCacheMetrics blobCacheMetrics;
 
+    private final LongSupplier relativeTimeInMillisSupplier;
+
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -311,7 +313,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         String ioExecutor,
         BlobCacheMetrics blobCacheMetrics
     ) {
-        this(environment, settings, threadPool, ioExecutor, ioExecutor, blobCacheMetrics);
+        this(environment, settings, threadPool, ioExecutor, ioExecutor, blobCacheMetrics, threadPool::relativeTimeInMillis);
     }
 
     public SharedBlobCacheService(
@@ -320,7 +322,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ThreadPool threadPool,
         String ioExecutor,
         String bulkExecutor,
-        BlobCacheMetrics blobCacheMetrics
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInMillisSupplier
     ) {
         this.threadPool = threadPool;
         this.ioExecutor = threadPool.executor(ioExecutor);
@@ -362,6 +365,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.recoveryRangeSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings).getBytes());
 
         this.blobCacheMetrics = blobCacheMetrics;
+        this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -430,19 +434,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return effectiveRegionSize;
     }
 
-    /**
-     * Returns the list of regions, as integers, that are required to read a given byte range.
-     *
-     * @param range a range of bytes that can cover more than one region
-     * @return a list of region ids
-     */
-    public List<Integer> findRegions(ByteRange range) {
-        int startRegion = getRegion(range.start());
-        int endRegion = getEndingRegion(range.end());
-        if (startRegion != endRegion) {
-            return IntStream.rangeClosed(startRegion, endRegion).boxed().toList();
-        }
-        return List.of(startRegion);
+    public int getRegionSize() {
+        return regionSize;
     }
 
     CacheFileRegion get(KeyType cacheKey, long fileLength, int region) {
@@ -534,7 +527,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         final RangeMissingHandler writer,
         final ActionListener<Void> listener
     ) {
-        if (freeRegionCount() < 1) {
+        if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+            // no free page available and no old enough unused region to be evicted
             listener.onResponse(null);
             return;
         }
@@ -553,6 +547,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    // used by tests
+    boolean maybeEvictLeastUsed() {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.maybeEvictLeastUsed();
+        }
+        return false;
     }
 
     private static void throwAlreadyClosed(String message) {
@@ -598,6 +600,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return lfuCache.getFreq(cacheFileRegion);
         }
         return -1;
+    }
+
+    private long relativeTimeInMillis() {
+        return relativeTimeInMillisSupplier.getAsLong();
     }
 
     @Override
@@ -747,9 +753,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToWrite,
-                    Assertions.ENABLED
-                        ? ActionListener.releaseAfter(ActionListener.running(() -> { assert regionOwners.get(io) == this; }), resource)
-                        : ActionListener.releasing(resource)
+                    Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
+                        assert regionOwners.get(io) == this;
+                    }), resource) : ActionListener.releasing(resource)
                 );
                 try (RefCountingListener refs = new RefCountingListener(listener)) {
                     if (gaps.isEmpty() == false) {
@@ -1098,7 +1104,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
 
             void touch() {
-                long now = threadPool.relativeTimeInMillis();
+                long now = relativeTimeInMillis();
                 if (now - lastAccessed >= minTimeDelta) {
                     maybePromote(now, this);
                 }
@@ -1132,7 +1138,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         @Override
         public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region) {
             final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
-            final long now = threadPool.relativeTimeInMillis();
+            final long now = relativeTimeInMillis();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
             // if we did not find an entry
             var entry = keyMapping.get(regionKey);
@@ -1362,9 +1368,32 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return -1;
         }
 
+        /**
+         * This method tries to evict the oldest least used {@link LFUCacheEntry}. Only entries with the lowest possible frequency are
+         * considered for eviction.
+         *
+         * @return true if an entry was evicted, false otherwise.
+         */
+        public boolean maybeEvictLeastUsed() {
+            synchronized (SharedBlobCacheService.this) {
+                long now = relativeTimeInMillis();
+                for (LFUCacheEntry entry = freqs[0]; entry != null; entry = entry.next) {
+                    if (now - entry.lastAccessed >= 2 * minTimeDelta) {
+                        boolean evicted = entry.chunk.tryEvict();
+                        if (evicted && entry.chunk.io != null) {
+                            unlink(entry);
+                            keyMapping.remove(entry.chunk.regionKey, entry);
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         private void computeDecay() {
             synchronized (SharedBlobCacheService.this) {
-                long now = threadPool.relativeTimeInMillis();
+                long now = relativeTimeInMillis();
                 for (int i = 0; i < maxFreq; i++) {
                     for (LFUCacheEntry entry = freqs[i]; entry != null; entry = entry.next) {
                         if (entry.freq > 0 && now - entry.lastAccessed >= 2 * minTimeDelta) {

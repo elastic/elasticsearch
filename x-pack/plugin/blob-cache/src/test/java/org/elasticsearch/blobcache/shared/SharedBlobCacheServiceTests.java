@@ -10,6 +10,7 @@ package org.elasticsearch.blobcache.shared;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -407,7 +408,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 threadPool,
                 ThreadPool.Names.GENERIC,
                 "bulk",
-                BlobCacheMetrics.NOOP
+                BlobCacheMetrics.NOOP,
+                threadPool::relativeTimeInMillis
             )
         ) {
             {
@@ -468,7 +470,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 threadPool,
                 ThreadPool.Names.GENERIC,
                 "bulk",
-                BlobCacheMetrics.NOOP
+                BlobCacheMetrics.NOOP,
+                threadPool::relativeTimeInMillis
             )
         ) {
 
@@ -694,6 +697,277 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             )
         ) {
             assertEquals(val2.getBytes(), cacheService.getStats().size());
+        }
+    }
+
+    public void testMaybeEvictLeastUsed() throws Exception {
+        final int numRegions = randomIntBetween(1, 500);
+        final long regionSize = size(1L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+
+        final AtomicLong relativeTimeInMillis = new AtomicLong(0L);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ThreadPool.Names.GENERIC,
+                "bulk",
+                BlobCacheMetrics.NOOP,
+                relativeTimeInMillis::get
+            )
+        ) {
+            final Set<Object> cacheKeys = new HashSet<>();
+
+            assertThat("All regions are free", cacheService.freeRegionCount(), equalTo(numRegions));
+            assertThat("Cache has no entries", cacheService.maybeEvictLeastUsed(), is(false));
+
+            // use all regions in cache
+            for (int i = 0; i < numRegions; i++) {
+                final var cacheKey = generateCacheKey();
+                var entry = cacheService.get(cacheKey, regionSize, 0);
+                entry.populate(
+                    ByteRange.of(0L, regionSize),
+                    (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
+                    taskQueue.getThreadPool().generic(),
+                    ActionListener.noop()
+                );
+                cacheKeys.add(cacheKey);
+            }
+
+            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+
+            taskQueue.runAllRunnableTasks();
+
+            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+
+            // simulate elapsed time
+            var minInternalMillis = SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getDefault(Settings.EMPTY).millis();
+            relativeTimeInMillis.addAndGet(minInternalMillis);
+
+            // touch some random cache entries
+            var unusedCacheKeys = Set.copyOf(randomSubsetOf(cacheKeys));
+            cacheKeys.forEach(key -> {
+                if (unusedCacheKeys.contains(key) == false) {
+                    var entry = cacheService.get(key, regionSize, 0);
+                    assertThat(cacheService.getFreq(entry), equalTo(1));
+                }
+            });
+
+            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+
+            // simulate elapsed time
+            relativeTimeInMillis.addAndGet(minInternalMillis);
+
+            for (int i = 1; i <= unusedCacheKeys.size(); i++) {
+                assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(true));
+                assertThat(cacheService.freeRegionCount(), equalTo(i));
+            }
+
+            assertThat("No more cache entries old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat(cacheService.freeRegionCount(), equalTo(unusedCacheKeys.size()));
+        }
+    }
+
+    public void testMaybeFetchRegion() throws Exception {
+        final long cacheSize = size(500L);
+        final long regionSize = size(100L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+
+        AtomicInteger bulkTaskCount = new AtomicInteger(0);
+        ThreadPool threadPool = new TestThreadPool("test") {
+            @Override
+            public ExecutorService executor(String name) {
+                ExecutorService generic = super.executor(Names.GENERIC);
+                if (Objects.equals(name, "bulk")) {
+                    return new StoppableExecutorServiceWrapper(generic) {
+                        @Override
+                        public void execute(Runnable command) {
+                            super.execute(command);
+                            bulkTaskCount.incrementAndGet();
+                        }
+                    };
+                }
+                return generic;
+            }
+        };
+        final AtomicLong relativeTimeInMillis = new AtomicLong(0L);
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                ThreadPool.Names.GENERIC,
+                "bulk",
+                BlobCacheMetrics.NOOP,
+                relativeTimeInMillis::get
+            )
+        ) {
+            {
+                // fetch a single region
+                final var cacheKey = generateCacheKey();
+                assertEquals(5, cacheService.freeRegionCount());
+                final long blobLength = size(250); // 3 regions
+                AtomicLong bytesRead = new AtomicLong(0L);
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
+                    bytesRead.addAndGet(length);
+                    progressUpdater.accept(length);
+                }, future);
+
+                future.get(10, TimeUnit.SECONDS);
+                assertEquals(regionSize, bytesRead.get());
+                assertEquals(4, cacheService.freeRegionCount());
+                assertEquals(1, bulkTaskCount.get());
+            }
+            {
+                // fetch multiple regions to used all the cache
+                final int remainingFreeRegions = cacheService.freeRegionCount();
+                assertEquals(4, cacheService.freeRegionCount());
+
+                final var cacheKey = generateCacheKey();
+                final long blobLength = regionSize * remainingFreeRegions;
+                AtomicLong bytesRead = new AtomicLong(0L);
+
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                try (var refs = new RefCountingListener(future)) {
+                    for (int region = 0; region < remainingFreeRegions; region++) {
+                        relativeTimeInMillis.addAndGet(1_000L);
+                        cacheService.maybeFetchRegion(
+                            cacheKey,
+                            region,
+                            blobLength,
+                            (channel, channelPos, relativePos, length, progressUpdater) -> {
+                                bytesRead.addAndGet(length);
+                                progressUpdater.accept(length);
+                            },
+                            refs.acquire()
+                        );
+                    }
+                }
+
+                future.get(10, TimeUnit.SECONDS);
+                assertEquals(blobLength, bytesRead.get());
+                assertEquals(0, cacheService.freeRegionCount());
+                assertEquals(1 + remainingFreeRegions, bulkTaskCount.get());
+            }
+            {
+                // cache fully used, no entry old enough to be evicted
+                assertEquals(0, cacheService.freeRegionCount());
+                final var cacheKey = generateCacheKey();
+                cacheService.maybeFetchRegion(
+                    cacheKey,
+                    randomIntBetween(0, 10),
+                    randomLongBetween(1L, regionSize),
+                    (channel, channelPos, relativePos, length, progressUpdater) -> {
+                        throw new AssertionError("should not be executed");
+                    },
+                    ActionListener.noop()
+                );
+            }
+            {
+                // simulate elapsed time
+                var minInternalMillis = SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getDefault(Settings.EMPTY).millis();
+                relativeTimeInMillis.addAndGet(minInternalMillis * 2);
+
+                // fetch one more region should evict an old cache entry
+                final var cacheKey = generateCacheKey();
+                assertEquals(0, cacheService.freeRegionCount());
+                long blobLength = randomLongBetween(1L, regionSize);
+                AtomicLong bytesRead = new AtomicLong(0L);
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
+                    bytesRead.addAndGet(length);
+                    progressUpdater.accept(length);
+                }, future);
+
+                future.get(10, TimeUnit.SECONDS);
+                assertEquals(blobLength, bytesRead.get());
+                assertEquals(0, cacheService.freeRegionCount());
+            }
+        }
+
+        threadPool.shutdown();
+    }
+
+    public void testPopulate() throws Exception {
+        final long regionSize = size(1L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+
+        final AtomicLong relativeTimeInMillis = new AtomicLong(0L);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ThreadPool.Names.GENERIC,
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP,
+                relativeTimeInMillis::get
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var blobLength = size(12L);
+
+            // start populating the first region
+            var entry = cacheService.get(cacheKey, blobLength, 0);
+            AtomicLong bytesWritten = new AtomicLong(0L);
+            final PlainActionFuture<Void> future1 = new PlainActionFuture<>();
+            entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, relativePos, length, progressUpdater) -> {
+                bytesWritten.addAndGet(length);
+                progressUpdater.accept(length);
+            }, taskQueue.getThreadPool().generic(), future1);
+
+            assertThat(taskQueue.hasRunnableTasks(), is(true));
+
+            // start populating the second region
+            entry = cacheService.get(cacheKey, blobLength, 1);
+            final PlainActionFuture<Void> future2 = new PlainActionFuture<>();
+            entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, relativePos, length, progressUpdater) -> {
+                bytesWritten.addAndGet(length);
+                progressUpdater.accept(length);
+            }, taskQueue.getThreadPool().generic(), future2);
+
+            // start populating again the first region, listener should be called immediately
+            entry = cacheService.get(cacheKey, blobLength, 0);
+            final PlainActionFuture<Void> future3 = new PlainActionFuture<>();
+            entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, relativePos, length, progressUpdater) -> {
+                bytesWritten.addAndGet(length);
+                progressUpdater.accept(length);
+            }, taskQueue.getThreadPool().generic(), future3);
+
+            future3.get(10L, TimeUnit.SECONDS);
+            assertThat(future3.isDone(), is(true));
+
+            taskQueue.runAllRunnableTasks();
+
+            future1.get(10L, TimeUnit.SECONDS);
+            assertThat(future1.isDone(), is(true));
+            future2.get(10L, TimeUnit.SECONDS);
+            assertThat(future2.isDone(), is(true));
         }
     }
 

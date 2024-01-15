@@ -1,16 +1,7 @@
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+// Necessary to use tests in Serverless
+apply plugin: 'elasticsearch.internal-test-artifact'
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.monitoring.collection.enabled', 'false'
-  setting 'xpack.security.enabled', 'true'
-  numberOfNodes = 1
-  extraConfigFile 'roles.yml', file('roles.yml')
-  user username: "test-admin", password: 'x-pack-test-password', role: "test-admin"
-  user username: "user1", password: 'x-pack-test-password', role: "user1"
-  user username: "user2", password: 'x-pack-test-password', role: "user2"
-  user username: "user3", password: 'x-pack-test-password', role: "user3"
-  user username: "user4", password: 'x-pack-test-password', role: "user4"
-  user username: "user5", password: 'x-pack-test-password', role: "user5"
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
 }

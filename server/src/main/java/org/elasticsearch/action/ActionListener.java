@@ -185,29 +185,6 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Adds a wrapper around a listener which catches exceptions thrown by its {@link #onResponse} method and feeds them to its
-     * {@link #onFailure} method.
-     */
-    static <DelegateResponse, Response extends DelegateResponse> ActionListener<Response> wrap(ActionListener<DelegateResponse> delegate) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Response response) {
-                ActionListener.run(delegate, l -> l.onResponse(response));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                safeOnFailure(delegate, e);
-            }
-
-            @Override
-            public String toString() {
-                return "wrapped{" + delegate + "}";
-            }
-        };
-    }
-
-    /**
      * Notifies every given listener with the response passed to {@link #onResponse(Object)}. If a listener itself throws an exception
      * the exception is forwarded to {@link #onFailure(Exception)}. If in turn {@link #onFailure(Exception)} fails all remaining
      * listeners will be processed and the caught exception will be re-thrown.
@@ -372,12 +349,32 @@ public interface ActionListener<Response> {
     /**
      * Execute the given action in a {@code try/catch} block which feeds all exceptions to the given listener's {@link #onFailure} method.
      */
-    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, Exception> action) {
+    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, ? extends Exception> action) {
         try {
             action.accept(listener);
         } catch (Exception e) {
             safeOnFailure(listener, e);
         }
+    }
+
+    /**
+     * Execute the given action in an (async equivalent of a) try-with-resources block which closes the supplied resource on completion, and
+     * feeds all exceptions to the given listener's {@link #onFailure} method.
+     */
+    static <T, R extends AutoCloseable> void runWithResource(
+        ActionListener<T> listener,
+        CheckedSupplier<R, ? extends Exception> resourceSupplier,
+        CheckedBiConsumer<ActionListener<T>, R, ? extends Exception> action
+    ) {
+        R resource;
+        try {
+            resource = resourceSupplier.get();
+        } catch (Exception e) {
+            safeOnFailure(listener, e);
+            return;
+        }
+
+        ActionListener.run(ActionListener.runBefore(listener, resource::close), l -> action.accept(l, resource));
     }
 
 }

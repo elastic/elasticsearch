@@ -130,7 +130,7 @@ public class RestAllocationAction extends AbstractCatAction {
 
             table.startRow();
             table.addCell(shardCount);
-            table.addCell(nodeStats.getIndices().getStore().getSize());
+            table.addCell(nodeStats.getIndices().getStore().size());
             table.addCell(used < 0 ? null : ByteSizeValue.ofBytes(used));
             table.addCell(avail.getBytes() < 0 ? null : avail);
             table.addCell(total.getBytes() < 0 ? null : total);

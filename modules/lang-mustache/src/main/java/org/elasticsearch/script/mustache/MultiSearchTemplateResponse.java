@@ -18,8 +18,11 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -99,6 +102,20 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     private final Item[] items;
     private final long tookInMillis;
 
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            for (int i = 0; i < items.length; i++) {
+                Item item = items[i];
+                var r = item.response;
+                if (r != null) {
+                    r.decRef();
+                    items[i] = null;
+                }
+            }
+        }
+    });
+
     MultiSearchTemplateResponse(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(Item::new, Item[]::new);
@@ -162,6 +179,26 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         return builder;
     }
 
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
     static final class Fields {
         static final String RESPONSES = "responses";
         static final String STATUS = "status";
@@ -179,6 +216,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
                 if (item.getResponse() != null) {
                     stResponse = new SearchTemplateResponse();
                     stResponse.setResponse(item.getResponse());
+                    item.getResponse().incRef();
                 }
                 templateResponses[i++] = new Item(stResponse, item.getFailure());
             }

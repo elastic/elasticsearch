@@ -24,11 +24,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -67,7 +65,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
-    private final SearchResponseSections internalResponse;
+    private final SearchHits hits;
+    private final Aggregations aggregations;
+    private final Suggest suggest;
+    private final SearchProfileResults profileResults;
+    private final boolean timedOut;
+    private final Boolean terminatedEarly;
+    private final int numReducePhases;
     private final String scrollId;
     private final String pointInTimeId;
     private final int totalShards;
@@ -79,7 +83,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
-        internalResponse = new InternalSearchResponse(in);
+        this.hits = new SearchHits(in);
+        this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
+        this.suggest = in.readBoolean() ? new Suggest(in) : null;
+        this.timedOut = in.readBoolean();
+        this.terminatedEarly = in.readOptionalBoolean();
+        this.profileResults = in.readOptionalWriteable(SearchProfileResults::new);
+        this.numReducePhases = in.readVInt();
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         int size = in.readVInt();
@@ -99,7 +109,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     public SearchResponse(
-        SearchResponseSections internalResponse,
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
         String scrollId,
         int totalShards,
         int successfulShards,
@@ -108,11 +124,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
-        this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters, null);
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            null
+        );
     }
 
     public SearchResponse(
-        SearchResponseSections internalResponse,
+        SearchResponseSections searchResponseSections,
         String scrollId,
         int totalShards,
         int successfulShards,
@@ -122,7 +154,49 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         Clusters clusters,
         String pointInTimeId
     ) {
-        this.internalResponse = internalResponse;
+        this(
+            searchResponseSections.hits,
+            searchResponseSections.aggregations,
+            searchResponseSections.suggest,
+            searchResponseSections.timedOut,
+            searchResponseSections.terminatedEarly,
+            searchResponseSections.profileResults,
+            searchResponseSections.numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId
+        );
+    }
+
+    public SearchResponse(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
+        this.hits = hits;
+        this.aggregations = aggregations;
+        this.suggest = suggest;
+        this.profileResults = profileResults;
+        this.timedOut = timedOut;
+        this.terminatedEarly = terminatedEarly;
+        this.numReducePhases = numReducePhases;
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
         this.clusters = clusters;
@@ -144,7 +218,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * The search hits.
      */
     public SearchHits getHits() {
-        return internalResponse.hits();
+        return hits;
     }
 
     /**
@@ -152,7 +226,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * either {@code null} or {@link InternalAggregations#EMPTY}.
      */
     public @Nullable Aggregations getAggregations() {
-        return internalResponse.aggregations();
+        return aggregations;
     }
 
     /**
@@ -163,14 +237,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     public Suggest getSuggest() {
-        return internalResponse.suggest();
+        return suggest;
     }
 
     /**
      * Has the search operation timed out.
      */
     public boolean isTimedOut() {
-        return internalResponse.timedOut();
+        return timedOut;
     }
 
     /**
@@ -178,14 +252,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * <code>terminateAfter</code>
      */
     public Boolean isTerminatedEarly() {
-        return internalResponse.terminatedEarly();
+        return terminatedEarly;
     }
 
     /**
      * Returns the number of reduce phases applied to obtain this search response
      */
     public int getNumReducePhases() {
-        return internalResponse.getNumReducePhases();
+        return numReducePhases;
     }
 
     /**
@@ -253,7 +327,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     @Nullable
     public Map<String, SearchProfileShardResult> getProfileResults() {
-        return internalResponse.profile();
+        if (profileResults == null) {
+            return Collections.emptyMap();
+        }
+        return profileResults.getShardResults();
     }
 
     /**
@@ -278,7 +355,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return Iterators.concat(
             ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
             Iterators.single(clusters),
-            internalResponse.toXContentChunked(params)
+            Iterators.concat(
+                Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
+                Iterators.single((ToXContent) (b, p) -> {
+                    if (aggregations != null) {
+                        aggregations.toXContent(b, p);
+                    }
+                    return b;
+                }),
+                Iterators.single((b, p) -> {
+                    if (suggest != null) {
+                        suggest.toXContent(b, p);
+                    }
+                    return b;
+                }),
+                Iterators.single((b, p) -> {
+                    if (profileResults != null) {
+                        profileResults.toXContent(b, p);
+                    }
+                    return b;
+                })
+            )
         );
     }
 
@@ -396,17 +493,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
         }
-        SearchResponseSections searchResponseSections = new SearchResponseSections(
+        return new SearchResponse(
             hits,
             aggs,
             suggest,
             timedOut,
             terminatedEarly,
             profile,
-            numReducePhases
-        );
-        return new SearchResponse(
-            searchResponseSections,
+            numReducePhases,
             scrollId,
             totalShards,
             successfulShards,
@@ -420,7 +514,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        internalResponse.writeTo(out);
+        hits.writeTo(out);
+        out.writeOptionalWriteable((InternalAggregations) aggregations);
+        out.writeOptionalWriteable(suggest);
+        out.writeBoolean(timedOut);
+        out.writeOptionalBoolean(terminatedEarly);
+        out.writeOptionalWriteable(profileResults);
+        out.writeVInt(numReducePhases);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
 
@@ -532,7 +632,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = in.readVInt();
             int successfulTemp = in.readVInt();
             int skippedTemp = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
                     this.clusterInfo = Collections.emptyMap();
@@ -585,7 +685,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
                 if (clusterInfo != null) {
                     List<Cluster> clusterList = clusterInfo.values().stream().toList();
                     out.writeCollection(clusterList);
@@ -1267,18 +1367,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     // public for tests
     public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
-        SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-            searchHits,
+        return new SearchResponse(
+            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
-            null,
             null,
             false,
             null,
-            0
-        );
-        return new SearchResponse(
-            internalSearchResponse,
+            null,
+            0,
             null,
             0,
             0,

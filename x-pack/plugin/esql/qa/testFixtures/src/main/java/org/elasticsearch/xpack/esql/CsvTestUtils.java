@@ -11,7 +11,9 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -24,7 +26,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
@@ -139,6 +141,7 @@ public final class CsvTestUtils {
 
         CsvColumn[] columns = null;
 
+        var blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(source)) {
             String line;
             int lineNumber = 1;
@@ -178,7 +181,7 @@ public final class CsvTestUtils {
                             columns[i] = new CsvColumn(
                                 name,
                                 type,
-                                BlockUtils.wrapperFor(BlockFactory.getNonBreakingInstance(), ElementType.fromJava(type.clazz()), 8)
+                                BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(type.clazz()), 8)
                             );
                         }
                     }
@@ -388,8 +391,8 @@ public final class CsvTestUtils {
             Long.class
         ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
-        GEO_POINT(x -> x == null ? null : GEO.pointAsLong(GEO.stringAsPoint(x)), Long.class),
-        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(x)), Long.class);
+        GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
+        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -440,17 +443,25 @@ public final class CsvTestUtils {
             return LOOKUP.get(name.toUpperCase(Locale.ROOT));
         }
 
-        public static Type asType(ElementType elementType) {
+        public static Type asType(ElementType elementType, Type actualType) {
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;
                 case DOUBLE -> DOUBLE;
                 case NULL -> NULL;
-                case BYTES_REF -> KEYWORD;
+                case BYTES_REF -> bytesRefBlockType(actualType);
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
+        }
+
+        private static Type bytesRefBlockType(Type actualType) {
+            if (actualType == GEO_POINT || actualType == CARTESIAN_POINT) {
+                return actualType;
+            } else {
+                return KEYWORD;
+            }
         }
 
         Object convert(String value) {
@@ -477,7 +488,7 @@ public final class CsvTestUtils {
         Map<String, List<String>> responseHeaders
     ) {
         Iterator<Iterator<Object>> values() {
-            return EsqlQueryResponse.pagesToValues(dataTypes(), pages);
+            return ResponseValueUtils.pagesToValues(dataTypes(), pages);
         }
     }
 

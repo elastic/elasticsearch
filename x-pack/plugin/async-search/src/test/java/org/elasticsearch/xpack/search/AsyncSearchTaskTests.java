@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -405,17 +404,14 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int skippedShards,
         ShardSearchFailure... failures
     ) {
-        InternalSearchResponse response = new InternalSearchResponse(
+        return new SearchResponse(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             InternalAggregations.EMPTY,
             null,
-            null,
             false,
             null,
-            1
-        );
-        return new SearchResponse(
-            response,
+            null,
+            1,
             null,
             totalShards,
             successfulShards,

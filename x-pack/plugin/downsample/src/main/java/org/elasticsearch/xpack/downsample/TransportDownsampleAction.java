@@ -400,6 +400,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
+                    if (persistentTask != null) {
+                        var runningPersistentTaskState = (DownsampleShardPersistentTaskState) persistentTask.getState();
+                        if (runningPersistentTaskState != null) {
+                            if (runningPersistentTaskState.failed()) {
+                                onFailure(new ElasticsearchException("downsample task [" + persistentTaskId + "] failed"));
+                                return;
+                            } else if (runningPersistentTaskState.cancelled()) {
+                                onFailure(new ElasticsearchException("downsample task [" + persistentTaskId + "] cancelled"));
+                                return;
+                            }
+                        }
+                    }
+
                     logger.info("Downsampling task [" + persistentTaskId + " completed for shard " + params.shardId());
                     if (countDown.decrementAndGet() == 0) {
                         logger.info("All downsampling tasks completed [" + numberOfShards + "]");
@@ -598,21 +611,23 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
             fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
         );
+        builder.startObject(field);
         if (metricType == TimeSeriesParams.MetricType.COUNTER) {
             // For counters, we keep the same field type, because they store
             // only one value (the last value of the counter)
-            builder.startObject(field).field("type", fieldProperties.get("type")).field(TIME_SERIES_METRIC_PARAM, metricType).endObject();
+            for (String fieldProperty : fieldProperties.keySet()) {
+                builder.field(fieldProperty, fieldProperties.get(fieldProperty));
+            }
         } else {
             final String[] supportedAggsArray = metricType.supportedAggs();
             // We choose max as the default metric
             final String defaultMetric = List.of(supportedAggsArray).contains("max") ? "max" : supportedAggsArray[0];
-            builder.startObject(field)
-                .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
+            builder.field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
                 .array(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggsArray)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
-                .field(TIME_SERIES_METRIC_PARAM, metricType)
-                .endObject();
+                .field(TIME_SERIES_METRIC_PARAM, metricType);
         }
+        builder.endObject();
     }
 
     private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {

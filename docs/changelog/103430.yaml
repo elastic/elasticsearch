@@ -1,0 +1,5 @@
+pr: 103430
+summary: "[Connectors API] Fix bug with missing TEXT `DisplayType` enum"
+area: Application
+type: bug
+issues: []

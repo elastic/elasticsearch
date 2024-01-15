@@ -1,0 +1,6 @@
+pr: 103209
+summary: "ESQL: Fix `to_degrees()` returning infinity"
+area: ES|QL
+type: bug
+issues:
+ - 102987

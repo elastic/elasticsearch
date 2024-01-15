@@ -232,6 +232,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -242,6 +243,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<RestHandler> handlers = new ArrayList<>(
             super.getRestHandlers(
                 settings,
+                namedWriteableRegistry,
                 restController,
                 clusterSettings,
                 indexScopedSettings,
@@ -254,6 +256,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             p -> handlers.addAll(
                 p.getRestHandlers(
                     settings,
+                    namedWriteableRegistry,
                     restController,
                     clusterSettings,
                     indexScopedSettings,
@@ -448,7 +451,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public Function<String, Predicate<String>> getFieldFilter() {
-        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream().map(p -> p.getFieldFilter()).toList();
+        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream()
+            .map(p -> p.getFieldFilter())
+            .filter(p -> p.equals(NOOP_FIELD_FILTER) == false)
+            .toList();
         if (items.size() > 1) {
             throw new UnsupportedOperationException("Only the security MapperPlugin should override this");
         } else if (items.size() == 1) {

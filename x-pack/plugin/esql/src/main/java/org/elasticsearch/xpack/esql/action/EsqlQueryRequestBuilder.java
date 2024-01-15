@@ -9,13 +9,22 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 public class EsqlQueryRequestBuilder extends ActionRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> {
 
-    public EsqlQueryRequestBuilder(ElasticsearchClient client) {
-        super(client, EsqlQueryAction.INSTANCE, new EsqlQueryRequest());
+    public static EsqlQueryRequestBuilder newAsyncEsqlQueryRequestBuilder(ElasticsearchClient client) {
+        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.asyncEsqlQueryRequest());
+    }
+
+    public static EsqlQueryRequestBuilder newSyncEsqlQueryRequestBuilder(ElasticsearchClient client) {
+        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.syncEsqlQueryRequest());
+    }
+
+    private EsqlQueryRequestBuilder(ElasticsearchClient client, EsqlQueryRequest request) {
+        super(client, EsqlQueryAction.INSTANCE, request);
     }
 
     public EsqlQueryRequestBuilder query(String query) {
@@ -35,6 +44,21 @@ public class EsqlQueryRequestBuilder extends ActionRequestBuilder<EsqlQueryReque
 
     public EsqlQueryRequestBuilder pragmas(QueryPragmas pragmas) {
         request.pragmas(pragmas);
+        return this;
+    }
+
+    public EsqlQueryRequestBuilder waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+        request.waitForCompletionTimeout(waitForCompletionTimeout);
+        return this;
+    }
+
+    public EsqlQueryRequestBuilder keepAlive(TimeValue keepAlive) {
+        request.keepAlive(keepAlive);
+        return this;
+    }
+
+    public EsqlQueryRequestBuilder keepOnCompletion(boolean keepOnCompletion) {
+        request.keepOnCompletion(keepOnCompletion);
         return this;
     }
 }

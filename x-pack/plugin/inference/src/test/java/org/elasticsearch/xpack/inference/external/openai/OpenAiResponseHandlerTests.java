@@ -10,15 +10,18 @@ package org.elasticsearch.xpack.inference.external.openai;
 import org.apache.http.Header;
 import org.apache.http.HeaderElement;
 import org.apache.http.HttpResponse;
-import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;
@@ -39,7 +42,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
 
         var httpRequest = mock(HttpRequestBase.class);
         var httpResult = new HttpResult(httpResponse, new byte[] {});
-        var handler = new OpenAiResponseHandler("", result -> null);
+        var handler = new OpenAiResponseHandler("", (request, result) -> null);
 
         // 200 ok
         when(statusLine.getStatusCode()).thenReturn(200);
@@ -59,6 +62,41 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         assertTrue(retryException.shouldRetry());
         assertThat(retryException.getCause().getMessage(), containsString("Received a rate limit status code. Token limit"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
+        // 413
+        when(statusLine.getStatusCode()).thenReturn(413);
+        retryException = expectThrows(ContentTooLargeException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        assertTrue(retryException.shouldRetry());
+        assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
+        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+        // 400 content too large
+        retryException = expectThrows(
+            ContentTooLargeException.class,
+            () -> handler.checkForFailureStatusCode(httpRequest, createContentTooLargeResult(400))
+        );
+        assertTrue(retryException.shouldRetry());
+        assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
+        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
+        // 400 generic bad request should not be marked as a content too large
+        when(statusLine.getStatusCode()).thenReturn(400);
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        assertFalse(retryException.shouldRetry());
+        assertThat(
+            retryException.getCause().getMessage(),
+            containsString("Received an unsuccessful status code for request [null] status [400]")
+        );
+        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
+        // 400 is not flagged as a content too large when the error message is different
+        when(statusLine.getStatusCode()).thenReturn(400);
+        retryException = expectThrows(
+            RetryException.class,
+            () -> handler.checkForFailureStatusCode(httpRequest, createResult(400, "blah"))
+        );
+        assertFalse(retryException.shouldRetry());
+        assertThat(
+            retryException.getCause().getMessage(),
+            containsString("Received an unsuccessful status code for request [null] status [400]")
+        );
+        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 401
         when(statusLine.getStatusCode()).thenReturn(401);
         retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
@@ -89,10 +127,8 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         int statusCode = 429;
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
-        var requestLine = mock(RequestLine.class);
         var response = mock(HttpResponse.class);
         when(response.getStatusLine()).thenReturn(statusLine);
-        var request = mock(HttpRequestBase.class);
         var httpResult = new HttpResult(response, new byte[] {});
 
         {
@@ -109,7 +145,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
                 new BasicHeader(OpenAiResponseHandler.REMAINING_TOKENS, "99800")
             );
 
-            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [10000], remaining tokens [99800]. Request limit [3000], remaining requests [2999]")
@@ -119,7 +155,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         {
             when(response.getFirstHeader(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(null);
             when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [unknown], remaining tokens [unknown]. Request limit [3000], remaining requests [2999]")
@@ -133,7 +169,7 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
             );
             when(response.getFirstHeader(OpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(null);
             when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [unknown], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")
@@ -149,11 +185,39 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
                 new BasicHeader(OpenAiResponseHandler.TOKENS_LIMIT, "10000")
             );
             when(response.getFirstHeader(OpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(request, httpResult);
+            var error = OpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [10000], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")
             );
         }
+    }
+
+    private static HttpResult createContentTooLargeResult(int statusCode) {
+        return createResult(
+            statusCode,
+            "This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;"
+                + "0 for the completion). Please reduce your prompt; or completion length."
+        );
+    }
+
+    private static HttpResult createResult(int statusCode, String message) {
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(statusCode);
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+
+        String responseJson = Strings.format("""
+                {
+                    "error": {
+                        "message": "%s",
+                        "type": "content_too_large",
+                        "param": null,
+                        "code": null
+                    }
+                }
+            """, message);
+
+        return new HttpResult(httpResponse, responseJson.getBytes(StandardCharsets.UTF_8));
     }
 }

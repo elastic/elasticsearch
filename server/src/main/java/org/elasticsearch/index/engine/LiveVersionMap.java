@@ -64,11 +64,18 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
         // Modifies the map of this instance by merging with the given VersionLookup
         public void merge(VersionLookup versionLookup) {
+            long existingEntriesSize = 0;
+            for (var entry : versionLookup.map.entrySet()) {
+                var existingValue = map.get(entry.getKey());
+                existingEntriesSize += existingValue == null ? 0 : mapEntryBytesUsed(entry.getKey(), existingValue);
+            }
             map.putAll(versionLookup.map);
+            adjustRam(versionLookup.ramBytesUsed() - existingEntriesSize);
             minDeleteTimestamp.accumulateAndGet(versionLookup.minDeleteTimestamp(), Math::min);
         }
 
-        private VersionLookup(Map<BytesRef, VersionValue> map) {
+        // Visible for testing
+        VersionLookup(Map<BytesRef, VersionValue> map) {
             this.map = map;
         }
 
@@ -77,7 +84,11 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
 
         VersionValue put(BytesRef key, VersionValue value) {
-            return map.put(key, value);
+            long ramAccounting = mapEntryBytesUsed(key, value);
+            VersionValue previousValue = map.put(key, value);
+            ramAccounting += previousValue == null ? 0 : -mapEntryBytesUsed(key, previousValue);
+            adjustRam(ramAccounting);
+            return previousValue;
         }
 
         public boolean isEmpty() {
@@ -96,8 +107,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             unsafe = true;
         }
 
-        public VersionValue remove(BytesRef uid) {
-            return map.remove(uid);
+        VersionValue remove(BytesRef uid) {
+            VersionValue previousValue = map.remove(uid);
+            if (previousValue != null) {
+                adjustRam(-mapEntryBytesUsed(uid, previousValue));
+            }
+            return previousValue;
         }
 
         public void updateMinDeletedTimestamp(DeleteVersionValue delete) {
@@ -106,6 +121,26 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
         public long minDeleteTimestamp() {
             return minDeleteTimestamp.get();
+        }
+
+        void adjustRam(long value) {
+            if (value != 0) {
+                long v = ramBytesUsed.addAndGet(value);
+                assert v >= 0 : "bytes=" + v;
+            }
+        }
+
+        public long ramBytesUsed() {
+            return ramBytesUsed.get();
+        }
+
+        public static long mapEntryBytesUsed(BytesRef key, VersionValue value) {
+            return (BASE_BYTES_PER_BYTESREF + key.bytes.length) + (BASE_BYTES_PER_CHM_ENTRY + value.ramBytesUsed());
+        }
+
+        // Used only for testing
+        Map<BytesRef, VersionValue> getMap() {
+            return map;
         }
     }
 
@@ -170,27 +205,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
 
         void put(BytesRef uid, VersionValue version) {
-            long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
-            long ramAccounting = BASE_BYTES_PER_CHM_ENTRY + version.ramBytesUsed() + uidRAMBytesUsed;
-            VersionValue previousValue = current.put(uid, version);
-            ramAccounting += previousValue == null ? 0 : -(BASE_BYTES_PER_CHM_ENTRY + previousValue.ramBytesUsed() + uidRAMBytesUsed);
-            adjustRam(ramAccounting);
-        }
-
-        void adjustRam(long value) {
-            if (value != 0) {
-                long v = current.ramBytesUsed.addAndGet(value);
-                assert v >= 0 : "bytes=" + v;
-            }
+            current.put(uid, version);
         }
 
         void remove(BytesRef uid, DeleteVersionValue deleted) {
-            VersionValue previousValue = current.remove(uid);
+            current.remove(uid);
             current.updateMinDeletedTimestamp(deleted);
-            if (previousValue != null) {
-                long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
-                adjustRam(-(BASE_BYTES_PER_CHM_ENTRY + previousValue.ramBytesUsed() + uidRAMBytesUsed));
-            }
             if (old != VersionLookup.EMPTY) {
                 // we also need to remove it from the old map here to make sure we don't read this stale value while
                 // we are in the middle of a refresh. Most of the time the old map is an empty map so we can skip it there.
@@ -452,23 +472,46 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     @Override
     public long ramBytesUsed() {
-        return maps.ramBytesUsed() + ramBytesUsedTombstones.get();
+        return maps.ramBytesUsed() + ramBytesUsedTombstones.get() + ramBytesUsedForArchive();
     }
 
     /**
-     * Returns how much RAM would be freed up by refreshing. This is the RAM usage of the current version map. It doesn't include tombstones
-     * since they don't get cleared on refresh, nor the old version map that is being reclaimed.
+     * Returns how much RAM is used by refresh. This is the RAM usage of the current and old version maps, and the RAM usage of the
+     * archive, if any.
      */
     long ramBytesUsedForRefresh() {
-        return maps.current.ramBytesUsed.get();
+        return maps.ramBytesUsed() + archive.getMemoryBytesUsed();
     }
 
     /**
-     * Returns how much RAM is current being freed up by refreshing. This is the RAM usage of the previous version map that needs to stay
-     * around until operations are safely recorded in the Lucene index.
+     * Returns how much RAM could be reclaimed from the version map.
+     * <p>
+     * In stateful, this is the RAM usage of the current version map, and could be reclaimed by refreshing. It doesn't include tombstones
+     * since they don't get cleared on refresh, nor the old version map that is being reclaimed.
+     * <p>
+     * In stateless, this is the RAM usage of current and old version map plus the RAM usage of the parts of the archive that require a
+     * new unpromotable refresh. To reclaim all three components we need to refresh AND flush.
+     */
+    long reclaimableRefreshRamBytes() {
+        return archive == LiveVersionMapArchive.NOOP_ARCHIVE
+            ? maps.current.ramBytesUsed.get()
+            : maps.ramBytesUsed() + archive.getReclaimableMemoryBytes();
+    }
+
+    /**
+     * Returns how much RAM would be freed up by cleaning out the LiveVersionMapArchive.
+     */
+    long ramBytesUsedForArchive() {
+        return archive.getMemoryBytesUsed();
+    }
+
+    /**
+     * Returns how much RAM is current being freed up by refreshing. In Stateful, this is the RAM usage of the previous version map that
+     * needs to stay around until operations are safely recorded in the Lucene index. In Stateless, this is the RAM usage of a fraction
+     * of the Archive entries that are kept around until an ongoing unpromotable refresh is finished.
      */
     long getRefreshingBytes() {
-        return maps.old.ramBytesUsed.get();
+        return archive == LiveVersionMapArchive.NOOP_ARCHIVE ? maps.old.ramBytesUsed.get() : archive.getRefreshingMemoryBytes();
     }
 
     /**

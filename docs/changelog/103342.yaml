@@ -1,0 +1,5 @@
+pr: 103342
+summary: Use dataset size instead of on-disk size for data stream stats
+area: Data streams
+type: bug
+issues: []

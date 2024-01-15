@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
@@ -76,29 +75,29 @@ public final class SearchHit implements Writeable, ToXContentObject {
     private final transient int docId;
 
     private static final float DEFAULT_SCORE = Float.NaN;
-    private float score = DEFAULT_SCORE;
+    private float score;
 
     private static final int NO_RANK = -1;
-    private int rank = NO_RANK;
+    private int rank;
 
     private final Text id;
 
     private final NestedIdentity nestedIdentity;
 
-    private long version = -1;
-    private long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-    private long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+    private long version;
+    private long seqNo;
+    private long primaryTerm;
 
     private BytesReference source;
 
-    private final Map<String, DocumentField> documentFields = new HashMap<>();
-    private final Map<String, DocumentField> metaFields = new HashMap<>();
+    private final Map<String, DocumentField> documentFields;
+    private final Map<String, DocumentField> metaFields;
 
-    private Map<String, HighlightField> highlightFields = null;
+    private Map<String, HighlightField> highlightFields;
 
-    private SearchSortValues sortValues = SearchSortValues.EMPTY;
+    private SearchSortValues sortValues;
 
-    private Map<String, Float> matchedQueries = Collections.emptyMap();
+    private Map<String, Float> matchedQueries;
 
     private Explanation explanation;
 
@@ -125,79 +124,152 @@ public final class SearchHit implements Writeable, ToXContentObject {
     }
 
     public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
-        this.docId = nestedTopDocId;
-        if (id != null) {
-            this.id = new Text(id);
-        } else {
-            this.id = null;
-        }
-        this.nestedIdentity = nestedIdentity;
+        this(
+            nestedTopDocId,
+            DEFAULT_SCORE,
+            NO_RANK,
+            id == null ? null : new Text(id),
+            nestedIdentity,
+            -1,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+            null,
+            null,
+            SearchSortValues.EMPTY,
+            Collections.emptyMap(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            new HashMap<>(),
+            new HashMap<>()
+        );
     }
 
-    public SearchHit(StreamInput in) throws IOException {
-        docId = -1;
-        score = in.readFloat();
+    public SearchHit(
+        int docId,
+        float score,
+        int rank,
+        Text id,
+        NestedIdentity nestedIdentity,
+        long version,
+        long seqNo,
+        long primaryTerm,
+        BytesReference source,
+        Map<String, HighlightField> highlightFields,
+        SearchSortValues sortValues,
+        Map<String, Float> matchedQueries,
+        Explanation explanation,
+        SearchShardTarget shard,
+        String index,
+        String clusterAlias,
+        Map<String, SearchHits> innerHits,
+        Map<String, DocumentField> documentFields,
+        Map<String, DocumentField> metaFields
+    ) {
+        this.docId = docId;
+        this.score = score;
+        this.rank = rank;
+        this.id = id;
+        this.nestedIdentity = nestedIdentity;
+        this.version = version;
+        this.seqNo = seqNo;
+        this.primaryTerm = primaryTerm;
+        this.source = source;
+        this.highlightFields = highlightFields;
+        this.sortValues = sortValues;
+        this.matchedQueries = matchedQueries;
+        this.explanation = explanation;
+        this.shard = shard;
+        this.index = index;
+        this.clusterAlias = clusterAlias;
+        this.innerHits = innerHits;
+        this.documentFields = documentFields;
+        this.metaFields = metaFields;
+    }
+
+    public static SearchHit readFrom(StreamInput in) throws IOException {
+        final float score = in.readFloat();
+        final int rank;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rank = in.readVInt();
+        } else {
+            rank = NO_RANK;
         }
-        id = in.readOptionalText();
+        final Text id = in.readOptionalText();
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readOptionalText();
         }
-        nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
-        version = in.readLong();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        source = in.readBytesReference();
+        final NestedIdentity nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
+        final long version = in.readLong();
+        final long seqNo = in.readZLong();
+        final long primaryTerm = in.readVLong();
+        BytesReference source = in.readBytesReference();
         if (source.length() == 0) {
             source = null;
         }
+        Explanation explanation = null;
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        documentFields.putAll(in.readMap(DocumentField::new));
-        metaFields.putAll(in.readMap(DocumentField::new));
+        final Map<String, DocumentField> documentFields = in.readMap(DocumentField::new);
+        final Map<String, DocumentField> metaFields = in.readMap(DocumentField::new);
+        final Map<String, HighlightField> highlightFields = in.readMapValues(HighlightField::new, HighlightField::name);
+        final SearchSortValues sortValues = new SearchSortValues(in);
 
-        int size = in.readVInt();
-        if (size == 0) {
-            highlightFields = emptyMap();
-        } else if (size == 1) {
-            HighlightField field = new HighlightField(in);
-            highlightFields = singletonMap(field.name(), field);
-        } else {
-            Map<String, HighlightField> highlightFields = new HashMap<>();
-            for (int i = 0; i < size; i++) {
-                HighlightField field = new HighlightField(in);
-                highlightFields.put(field.name(), field);
-            }
-            this.highlightFields = unmodifiableMap(highlightFields);
-        }
-
-        sortValues = new SearchSortValues(in);
-
+        final Map<String, Float> matchedQueries;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
         } else {
-            size = in.readVInt();
-            matchedQueries = new LinkedHashMap<>(size);
+            int size = in.readVInt();
+            matchedQueries = Maps.newLinkedHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 matchedQueries.put(in.readString(), Float.NaN);
             }
         }
 
-        // we call the setter here because that also sets the local index parameter
-        shard(in.readOptionalWriteable(SearchShardTarget::new));
-        size = in.readVInt();
+        final SearchShardTarget shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
+        final String index;
+        final String clusterAlias;
+        if (shardTarget == null) {
+            index = null;
+            clusterAlias = null;
+        } else {
+            index = shardTarget.getIndex();
+            clusterAlias = shardTarget.getClusterAlias();
+        }
+        final Map<String, SearchHits> innerHits;
+        int size = in.readVInt();
         if (size > 0) {
             innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
-                String key = in.readString();
-                SearchHits value = new SearchHits(in);
-                innerHits.put(key, value);
+                innerHits.put(in.readString(), new SearchHits(in));
             }
         } else {
             innerHits = null;
         }
+        return new SearchHit(
+            -1,
+            score,
+            rank,
+            id,
+            nestedIdentity,
+            version,
+            seqNo,
+            primaryTerm,
+            source,
+            unmodifiableMap(highlightFields),
+            sortValues,
+            matchedQueries,
+            explanation,
+            shardTarget,
+            index,
+            clusterAlias,
+            innerHits,
+            documentFields,
+            metaFields
+        );
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
@@ -863,12 +935,6 @@ public final class SearchHit implements Writeable, ToXContentObject {
 
     public static SearchHit createFromMap(Map<String, Object> values) {
         String id = get(Fields._ID, values, null);
-        NestedIdentity nestedIdentity = get(NestedIdentity._NESTED, values, null);
-        Map<String, DocumentField> metaFields = get(METADATA_FIELDS, values, Collections.emptyMap());
-        Map<String, DocumentField> documentFields = get(DOCUMENT_FIELDS, values, Collections.emptyMap());
-
-        SearchHit searchHit = new SearchHit(-1, id, nestedIdentity);
-        searchHit.addDocumentFields(documentFields, metaFields);
         String index = get(Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {
@@ -880,27 +946,36 @@ public final class SearchHit implements Writeable, ToXContentObject {
         }
         ShardId shardId = get(Fields._SHARD, values, null);
         String nodeId = get(Fields._NODE, values, null);
+        final SearchShardTarget shardTarget;
         if (shardId != null && nodeId != null) {
             assert shardId.getIndexName().equals(index);
-            searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias));
+            shardTarget = new SearchShardTarget(nodeId, shardId, clusterAlias);
+            index = shardTarget.getIndex();
+            clusterAlias = shardTarget.getClusterAlias();
         } else {
-            // these fields get set anyways when setting the shard target,
-            // but we set them explicitly when we don't have enough info to rebuild the shard target
-            searchHit.index = index;
-            searchHit.clusterAlias = clusterAlias;
+            shardTarget = null;
         }
-        searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
-        searchHit.setRank(get(Fields._RANK, values, NO_RANK));
-        searchHit.version(get(Fields._VERSION, values, -1L));
-        searchHit.setSeqNo(get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO));
-        searchHit.setPrimaryTerm(get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
-        searchHit.sortValues(get(Fields.SORT, values, SearchSortValues.EMPTY));
-        searchHit.highlightFields(get(Fields.HIGHLIGHT, values, null));
-        searchHit.sourceRef(get(SourceFieldMapper.NAME, values, null));
-        searchHit.explanation(get(Fields._EXPLANATION, values, null));
-        searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
-        searchHit.matchedQueries(get(Fields.MATCHED_QUERIES, values, null));
-        return searchHit;
+        return new SearchHit(
+            -1,
+            get(Fields._SCORE, values, DEFAULT_SCORE),
+            get(Fields._RANK, values, NO_RANK),
+            id == null ? null : new Text(id),
+            get(NestedIdentity._NESTED, values, null),
+            get(Fields._VERSION, values, -1L),
+            get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO),
+            get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM),
+            get(SourceFieldMapper.NAME, values, null),
+            get(Fields.HIGHLIGHT, values, null),
+            get(Fields.SORT, values, SearchSortValues.EMPTY),
+            get(Fields.MATCHED_QUERIES, values, null),
+            get(Fields._EXPLANATION, values, null),
+            shardTarget,
+            index,
+            clusterAlias,
+            get(Fields.INNER_HITS, values, null),
+            get(DOCUMENT_FIELDS, values, Collections.emptyMap()),
+            get(METADATA_FIELDS, values, Collections.emptyMap())
+        );
     }
 
     @SuppressWarnings("unchecked")

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -21,9 +22,11 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
@@ -35,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -263,6 +267,38 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testIsNotNullOnCoalesce() {
+        var plan = localPlan("""
+              from test
+            | where coalesce(emp_no, salary) is not null
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var inn = as(filter.condition(), IsNotNull.class);
+        var coalesce = as(inn.children().get(0), Coalesce.class);
+        assertThat(Expressions.names(coalesce.children()), contains("emp_no", "salary"));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testIsNotNullOnExpression() {
+        var plan = localPlan("""
+              from test
+            | eval x = emp_no + 1
+            | where x is not null
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var inn = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.names(inn.children()), contains("x"));
+        var eval = as(filter.child(), Eval.class);
+        filter = as(eval.child(), Filter.class);
+        inn = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.names(inn.children()), contains("emp_no"));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
     private LocalRelation asEmptyRelation(Object o) {
         var empty = as(o, LocalRelation.class);
         assertThat(empty.supplier(), is(LocalSupplier.EMPTY));
@@ -283,6 +319,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
         // System.out.println(localPlan);
         return localPlan;
+    }
+
+    private LogicalPlan localPlan(String query) {
+        return localPlan(plan(query), TEST_SEARCH_STATS);
     }
 
     @Override

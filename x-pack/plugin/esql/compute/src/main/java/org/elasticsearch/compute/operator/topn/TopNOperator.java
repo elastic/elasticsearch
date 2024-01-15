@@ -334,8 +334,6 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void addInput(Page page) {
-        RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
-
         /*
          * Since row tracks memory we have to be careful to close any unused rows,
          * including any rows that fail while constructing because they allocate
@@ -347,6 +345,8 @@ public class TopNOperator implements Operator, Accountable {
          * inputQueue or because we hit an allocation failure while building it.
          */
         try {
+            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
+
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
                     spare = new Row(breaker, sortOrders);

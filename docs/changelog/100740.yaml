@@ -1,0 +1,6 @@
+pr: 100740
+summary: "ESQL: Referencing expressions that contain backticks requires <<esql-identifiers,escaping those backticks>>."
+area: ES|QL
+type: enhancement
+issues:
+ - 100312

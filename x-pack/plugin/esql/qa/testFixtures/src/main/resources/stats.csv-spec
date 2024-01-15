@@ -435,7 +435,7 @@ g:keyword  | l:integer
  null      | 5
 ;
 
-repetitiveAggregation
+repetitiveAggregation#[skip:-8.11.99,reason:ReplaceDuplicateAggWithEval breaks bwc]
 from employees | stats m1 = max(salary), m2 = min(salary), m3 = min(salary), m4 = max(salary);
 
 m1:i | m2:i | m3:i | m4:i
@@ -781,4 +781,101 @@ FROM sample_data
 ;
 
 median_duration:double | client_ip:ip
+;
+
+fieldEscaping#[skip:-8.12.99, reason:Fixed bug in 8.13 of removing the leading/trailing backquotes of an identifier]
+FROM sample_data
+| stats count(`event_duration`) |  keep `count(``event_duration``)`
+;
+
+count(`event_duration`):l
+7
+;
+
+docsStats
+// tag::stats[]
+FROM employees
+| STATS count = COUNT(emp_no) BY languages
+| SORT languages
+// end::stats[]
+;
+
+// tag::stats-result[]
+    count:long | languages:integer
+15             |1
+19             |2
+17             |3
+18             |4
+21             |5
+10             |null
+// end::stats-result[]
+;
+
+docsStatsWithoutBy
+// tag::statsWithoutBy[]
+FROM employees
+| STATS avg_lang = AVG(languages)
+// end::statsWithoutBy[]
+;
+
+// tag::statsWithoutBy-result[]
+avg_lang:double
+3.1222222222222222
+// end::statsWithoutBy-result[]
+;
+
+docsStatsMultiple
+// tag::statsCalcMultipleValues[]
+FROM employees
+| STATS avg_lang = AVG(languages), max_lang = MAX(languages)
+// end::statsCalcMultipleValues[]
+;
+
+avg_lang:double | max_lang:integer
+3.1222222222222222|5
+;
+
+docsStatsGroupByMultipleValues
+// tag::statsGroupByMultipleValues[]
+FROM employees
+| EVAL hired = DATE_FORMAT("YYYY", hire_date)
+| STATS avg_salary = AVG(salary) BY hired, languages.long
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT hired, languages.long
+// end::statsGroupByMultipleValues[]
+| LIMIT 4
+;
+
+hired:keyword |languages.long:long | avg_salary:double
+1985           |1              |54668.0        
+1985           |3              |47723.0        
+1985           |4              |44817.0        
+1985           |5              |47720.0  
+;
+
+docsStatsUnnamedColumn
+// tag::statsUnnamedColumn[]
+FROM employees
+| STATS AVG(salary)
+// end::statsUnnamedColumn[]
+;
+
+// tag::statsUnnamedColumn-result[]
+AVG(salary):double
+48248.55
+// end::statsUnnamedColumn-result[]
+;
+
+docsStatsUnnamedColumnEval
+// tag::statsUnnamedColumnEval[]
+FROM employees
+| STATS AVG(salary)
+| EVAL avg_salary_rounded = ROUND(`AVG(salary)`)
+// end::statsUnnamedColumnEval[]
+;
+
+// tag::statsUnnamedColumnEval-result[]
+AVG(salary):double | avg_salary_rounded:double
+48248.55           | 48249.0
+// end::statsUnnamedColumnEval-result[]
 ;

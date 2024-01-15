@@ -78,7 +78,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         capacity();
 
         IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setStore(true).get();
-        long used = stats.getTotal().getStore().getSizeInBytes();
+        long used = stats.getTotal().getStore().sizeInBytes();
         long minShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).min().orElseThrow();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
         long enoughSpace = used + HIGH_WATERMARK_BYTES + 1;
@@ -274,14 +274,14 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         refresh();
 
         IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setStore(true).get();
-        long used = stats.getTotal().getStore().getSizeInBytes();
+        long used = stats.getTotal().getStore().sizeInBytes();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
 
         Map<String, Long> byNode = Arrays.stream(stats.getShards())
             .collect(
                 Collectors.groupingBy(
                     s -> s.getShardRouting().currentNodeId(),
-                    Collectors.summingLong(s -> s.getStats().getStore().getSizeInBytes())
+                    Collectors.summingLong(s -> s.getStats().getStore().sizeInBytes())
                 )
             );
 
@@ -427,7 +427,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         refresh();
 
         IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setStore(true).get();
-        long used = stats.getTotal().getStore().getSizeInBytes();
+        long used = stats.getTotal().getStore().sizeInBytes();
 
         long enoughSpace = used + HIGH_WATERMARK_BYTES + 1;
 

@@ -17,6 +17,6 @@ public class DeleteLicenseRequestBuilder extends AcknowledgedRequestBuilder<
     DeleteLicenseRequestBuilder> {
 
     public DeleteLicenseRequestBuilder(ElasticsearchClient client) {
-        super(client, DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest());
+        super(client, TransportDeleteLicenseAction.TYPE, new DeleteLicenseRequest());
     }
 }

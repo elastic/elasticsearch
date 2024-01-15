@@ -123,10 +123,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .setSettings(indexSettings(counts.getFailingIndexShards(), counts.getFailingIndexReplicas()))
         );
 
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> indicesAdmin().prepareCreate("should-fail").get()
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareCreate("should-fail"));
         verifyException(dataNodes, counts, e);
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertFalse(clusterState.getMetadata().hasIndex("should-fail"));

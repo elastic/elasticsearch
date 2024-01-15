@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
@@ -50,7 +51,7 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
     }
 
     @Override
-    public InferenceServiceResults parseResult(HttpResult result) throws RetryException {
+    public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
         try {
             return parseFunction.apply(result);
         } catch (Exception e) {

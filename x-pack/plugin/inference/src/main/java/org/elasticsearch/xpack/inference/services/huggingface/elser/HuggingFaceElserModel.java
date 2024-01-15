@@ -70,4 +70,9 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
     public SecureString getApiKey() {
         return getSecretSettings().apiKey();
     }
+
+    @Override
+    public Integer getTokenLimit() {
+        return getServiceSettings().maxInputTokens();
+    }
 }

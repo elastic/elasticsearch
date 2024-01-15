@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
@@ -28,7 +27,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -152,8 +150,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
             equalTo("for newer versions the index name is always returned")
         );
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
+
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));
         doSection = (DoSection) restTestSuite.getTestSections().get(1).getExecutableSections().get(0);
@@ -423,11 +420,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
         assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(false));
         assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getReason(), equalTo("not supported"));
-        assertThat(
-            restTestSuite.getTestSections().get(0).getSkipSection().getOperatingSystems(),
-            containsInAnyOrder("windows95", "debian-5")
-        );
-        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getFeatures(), containsInAnyOrder("skip_os"));
+        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().yamlRunnerHasFeature("skip_os"), equalTo(true));
     }
 
     public void testParseFileWithSingleTestSection() throws Exception {
@@ -660,7 +653,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        SkipSection skipSection = new SkipSection(null, singletonList("warnings"), emptyList(), null);
+        SkipSection skipSection = new SkipSection(emptyList(), singletonList("warnings"), null);
         createTestSuite(skipSection, doSection).validate();
     }
 
@@ -669,13 +662,13 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("foo")));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        SkipSection skipSection = new SkipSection(null, singletonList("warnings_regex"), emptyList(), null);
+        SkipSection skipSection = new SkipSection(emptyList(), singletonList("warnings_regex"), null);
         createTestSuite(skipSection, doSection).validate();
     }
 
     public void testAddingDoWithNodeSelectorWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), emptyList(), null);
+        SkipSection skipSection = new SkipSection(emptyList(), singletonList("node_selector"), null);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
         apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
@@ -685,7 +678,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingDoWithHeadersWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("headers"), emptyList(), null);
+        SkipSection skipSection = new SkipSection(emptyList(), singletonList("headers"), null);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCallSection = new ApiCallSection("test");
         apiCallSection.addHeaders(singletonMap("foo", "bar"));
@@ -695,7 +688,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingContainsWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("contains"), emptyList(), null);
+        SkipSection skipSection = new SkipSection(emptyList(), singletonList("contains"), null);
         ContainsAssertion containsAssertion = new ContainsAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),
@@ -706,7 +699,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingCloseToWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("close_to"), emptyList(), null);
+        SkipSection skipSection = new SkipSection(emptyList(), singletonList("close_to"), null);
         CloseToAssertion closeToAssertion = new CloseToAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),
@@ -718,7 +711,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingIsAfterWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("is_after"), emptyList(), null);
+        SkipSection skipSection = new SkipSection(emptyList(), singletonList("is_after"), null);
         IsAfterAssertion isAfterAssertion = new IsAfterAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),

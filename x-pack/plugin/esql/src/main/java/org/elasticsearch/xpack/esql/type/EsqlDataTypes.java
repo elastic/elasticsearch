@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 
 public final class EsqlDataTypes {
 
@@ -151,6 +152,18 @@ public final class EsqlDataTypes {
 
     public static boolean isTemporalAmount(DataType t) {
         return t == DATE_PERIOD || t == TIME_DURATION;
+    }
+
+    public static boolean isNullOrTemporalAmount(DataType t) {
+        return isTemporalAmount(t) || isNull(t);
+    }
+
+    public static boolean isNullOrDatePeriod(DataType t) {
+        return t == DATE_PERIOD || isNull(t);
+    }
+
+    public static boolean isNullOrTimeDuration(DataType t) {
+        return t == TIME_DURATION || isNull(t);
     }
 
     public static boolean isSpatial(DataType t) {

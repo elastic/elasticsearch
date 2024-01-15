@@ -8,23 +8,21 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class WarningsIT extends AbstractEsqlIntegTestCase {
 
-    public void testCollectWarnings() {
+    public void testCollectWarnings() throws Exception {
         final String node1, node2;
         if (randomBoolean()) {
             internalCluster().ensureAtLeastNumDataNodes(2);
@@ -64,19 +62,23 @@ public class WarningsIT extends AbstractEsqlIntegTestCase {
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.query("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100");
         request.pragmas(randomPragmas());
-        PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
-        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.runBefore(future, () -> {
-            var threadpool = internalCluster().getInstance(TransportService.class, coordinator.getName()).getThreadPool();
-            Map<String, List<String>> responseHeaders = threadpool.getThreadContext().getResponseHeaders();
-            List<String> warnings = responseHeaders.getOrDefault("Warning", List.of())
-                .stream()
-                .filter(w -> w.contains("is not an IP string literal"))
-                .toList();
-            int expectedWarnings = Math.min(20, numDocs1 + numDocs2);
-            // we cap the number of warnings per node
-            assertThat(warnings.size(), greaterThanOrEqualTo(expectedWarnings));
+        CountDownLatch latch = new CountDownLatch(1);
+        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
+            try {
+                var threadpool = internalCluster().getInstance(TransportService.class, coordinator.getName()).getThreadPool();
+                Map<String, List<String>> responseHeaders = threadpool.getThreadContext().getResponseHeaders();
+                List<String> warnings = responseHeaders.getOrDefault("Warning", List.of())
+                    .stream()
+                    .filter(w -> w.contains("is not an IP string literal"))
+                    .toList();
+                int expectedWarnings = Math.min(20, numDocs1 + numDocs2);
+                // we cap the number of warnings per node
+                assertThat(warnings.size(), greaterThanOrEqualTo(expectedWarnings));
+            } finally {
+                latch.countDown();
+            }
         }));
-        future.actionGet(30, TimeUnit.SECONDS).close();
+        latch.await(30, TimeUnit.SECONDS);
     }
 
     private DiscoveryNode randomDataNode() {

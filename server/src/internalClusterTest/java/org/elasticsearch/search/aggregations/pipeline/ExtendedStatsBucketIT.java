@@ -162,7 +162,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
                             .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                     )
                     .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum").sigma(-1.0))
-            ).get()
+            )
         );
         Throwable cause = ExceptionsHelper.unwrapCause(ex);
         if (cause == null) {

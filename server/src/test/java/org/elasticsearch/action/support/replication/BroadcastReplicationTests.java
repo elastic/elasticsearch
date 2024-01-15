@@ -305,7 +305,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     ) {
         PlainActionFuture<BaseBroadcastResponse> response = new PlainActionFuture<>();
         ActionTestUtils.execute(broadcastAction, null, request, response);
-        return response.actionGet("5s");
+        return response.actionGet(5, TimeUnit.SECONDS);
     }
 
     private void assertBroadcastResponse(int total, int successful, int failed, BaseBroadcastResponse response, Class<?> exceptionClass) {

@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.zstd.Zstd813StoredFieldsFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -44,6 +45,8 @@ public final class PerFieldMapperCodec extends Elasticsearch813Codec {
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
 
+    private final ES812PostingsFormat es812PostingsFormat;
+
     public PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super(compressionMode);
         // If the below assertion fails, it is a sign that Lucene released a new codec. You must create a copy of the current Elasticsearch
@@ -53,6 +56,7 @@ public final class PerFieldMapperCodec extends Elasticsearch813Codec {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
+        this.es812PostingsFormat = new ES812PostingsFormat();
     }
 
     @Override
@@ -68,7 +72,8 @@ public final class PerFieldMapperCodec extends Elasticsearch813Codec {
         if (format != null) {
             return format;
         }
-        return super.getPostingsFormatForField(field);
+        // return our own posting format using PFOR
+        return es812PostingsFormat;
     }
 
     boolean useBloomFilter(String field) {

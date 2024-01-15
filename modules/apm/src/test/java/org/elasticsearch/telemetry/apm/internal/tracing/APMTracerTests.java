@@ -22,13 +22,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.tracing.SpanId;
+import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -44,9 +45,9 @@ import static org.mockito.Mockito.mock;
 
 public class APMTracerTests extends ESTestCase {
 
-    private static final SpanId SPAN_ID1 = SpanId.forBareString("id1");
-    private static final SpanId SPAN_ID2 = SpanId.forBareString("id2");
-    private static final SpanId SPAN_ID3 = SpanId.forBareString("id3");
+    private static final Traceable TRACEABLE1 = new TestTraceable("id1");
+    private static final Traceable TRACEABLE2 = new TestTraceable("id2");
+    private static final Traceable TRACEABLE3 = new TestTraceable("id3");
 
     /**
      * Check that the tracer doesn't create spans when tracing is disabled.
@@ -55,7 +56,7 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), false).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name1", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -70,7 +71,7 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name1", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -82,10 +83,10 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name1", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
 
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
-        assertThat(apmTracer.getSpans(), hasKey(SPAN_ID1));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
     }
 
     /**
@@ -99,10 +100,10 @@ public class APMTracerTests extends ESTestCase {
         // 1_000_000L because of "toNanos" conversions that overflow for large long millis
         Instant spanStartTime = Instant.ofEpochMilli(randomLongBetween(0, Long.MAX_VALUE / 1_000_000L));
         threadContext.putTransient(Task.TRACE_START_TIME, spanStartTime);
-        apmTracer.startTrace(threadContext, SPAN_ID1, "name1", null);
+        apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
 
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
-        assertThat(apmTracer.getSpans(), hasKey(SPAN_ID1));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
         assertThat(((SpyAPMTracer) apmTracer).getSpanStartTime("name1"), is(spanStartTime));
     }
 
@@ -113,8 +114,8 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name1", null);
-        apmTracer.stopTrace(SPAN_ID1);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+        apmTracer.stopTrace(TRACEABLE1);
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -131,7 +132,7 @@ public class APMTracerTests extends ESTestCase {
         APMTracer apmTracer = buildTracer(settings);
 
         ThreadContext threadContext = new ThreadContext(settings);
-        apmTracer.startTrace(threadContext, SPAN_ID1, "name1", null);
+        apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
         assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
     }
 
@@ -152,13 +153,13 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name-aaa", null);
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID2, "name-bbb", null);
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID3, "name-ccc", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name-aaa", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE2, "name-bbb", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE3, "name-ccc", null);
 
-        assertThat(apmTracer.getSpans(), hasKey(SPAN_ID1));
-        assertThat(apmTracer.getSpans(), hasKey(SPAN_ID2));
-        assertThat(apmTracer.getSpans(), not(hasKey(SPAN_ID3)));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE2.getSpanId()));
+        assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE3.getSpanId())));
     }
 
     /**
@@ -175,7 +176,7 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name-aaa", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name-aaa", null);
 
         assertThat(apmTracer.getSpans(), not(hasKey("id1")));
     }
@@ -197,13 +198,13 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name-aaa", null);
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID2, "name-bbb", null);
-        apmTracer.startTrace(new ThreadContext(settings), SPAN_ID3, "name-ccc", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name-aaa", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE2, "name-bbb", null);
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE3, "name-ccc", null);
 
-        assertThat(apmTracer.getSpans(), not(hasKey(SPAN_ID1)));
-        assertThat(apmTracer.getSpans(), not(hasKey(SPAN_ID2)));
-        assertThat(apmTracer.getSpans(), hasKey(SPAN_ID3));
+        assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE1.getSpanId())));
+        assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE2.getSpanId())));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE3.getSpanId()));
     }
 
     /**
@@ -358,6 +359,19 @@ public class APMTracerTests extends ESTestCase {
                 spanStartTimeMap.put(spanName, startTime);
                 return delegatedSpanBuilder.startSpan();
             }
+        }
+    }
+
+    private static class TestTraceable implements Traceable {
+        private final String spanId;
+
+        TestTraceable(String spanId) {
+            this.spanId = Objects.requireNonNull(spanId);
+        }
+
+        @Override
+        public String getSpanId() {
+            return spanId;
         }
     }
 }

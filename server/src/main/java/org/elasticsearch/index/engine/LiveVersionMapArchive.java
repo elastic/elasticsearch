@@ -39,6 +39,27 @@ public interface LiveVersionMapArchive {
         return false;
     }
 
+    /**
+     * Returns the total memory usage if the Archive.
+     */
+    default long getMemoryBytesUsed() {
+        return 0L;
+    }
+
+    /**
+     * Returns how much memory could be freed up by creating a new commit and issuing a new unpromotable refresh.
+     */
+    default long getReclaimableMemoryBytes() {
+        return 0;
+    }
+
+    /**
+     * Returns how much memory will be freed once the current ongoing unpromotable refresh is finished.
+     */
+    default long getRefreshingMemoryBytes() {
+        return 0;
+    }
+
     LiveVersionMapArchive NOOP_ARCHIVE = new LiveVersionMapArchive() {
         @Override
         public void afterRefresh(LiveVersionMap.VersionLookup old) {}

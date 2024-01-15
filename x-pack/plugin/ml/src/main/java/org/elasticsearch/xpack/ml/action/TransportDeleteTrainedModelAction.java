@@ -41,9 +41,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -110,14 +110,8 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     ) {
         logger.debug(() -> format("[%s] Request to delete trained model%s", request.getId(), request.isForce() ? " (force)" : ""));
 
-        ActionListener<CancelTasksResponse> performDeletion = ActionListener.wrap(
-            ignored -> deleteModel(request, state, listener),
-            listener::onFailure
-        );
-
         String id = request.getId();
-
-        cancelDownloadTask(client, id, performDeletion, request.timeout());
+        cancelDownloadTask(client, id, listener.delegateFailureAndWrap((l, ignored) -> deleteModel(request, state, l)), request.timeout());
     }
 
     // package-private for testing
@@ -218,10 +212,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             if (request.isForce()) {
                 forceStopDeployment(
                     request.getId(),
-                    ActionListener.wrap(
-                        stopDeploymentResponse -> deleteAliasesAndModel(request, modelAliases, listener),
-                        listener::onFailure
-                    )
+                    listener.delegateFailureAndWrap((l, stopDeploymentResponse) -> deleteAliasesAndModel(request, modelAliases, l))
                 );
             } else {
                 listener.onFailure(
@@ -231,7 +222,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                         id
                     )
                 );
-                return;
             }
         } else {
             deleteAliasesAndModel(request, modelAliases, listener);
@@ -251,13 +241,11 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     ) {
         logger.debug(() -> "[" + request.getId() + "] Deleting model");
 
-        ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(
-            ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(r -> {
+        ActionListener<AcknowledgedResponse> nameDeletionListener = listener.delegateFailureAndWrap(
+            (delegate, ack) -> trainedModelProvider.deleteTrainedModel(request.getId(), delegate.delegateFailureAndWrap((l, r) -> {
                 auditor.info(request.getId(), "trained model deleted");
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            }, listener::onFailure)),
-
-            listener::onFailure
+                l.onResponse(AcknowledgedResponse.TRUE);
+            }))
         );
 
         // No reason to update cluster state, simply delete the model

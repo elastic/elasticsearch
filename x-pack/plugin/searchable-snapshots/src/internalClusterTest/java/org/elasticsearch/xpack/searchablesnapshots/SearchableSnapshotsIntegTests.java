@@ -498,7 +498,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         IndexStats indexStats = indicesStats.getIndex(indexName);
         Map<String, Long> maxShardSizeByNode = new HashMap<>();
         for (ShardStats shard : indexStats.getShards()) {
-            long sizeInBytes = shard.getStats().getStore().getSizeInBytes();
+            long sizeInBytes = shard.getStats().getStore().sizeInBytes();
             if (sizeInBytes > 0) {
                 maxShardSizeByNode.compute(
                     shard.getShardRouting().currentNodeId(),

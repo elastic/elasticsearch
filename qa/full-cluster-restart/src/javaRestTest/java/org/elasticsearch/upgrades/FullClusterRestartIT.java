@@ -605,7 +605,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      *  <li>Make sure the document count is correct
      * </ol>
      */
-    public void testRollover() throws IOException {
+    public void testRollover() throws Exception {
         if (isRunningAgainstOldCluster()) {
             client().performRequest(
                 newXContentRequest(
@@ -637,9 +637,11 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 )
             );
 
-            assertThat(
-                EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v")).getEntity()),
-                containsString("testrollover-000002")
+            assertBusy(
+                () -> assertThat(
+                    EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v")).getEntity()),
+                    containsString("testrollover-000002")
+                )
             );
         }
 

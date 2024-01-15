@@ -24,7 +24,9 @@ import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
+import static org.elasticsearch.common.settings.Setting.Property.DeprecatedWarning;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
@@ -32,6 +34,7 @@ import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic
  * This class is responsible for APM settings, both for Elasticsearch and the APM Java agent.
  * The methods could all be static, however they are not in order to make unit testing easier.
  */
+// FIXME Rename to APMSettings
 public class APMAgentSettings {
 
     private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
@@ -44,7 +47,7 @@ public class APMAgentSettings {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
 
-        clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
             this.setAgentSetting("instrument", Boolean.toString(enabled));
         });
@@ -54,9 +57,9 @@ public class APMAgentSettings {
             // minimise its impact to a running Elasticsearch.
             this.setAgentSetting("recording", Boolean.toString(enabled));
         });
-        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
-        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
-        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
         clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
     }
 
@@ -65,7 +68,7 @@ public class APMAgentSettings {
      * @param settings the settings to apply
      */
     public void syncAgentSystemProperties(Settings settings) {
-        this.setAgentSetting("recording", Boolean.toString(APM_ENABLED_SETTING.get(settings)));
+        this.setAgentSetting("recording", Boolean.toString(TELEMETRY_TRACING_ENABLED_SETTING.get(settings)));
         // Apply values from the settings in the cluster state
         APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
     }
@@ -90,8 +93,6 @@ public class APMAgentSettings {
             return null;
         });
     }
-
-    private static final String APM_SETTING_PREFIX = "tracing.apm.";
 
     /**
      * Allow-list of APM agent config keys users are permitted to configure.
@@ -220,6 +221,9 @@ public class APMAgentSettings {
         "span_stack_trace_min_duration"
     );
 
+    // TODO APM_AGENT_SETTINGS
+    private static final String APM_SETTING_PREFIX = "tracing.apm.";
+
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
         APM_SETTING_PREFIX + "agent.",
         (qualifiedKey) -> {
@@ -238,20 +242,41 @@ public class APMAgentSettings {
         }
     );
 
-    public static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
-        APM_SETTING_PREFIX + "names.include",
+    // TODO eventually remove deprecated setting
+    public static final Setting<List<String>> TRACING_APM_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
+        "tracing.apm.names.include",
+        OperatorDynamic,
+        NodeScope,
+        DeprecatedWarning
+    );
+
+    public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
+        "telemetry.tracing.names.include",
+        TRACING_APM_NAMES_INCLUDE_SETTING,
+        Function.identity(),
         OperatorDynamic,
         NodeScope
     );
 
-    public static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
-        APM_SETTING_PREFIX + "names.exclude",
+    // TODO eventually remove deprecated setting
+    public static final Setting<List<String>> TRACING_APM_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
+        "tracing.apm.names.exclude",
+        OperatorDynamic,
+        NodeScope,
+        DeprecatedWarning
+    );
+
+    public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING = Setting.listSetting(
+        "telemetry.tracing.names.exclude",
+        TRACING_APM_NAMES_EXCLUDE_SETTING,
+        Function.identity(),
         OperatorDynamic,
         NodeScope
     );
 
-    public static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
-        APM_SETTING_PREFIX + "sanitize_field_names",
+    // TODO eventually remove deprecated setting (after moving defaults to TELEMETRY_TRACING_SANITIZE_FIELD_NAMES)
+    public static final Setting<List<String>> TRACING_APM_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
+        "tracing.apm.sanitize_field_names",
         List.of(
             "password",
             "passwd",
@@ -267,12 +292,30 @@ public class APMAgentSettings {
             "set-cookie"
         ),
         OperatorDynamic,
+        NodeScope,
+        DeprecatedWarning
+    );
+
+    public static final Setting<List<String>> TELEMETRY_TRACING_SANITIZE_FIELD_NAMES = Setting.listSetting(
+        "telemetry.tracing.sanitize_field_names",
+        TRACING_APM_SANITIZE_FIELD_NAMES,
+        Function.identity(),
+        OperatorDynamic,
         NodeScope
     );
 
-    public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
-        APM_SETTING_PREFIX + "enabled",
+    // TODO eventually remove deprecated setting
+    public static final Setting<Boolean> TRACING_APM_ENABLED_SETTING = Setting.boolSetting(
+        "tracing.apm.enabled",
         false,
+        OperatorDynamic,
+        NodeScope,
+        DeprecatedWarning
+    );
+
+    public static final Setting<Boolean> TELEMETRY_TRACING_ENABLED_SETTING = Setting.boolSetting(
+        "telemetry.tracing.enabled",
+        TRACING_APM_ENABLED_SETTING,
         OperatorDynamic,
         NodeScope
     );
@@ -284,10 +327,27 @@ public class APMAgentSettings {
         NodeScope
     );
 
-    public static final Setting<SecureString> APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
-        APM_SETTING_PREFIX + "secret_token",
-        null
+    // TODO eventually remove deprecated setting
+    public static final Setting<SecureString> TRACING_APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
+        "tracing.apm.secret_token",
+        null,
+        DeprecatedWarning
     );
 
-    public static final Setting<SecureString> APM_API_KEY_SETTING = SecureSetting.secureString(APM_SETTING_PREFIX + "api_key", null);
+    public static final Setting<SecureString> TELEMETRY_SECRET_TOKEN_SETTING = SecureSetting.secureString(
+        "telemetry.secret_token",
+        TRACING_APM_SECRET_TOKEN_SETTING
+    );
+
+    // TODO eventually remove deprecated setting
+    public static final Setting<SecureString> TRACING_APM_API_KEY_SETTING = SecureSetting.secureString(
+        "tracing.apm.api_key",
+        null,
+        DeprecatedWarning
+    );
+
+    public static final Setting<SecureString> TELEMETRY_API_KEY_SETTING = SecureSetting.secureString(
+        "telemetry.api_key",
+        TRACING_APM_API_KEY_SETTING
+    );
 }

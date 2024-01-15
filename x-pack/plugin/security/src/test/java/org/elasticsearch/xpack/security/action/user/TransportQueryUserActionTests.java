@@ -15,12 +15,13 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportQueryUserActionTests extends ESTestCase {
-    private static final String[] allowedIndexFieldNames = new String[] { "username", "roles", "full_name", "email", "enabled" };
+    private static final String[] allowedIndexFieldNames = new String[] { "username", "roles", "enabled" };
 
     public void testTranslateFieldSortBuilders() {
         final List<String> fieldNames = List.of(allowedIndexFieldNames);
@@ -52,6 +53,19 @@ public class TransportQueryUserActionTests extends ESTestCase {
             () -> TransportQueryUserAction.translateFieldSortBuilders(List.of(fieldSortBuilder), SearchSourceBuilder.searchSource())
         );
         assertThat(e.getMessage(), equalTo("nested sorting is not supported for User query"));
+    }
+
+    public void testNestedSortingOnTextFieldsNotAllowed() {
+        String fieldName = randomFrom("full_name", "email");
+        final List<String> fieldNames = List.of(fieldName);
+        final List<FieldSortBuilder> originals = fieldNames.stream().map(this::randomFieldSortBuilderWithName).toList();
+        final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportQueryUserAction.translateFieldSortBuilders(originals, searchSourceBuilder)
+        );
+        assertThat(e.getMessage(), equalTo(String.format(Locale.ROOT, "sorting is not supported for field [%s] in User query", fieldName)));
     }
 
     private FieldSortBuilder randomFieldSortBuilderWithName(String name) {

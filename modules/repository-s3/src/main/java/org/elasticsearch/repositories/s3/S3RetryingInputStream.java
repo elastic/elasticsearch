@@ -102,8 +102,8 @@ class S3RetryingInputStream extends InputStream {
                     );
                 }
 
-                maybeRecordAndLogForRetry("opening", e);
-                maybeDelay();
+                final long delayInMillis = maybeLogAndComputeRetryDelay("opening", e);
+                delayBeforeRetry(delayInMillis);
             }
         }
     }
@@ -171,46 +171,47 @@ class S3RetryingInputStream extends InputStream {
     }
 
     private void reopenStreamOrFail(IOException e) throws IOException {
-        maybeRecordAndLogForRetry("reading", e);
+        final long delayInMillis = maybeLogAndComputeRetryDelay("reading", e);
         maybeAbort(currentStream);
         IOUtils.closeWhileHandlingException(currentStream);
 
-        maybeDelay();
+        delayBeforeRetry(delayInMillis);
         openStreamWithRetry();
     }
 
-    private <T extends Exception> void maybeRecordAndLogForRetry(String action, T e) throws T {
-        if (shouldRetry() == false) {
+    // The method throws if the operation should *not* be retried. Otherwise, it keeps a record for the attempt and associated failure
+    private <T extends Exception> long maybeLogAndComputeRetryDelay(String action, T e) throws T {
+        if (shouldRetry(attempt) == false) {
             final var finalException = addSuppressedExceptions(e);
-            logForRetry(Level.WARN, action, finalException);
+            logForFailure(action, finalException);
             throw finalException;
         }
 
-        attempt += 1;
         // Log at info level for the 1st retry and every ~5 minutes afterward
-        logForRetry((attempt == 2 || attempt % 30 == 0) ? Level.INFO : Level.DEBUG, action, e);
+        logForRetry((attempt == 1 || attempt % 30 == 0) ? Level.INFO : Level.DEBUG, action, e);
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);
         }
+        final long delayInMillis = getRetryDelayInMillis();
+        attempt += 1;
+        return delayInMillis;
+    }
+
+    private void logForFailure(String action, Exception e) {
+        logger.warn(
+            () -> format(
+                "failed %s [%s/%s] at offset [%s] with purpose [%s]",
+                action,
+                blobStore.bucket(),
+                blobKey,
+                start + currentOffset,
+                purpose.getKey()
+            ),
+            e
+        );
     }
 
     private void logForRetry(Level level, String action, Exception e) {
-        if (attempt == 1) {
-            logger.log(
-                level,
-                () -> format(
-                    "failed %s [%s/%s] at offset [%s] with purpose [%s]",
-                    action,
-                    blobStore.bucket(),
-                    blobKey,
-                    start + currentOffset,
-                    purpose.getKey()
-                ),
-                e
-            );
-            return;
-        }
-
         final long meaningfulProgressSize = Math.max(1L, blobStore.bufferSizeInBytes() / 100L);
         final long currentStreamProgress = Math.subtractExact(Math.addExact(start, currentOffset), currentStreamFirstOffset);
         if (currentStreamProgress >= meaningfulProgressSize) {
@@ -229,7 +230,7 @@ class S3RetryingInputStream extends InputStream {
                 blobKey,
                 start + currentOffset,
                 purpose.getKey(),
-                attempt - 1,
+                attempt,
                 currentStreamProgress,
                 failuresAfterMeaningfulProgress,
                 maxRetriesForNoMeaningfulProgress()
@@ -238,7 +239,7 @@ class S3RetryingInputStream extends InputStream {
         );
     }
 
-    private boolean shouldRetry() {
+    private boolean shouldRetry(int attempt) {
         if (purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
             return false;
         }
@@ -253,31 +254,20 @@ class S3RetryingInputStream extends InputStream {
         return purpose == OperationPurpose.INDICES ? Integer.MAX_VALUE : (blobStore.getMaxRetries() + 1);
     }
 
-    private void maybeDelay() {
-        final long delayInMillis = getRetryDelayInMillis();
-        if (delayInMillis > 0) {
-            try {
-                assert purpose == OperationPurpose.INDICES : "only retries for reading indices data should ever reach here";
-                Thread.sleep(delayInMillis);
-            } catch (InterruptedException e) {
-                logger.info("s3 input stream delay interrupted", e);
-                Thread.currentThread().interrupt();
-            }
+    private void delayBeforeRetry(long delayInMillis) {
+        try {
+            assert shouldRetry(attempt - 1) : "should not have retried";
+            Thread.sleep(delayInMillis);
+        } catch (InterruptedException e) {
+            logger.info("s3 input stream delay interrupted", e);
+            Thread.currentThread().interrupt();
         }
     }
 
     // protected access for testing
     protected long getRetryDelayInMillis() {
-        final long initialDelayInMillis = 10L;
-        final int maxAttempts = blobStore.getMaxRetries() + 1;
-        if (attempt > maxAttempts) {
-            // Cap max delay at 10 * 1024 millis, i.e. it retries every ~10 seconds at a minimum
-            return initialDelayInMillis << (Math.min(attempt - maxAttempts - 1, 10));
-        } else {
-            // No delay for initial retries within maxAttempts. This is to keep the existing behaviour
-            // that retries are immediate for resumed reads within configured maxAttempts
-            return 0;
-        }
+        // Initial delay is 10 ms and cap max delay at 10 * 1024 millis, i.e. it retries every ~10 seconds at a minimum
+        return 10L << (Math.min(attempt - 1, 10));
     }
 
     @Override

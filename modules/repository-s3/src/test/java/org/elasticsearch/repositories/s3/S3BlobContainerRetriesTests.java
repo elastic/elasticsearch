@@ -190,6 +190,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 return new AssertingInputStream(new S3RetryingInputStream(purpose, s3BlobStore, buildKey(blobName)) {
                     @Override
                     protected long getRetryDelayInMillis() {
+                        assert super.getRetryDelayInMillis() > 0;
                         return 0;
                     }
                 }, blobName);
@@ -210,6 +211,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     ) {
                         @Override
                         protected long getRetryDelayInMillis() {
+                            assert super.getRetryDelayInMillis() > 0;
                             return 0;
                         }
                     };
@@ -618,7 +620,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testReadWithIndicesPurposeRetriesForever() throws IOException {
         final int maxRetries = between(0, 5);
-        final int totalFailures = Math.max(10, maxRetries * between(5, 10));
+        final int totalFailures = Math.max(30, maxRetries * between(30, 80));
         final int bufferSizeBytes = scaledRandomIntBetween(
             0,
             randomFrom(1000, Math.toIntExact(S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY).getBytes()))

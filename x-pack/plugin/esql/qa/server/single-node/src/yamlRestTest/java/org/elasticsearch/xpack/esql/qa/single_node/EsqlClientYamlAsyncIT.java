@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * Run the ESQL yaml tests against the async esql endpoint with a 30 minute {@code wait_until_completion_timeout}.
@@ -40,11 +39,11 @@ public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
                 body.put("wait_for_completion_timeout", "30m");
             }
             doSection.setApiCallSection(copy);
-            return Stream.of(doSection);
+            return doSection;
         });
     }
 
-    public static Iterable<Object[]> parameters(Function<DoSection, Stream<ExecutableSection>> modify) throws Exception {
+    public static Iterable<Object[]> parameters(Function<DoSection, ExecutableSection> modify) throws Exception {
         List<Object[]> result = new ArrayList<>();
         for (Object[] orig : ESClientYamlSuiteTestCase.createParameters()) {
             assert orig.length == 1;
@@ -54,7 +53,7 @@ public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
                     candidate.getTestSection().getLocation(),
                     candidate.getTestSection().getName(),
                     candidate.getTestSection().getSkipSection(),
-                    candidate.getTestSection().getExecutableSections().stream().flatMap(e -> modifyExecutableSection(e, modify)).toList()
+                    candidate.getTestSection().getExecutableSections().stream().map(e -> modifyExecutableSection(e, modify)).toList()
                 );
                 result.add(new Object[] { new ClientYamlTestCandidate(candidate.getRestTestSuite(), modified) });
             } catch (IllegalArgumentException e) {
@@ -64,12 +63,9 @@ public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
         return result;
     }
 
-    private static Stream<ExecutableSection> modifyExecutableSection(
-        ExecutableSection e,
-        Function<DoSection, Stream<ExecutableSection>> modify
-    ) {
+    private static ExecutableSection modifyExecutableSection(ExecutableSection e, Function<DoSection, ExecutableSection> modify) {
         if (false == (e instanceof DoSection)) {
-            return Stream.of(e);
+            return e;
         }
         DoSection doSection = (DoSection) e;
         String api = doSection.getApiCallSection().getApi();
@@ -78,7 +74,7 @@ public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
             case "esql.async_query", "esql.async_query_get" -> throw new IllegalArgumentException(
                 "The esql yaml tests can't contain async_query or async_query_get because we modify them on the fly and *add* those."
             );
-            default -> Stream.of(e);
+            default -> e;
         };
     }
 }

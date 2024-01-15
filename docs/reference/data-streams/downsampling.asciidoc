@@ -151,12 +151,13 @@ buckets.
 affected, in case downsampling aggregates values per day. In this case, the
 beginning of each day is always calculated at UTC when generated the downsampled
 values, so the time buckets need to be shifted, e.g. reported as
-`2020-01-01T19:00:00.000` instead of `2020-03-07T00:00:00.000`. The field
-`downsampled_results_offset: true` is added in this case too.
+`2020-03-07T19:00:00.000` instead of `2020-03-07T00:00:00.000` for timezone `America/New_York`.
+The field `downsampled_results_offset: true` is added in this case too.
 
 ** Daylight savings and similar peculiarities around timezones affect
 reported results, as <<datehistogram-aggregation-time-zone,documented>>
-for date histogram aggregation.
+for date histogram aggregation. Besides, downsampling at daily interval
+hinders tracking any information related to daylight savings changes.
 
 [discrete]
 [[downsampling-restrictions]]

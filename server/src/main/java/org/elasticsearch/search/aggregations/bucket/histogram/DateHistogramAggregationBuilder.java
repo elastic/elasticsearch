@@ -429,6 +429,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             // the difference between UTC (where stored data refers to) and the requested timezone. For instance:
             // a. A TZ shifted by -01:15 over hourly downsampled data will lead to buckets with times XX:45, instead of XX:00
             // b. A TZ shifted by +07:00 over daily downsampled data will lead to buckets with times 07:00, instead of 00:00
+            // c. Intervals over DST are approximate, not including gaps in time buckets. This applies to date histogram aggregation in general.
             if (tz != null && ZoneId.of("UTC").equals(tz) == false && field().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)) {
 
                 // Get the downsampling interval.
@@ -438,6 +439,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
                 // If the aggregation resolution is not a multiple of the downsampling resolution, the reported time for each
                 // bucket needs to be shifted by the mod - in addition to rounding that's applied as usual.
+                // Note that the aggregation resolution gets shifted to match the specified timezone. Timezone.getOffset() normally expects
+                // a date but it can also process an offset (interval) in milliseconds as it uses the Unix epoch for reference.
                 long aggregationOffset = SimpleTimeZone.getTimeZone(tz).getOffset(aggregationResolution) % downsamplingResolution;
                 if (aggregationOffset != 0) {
                     downsampledResultsOffset = true;

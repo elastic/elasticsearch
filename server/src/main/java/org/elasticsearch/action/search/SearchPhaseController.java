@@ -360,7 +360,7 @@ public final class SearchPhaseController {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray
     ) {
         if (reducedQueryPhase.isEmptyResult) {
-            return new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1);
+            return SearchResponseSections.EMPTY_WITH_TOTAL_HITS;
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         var fetchResults = fetchResultsArray.asList();
@@ -465,7 +465,7 @@ public final class SearchPhaseController {
             }
         }
         return new SearchHits(
-            hits.toArray(new SearchHit[0]),
+            hits.toArray(SearchHits.EMPTY),
             reducedQueryPhase.totalHits,
             reducedQueryPhase.maxScore,
             sortedTopDocs.sortFields,

@@ -476,10 +476,18 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     /**
-     * Returns how much RAM would be freed up by refreshing. This is the RAM usage of the current version map. It doesn't include tombstones
-     * since they don't get cleared on refresh, nor the old version map that is being reclaimed.
+     * Returns how much RAM is used by refresh. This is the RAM usage of the current and old version maps.
      */
     long ramBytesUsedForRefresh() {
+        return maps.ramBytesUsed();
+    }
+
+    /**
+     * Returns how much RAM could be reclaimed from the version map. This is the RAM usage of the current version map, and could be
+     * reclaimed by refreshing. It doesn't include tombstones since they don't get cleared on refresh, nor the old version map that
+     * is being reclaimed.
+     */
+    long reclaimableRefreshRamBytes() {
         return maps.current.ramBytesUsed.get();
     }
 

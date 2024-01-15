@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file has been contributed to by a Generative AI
  */
 
 package org.elasticsearch.xpack.inference;
@@ -18,6 +20,30 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InferenceCrudIT extends InferenceBaseRestTest {
+
+    public void testElserCrud() throws IOException {
+
+        String elserConfig = """
+            {
+              "service": "elser",
+              "service_settings": {
+                "num_allocations": 1,
+                "num_threads": 1
+              },
+              "task_settings": {}
+            }
+            """;
+
+        // ELSER not downloaded case
+        {
+            String modelId = randomAlphaOfLength(10).toLowerCase();
+            expectThrows(ResponseException.class, () -> putModel(modelId, elserConfig, TaskType.SPARSE_EMBEDDING));
+        }
+
+        // Happy Case
+        // We choose not to test the case where ELSER is downloaded to avoid causing excessive network traffic.
+        // This test case will be tested separately outside of CI
+    }
 
     @SuppressWarnings("unchecked")
     public void testGet() throws IOException {

@@ -111,8 +111,8 @@ public class AuthenticationService {
             operatorPrivilegesService,
             anonymousUser,
             new AuthenticationContextSerializer(),
-            new ServiceAccountAuthenticator(serviceAccountService, nodeName),
-            new OAuth2TokenAuthenticator(tokenService),
+            new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
+            new OAuth2TokenAuthenticator(tokenService, meterRegistry),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
             new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
         );

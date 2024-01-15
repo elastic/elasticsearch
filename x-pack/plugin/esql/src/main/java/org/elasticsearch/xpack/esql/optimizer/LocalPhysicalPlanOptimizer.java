@@ -70,7 +70,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -442,23 +441,25 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
             PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
                 if (exec instanceof AggregateExec agg) {
-                    var unchangedAggregates = new ArrayList<NamedExpression>();
-                    var changedAggregates = new ArrayList<NamedExpression>();
+                    var orderedAggregates = new ArrayList<NamedExpression>();
+                    var changedAggregates = false;
                     for (NamedExpression aggExpr : agg.aggregates()) {
                         if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
                             // Firstly we tell the aggregation function that is should expect doc-values instead of source values
-                            changedAggregates.add(as.replaceChild(af.withDocValues()));
+                            var changed = as.replaceChild(af.withDocValues());
+                            changedAggregates = true;
                             if (af.field() instanceof Attribute fieldAttribute) {
                                 foundAttribute.set(fieldAttribute);
                             } else {
                                 throw new RuntimeException("Expected field attribute, got " + af.field());
                             }
+                            orderedAggregates.add(changed);
                         } else {
-                            unchangedAggregates.add(aggExpr);
+                            orderedAggregates.add(aggExpr);
                         }
                     }
-                    if (changedAggregates.isEmpty() == false) {
-                        exec = agg.replaceAggregates(Stream.concat(unchangedAggregates.stream(), changedAggregates.stream()).toList());
+                    if (changedAggregates) {
+                        exec = agg.replaceAggregates(orderedAggregates);
                     }
                 }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {

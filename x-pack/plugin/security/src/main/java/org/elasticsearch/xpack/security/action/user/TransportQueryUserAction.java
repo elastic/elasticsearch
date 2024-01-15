@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.support.UserBoolQueryBuilder;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
@@ -78,7 +79,7 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
                 final String translatedFieldName = USER_FIELD_NAME_TRANSLATOR.translate(fieldSortBuilder.getFieldName());
                 if (TEXT_TYPE_INDEX_FIELD_NAMES.contains(translatedFieldName)) {
                     throw new IllegalArgumentException(
-                        String.format("sorting is not supported for field [%s] in User query", fieldSortBuilder.getFieldName())
+                        String.format(Locale.ROOT, "sorting is not supported for field [%s] in User query", fieldSortBuilder.getFieldName())
                     );
                 }
 

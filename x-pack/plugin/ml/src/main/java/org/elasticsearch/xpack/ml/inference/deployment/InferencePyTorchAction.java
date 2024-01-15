@@ -22,7 +22,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
@@ -123,7 +122,13 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             assert config instanceof NlpConfig;
             NlpConfig nlpConfig = (NlpConfig) config;
             NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
-                .buildRequest(inputs, requestIdStr, Tokenization.Truncate.NONE, 32);
+                .buildRequest(
+                    inputs,
+                    requestIdStr,
+                    nlpConfig.getTokenization().getTruncate(),
+                    nlpConfig.getTokenization().getSpan(),
+                    nlpConfig.getTokenization().maxSequenceLength()
+                );
             logger.debug(() -> format("handling request [%s]", requestIdStr));
 
             // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process

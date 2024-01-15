@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -31,6 +33,8 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
 
     public static final ChunkedInferenceAction INSTANCE = new ChunkedInferenceAction();
     public static final String NAME = "cluster:internal/xpack/ml/chunkedinference";
+
+    public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
     static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, ChunkedInferenceAction.Request.Builder::new);
     static {
@@ -54,22 +58,33 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
     public static class Request extends ActionRequest {
         private final String modelId;
         private final List<String> inputs;
-        private final int windowSize;
-        private final int span;
+        private final Integer windowSize;
+        private final Integer span;
+        private final TimeValue timeout;
 
-        public Request(String modelId, List<String> inputs, int windowSize, int span) {
+        public Request(String modelId, List<String> inputs, @Nullable Integer windowSize, @Nullable Integer span) {
             this.modelId = modelId;
             this.inputs = inputs;
             this.windowSize = windowSize;
             this.span = span;
+            this.timeout = DEFAULT_TIMEOUT;
+        }
+
+        public Request(String modelId, List<String> inputs, @Nullable Integer windowSize, @Nullable Integer span, TimeValue timeout) {
+            this.modelId = modelId;
+            this.inputs = inputs;
+            this.windowSize = windowSize;
+            this.span = span;
+            this.timeout = timeout;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.modelId = in.readString();
             this.inputs = in.readStringCollectionAsList();
-            this.windowSize = in.readVInt();
-            this.span = in.readVInt();
+            this.windowSize = in.readOptionalVInt();
+            this.span = in.readOptionalVInt();
+            this.timeout = in.readTimeValue();
         }
 
         @Override
@@ -77,19 +92,29 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
             super.writeTo(out);
             out.writeString(modelId);
             out.writeStringCollection(inputs);
-            out.writeVInt(windowSize);
-            out.writeVInt(span);
+            out.writeOptionalVInt(windowSize);
+            out.writeOptionalVInt(span);
+            out.writeTimeValue(timeout);
+        }
+
+        public boolean containsWindowOptions() {
+            return span != null || windowSize != null;
         }
 
         @Override
         public ActionRequestValidationException validate() {
+            if (windowSize == null || span == null) {
+                // need both field for validation
+                return null;
+            }
+
             var failedValidation = new ActionRequestValidationException();
 
             if (span <= 0 || windowSize <= 0) {
                 failedValidation.addValidationError("window size and overlap must both be greater than 0");
             }
             if (span >= windowSize) {
-                failedValidation.addValidationError("overlap must be less than window size");
+                failedValidation.addValidationError("span must be less than window size");
             }
 
             return failedValidation.validationErrors().isEmpty() ? null : failedValidation;
@@ -99,8 +124,12 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
             return modelId;
         }
 
-        public int getSpan() {
+        public Integer getSpan() {
             return span;
+        }
+
+        public Integer getWindowSize() {
+            return windowSize;
         }
 
         public List<String> getInputs() {
@@ -112,20 +141,24 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return windowSize == request.windowSize && span == request.span && Objects.equals(modelId, request.modelId);
+            return span == request.span
+                && Objects.equals(modelId, request.modelId)
+                && Objects.equals(inputs, request.inputs)
+                && Objects.equals(windowSize, request.windowSize)
+                && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, windowSize, span);
+            return Objects.hash(modelId, windowSize, span, inputs, timeout);
         }
 
         public static class Builder {
 
             private String id;
             private List<String> inputs;
-            private int span = 128;
-            private int windowSize = 512;
+            private Integer span = null;
+            private Integer windowSize = null;
 
             public Builder setId(String id) {
                 this.id = id;

@@ -32,7 +32,7 @@ public class TextEmbeddingProcessorTests extends ESTestCase {
             var pytorchResult = new PyTorchInferenceResult(new double[][][] { { { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 } } });
 
             var input = "Elasticsearch darts champion";
-            var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0);
+            var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TextExpansionProcessorTests.TEST_CASED_VOCAB, tokenization, 0);
             var inferenceResult = TextEmbeddingProcessor.processResult(tokenizationResult, pytorchResult, "foo", false);
             assertThat(inferenceResult, instanceOf(TextEmbeddingResults.class));
@@ -54,7 +54,7 @@ public class TextEmbeddingProcessorTests extends ESTestCase {
             );
 
             var input = "Elasticsearch darts champion little red is fun car";
-            var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0);
+            var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TextExpansionProcessorTests.TEST_CASED_VOCAB, tokenization, 0);
             var inferenceResult = TextEmbeddingProcessor.processResult(tokenizationResult, pytorchResult, "foo", true);
             assertThat(inferenceResult, instanceOf(ChunkedTextEmbeddingResults.class));

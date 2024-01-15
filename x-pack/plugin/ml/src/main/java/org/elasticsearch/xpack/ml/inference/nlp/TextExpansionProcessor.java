@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -26,8 +24,6 @@ import java.util.Optional;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 public class TextExpansionProcessor extends NlpTask.Processor {
-
-    private static final Logger logger = LogManager.getLogger(TextExpansionProcessor.class);
 
     private final NlpTask.RequestBuilder requestBuilder;
     private Map<Integer, String> replacementVocab;
@@ -78,13 +74,6 @@ public class TextExpansionProcessor extends NlpTask.Processor {
     ) {
         if (chunkResults) {
             var chunkedResults = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
-
-            logger.info(
-                "result dims: {}, {}, {}",
-                pyTorchResult.getInferenceResult().length,
-                pyTorchResult.getInferenceResult()[0].length,
-                pyTorchResult.getInferenceResult()[0][0].length
-            );
 
             for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {
                 int startOffset = tokenization.getTokenization(i).tokens().get(0).get(0).startOffset();

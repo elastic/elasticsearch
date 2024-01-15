@@ -133,7 +133,7 @@ public class TextExpansionProcessorTests extends ESTestCase {
             );
 
             var input = "Elasticsearch darts champion little red is fun car";
-            var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0);
+            var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TEST_CASED_VOCAB, tokenization, 0);
             var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true);
             assertThat(inferenceResult, instanceOf(ChunkedTextExpansionResults.class));

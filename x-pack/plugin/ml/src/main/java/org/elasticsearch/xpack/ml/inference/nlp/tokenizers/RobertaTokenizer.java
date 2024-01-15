@@ -131,10 +131,10 @@ public class RobertaTokenizer extends NlpTokenizer {
 
     @Override
     public NlpTask.RequestBuilder requestBuilder() {
-        return (inputs, requestId, truncate, span) -> buildTokenizationResult(
+        return (inputs, requestId, truncate, span, windowSize) -> buildTokenizationResult(
             IntStream.range(0, inputs.size())
                 .boxed()
-                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId).stream())
+                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId, windowSize).stream())
                 .collect(Collectors.toList())
         ).buildRequest(requestId, truncate);
     }

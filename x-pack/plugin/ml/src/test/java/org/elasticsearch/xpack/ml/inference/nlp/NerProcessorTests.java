@@ -98,7 +98,7 @@ public class NerProcessorTests extends ESTestCase {
             ).build()
         ) {
             TokenizationResult tokenization = tokenizer.buildTokenizationResult(
-                List.of(tokenizer.tokenize("Many use Elasticsearch in London", Tokenization.Truncate.NONE, -1, 1).get(0))
+                List.of(tokenizer.tokenize("Many use Elasticsearch in London", Tokenization.Truncate.NONE, -1, 1, null).get(0))
             );
 
             double[][][] scores = {
@@ -370,7 +370,7 @@ public class NerProcessorTests extends ESTestCase {
                 .setWithSpecialTokens(false)
                 .build()
         ) {
-            return tokenizer.buildTokenizationResult(tokenizer.tokenize(input, Tokenization.Truncate.NONE, -1, 0));
+            return tokenizer.buildTokenizationResult(tokenizer.tokenize(input, Tokenization.Truncate.NONE, -1, 0, null));
         }
     }
 }

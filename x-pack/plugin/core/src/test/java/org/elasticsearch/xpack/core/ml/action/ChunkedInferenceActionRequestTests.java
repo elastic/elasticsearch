@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -23,8 +24,9 @@ public class ChunkedInferenceActionRequestTests extends AbstractWireSerializingT
         return new ChunkedInferenceAction.Request(
             randomAlphaOfLength(5),
             randomList(1, 5, () -> randomAlphaOfLength(6)),
-            randomIntBetween(10, 20),
-            randomIntBetween(1, 10)
+            randomBoolean() ? null : randomIntBetween(10, 20),
+            randomBoolean() ? null : randomIntBetween(1, 10),
+            TimeValue.timeValueSeconds(randomIntBetween(0, 60))
         );
     }
 

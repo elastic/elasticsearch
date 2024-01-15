@@ -21,8 +21,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.ChunkedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 
 import java.util.List;
 
@@ -67,16 +69,21 @@ public class TransportChunkedInferenceAction extends HandledTransportAction<
     }
 
     static InferModelAction.Request translateRequest(ChunkedInferenceAction.Request request) {
-        var localModelRequest = InferModelAction.Request.forTextInput(
+        var configUpdate = request.containsWindowOptions()
+            ? new TokenizationConfigUpdate(request.getWindowSize(), request.getSpan())
+            : EmptyConfigUpdate.INSTANCE;
+        var inferModelRequest = InferModelAction.Request.forTextInput(
             request.getModelId(),
-            EmptyConfigUpdate.INSTANCE,
+            configUpdate,
             request.getInputs(),
             true,
             TimeValue.timeValueSeconds(10)
         );
-        // inferModelRequest.setPrefixType(request.getPrefixType());
-        // inferModelRequest.setHighPriority(request.getHighPriority());
-        return localModelRequest;
+        // The chunked action is only used at ingest
+        inferModelRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
+        inferModelRequest.setHighPriority(false);
+        inferModelRequest.setChunkResults(true);
+        return inferModelRequest;
     }
 
     static void handleResponse(ActionListener<ChunkedInferenceAction.Response> listener, InferModelAction.Response response) {

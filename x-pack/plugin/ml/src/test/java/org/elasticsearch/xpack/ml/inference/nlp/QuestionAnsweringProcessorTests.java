@@ -80,7 +80,7 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
         QuestionAnsweringConfig config = new QuestionAnsweringConfig(question, 1, 10, new VocabularyConfig(""), tokenization, "prediction");
         QuestionAnsweringProcessor processor = new QuestionAnsweringProcessor(tokenizer);
         TokenizationResult tokenizationResult = processor.getRequestBuilder(config)
-            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128)
+            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128, null)
             .tokenization();
         assertThat(tokenizationResult.anyTruncated(), is(false));
         assertThat(tokenizationResult.getTokenization(0).tokenIds().length, equalTo(END_TOKEN_SCORES.length));
@@ -189,7 +189,7 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
         );
         QuestionAnsweringProcessor processor = new QuestionAnsweringProcessor(tokenizer);
         TokenizationResult tokenizationResult = processor.getRequestBuilder(config)
-            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, span)
+            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, span, null)
             .tokenization();
         assertThat(tokenizationResult.anyTruncated(), is(false));
 

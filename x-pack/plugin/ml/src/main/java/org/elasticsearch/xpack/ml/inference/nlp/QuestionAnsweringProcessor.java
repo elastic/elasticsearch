@@ -66,8 +66,13 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
     record RequestBuilder(NlpTokenizer tokenizer, String question) implements NlpTask.RequestBuilder {
 
         @Override
-        public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span)
-            throws IOException {
+        public NlpTask.Request buildRequest(
+            List<String> inputs,
+            String requestId,
+            Tokenization.Truncate truncate,
+            int span,
+            Integer windowSize
+        ) throws IOException {
             if (inputs.size() > 1) {
                 throw ExceptionsHelper.badRequestException("Unable to do question answering on more than one text input at a time");
             }

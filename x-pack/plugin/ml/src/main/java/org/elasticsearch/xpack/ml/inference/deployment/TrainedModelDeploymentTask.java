@@ -173,7 +173,17 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             return;
         }
         var updatedConfig = update.isEmpty() ? inferenceConfigHolder.get() : inferenceConfigHolder.get().apply(update);
-        trainedModelAssignmentNodeService.infer(this, updatedConfig, input, skipQueue, timeout, prefixType, parentActionTask, chunkResponse, listener);
+        trainedModelAssignmentNodeService.infer(
+            this,
+            updatedConfig,
+            input,
+            skipQueue,
+            timeout,
+            prefixType,
+            parentActionTask,
+            chunkResponse,
+            listener
+        );
     }
 
     public Optional<ModelStats> modelStats() {

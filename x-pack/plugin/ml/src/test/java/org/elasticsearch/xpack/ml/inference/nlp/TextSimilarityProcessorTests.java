@@ -43,7 +43,7 @@ public class TextSimilarityProcessorTests extends ESTestCase {
         );
         TextSimilarityProcessor processor = new TextSimilarityProcessor(tokenizer);
         TokenizationResult tokenizationResult = processor.getRequestBuilder(textSimilarityConfig)
-            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128)
+            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128, null)
             .tokenization();
         assertThat(tokenizationResult.anyTruncated(), is(false));
         assertThat(tokenizationResult.getTokenization(0).tokenIds().length, equalTo(19));

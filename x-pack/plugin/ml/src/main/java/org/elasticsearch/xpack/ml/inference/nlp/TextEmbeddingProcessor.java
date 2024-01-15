@@ -69,7 +69,11 @@ public class TextEmbeddingProcessor extends NlpTask.Processor {
 
                 embeddings.add(new ChunkedTextEmbeddingResults.EmbeddingChunk(matchedText, pyTorchResult.getInferenceResult()[0][i]));
             }
-            return new ChunkedTextEmbeddingResults(resultsField, embeddings, tokenization.anyTruncated());
+            return new ChunkedTextEmbeddingResults(
+                Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
+                embeddings,
+                tokenization.anyTruncated()
+            );
         } else {
             return new TextEmbeddingResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),

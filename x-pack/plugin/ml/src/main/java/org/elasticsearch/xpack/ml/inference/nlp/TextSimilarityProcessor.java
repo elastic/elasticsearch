@@ -63,8 +63,13 @@ public class TextSimilarityProcessor extends NlpTask.Processor {
     record RequestBuilder(NlpTokenizer tokenizer, String sequence) implements NlpTask.RequestBuilder {
 
         @Override
-        public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span)
-            throws IOException {
+        public NlpTask.Request buildRequest(
+            List<String> inputs,
+            String requestId,
+            Tokenization.Truncate truncate,
+            int span,
+            Integer windowSize
+        ) throws IOException {
             if (inputs.size() > 1) {
                 throw ExceptionsHelper.badRequestException("Unable to do text_similarity on more than one text input at a time");
             }

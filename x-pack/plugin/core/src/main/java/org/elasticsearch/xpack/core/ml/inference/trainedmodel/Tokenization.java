@@ -72,7 +72,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     public static final ParseField TRUNCATE = new ParseField("truncate");
     public static final ParseField SPAN = new ParseField("span");
 
-    private static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
+    public static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
     private static final boolean DEFAULT_DO_LOWER_CASE = false;
     private static final boolean DEFAULT_WITH_SPECIAL_TOKENS = true;
     private static final Truncate DEFAULT_TRUNCATION = Truncate.FIRST;

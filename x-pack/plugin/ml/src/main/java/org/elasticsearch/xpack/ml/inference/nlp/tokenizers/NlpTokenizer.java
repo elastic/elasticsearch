@@ -54,35 +54,48 @@ public abstract class NlpTokenizer implements Releasable {
      * each input string grouped into a {@link Tokenization}.
      *
      * @param seq Text to tokenize
+     * @param truncate
+     * @param span
+     * @param sequenceId
+     * @param windowSize
      * @return A list of {@link Tokenization}
      */
-    public List<TokenizationResult.Tokens> tokenize(String seq, Tokenization.Truncate truncate, int span, int sequenceId) {
+    public List<TokenizationResult.Tokens> tokenize(
+        String seq,
+        Tokenization.Truncate truncate,
+        int span,
+        int sequenceId,
+        Integer windowSize
+    ) {
+        if (windowSize == null) {
+            windowSize = maxSequenceLength();
+        }
         var innerResult = innerTokenize(seq);
         List<? extends DelimitedToken.Encoded> tokenIds = innerResult.tokens();
         List<Integer> tokenPositionMap = innerResult.tokenPositionMap();
         int numTokens = isWithSpecialTokens() ? tokenIds.size() + 2 : tokenIds.size();
         boolean isTruncated = false;
 
-        if (numTokens > maxSequenceLength()) {
+        if (numTokens > windowSize) {
             switch (truncate) {
                 case FIRST, SECOND -> {
                     isTruncated = true;
-                    tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength());
-                    tokenPositionMap = tokenPositionMap.subList(0, isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength());
+                    tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? windowSize - 2 : windowSize);
+                    tokenPositionMap = tokenPositionMap.subList(0, isWithSpecialTokens() ? windowSize - 2 : windowSize);
                 }
                 case NONE -> {
                     if (span == -1) {
                         throw ExceptionsHelper.badRequestException(
                             "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
                             numTokens,
-                            maxSequenceLength()
+                            windowSize
                         );
                     }
                 }
             }
         }
 
-        if (numTokens <= maxSequenceLength() || span == -1) {
+        if (numTokens <= windowSize || span == -1) {
             return List.of(
                 createTokensBuilder(clsTokenId(), sepTokenId(), isWithSpecialTokens()).addSequence(
                     tokenIds.stream().map(DelimitedToken.Encoded::getEncoding).collect(Collectors.toList()),
@@ -96,10 +109,7 @@ public abstract class NlpTokenizer implements Releasable {
         int splitStartPos = 0;
         int spanPrev = -1;
         while (splitEndPos < tokenIds.size()) {
-            splitEndPos = Math.min(
-                splitStartPos + (isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength()),
-                tokenIds.size()
-            );
+            splitEndPos = Math.min(splitStartPos + (isWithSpecialTokens() ? windowSize - 2 : windowSize), tokenIds.size());
             // Make sure we do not end on a word
             if (splitEndPos != tokenIds.size()) {
                 while (splitEndPos > splitStartPos + 1

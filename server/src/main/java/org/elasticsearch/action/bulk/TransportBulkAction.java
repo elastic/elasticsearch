@@ -904,13 +904,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 Object fieldValue = docMap.get(inferenceField);
 
                 // Perform inference on string, non-null values
-                if (fieldValue instanceof String fieldStringValue) {
-
-                    // Only do inference if the previous text value doesn't match the new one
-                    String previousValue = findMapValue(docMap, ROOT_RESULT_FIELD, inferenceField, TEXT_FIELD);
-                    if (fieldStringValue.equals(previousValue) == false) {
-                        inferenceFieldNames.add(inferenceField);
-                    }
+                if (fieldValue instanceof String) {
+                    inferenceFieldNames.add(inferenceField);
                 }
             }
             return inferenceFieldNames;

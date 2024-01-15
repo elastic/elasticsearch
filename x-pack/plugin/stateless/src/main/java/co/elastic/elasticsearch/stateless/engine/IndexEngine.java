@@ -369,6 +369,14 @@ public class IndexEngine extends InternalEngine {
             statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener);
         }
     }
+
+    @Override
+    protected void reclaimVersionMapMemory() {
+        // For Stateless LVM, we need to refresh AND flush as a refresh by itself doesn't decrease the memory usage of the version map.
+        refresh("write indexing buffer", SearcherScope.INTERNAL, false);
+        flush(false, false, ActionListener.noop());
+    }
+
     // package private for testing
 
     RefreshThrottler getRefreshThrottler() {

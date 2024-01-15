@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive;
 
@@ -33,9 +35,12 @@ import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -482,5 +487,29 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
             var sizeAfterUnpromotableRefresh = statsAfterUnpromotableRefresh.getTotal().getSegments().getVersionMapMemoryInBytes();
             assertEquals(sizeAfterUnpromotableRefresh, sizeBeforeIndexing, sizeBeforeIndexing);
         });
+    }
+
+    public void testLiveVersionMapMemoryUsageTriggersFlush() throws Exception {
+        var indexNode = startMasterAndIndexNode(
+            Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(1)).build()
+        );
+        startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        // Enforce safe access mode
+        client().prepareIndex(indexName).setId("non-existing").setSource("field1", randomUnicodeOfLength(10)).get();
+        var sentNewCommitNotificationsForIndex = new AtomicInteger();
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.startsWith(TransportNewCommitNotificationAction.NAME)) {
+                final var newNotificationRequest = (NewCommitNotificationRequest) request;
+                if (newNotificationRequest.getCompoundCommit().shardId().getIndexName().equals(indexName)) {
+                    sentNewCommitNotificationsForIndex.incrementAndGet();
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        indexDocs(indexName, 100);
+        assertBusy(() -> assertThat(sentNewCommitNotificationsForIndex.get(), greaterThan(0)));
     }
 }

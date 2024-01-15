@@ -69,9 +69,11 @@ public class RestSearchAction extends BaseRestHandler {
     public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM, INCLUDE_NAMED_QUERIES_SCORE_PARAM);
 
     private final SearchUsageHolder searchUsageHolder;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public RestSearchAction(SearchUsageHolder searchUsageHolder) {
+    public RestSearchAction(SearchUsageHolder searchUsageHolder, NamedWriteableRegistry namedWriteableRegistry) {
         this.searchUsageHolder = searchUsageHolder;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -114,7 +116,7 @@ public class RestSearchAction extends BaseRestHandler {
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize, searchUsageHolder)
+            parser -> parseSearchRequest(searchRequest, request, parser, namedWriteableRegistry, setSize, searchUsageHolder)
         );
 
         return channel -> {

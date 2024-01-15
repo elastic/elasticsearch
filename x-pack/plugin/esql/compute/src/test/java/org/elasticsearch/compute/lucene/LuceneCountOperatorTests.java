@@ -26,7 +26,6 @@ import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
 
 import java.io.IOException;
@@ -38,7 +37,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.Mockito.when;
 
 public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     private Directory directory = newDirectory();
@@ -82,8 +80,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        SearchContext ctx = LuceneSourceOperatorTests.mockSearchContext(reader, 0);
-        when(ctx.getSearchExecutionContext().getIndexReader()).thenReturn(reader);
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         final Query query;
         if (enableShortcut && randomBoolean()) {
             query = new MatchAllDocsQuery();

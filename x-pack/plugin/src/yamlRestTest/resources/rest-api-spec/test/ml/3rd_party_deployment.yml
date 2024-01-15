@@ -227,7 +227,7 @@ setup:
           	"field_names": ["text_field"]
             }
           }
-  # Set a low timeout as the test doesn't want to actually wait
+  # Set a low timeout so the test doesn't actually wait
   # for the model download to complete
   - do:
       catch: /Model download task is currently running\. Wait for trained model \[.elser_model_2\] download task to complete then try again/

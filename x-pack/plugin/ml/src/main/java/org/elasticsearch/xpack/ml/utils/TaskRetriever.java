@@ -7,17 +7,17 @@
 
 package org.elasticsearch.xpack.ml.utils;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.util.function.Supplier;
@@ -28,8 +28,6 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.downloadModelTaskDescripti
  * Utility class for retrieving download tasks created by a PUT trained model API request.
  */
 public class TaskRetriever {
-
-    private static final Logger logger = LogManager.getLogger(TaskRetriever.class);
 
     /**
      * Returns a {@link TaskInfo} if one exists representing an in-progress trained model download.
@@ -51,7 +49,6 @@ public class TaskRetriever {
         Supplier<String> errorMessageOnWaitTimeout,
         ActionListener<TaskInfo> listener
     ) {
-        logger.info("Get download task status");
         client.admin()
             .cluster()
             .prepareListTasks()
@@ -61,7 +58,6 @@ public class TaskRetriever {
             .setDescriptions(downloadModelTaskDescription(modelId))
             .setTimeout(timeout)
             .execute(ActionListener.wrap((response) -> {
-                logger.info("Get download task response:" + response);
                 var tasks = response.getTasks();
 
                 if (tasks.size() > 0) {
@@ -70,10 +66,10 @@ public class TaskRetriever {
                 } else if (waitForCompletion && didItTimeout(response)) {
                     listener.onFailure(taskDidNotCompleteException(errorMessageOnWaitTimeout.get()));
                 } else {
+                    response.rethrowFailures("Checking model [" + modelId + "] download status");
                     listener.onResponse(null);
                 }
             }, e -> {
-                logger.info("Get download task error:", e);
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         "Unable to retrieve task information for model id [{}]",
@@ -83,24 +79,23 @@ public class TaskRetriever {
                     )
                 );
             }));
-
     }
 
     private static boolean didItTimeout(ListTasksResponse response) {
         if (response.getNodeFailures().isEmpty() == false) {
             // if one node timed out then the others will also have timed out
             var firstNodeFailure = response.getNodeFailures().get(0);
-            logger.error("Get download first failure", firstNodeFailure);
             if (firstNodeFailure.status() == RestStatus.REQUEST_TIMEOUT) {
                 return true;
             }
-            var rootCause = firstNodeFailure.getRootCause();
-            logger.error("Get download root cause", rootCause);
-            if (rootCause instanceof ElasticsearchTimeoutException) {
+
+            var timeoutException = ExceptionsHelper.unwrap(
+                firstNodeFailure,
+                ElasticsearchTimeoutException.class,
+                ReceiveTimeoutTransportException.class
+            );
+            if (timeoutException != null) {
                 return true;
-            }
-            if (rootCause instanceof ElasticsearchException esException) {
-                return esException.status() == RestStatus.REQUEST_TIMEOUT;
             }
         }
         return false;

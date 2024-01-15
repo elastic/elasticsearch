@@ -31,13 +31,34 @@ wkt:keyword                                                                     
 ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
 ;
 
-centroidFromString#[skip:-8.12.99, reason:st_centroid added in 8.13]
-row wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)"]
-| eval pt = to_geopoint(wkt)
-| stats c = st_centroid(pt);
+centroidFromString1#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:geo_point
+POINT(42.97109629958868 14.7552534006536)
+;
+
+centroidFromString2#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
 
 c:geo_point
 POINT(59.39019390126475 18.741501267068088)
+;
+
+centroidFromString3#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:geo_point
+POINT(39.5832798851 20.6195130236)
 ;
 
 simpleLoad#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
@@ -140,17 +161,38 @@ convertCartesianFromStringArray#[skip:-8.12.99, reason:spatial type cartesian_po
 row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
 | eval pt = to_cartesianpoint(wkt);
 
-wkt:keyword                                                                           |pt:cartesian_point
+wkt:keyword                                           |pt:cartesian_point
 ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
 ;
 
-centroidFromCartesianString#[skip:-8.12.99, reason:st_centroid added in 8.13]
-row wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)"]
-| eval pt = to_cartesianpoint(wkt)
-| stats c = st_centroid(pt);
+centroidFromCartesianString1#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:cartesian_point
+POINT(4297.10986328125 -1475.530029296875)
+;
+
+centroidFromCartesianString2#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
 
 c:cartesian_point
 POINT(5939.02001953125 398.61999511718)
+;
+
+centroidFromCartesianString3#[skip:-8.12.99, reason:st_centroid added in 8.13]
+ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)", "POINT(-30.548143003023033 2437.553649504829)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| STATS c = ST_CENTROID(pt);
+
+c:cartesian_point
+POINT(3949.1639653531 1078.2645465797)
 ;
 
 simpleCartesianLoad#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]

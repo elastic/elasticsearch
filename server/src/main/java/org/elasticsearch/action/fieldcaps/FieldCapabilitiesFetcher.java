@@ -187,7 +187,7 @@ class FieldCapabilitiesFetcher {
                         break;
                     }
                     // checks if the parent field contains sub-fields
-                    if (context.getFieldType(parentField) == null) { // TODO-MP: maybe parent field? should we do the same check as l:151
+                    if (context.getFieldType(parentField) == null) {
                         // no field type, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(

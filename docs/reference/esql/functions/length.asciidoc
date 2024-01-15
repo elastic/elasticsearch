@@ -6,12 +6,12 @@
 
 [source,esql]
 ----
-LENGTH(string)
+LENGTH(str)
 ----
 
 *Parameters*
 
-`string`::
+`str`::
 String expression. If `null`, the function returns `null`.
 
 *Description*

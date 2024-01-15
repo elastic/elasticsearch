@@ -4,12 +4,12 @@
 
 [source,esql]
 ----
-MV_MEDIAN(column)
+MV_MEDIAN(v)
 ----
 
 *Parameters*
 
-`column`::
+`v`::
 Column to convert from multiple values to single value.
 
 *Description*
@@ -19,7 +19,7 @@ value.
 
 *Supported types*
 
-It can be used by any numeric column type and returns a value of the same type.
+include::types/mv_median.asciidoc[]
 
 *Examples*
 

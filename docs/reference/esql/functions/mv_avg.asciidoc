@@ -6,12 +6,12 @@
 
 [source,esql]
 ----
-MV_AVG(column)
+MV_AVG(field)
 ----
 
 *Parameters*
 
-`column`::
+`field`::
 Column to convert from multiple values to single value.
 
 *Description*
@@ -21,7 +21,7 @@ of all of the values.
 
 *Supported types*
 
-The output type is always a `double` and the input type can be any number.
+include::types/mv_avg.asciidoc[]
 
 *Example*
 

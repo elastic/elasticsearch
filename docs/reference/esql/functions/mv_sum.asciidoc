@@ -4,12 +4,12 @@
 
 [source,esql]
 ----
-MV_SUM(column)
+MV_SUM(v)
 ----
 
 *Parameters*
 
-`column`::
+`v`::
 Column to convert from multiple values to single value.
 
 *Description*
@@ -19,8 +19,7 @@ of all of the values.
 
 *Supported types*
 
-The input type can be any number and the output type is the same as the input
-type.
+include::types/mv_sum.asciidoc[]
 
 *Example*
 

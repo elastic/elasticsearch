@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104238")
 public class TransformChainIT extends TransformRestTestCase {
 
     private static final String DEST_INDEX_TEMPLATE = """

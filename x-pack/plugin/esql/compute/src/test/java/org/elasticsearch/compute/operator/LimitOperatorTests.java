@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -47,12 +46,6 @@ public class LimitOperatorTests extends OperatorTestCase {
         int inputPositionCount = input.stream().mapToInt(p -> p.getPositionCount()).sum();
         int outputPositionCount = results.stream().mapToInt(p -> p.getPositionCount()).sum();
         assertThat(outputPositionCount, equalTo(Math.min(100, inputPositionCount)));
-    }
-
-    @Override
-    protected ByteSizeValue enoughMemoryForSimple() {
-        assumeFalse("doesn't allocate, just filters", true);
-        return null;
     }
 
     public void testStatus() {

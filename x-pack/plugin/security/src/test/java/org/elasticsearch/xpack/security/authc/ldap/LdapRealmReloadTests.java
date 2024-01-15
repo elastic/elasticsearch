@@ -65,7 +65,6 @@ public class LdapRealmReloadTests extends LdapTestCase {
     private static final Settings localSettings = Settings.builder()
         .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "")
         .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), BIND_DN)
-        .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, BIND_PASSWORD))
         .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
         .put(getFullSettingKey(REALM_IDENTIFIER, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
         // explicitly disabling cache to always authenticate against LDAP server
@@ -99,11 +98,23 @@ public class LdapRealmReloadTests extends LdapTestCase {
     }
 
     public void testLdapRealmReloadWithoutConnectionPool() throws Exception {
+        final boolean useLegacyBindSetting = randomBoolean();
+        final Settings bindPasswordSettings;
+        if (useLegacyBindSetting) {
+            bindPasswordSettings = Settings.builder()
+                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), BIND_PASSWORD)
+                .build();
+        } else {
+            bindPasswordSettings = Settings.builder()
+                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, BIND_PASSWORD))
+                .build();
+        }
         final Settings settings = Settings.builder()
             .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), false)
             .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrls())
             .put(localSettings)
             .put(defaultGlobalSettings)
+            .put(bindPasswordSettings)
             .build();
         final RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
         try (SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.env()), threadPool)) {
@@ -117,21 +128,32 @@ public class LdapRealmReloadTests extends LdapTestCase {
 
             // Generate new password and reload only on ES side
             final String newBindPassword = randomAlphaOfLengthBetween(5, 10);
-            final Settings updatedSettings = Settings.builder()
-                .setSecureSettings(
-                    secureSettings(
-                        randomFrom(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD),
-                        REALM_IDENTIFIER,
-                        newBindPassword
+            final Settings updatedBindPasswordSettings;
+            if (useLegacyBindSetting) {
+                updatedBindPasswordSettings = Settings.builder()
+                    .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), newBindPassword)
+                    .build();
+            } else {
+                updatedBindPasswordSettings = Settings.builder()
+                    .setSecureSettings(
+                        secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, newBindPassword)
                     )
-                )
-                .build();
-            ldap.reload(updatedSettings);
+                    .build();
+            }
+            ldap.reload(updatedBindPasswordSettings);
             authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.CONTINUE);
 
             // Change password on LDAP server side and check that authentication works
             changeUserPasswordOnLdapServers(BIND_DN, newBindPassword);
             authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.SUCCESS);
+
+            if (useLegacyBindSetting) {
+                assertSettingDeprecationsAndWarnings(
+                    new Setting<?>[] {
+                        PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD.apply(REALM_IDENTIFIER.getType())
+                            .getConcreteSettingForNamespace(REALM_IDENTIFIER.getName()) }
+                );
+            }
         }
     }
 

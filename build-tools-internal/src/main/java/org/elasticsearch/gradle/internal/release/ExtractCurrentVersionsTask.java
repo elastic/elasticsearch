@@ -40,8 +40,8 @@ public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
     }
 
     @Option(option = "output-file", description = "File to output tag information to")
-    public void outputFile(Path file) {
-        this.outputFile = file;
+    public void outputFile(String file) {
+        this.outputFile = Path.of(file);
     }
 
     @TaskAction

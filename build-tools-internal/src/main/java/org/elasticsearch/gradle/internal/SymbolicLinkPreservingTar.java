@@ -101,12 +101,17 @@ public class SymbolicLinkPreservingTar extends Tar {
 
             @Override
             public void processFile(final FileCopyDetailsInternal details) {
+                System.out.println("details.getName() = " + details.getRelativePath() + "/ --- " + details.getPermissions().toUnixNumeric());
                 if (isChildOfVisitedSymbolicLink(details) == false) {
                     if (isSymbolicLink(details)) {
+                        System.out.println("   visitSymbolicLink(details)");
                         visitSymbolicLink(details);
+
                     } else if (details.isDirectory()) {
+                        System.out.println("   visitDirectory(details)");
                         visitDirectory(details);
                     } else {
+                        System.out.println("   visitFile(details)");
                         visitFile(details);
                     }
                 }
@@ -158,6 +163,7 @@ public class SymbolicLinkPreservingTar extends Tar {
             private void visitDirectory(final FileCopyDetailsInternal details) {
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString() + "/");
                 entry.setModTime(getModTime(details));
+                System.out.println("    entry.getMode() = " + details.getMode());
                 entry.setMode(UnixStat.DIR_FLAG | details.getMode());
                 try {
                     tar.putArchiveEntry(entry);

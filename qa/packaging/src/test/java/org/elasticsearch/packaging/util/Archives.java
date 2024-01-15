@@ -49,7 +49,7 @@ public class Archives {
     protected static final Logger logger = LogManager.getLogger(Archives.class);
 
     // in the future we'll run as a role user on Windows
-    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
+    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "rene";
 
     public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
         return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion(), false);
@@ -159,12 +159,13 @@ public class Archives {
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, String owner) {
-        Stream.of(es.home, es.config, es.plugins, es.modules, es.logs).forEach(dir -> assertThat(dir, file(Directory, owner, owner, p755)));
+        Stream.of(es.config).forEach(dir -> assertThat(dir, file(Directory, owner, "wheel", p755)));
+        Stream.of(es.home, es.config, es.plugins, es.modules, es.logs).forEach(dir -> assertThat(dir, file(Directory, owner, "wheel", p755)));
 
         assertThat(Files.exists(es.data), is(false));
 
-        assertThat(es.bin, file(Directory, owner, owner, p755));
-        assertThat(es.lib, file(Directory, owner, owner, p755));
+        assertThat(es.bin, file(Directory, owner, "wheel", p755));
+        assertThat(es.lib, file(Directory, owner, "wheel", p755));
         assertThat(Files.exists(es.config("elasticsearch.keystore")), is(false));
 
         Stream.of(

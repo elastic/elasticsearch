@@ -86,8 +86,8 @@ public class TagVersionsTask extends AbstractVersionsTask {
             Matcher m = VERSION_LINE.matcher(l);
             if (m.matches() == false) throw new IllegalArgumentException(String.format("Incorrect format for line [%s]", l));
             return m;
-        }).collect(Collectors.toMap(m -> Version.fromString(m.group(1)), m -> Integer.parseInt(m.group(2)), (k1, k2) -> {
-            throw new IllegalArgumentException("Duplicate versions " + k1);
+        }).collect(Collectors.toMap(m -> Version.fromString(m.group(1)), m -> Integer.parseInt(m.group(2)), (v1, v2) -> {
+            throw new IllegalArgumentException("Duplicate release version in file");
         }, TreeMap::new));
 
         Integer existing = versions.putIfAbsent(release, id);

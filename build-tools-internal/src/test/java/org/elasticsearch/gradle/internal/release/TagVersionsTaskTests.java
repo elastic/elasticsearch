@@ -98,4 +98,26 @@ public class TagVersionsTaskTests {
         );
         assertThat(ex.getMessage(), is("Release [8.4.0] already recorded with version id [6301], cannot update to version [6302]"));
     }
+
+    @Test
+    public void testFailsIncorrectFormat() {
+        List<String> lines = List.of("8.0.,f4d2");
+
+        var ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> TagVersionsTask.addVersionRecord(new ArrayList<>(lines), Version.fromString("1.0.0"), 1)
+        );
+        assertThat(ex.getMessage(), is("Incorrect format for line [8.0.,f4d2]"));
+    }
+
+    @Test
+    public void testFailsDuplicateVersions() {
+        List<String> lines = List.of("8.0.0,100", "8.0.0,101");
+
+        var ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> TagVersionsTask.addVersionRecord(new ArrayList<>(lines), Version.fromString("8.0.1"), 102)
+        );
+        assertThat(ex.getMessage(), is("Duplicate release version in file"));
+    }
 }

@@ -588,19 +588,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                Strings.format(
-                    """
-                        api/name:
-                        attempted to add a [do] with a [warnings_regex] section without a corresponding ["requires": "test_runner_features": "warnings_regex"] \
-                        so runners that do not support the [warnings_regex] section can skip the test at line [%d]\
-                        """,
-                    lineNumber
-                )
-            )
-        );
+        assertThat(e.getMessage(), containsString(Strings.format("""
+            api/name:
+            attempted to add a [do] with a [warnings_regex] section without a corresponding \
+            ["requires": "test_runner_features": "warnings_regex"] \
+            so runners that do not support the [warnings_regex] section can skip the test at line [%d]\
+            """, lineNumber)));
     }
 
     public void testAddingDoWithAllowedWarningWithoutSkipAllowedWarnings() {
@@ -656,19 +649,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(apiCall);
         ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                Strings.format(
-                    """
-                        api/name:
-                        attempted to add a [do] with a [node_selector] section without a corresponding ["requires": "test_runner_features": "node_selector"] \
-                        so runners that do not support the [node_selector] section can skip the test at line [%d]\
-                        """,
-                    lineNumber
-                )
-            )
-        );
+        assertThat(e.getMessage(), containsString(Strings.format("""
+            api/name:
+            attempted to add a [do] with a [node_selector] section without a corresponding \
+            ["requires": "test_runner_features": "node_selector"] \
+            so runners that do not support the [node_selector] section can skip the test at line [%d]\
+            """, lineNumber)));
     }
 
     public void testAddingContainsWithoutSkipContains() {
@@ -732,24 +718,18 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             sections
         );
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertEquals(
-            Strings.format(
-                """
-                    api/name:
-                    attempted to add a [contains] assertion without a corresponding ["requires": "test_runner_features": "contains"] so runners that \
-                    do not support the [contains] assertion can skip the test at line [%d],
-                    attempted to add a [do] with a [warnings] section without a corresponding ["requires": "test_runner_features": "warnings"] so runners \
-                    that do not support the [warnings] section can skip the test at line [%d],
-                    attempted to add a [do] with a [node_selector] section without a corresponding ["requires": "test_runner_features": "node_selector"] so \
-                    runners that do not support the [node_selector] section can skip the test \
-                    at line [%d]\
-                    """,
-                firstLineNumber,
-                secondLineNumber,
-                thirdLineNumber
-            ),
-            e.getMessage()
-        );
+        assertEquals(Strings.format("""
+            api/name:
+            attempted to add a [contains] assertion without a corresponding \
+            ["requires": "test_runner_features": "contains"] \
+            so runners that do not support the [contains] assertion can skip the test at line [%d],
+            attempted to add a [do] with a [warnings] section without a corresponding \
+            ["requires": "test_runner_features": "warnings"] \
+            so runners that do not support the [warnings] section can skip the test at line [%d],
+            attempted to add a [do] with a [node_selector] section without a corresponding \
+            ["requires": "test_runner_features": "node_selector"] \
+            so runners that do not support the [node_selector] section can skip the test at line [%d]\
+            """, firstLineNumber, secondLineNumber, thirdLineNumber), e.getMessage());
     }
 
     private static PrerequisiteSection createPrerequisiteSection(String yamlTestRunnerFeature) {

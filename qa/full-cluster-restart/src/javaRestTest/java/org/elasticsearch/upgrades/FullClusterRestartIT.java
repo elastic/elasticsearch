@@ -637,6 +637,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 )
             );
 
+            // assertBusy to work around https://github.com/elastic/elasticsearch/issues/104371
             assertBusy(
                 () -> assertThat(
                     EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v")).getEntity()),

@@ -41,7 +41,10 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.pruneTombst
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.putDelete;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.putIndex;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomIndexVersionValue;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.reclaimableRefreshRamBytes;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.refreshingBytes;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.versionLookupSize;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class StatelessLiveVersionMapTests extends ESTestCase {
@@ -327,6 +330,8 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var map = newLiveVersionMap(archive);
         // Index and refresh on an unsafe map
         assertEquals(0, archive.getMemoryBytesUsed());
+        assertEquals(0, archive.getReclaimableMemoryBytes());
+        assertEquals(0, archive.getRefreshingMemoryBytes());
         maybePutIndex(map, "1", randomIndexVersionValue());
         assertEquals(0, archive.getMemoryBytesUsed());
         assertTrue(isUnsafe(map));
@@ -336,25 +341,44 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         enforceSafeAccess(map);
         maybePutIndex(map, "2", randomIndexVersionValue());
         assertEquals(0, archive.getMemoryBytesUsed());
+        assertEquals(0, archive.getReclaimableMemoryBytes());
         refresh(map);
+        assertThat(archive.getReclaimableMemoryBytes(), greaterThan(0L));
+        assertEquals(0, archive.getRefreshingMemoryBytes());
         assertArchiveMemoryBytesUsedIsCorrect(archive);
         flush(map, currentGeneration, preCommitGeneration);
         assertArchiveMemoryBytesUsedIsCorrect(archive);
+        assertEquals(0, archive.getReclaimableMemoryBytes());
+        assertThat(archive.getRefreshingMemoryBytes(), greaterThan(0L));
         archive.afterUnpromotablesRefreshed(currentGeneration.get());
         assertEquals(0, archive.getMemoryBytesUsed());
+        assertEquals(0, archive.getReclaimableMemoryBytes());
+        assertEquals(0, archive.getRefreshingMemoryBytes());
         // Randomly test indexing (assuming safe map), refresh, flush and unpromotable refresh
         IntStream.range(1, randomIntBetween(10, 20)).forEach(i -> {
             var sizeBeforeIndexing = archive.getMemoryBytesUsed();
-            IntStream.range(0, randomIntBetween(0, 10)).forEach(opCounter -> putIndex(map, randomIdentifier(), randomIndexVersionValue()));
+            var noOfOps = randomIntBetween(0, 10);
+            IntStream.range(0, noOfOps).forEach(opCounter -> putIndex(map, randomIdentifier(), randomIndexVersionValue()));
             assertEquals(sizeBeforeIndexing, archive.getMemoryBytesUsed());
-            IntStream.range(0, randomIntBetween(0, 3)).forEach(refreshCounter -> refresh(map));
+            var noOfRefreshes = randomIntBetween(0, 3);
+            IntStream.range(0, noOfRefreshes).forEach(refreshCounter -> refresh(map));
             assertArchiveMemoryBytesUsedIsCorrect(archive);
+            if (noOfOps > 0) {
+                assertThat(reclaimableRefreshRamBytes(map), greaterThan(0L));
+            }
             List<Long> flushedGenerations = new ArrayList<>();
-            IntStream.range(0, randomIntBetween(0, 3)).forEach(flushCounter -> {
+            var noOfFlushes = randomIntBetween(0, 3);
+            IntStream.range(0, noOfFlushes).forEach(flushCounter -> {
                 flush(map, currentGeneration, preCommitGeneration);
                 assertArchiveMemoryBytesUsedIsCorrect(archive);
                 flushedGenerations.add(currentGeneration.get());
             });
+            if (noOfRefreshes > 0 && noOfFlushes > 0) {
+                assertEquals(0, archive.getReclaimableMemoryBytes());
+                if (noOfOps > 0) {
+                    assertThat(refreshingBytes(map), greaterThan(0L));
+                }
+            }
             if (randomBoolean()) {
                 // Unpromotable refreshes might come back in a different order
                 Collections.shuffle(flushedGenerations, random());
@@ -365,6 +389,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
             }
         });
         assertArchiveMemoryBytesUsedIsCorrect(archive);
+        assertEquals(0, refreshingBytes(map));
     }
 
     public void testLiveVersionMapMemoryUsed() {

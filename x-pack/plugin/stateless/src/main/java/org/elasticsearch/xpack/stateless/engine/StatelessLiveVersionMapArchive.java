@@ -158,4 +158,30 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
         }
         return memBytesUsed;
     }
+
+    @Override
+    public long getReclaimableMemoryBytes() {
+        long preCommitGeneration = preCommitGenerationSupplier.get();
+        long notFlushingBytes = 0;
+        for (var entry : archivePerGeneration.entrySet()) {
+            if (entry.getKey() > preCommitGeneration) {
+                notFlushingBytes += archiveEntryBytesUsed(entry.getValue());
+            } else {
+                break;
+            }
+        }
+        return notFlushingBytes;
+    }
+
+    @Override
+    public long getRefreshingMemoryBytes() {
+        long preCommitGeneration = preCommitGenerationSupplier.get();
+        long flushingBytes = 0;
+        for (var entry : archivePerGeneration.entrySet()) {
+            if (entry.getKey() <= preCommitGeneration) {
+                flushingBytes += archiveEntryBytesUsed(entry.getValue());
+            }
+        }
+        return flushingBytes;
+    }
 }

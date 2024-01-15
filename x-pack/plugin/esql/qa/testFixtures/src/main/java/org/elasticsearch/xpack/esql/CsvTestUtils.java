@@ -243,7 +243,6 @@ public final class CsvTestUtils {
         int previousCommaPos = 0;
         while ((commaPos = csvLine.indexOf(",", pos)) != -1 || pos <= csvLine.length()) {
             if (commaPos > 0 && csvLine.charAt(commaPos - 1) == ESCAPE_CHAR) {
-                previousCommaPos = pos;
                 pos = commaPos + 1;
                 continue;
             }

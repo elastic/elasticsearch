@@ -51,6 +51,6 @@ class SpatialCentroidCartesianPointSourceValuesAggregator extends CentroidPointA
     }
 
     private static Point decode(BytesRef wkb) {
-        return (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes);
+        return (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
     }
 }

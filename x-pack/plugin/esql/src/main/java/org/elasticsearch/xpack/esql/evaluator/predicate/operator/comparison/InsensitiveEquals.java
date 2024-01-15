@@ -55,7 +55,11 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     public static Automaton automaton(BytesRef val) {
-        return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(null, val.utf8ToString()));
+        if (isWildcard(val)) {
+            return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(null, val.utf8ToString()));
+        } else {
+            return AutomatonQueries.toCaseInsensitiveString(val.utf8ToString());
+        }
     }
 
     @Override

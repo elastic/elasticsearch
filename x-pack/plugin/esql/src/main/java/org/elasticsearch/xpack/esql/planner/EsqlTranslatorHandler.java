@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -34,6 +35,8 @@ import org.elasticsearch.xpack.ql.util.Check;
 
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveBinaryComparison.isWildcard;
 
 public final class EsqlTranslatorHandler extends QlTranslatorHandler {
 
@@ -121,8 +124,11 @@ public final class EsqlTranslatorHandler extends QlTranslatorHandler {
             Source source = bc.source();
             BytesRef value = BytesRefs.toBytesRef(ExpressionTranslators.valueOf(bc.right()));
             String name = pushableAttributeName(attribute);
-            Query query = new WildcardQuery(source, name, value.utf8ToString(), true);
-            return query;
+            if (isWildcard(value)) {
+                return new WildcardQuery(source, name, value.utf8ToString(), true);
+            } else {
+                return new TermQuery(source, name, value.utf8ToString(), true);
+            }
 
         }
     }

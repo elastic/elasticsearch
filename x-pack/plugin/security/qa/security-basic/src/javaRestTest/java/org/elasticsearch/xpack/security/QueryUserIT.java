@@ -54,9 +54,13 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
 
     public void testQuery() throws IOException {
         int randomUserCount = createRandomUsers().size();
-        // An empty request body means search for all users
+
+        // An empty request body means search for all users (page size = 10)
+        assertQuery("", users -> assertThat(users.size(), equalTo(Math.min(randomUserCount, 10))));
+
+        // Match all
         assertQuery(
-            randomBoolean() ? "" : String.format("""
+            String.format("""
                 {"query":{"match_all":{}},"from":0,"size":%s}""", randomUserCount),
             users -> assertThat(users.size(), equalTo(randomUserCount))
         );

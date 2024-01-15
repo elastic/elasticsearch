@@ -87,7 +87,7 @@ public class WildcardPattern extends AbstractStringPattern {
         return Objects.equals(wildcard, other.wildcard);
     }
 
-    public boolean caseInsensitive(){
+    public boolean caseInsensitive() {
         return caseInsensitive;
     }
 }

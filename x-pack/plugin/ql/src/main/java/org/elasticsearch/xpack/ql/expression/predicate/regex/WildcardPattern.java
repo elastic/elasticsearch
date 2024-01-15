@@ -11,6 +11,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Objects;
@@ -27,10 +28,13 @@ public class WildcardPattern extends AbstractStringPattern {
     private final String wildcard;
     private final String regex;
 
-    public WildcardPattern(String pattern) {
+    private final boolean caseInsensitive;
+
+    public WildcardPattern(String pattern, boolean caseInsensitive) {
         this.wildcard = pattern;
         // early initialization to force string validation
         this.regex = StringUtils.wildcardToJavaPattern(pattern, '\\');
+        this.caseInsensitive = caseInsensitive;
     }
 
     public String pattern() {
@@ -39,7 +43,9 @@ public class WildcardPattern extends AbstractStringPattern {
 
     @Override
     public Automaton createAutomaton() {
-        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
+        Automaton automaton = caseInsensitive
+            ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(null, wildcard))
+            : WildcardQuery.toAutomaton(new Term(null, wildcard));
         return MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
@@ -79,5 +85,9 @@ public class WildcardPattern extends AbstractStringPattern {
 
         WildcardPattern other = (WildcardPattern) obj;
         return Objects.equals(wildcard, other.wildcard);
+    }
+
+    public boolean caseInsensitive(){
+        return caseInsensitive;
     }
 }

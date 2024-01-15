@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -17,7 +19,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 public class WildcardLike extends org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike {
     public WildcardLike(Source source, Expression left, WildcardPattern pattern) {
-        super(source, left, pattern, false);
+        super(source, left, pattern, pattern.caseInsensitive());
     }
 
     @Override
@@ -33,5 +35,14 @@ public class WildcardLike extends org.elasticsearch.xpack.ql.expression.predicat
     @Override
     protected TypeResolution resolveType() {
         return isString(field(), sourceText(), DEFAULT);
+    }
+
+    @Override
+    public Boolean fold() {
+        if (pattern().caseInsensitive()) {
+            return new CharacterRunAutomaton((pattern()).createAutomaton()).run(BytesRefs.toString(field().fold()));
+        } else {
+            return super.fold();
+        }
     }
 }

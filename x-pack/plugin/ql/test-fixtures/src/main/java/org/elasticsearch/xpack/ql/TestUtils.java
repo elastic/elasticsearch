@@ -149,10 +149,6 @@ public final class TestUtils {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
     }
 
-    public static WildcardLike wildcardLike(Expression left, String exp) {
-        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
-    }
-
     public static RLike rlike(Expression left, String exp) {
         return new RLike(EMPTY, left, new RLikePattern(exp));
     }

@@ -1133,13 +1133,23 @@ public final class PlanNamedTypes {
     // -- RegexMatch
 
     static WildcardLike readWildcardLike(PlanStreamInput in, String name) throws IOException {
-        return new WildcardLike(in.readSource(), in.readExpression(), new WildcardPattern(in.readString()));
+        return new WildcardLike(
+            in.readSource(),
+            in.readExpression(),
+            new WildcardPattern(
+                in.readString(),
+                in.getTransportVersion().before(TransportVersions.ESQL_CASE_INSENSITIVE) ? false : in.readBoolean()
+            )
+        );
     }
 
     static void writeWildcardLike(PlanStreamOutput out, WildcardLike like) throws IOException {
         out.writeSource(like.source());
         out.writeExpression(like.field());
         out.writeString(like.pattern().pattern());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CASE_INSENSITIVE)) {
+            out.writeBoolean(like.caseInsensitive());
+        }
     }
 
     static RLike readRLike(PlanStreamInput in, String name) throws IOException {

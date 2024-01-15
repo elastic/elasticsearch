@@ -12,10 +12,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 public class WildcardLike extends RegexMatch<WildcardPattern> {
 
-    public WildcardLike(Source source, Expression left, WildcardPattern pattern) {
-        this(source, left, pattern, false);
-    }
-
     public WildcardLike(Source source, Expression left, WildcardPattern pattern, boolean caseInsensitive) {
         super(source, left, pattern, caseInsensitive);
     }

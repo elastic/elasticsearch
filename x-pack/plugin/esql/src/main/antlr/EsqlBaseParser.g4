@@ -58,6 +58,7 @@ booleanExpression
 
 regexBooleanExpression
     : valueExpression (NOT)? kind=LIKE pattern=string
+    | valueExpression (NOT)? kind=SLIKE pattern=string
     | valueExpression (NOT)? kind=RLIKE pattern=string
     ;
 

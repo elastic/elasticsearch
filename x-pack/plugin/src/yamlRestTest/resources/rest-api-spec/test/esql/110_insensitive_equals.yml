@@ -118,13 +118,13 @@ setup:
 
 
 ---
-"wildcards":
+"like tilde":
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | where keywordUpper =~ "fo*" | keep id, keywordUpper'
+          query: 'FROM test | where keywordUpper LIKE~ "fo*" | keep id, keywordUpper'
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -139,7 +139,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | where keywordUpper =~ "fo?" | keep id, keywordUpper'
+          query: 'FROM test | where keywordUpper LIKE~ "fo?" | keep id, keywordUpper'
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -150,13 +150,13 @@ setup:
   - match: { values.0: [ 0, "FOO"] }
 
 ---
-"wildcards on text":
+"like tilde on text":
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | where text =~ "Fo*" | keep id, text | sort id'
+          query: 'FROM test | where text LIKE~ "Fo*" | keep id, text | sort id'
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -167,13 +167,13 @@ setup:
   - match: { values.0: [ 0, "foo"] }
 
 ---
-"wildcards no match":
+"like tilde no match":
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | where keyword =~ "fo\\*" | keep id, keyword'
+          query: 'FROM test | where keyword LIKE~ "fo\\*" | keep id, keyword'
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "long" }
@@ -183,7 +183,7 @@ setup:
   - length: { values: 0 }
 
 ---
-"wildcards on text no match":
+"like tilde on text no match":
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -197,3 +197,40 @@ setup:
   - match: { columns.1.type: "text" }
 
   - length: { values: 0 }
+
+
+---
+"like tilde quoted":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcard LIKE~ "foo\\*" | keep id, wildcard'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcard" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "Foo*"] }
+
+---
+"like tilde quoted on text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcardText LIKE~ "foo\\*" | keep id, wildcardText | sort id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcardText" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 0, "Foo*"] }
+  - match: { values.1: [ 1, "Foo*"] }
+

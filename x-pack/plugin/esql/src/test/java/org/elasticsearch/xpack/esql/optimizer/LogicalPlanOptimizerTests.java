@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
@@ -399,7 +400,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testCombineFiltersLikeRLike() {
         EsRelation relation = relation();
         RLike conditionA = rlike(getFieldAttribute("a"), "foo");
-        WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
+        WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar", false);
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         Filter fb = new Filter(EMPTY, fa, conditionB);
@@ -427,7 +428,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushDownLikeRlikeFilter() {
         EsRelation relation = relation();
         org.elasticsearch.xpack.ql.expression.predicate.regex.RLike conditionA = rlike(getFieldAttribute("a"), "foo");
-        WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
+        WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar", false);
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
@@ -1518,6 +1519,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         assertTrue(filter.condition() instanceof Equals);
         Equals equals = as(filter.condition(), Equals.class);
+        assertEquals(BytesRefs.toBytesRef("foo"), equals.right().fold());
+        assertTrue(filter.child() instanceof EsRelation);
+    }
+
+    public void testSimplifyLikeTildeNoWildcard() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name like~ "foo"
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        assertTrue(filter.condition() instanceof InsensitiveEquals);
+        InsensitiveEquals equals = as(filter.condition(), InsensitiveEquals.class);
         assertEquals(BytesRefs.toBytesRef("foo"), equals.right().fold());
         assertTrue(filter.child() instanceof EsRelation);
     }
@@ -2794,8 +2809,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
-    public static WildcardLike wildcardLike(Expression left, String exp) {
-        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+    public static WildcardLike wildcardLike(Expression left, String exp, boolean caseInsensitive) {
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp, caseInsensitive));
     }
 
     public static RLike rlike(Expression left, String exp) {

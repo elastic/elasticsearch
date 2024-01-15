@@ -360,7 +360,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.valueExpression());
         Literal pattern = visitString(ctx.pattern);
         RegexMatch<?> result = switch (type) {
-            case EsqlBaseParser.LIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+            case EsqlBaseParser.LIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString(), false));
+            case EsqlBaseParser.SLIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString(), true));
             case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()));
             default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
         };

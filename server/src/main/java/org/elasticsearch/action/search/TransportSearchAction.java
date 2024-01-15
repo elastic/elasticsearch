@@ -1027,7 +1027,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<ShardId, SearchContextIdForNode> searchContextIdForNodeMap = new HashMap<>(searchContextIdShards);
         for (SearchShardsResponse searchShardsResponse : searchShardsResponses.values()) {
             for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
-                searchContextIdShards.remove(group.shardId());
+                searchContextIdForNodeMap.remove(group.shardId());
             }
         }
         return searchContextIdForNodeMap.values()

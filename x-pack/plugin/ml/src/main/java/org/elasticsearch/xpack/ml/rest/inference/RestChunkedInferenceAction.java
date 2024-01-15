@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.ChunkedInferenceAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -47,7 +49,15 @@ public class RestChunkedInferenceAction extends BaseRestHandler {
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
-        var request = ChunkedInferenceAction.parseRequest(modelId, restRequest.contentParser()).build();
+
+        TimeValue inferTimeout = null;
+        if (restRequest.hasParam(InferModelAction.Request.TIMEOUT.getPreferredName())) {
+            inferTimeout = restRequest.paramAsTime(
+                InferModelAction.Request.TIMEOUT.getPreferredName(),
+                ChunkedInferenceAction.Request.DEFAULT_TIMEOUT
+            );
+        }
+        var request = ChunkedInferenceAction.parseRequest(modelId, inferTimeout, restRequest.contentParser());
 
         return channel -> client.execute(ChunkedInferenceAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

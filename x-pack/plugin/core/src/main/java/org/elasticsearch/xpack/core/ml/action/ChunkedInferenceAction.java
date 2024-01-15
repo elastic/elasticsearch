@@ -34,8 +34,6 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
     public static final ChunkedInferenceAction INSTANCE = new ChunkedInferenceAction();
     public static final String NAME = "cluster:internal/xpack/ml/chunkedinference";
 
-    public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
-
     static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, ChunkedInferenceAction.Request.Builder::new);
     static {
         PARSER.declareStringArray(Request.Builder::setInputs, new ParseField("inputs"));
@@ -43,12 +41,15 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
         PARSER.declareInt(Request.Builder::setSpan, new ParseField("span"));
     }
 
-    public static Request.Builder parseRequest(String id, XContentParser parser) {
+    public static Request parseRequest(String id, TimeValue timeout, XContentParser parser) {
         Request.Builder builder = PARSER.apply(parser, null);
         if (id != null) {
             builder.setId(id);
         }
-        return builder;
+        if (timeout != null) {
+            builder.setTimeout(timeout);
+        }
+        return builder.build();
     }
 
     public ChunkedInferenceAction() {
@@ -56,19 +57,13 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
     }
 
     public static class Request extends ActionRequest {
+        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+
         private final String modelId;
         private final List<String> inputs;
         private final Integer windowSize;
         private final Integer span;
         private final TimeValue timeout;
-
-        public Request(String modelId, List<String> inputs, @Nullable Integer windowSize, @Nullable Integer span) {
-            this.modelId = modelId;
-            this.inputs = inputs;
-            this.windowSize = windowSize;
-            this.span = span;
-            this.timeout = DEFAULT_TIMEOUT;
-        }
 
         public Request(String modelId, List<String> inputs, @Nullable Integer windowSize, @Nullable Integer span, TimeValue timeout) {
             this.modelId = modelId;
@@ -159,6 +154,7 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
             private List<String> inputs;
             private Integer span = null;
             private Integer windowSize = null;
+            private TimeValue timeout = DEFAULT_TIMEOUT;
 
             public Builder setId(String id) {
                 this.id = id;
@@ -180,8 +176,13 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
                 return this;
             }
 
+            public Builder setTimeout(TimeValue timeout) {
+                this.timeout = timeout;
+                return this;
+            }
+
             public Request build() {
-                return new Request(id, inputs, windowSize, span);
+                return new Request(id, inputs, windowSize, span, timeout);
             }
         }
     }

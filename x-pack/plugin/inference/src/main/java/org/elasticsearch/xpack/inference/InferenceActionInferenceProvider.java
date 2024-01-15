@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.inference.InferenceProvider;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
@@ -38,7 +39,8 @@ public class InferenceActionInferenceProvider implements InferenceProvider {
             TaskType.SPARSE_EMBEDDING, // TODO Change when task type doesn't need to be specified
             modelId,
             texts,
-            Map.of()
+            Map.of(),
+            InputType.INGEST
         );
 
         client.execute(InferenceAction.INSTANCE, inferenceRequest, listener.delegateFailure((l, response) -> {

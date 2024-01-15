@@ -113,6 +113,7 @@ License::
 
 Machine Learning::
 * Catch exceptions during `pytorch_inference` startup {es-pull}103873[#103873]
+* Ensure the estimated latitude is within the allowed range {ml-pull}2586[#2586]
 * Exclude quantiles when fetching model snapshots where possible {es-pull}103530[#103530]
 * Fix `frequent_item_sets` aggregation on empty index {es-pull}103116[#103116] (issue: {es-issue}103067[#103067])
 * If trained model download task is in progress, wait for it to finish before executing start trained model deployment {es-pull}102944[#102944]
@@ -120,6 +121,7 @@ Machine Learning::
 * Preserve response headers in Datafeed preview {es-pull}103923[#103923]
 * Prevent attempts to access non-existent node information during rebalancing {es-pull}103361[#103361]
 * Prevent resource over-subscription in model allocation planner {es-pull}100392[#100392]
+* Remove dependency on the IPEX library {ml-pull}2605[#2605] and {ml-pull}2606[#2606]
 * Start a new trace context before loading a trained model {es-pull}103124[#103124]
 * Wait for the model results on graceful shutdown {es-pull}103591[#103591] (issue: {es-issue}103414[#103414])
 
@@ -295,6 +297,7 @@ Machine Learning::
 * Include ML processor limits in `_ml/info` response {es-pull}101392[#101392]
 * Read scores from downloaded vocabulary for XLM Roberta tokenizers {es-pull}101868[#101868]
 * Support for GET all models and by task type in the `_inference` API {es-pull}102806[#102806]
+* Upgrade Boost libraries to version 1.83 {ml-pull}2560[#2560]
 
 Mapping::
 * Improve analyzer reload log message {es-pull}102273[#102273]

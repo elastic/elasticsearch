@@ -978,11 +978,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, OriginalIndices> remoteClusterIndices
     ) {
         final List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
-        Map<ShardId, SearchContextIdForNode> searchContextIdForNodeMap = new HashMap<>(searchContextId.shards());
         for (Map.Entry<String, SearchShardsResponse> entry : searchShardsResponses.entrySet()) {
             for (SearchShardsGroup group : entry.getValue().getGroups()) {
                 final ShardId shardId = group.shardId();
-                final SearchContextIdForNode perNode = searchContextIdForNodeMap.remove(shardId);
+                final SearchContextIdForNode perNode = searchContextId.shards().get(shardId);
                 if (perNode == null) {
                     // the shard was skipped after can match, hence it is not even part of the pit id
                     continue;
@@ -1016,12 +1015,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 remoteShardIterators.add(shardIterator);
             }
         }
-
-        assert searchContextIdForNodeMap.values()
-            .stream()
-            .filter(searchContextIdForNode -> searchContextIdForNode.getClusterAlias() != null)
-            .count() == 0 : "search shards did not return remote shards that PIT included: " + searchContextIdForNodeMap;
+        assert checkAllRemotePITShardsWereReturnedBySearchShards(searchContextId.shards(), searchShardsResponses)
+            : "search shards did not return remote shards that PIT included: " + searchContextId.shards();
         return remoteShardIterators;
+    }
+
+    private static boolean checkAllRemotePITShardsWereReturnedBySearchShards(
+        Map<ShardId, SearchContextIdForNode> searchContextIdShards,
+        Map<String, SearchShardsResponse> searchShardsResponses
+    ) {
+        Map<ShardId, SearchContextIdForNode> searchContextIdForNodeMap = new HashMap<>(searchContextIdShards);
+        for (SearchShardsResponse searchShardsResponse : searchShardsResponses.values()) {
+            for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
+                searchContextIdShards.remove(group.shardId());
+            }
+        }
+        return searchContextIdForNodeMap.values()
+            .stream()
+            .allMatch(searchContextIdForNode -> searchContextIdForNode.getClusterAlias() == null);
     }
 
     Index[] resolveLocalIndices(OriginalIndices localIndices, ClusterState clusterState, SearchTimeProvider timeProvider) {

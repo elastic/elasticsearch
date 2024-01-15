@@ -215,6 +215,7 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
                 instant.toEpochMilli(),
                 Settings.EMPTY,
                 0,
+                false,
                 false
             );
             DataStreamTestHelper.getClusterStateWithDataStream(mBuilder, dataStream1, List.of(new Tuple<>(twoHoursAgo, twoHoursAhead)));

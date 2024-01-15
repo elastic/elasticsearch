@@ -20,6 +20,7 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse.DETAILED_PARAM_NAME;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.INTERNAL)
@@ -37,7 +38,9 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
+        PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest(
+            request.paramAsBoolean(DETAILED_PARAM_NAME, false)
+        );
         pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("master_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
         return channel -> client.execute(

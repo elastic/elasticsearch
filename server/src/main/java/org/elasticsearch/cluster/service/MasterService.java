@@ -571,8 +571,15 @@ public class MasterService extends AbstractLifecycleComponent {
      * Returns the tasks that are pending.
      */
     public List<PendingClusterTask> pendingTasks() {
+        return pendingTasks(false);
+    }
+
+    /**
+     * Returns the tasks that are pending.
+     */
+    public List<PendingClusterTask> pendingTasks(boolean detailed) {
         final var currentTimeMillis = threadPool.relativeTimeInMillis();
-        return allBatchesStream().flatMap(e -> e.getPending(currentTimeMillis)).toList();
+        return allBatchesStream().flatMap(e -> e.getPending(currentTimeMillis, detailed)).toList();
     }
 
     /**
@@ -1375,7 +1382,7 @@ public class MasterService extends AbstractLifecycleComponent {
         /**
          * @return the tasks in this batch if the batch is pending, or an empty stream if the batch is not pending.
          */
-        Stream<PendingClusterTask> getPending(long currentTimeMillis);
+        Stream<PendingClusterTask> getPending(long currentTimeMillis, boolean detailed);
 
         /**
          * @return the earliest insertion time of the tasks in this batch if the batch is pending, or {@link Long#MAX_VALUE} otherwise.
@@ -1509,7 +1516,7 @@ public class MasterService extends AbstractLifecycleComponent {
             ClusterStateTaskExecutor<T> executor,
             ThreadPool threadPool
         ) {
-            this.name = name;
+            this.name = Objects.requireNonNull(name);
             this.batchConsumer = batchConsumer;
             this.insertionIndexSupplier = insertionIndexSupplier;
             this.perPriorityQueue = perPriorityQueue;
@@ -1535,6 +1542,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 new Entry<>(
                     source,
                     taskHolder,
+                    new AtomicReference<>(),
                     insertionIndexSupplier.getAsLong(),
                     threadPool.relativeTimeInMillis(),
                     threadPool.getThreadContext().newRestorableContext(true),
@@ -1555,14 +1563,25 @@ public class MasterService extends AbstractLifecycleComponent {
         private record Entry<T extends ClusterStateTaskListener>(
             String source,
             AtomicReference<T> taskHolder,
+            AtomicReference<Supplier<String>> descriptionHolder,
             long insertionIndex,
             long insertionTimeMillis,
             Supplier<ThreadContext.StoredContext> storedContextSupplier,
             @Nullable Scheduler.Cancellable timeoutCancellable
         ) {
             T acquireForExecution() {
+                // Set descriptionHolder before clearing taskHolder
+                final var preflightTask = taskHolder.get();
+                if (preflightTask == null) {
+                    return null;
+                }
+                descriptionHolder.set(preflightTask::getDescription);
+
                 final var task = taskHolder.getAndSet(null);
-                if (task != null && timeoutCancellable != null) {
+                if (task == null) {
+                    // timed out concurrently
+                    descriptionHolder.set(null);
+                } else if (timeoutCancellable != null) {
                     timeoutCancellable.cancel();
                 }
                 return task;
@@ -1583,6 +1602,21 @@ public class MasterService extends AbstractLifecycleComponent {
 
             boolean isPending() {
                 return taskHolder().get() != null;
+            }
+
+            public String getTaskDescription() {
+                final var task = taskHolder.get();
+                if (task != null) {
+                    return task.getDescription();
+                }
+
+                final var descriptionSupplier = descriptionHolder.get();
+                if (descriptionSupplier != null) {
+                    return descriptionSupplier.get();
+                }
+
+                // task was acquired without setting descriptionHolder, must have timed out
+                return "timed out";
             }
         }
 
@@ -1644,18 +1678,20 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             @Override
-            public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
+            public Stream<PendingClusterTask> getPending(long currentTimeMillis, boolean detailed) {
                 return Stream.concat(
-                    executing.stream().map(entry -> makePendingTask(entry, currentTimeMillis, true)),
-                    queue.stream().filter(Entry::isPending).map(entry -> makePendingTask(entry, currentTimeMillis, false))
+                    executing.stream().map(entry -> makePendingTask(entry, currentTimeMillis, true, detailed)),
+                    queue.stream().filter(Entry::isPending).map(entry -> makePendingTask(entry, currentTimeMillis, false, detailed))
                 );
             }
 
-            private PendingClusterTask makePendingTask(Entry<T> entry, long currentTimeMillis, boolean executing) {
+            private PendingClusterTask makePendingTask(Entry<T> entry, long currentTimeMillis, boolean executing, boolean detailed) {
                 return new PendingClusterTask(
                     entry.insertionIndex(),
                     perPriorityQueue.priority(),
                     new Text(entry.source()),
+                    BatchingTaskQueue.this.name,
+                    detailed ? entry.getTaskDescription() : null,
                     // in case an element was added to the queue after we cached the current time, we count the wait time as 0
                     Math.max(0L, currentTimeMillis - entry.insertionTimeMillis()),
                     executing

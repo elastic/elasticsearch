@@ -22,6 +22,8 @@ import java.util.List;
 
 public class PendingClusterTasksResponse extends ActionResponse implements ChunkedToXContentObject {
 
+    public static final String DETAILED_PARAM_NAME = "detailed";
+
     private final List<PendingClusterTask> pendingTasks;
 
     public PendingClusterTasksResponse(StreamInput in) throws IOException {
@@ -56,6 +58,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        final var detailed = params.paramAsBoolean(DETAILED_PARAM_NAME, false);
         return Iterators.concat(Iterators.single((builder, p) -> {
             builder.startObject();
             builder.startArray(Fields.TASKS);
@@ -65,6 +68,10 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
             builder.field(Fields.INSERT_ORDER, pendingClusterTask.getInsertOrder());
             builder.field(Fields.PRIORITY, pendingClusterTask.getPriority());
             builder.field(Fields.SOURCE, pendingClusterTask.getSource());
+            builder.field(Fields.QUEUE, pendingClusterTask.queueName());
+            if (detailed) {
+                builder.field(Fields.TASK, pendingClusterTask.taskDescription());
+            }
             builder.field(Fields.EXECUTING, pendingClusterTask.isExecuting());
             builder.field(Fields.TIME_IN_QUEUE_MILLIS, pendingClusterTask.getTimeInQueueInMillis());
             builder.field(Fields.TIME_IN_QUEUE, pendingClusterTask.getTimeInQueue());
@@ -84,6 +91,8 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
         static final String INSERT_ORDER = "insert_order";
         static final String PRIORITY = "priority";
         static final String SOURCE = "source";
+        static final String QUEUE = "queue";
+        static final String TASK = "task";
         static final String TIME_IN_QUEUE_MILLIS = "time_in_queue_millis";
         static final String TIME_IN_QUEUE = "time_in_queue";
 

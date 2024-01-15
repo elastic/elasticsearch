@@ -25,6 +25,8 @@ public class PendingClusterTasksResponseTests extends ESTestCase {
                     randomNonNegativeLong(),
                     randomFrom(Priority.values()),
                     new Text(randomAlphaOfLengthBetween(1, 10)),
+                    randomAlphaOfLengthBetween(0, 10),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10),
                     randomNonNegativeLong(),
                     randomBoolean()
                 )

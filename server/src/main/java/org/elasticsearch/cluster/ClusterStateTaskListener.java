@@ -27,4 +27,11 @@ public interface ClusterStateTaskListener {
      * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
     void onFailure(Exception e);
+
+    /**
+     * @return a description of the task, which may appear in logs and API outputs.
+     */
+    default String getDescription() {
+        return toString();
+    }
 }

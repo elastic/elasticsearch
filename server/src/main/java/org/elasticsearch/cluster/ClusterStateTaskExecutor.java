@@ -71,7 +71,10 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     default String describeTasks(List<T> tasks) {
         final StringBuilder output = new StringBuilder();
         Strings.collectionToDelimitedStringWithLimit(
-            (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
+            (Iterable<String>) () -> tasks.stream()
+                .map(ClusterStateTaskListener::getDescription)
+                .filter(s -> s.isEmpty() == false)
+                .iterator(),
             ", ",
             "",
             "",

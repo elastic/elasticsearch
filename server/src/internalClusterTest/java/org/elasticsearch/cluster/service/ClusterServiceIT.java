@@ -352,6 +352,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(pendingClusterTasks.get(0).getSource().string(), equalTo("1"));
         assertThat(pendingClusterTasks.get(0).isExecuting(), equalTo(true));
         for (PendingClusterTask task : pendingClusterTasks) {
+            assertNull(task.taskDescription());
             controlSources.remove(task.getSource().string());
         }
         assertTrue(controlSources.isEmpty());
@@ -391,12 +392,18 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 invoked3.countDown();
                 fail();
             }
+
+            @Override
+            public String getDescription() {
+                return "task-1-description";
+            }
         });
         assertTrue(invoked3.await(10, TimeUnit.SECONDS));
 
         try {
             for (int i = 2; i <= 5; i++) {
-                clusterService.submitUnbatchedStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
+                final var source = Integer.toString(i);
+                clusterService.submitUnbatchedStateUpdateTask(source, new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return currentState;
@@ -406,15 +413,22 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     public void onFailure(Exception e) {
                         fail();
                     }
+
+                    @Override
+                    public String getDescription() {
+                        return "task-" + source + "-description";
+                    }
                 });
             }
 
             waitForTimeToElapse();
 
-            pendingClusterTasks = clusterService.getMasterService().pendingTasks();
+            pendingClusterTasks = clusterService.getMasterService().pendingTasks(true);
             assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(5));
             controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
             for (PendingClusterTask task : pendingClusterTasks) {
+                assertEquals("unbatched", task.queueName());
+                assertEquals("task-" + task.getSource().string() + "-description", task.taskDescription());
                 controlSources.remove(task.getSource().string());
             }
             assertTrue(controlSources.isEmpty());

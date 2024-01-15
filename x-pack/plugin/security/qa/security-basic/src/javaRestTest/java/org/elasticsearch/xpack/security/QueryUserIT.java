@@ -55,13 +55,19 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
     public void testQuery() throws IOException {
         int randomUserCount = createRandomUsers().size();
         // An empty request body means search for all users
-        assertQuery(randomBoolean() ? "" : """
-            {"query":{"match_all":{}}}""", users -> assertThat(users.size(), equalTo(randomUserCount)));
+        assertQuery(
+            randomBoolean() ? "" : String.format("""
+                {"query":{"match_all":{}},"from":0,"size":%s}""", randomUserCount),
+            users -> assertThat(users.size(), equalTo(randomUserCount))
+        );
 
         // Exists query
         String field = randomFrom("username", "full_name", "roles", "enabled");
-        assertQuery(String.format("""
-            {"query": {"exists": {"field": "%s" }}}""", field), users -> assertEquals(users.size(), randomUserCount));
+        assertQuery(
+            String.format("""
+                {"query":{"exists":{"field":"%s"}},"from":0,"size":%s}""", field, randomUserCount),
+            users -> assertEquals(users.size(), randomUserCount)
+        );
 
         // Prefix search
         User prefixUser1 = createUser(

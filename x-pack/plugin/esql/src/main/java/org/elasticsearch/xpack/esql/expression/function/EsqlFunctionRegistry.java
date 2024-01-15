@@ -82,6 +82,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
@@ -154,7 +156,9 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Replace.class, Replace::new, "replace"),
                 def(Right.class, Right::new, "right"),
                 def(StartsWith.class, StartsWith::new, "starts_with"),
-                def(EndsWith.class, EndsWith::new, "ends_with") },
+                def(EndsWith.class, EndsWith::new, "ends_with"),
+                def(ToLower.class, ToLower::new, "to_lower"),
+                def(ToUpper.class, ToUpper::new, "to_upper") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, DateDiff::new, "date_diff"),
@@ -210,7 +214,14 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
 
     public record ArgSignature(String name, String[] type, String description, boolean optional) {}
 
-    public record FunctionDescription(String name, List<ArgSignature> args, String[] returnType, String description, boolean variadic) {
+    public record FunctionDescription(
+        String name,
+        List<ArgSignature> args,
+        String[] returnType,
+        String description,
+        boolean variadic,
+        boolean isAggregation
+    ) {
         public String fullSignature() {
             StringBuilder builder = new StringBuilder();
             builder.append(ShowFunctions.withPipes(returnType));
@@ -245,29 +256,30 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
     public static FunctionDescription description(FunctionDefinition def) {
         var constructors = def.clazz().getConstructors();
         if (constructors.length == 0) {
-            return new FunctionDescription(def.name(), List.of(), null, null, false);
+            return new FunctionDescription(def.name(), List.of(), null, null, false, false);
         }
         Constructor<?> constructor = constructors[0];
         FunctionInfo functionInfo = constructor.getAnnotation(FunctionInfo.class);
-        String functionDescription = functionInfo == null ? "" : functionInfo.description();
+        String functionDescription = functionInfo == null ? "" : functionInfo.description().replaceAll(System.lineSeparator(), " ");
         String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
         var params = constructor.getParameters(); // no multiple c'tors supported
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
+        boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                 Param paramInfo = params[i].getAnnotation(Param.class);
                 String name = paramInfo == null ? params[i].getName() : paramInfo.name();
                 variadic |= List.class.isAssignableFrom(params[i].getType());
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
-                String desc = paramInfo == null ? "" : paramInfo.description();
+                String desc = paramInfo == null ? "" : paramInfo.description().replaceAll(System.lineSeparator(), " ");
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
 
                 args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional));
             }
         }
-        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic);
+        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
     }
 
 }

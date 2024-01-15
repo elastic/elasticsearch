@@ -41,7 +41,6 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         wipeMonitoringIndices();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96374")
     public void testMultipleNodes() throws Exception {
         int nodes = 0;
 

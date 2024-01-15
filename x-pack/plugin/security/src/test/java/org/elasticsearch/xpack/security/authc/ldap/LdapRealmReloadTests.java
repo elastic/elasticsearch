@@ -118,7 +118,13 @@ public class LdapRealmReloadTests extends LdapTestCase {
             // Generate new password and reload only on ES side
             final String newBindPassword = randomAlphaOfLengthBetween(5, 10);
             final Settings updatedSettings = Settings.builder()
-                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, newBindPassword))
+                .setSecureSettings(
+                    secureSettings(
+                        randomFrom(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD),
+                        REALM_IDENTIFIER,
+                        newBindPassword
+                    )
+                )
                 .build();
             ldap.reload(updatedSettings);
             authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.CONTINUE);

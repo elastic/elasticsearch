@@ -75,6 +75,11 @@ public class HeapAttackIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    @Before
+    public void skipOnAborted() {
+        assumeFalse("skip on aborted", SUITE_ABORTED);
+    }
+
     /**
      * This used to fail, but we've since compacted top n so it actually succeeds now.
      */
@@ -552,7 +557,9 @@ public class HeapAttackIT extends ESRestTestCase {
     @Before
     @After
     public void assertRequestBreakerEmpty() throws Exception {
-        assumeFalse("suite was aborted", SUITE_ABORTED);
+        if (SUITE_ABORTED) {
+            return;
+        }
         assertBusy(() -> {
             HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats")).getEntity();
             Map<?, ?> stats = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);

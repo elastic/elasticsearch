@@ -10,12 +10,17 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
+import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.elasticsearch.xcontent.XContentLocation;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Run the ESQL yaml tests async and then fetch the results with a long wait time.
@@ -27,34 +32,79 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return EsqlClientYamlAsyncIT.parameters(doSection -> {
-            ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi("esql.async_query");
-            for (Map<String, Object> body : copy.getBodies()) {
-                body.put("wait_for_completion_timeout", "0ms");
-                body.put("keep_on_completion", true);
+        return EsqlClientYamlAsyncIT.parameters(DoEsqlAsync::new);
+    }
+
+    private static class DoEsqlAsync implements ExecutableSection {
+        private final DoSection original;
+
+        private DoEsqlAsync(DoSection original) {
+            this.original = original;
+        }
+
+        @Override
+        public XContentLocation getLocation() {
+            return original.getLocation();
+        }
+
+        @Override
+        public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
+            try {
+                // Start the query
+                List<Map<String, Object>> bodies = original.getApiCallSection().getBodies().stream().map(m -> {
+                    Map<String, Object> body = new HashMap<>(m);
+                    if (randomBoolean()) {
+                        /*
+                         * Try to force the request to go async by setting the timeout to 0.
+                         * This doesn't *actually* force the request async - if it finishes
+                         * super duper faster it won't get async. But that's life.
+                         */
+                        body.put("wait_for_completion_timeout", "0ms");
+                    }
+                    return body;
+                }).toList();
+                ClientYamlTestResponse startResponse = executionContext.callApi(
+                    "esql.async_query",
+                    original.getApiCallSection().getParams(),
+                    bodies,
+                    original.getApiCallSection().getHeaders(),
+                    original.getApiCallSection().getNodeSelector()
+                );
+
+                String id = (String) startResponse.evaluate("id");
+                boolean finishedEarly = id == null;
+                if (finishedEarly) {
+                    /*
+                     * If we finished early, make sure we don't have a "catch"
+                     * param and expect and error. And make sure we match the
+                     * warnings folks have asked for.
+                     */
+                    original.failIfHasCatch(startResponse);
+                    original.checkWarningHeaders(startResponse.getWarningHeaders(), testPath(executionContext));
+                    return;
+                }
+
+                /*
+                 * Ok, we didn't finish before the timeout. Fine, let's fetch the result.
+                 */
+                ClientYamlTestResponse fetchResponse = executionContext.callApi(
+                    "esql.async_query_get",
+                    Map.of("wait_for_completion_timeout", "30m", "id", id),
+                    List.of(),
+                    original.getApiCallSection().getHeaders(),
+                    original.getApiCallSection().getNodeSelector()
+                );
+                original.failIfHasCatch(fetchResponse);
+                original.checkWarningHeaders(fetchResponse.getWarningHeaders(), testPath(executionContext));
+            } catch (ClientYamlTestResponseException e) {
+                original.checkResponseException(e, executionContext);
             }
-            doSection.setApiCallSection(copy);
+        }
 
-            DoSection fetch = new DoSection(doSection.getLocation());
-            fetch.setApiCallSection(new ApiCallSection("esql.async_query_get"));
-            fetch.getApiCallSection().addParam("wait_for_completion_timeout", "30m");
-            fetch.getApiCallSection().addParam("id", "$body.id");
-
-            /*
-             * The request to start the query doesn't make warnings or errors so shift
-             * those to the fetch.
-             */
-            fetch.setExpectedWarningHeaders(doSection.getExpectedWarningHeaders());
-            fetch.setExpectedWarningHeadersRegex(doSection.getExpectedWarningHeadersRegex());
-            fetch.setAllowedWarningHeaders(doSection.getAllowedWarningHeaders());
-            fetch.setAllowedWarningHeadersRegex(doSection.getAllowedWarningHeadersRegex());
-            fetch.setCatch(doSection.getCatch());
-            doSection.setExpectedWarningHeaders(List.of());
-            doSection.setExpectedWarningHeadersRegex(List.of());
-            doSection.setAllowedWarningHeaders(List.of());
-            doSection.setAllowedWarningHeadersRegex(List.of());
-            doSection.setCatch(null);
-            return Stream.of(doSection, fetch);
-        });
+        private String testPath(ClientYamlTestExecutionContext executionContext) {
+            return executionContext.getClientYamlTestCandidate() != null
+                ? executionContext.getClientYamlTestCandidate().getTestPath()
+                : null;
+        }
     }
 }

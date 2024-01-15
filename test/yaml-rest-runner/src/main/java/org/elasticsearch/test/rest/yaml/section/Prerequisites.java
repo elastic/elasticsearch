@@ -12,31 +12,36 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
-public class SkipCriteria {
+public class Prerequisites {
 
-    public static final Predicate<ClientYamlTestExecutionContext> SKIP_ALWAYS = context -> true;
+    public static final Predicate<ClientYamlTestExecutionContext> TRUE = context -> true;
+    public static final Predicate<ClientYamlTestExecutionContext> FALSE = context -> false;
 
-    private SkipCriteria() {}
+    private Prerequisites() {}
 
-    static Predicate<ClientYamlTestExecutionContext> fromVersionRange(String versionRange) {
+    static Predicate<ClientYamlTestExecutionContext> skipOnVersionRange(String versionRange) {
         final var versionRangePredicates = VersionRange.parseVersionRanges(versionRange);
         assert versionRangePredicates.isEmpty() == false;
         return context -> versionRangePredicates.stream().anyMatch(range -> range.test(context.nodesVersions()));
     }
 
-    static Predicate<ClientYamlTestExecutionContext> fromOsList(List<String> operatingSystems) {
+    static Predicate<ClientYamlTestExecutionContext> skipOnOsList(List<String> operatingSystems) {
         return context -> operatingSystems.stream().anyMatch(osName -> osName.equals(context.os()));
     }
 
-    static Predicate<ClientYamlTestExecutionContext> fromClusterModules(boolean xpackRequired) {
+    static Predicate<ClientYamlTestExecutionContext> hasXPack() {
         // TODO: change ESRestTestCase.hasXPack() to be context-specific
-        return context -> {
-            if (xpackRequired) {
-                return ESRestTestCase.hasXPack() == false;
-            }
-            return ESRestTestCase.hasXPack();
-        };
+        return context -> ESRestTestCase.hasXPack();
+    }
+
+    static Predicate<ClientYamlTestExecutionContext> requireClusterFeatures(Set<String> clusterFeatures) {
+        return context -> clusterFeatures.stream().allMatch(context::clusterHasFeature);
+    }
+
+    static Predicate<ClientYamlTestExecutionContext> skipOnClusterFeatures(Set<String> clusterFeatures) {
+        return context -> clusterFeatures.stream().anyMatch(context::clusterHasFeature);
     }
 }

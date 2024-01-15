@@ -50,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
@@ -525,13 +524,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
 
-        private final Set<Runnable> runnables = new HashSet<>();
+        private final List<Runnable> runnables = new ArrayList<>();
 
         private Runnable add(Runnable action) {
             Objects.requireNonNull(action, "cancellation runnable should not be null");
-            if (runnables.add(action) == false) {
-                throw new IllegalArgumentException("Cancellation runnable already added");
-            }
+            assert runnables.contains(action) == false : "Cancellation runnable already added";
+            runnables.add(action);
             return action;
         }
 

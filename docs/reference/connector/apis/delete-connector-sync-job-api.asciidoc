@@ -1,11 +1,10 @@
 [[delete-connector-sync-job-api]]
 === Delete connector sync job API
-
-preview::[]
-
 ++++
 <titleabbrev>Delete connector sync job</titleabbrev>
 ++++
+
+preview::[]
 
 Removes a connector sync job and its associated data.
 This is a destructive action that is not recoverable.

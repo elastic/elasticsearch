@@ -52,7 +52,7 @@ public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
                 ClientYamlTestSection modified = new ClientYamlTestSection(
                     candidate.getTestSection().getLocation(),
                     candidate.getTestSection().getName(),
-                    candidate.getTestSection().getSkipSection(),
+                    candidate.getTestSection().getPrerequisiteSection(),
                     candidate.getTestSection().getExecutableSections().stream().map(e -> modifyExecutableSection(e, modify)).toList()
                 );
                 result.add(new Object[] { new ClientYamlTestCandidate(candidate.getRestTestSuite(), modified) });

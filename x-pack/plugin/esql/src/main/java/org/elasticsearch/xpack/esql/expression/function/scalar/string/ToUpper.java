@@ -83,9 +83,18 @@ public class ToUpper extends ConfigurationFunction implements EvaluatorMapper {
         return new ToUpperEvaluator.Factory(source(), fieldEvaluator, ((EsqlConfiguration) configuration()).locale());
     }
 
+    public Expression field() {
+        return field;
+    }
+
+    public ToUpper replaceChild(Expression child) {
+        return new ToUpper(source(), child, configuration());
+    }
+
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToUpper(source(), newChildren.get(0), configuration());
+        assert newChildren.size() == 1;
+        return replaceChild(newChildren.get(0));
     }
 
     @Override

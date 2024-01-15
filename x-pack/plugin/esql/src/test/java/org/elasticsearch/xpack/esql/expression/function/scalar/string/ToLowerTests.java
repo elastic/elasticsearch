@@ -11,13 +11,20 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.DateUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,9 +50,30 @@ public class ToLowerTests extends AbstractFunctionTestCase {
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
+    public void testRandomLocale() {
+        String testString = randomAlphaOfLength(10);
+        EsqlConfiguration cfg = randomLocaleConfig();
+        ToLower func = new ToLower(Source.EMPTY, new Literal(Source.EMPTY, testString, DataTypes.KEYWORD), cfg);
+        assertThat(BytesRefs.toBytesRef(testString.toLowerCase(cfg.locale())), equalTo(func.fold()));
+    }
+
+    private EsqlConfiguration randomLocaleConfig() {
+        return new EsqlConfiguration(
+            DateUtils.UTC,
+            randomLocale(random()),
+            null,
+            null,
+            new QueryPragmas(Settings.EMPTY),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            "",
+            false
+        );
+    }
+
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToLower(source, args.get(0), EsqlTestUtils.configuration(""));
+        return new ToLower(source, args.get(0), EsqlTestUtils.TEST_CFG);
     }
 
     private static TestCaseSupplier supplier(String name, DataType type, Supplier<String> valueSupplier) {
@@ -56,7 +84,7 @@ public class ToLowerTests extends AbstractFunctionTestCase {
             String value = valueSupplier.get();
             values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));
 
-            String expectedValue = value.toLowerCase(EsqlTestUtils.configuration("").locale());
+            String expectedValue = value.toLowerCase(EsqlTestUtils.TEST_CFG.locale());
             return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(new BytesRef(expectedValue)));
         });
     }

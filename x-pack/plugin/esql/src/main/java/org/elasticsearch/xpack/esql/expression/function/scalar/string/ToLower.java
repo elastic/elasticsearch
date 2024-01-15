@@ -83,9 +83,18 @@ public class ToLower extends ConfigurationFunction implements EvaluatorMapper {
         return new ToLowerEvaluator.Factory(source(), fieldEvaluator, ((EsqlConfiguration) configuration()).locale());
     }
 
+    public Expression field() {
+        return field;
+    }
+
+    public ToLower replaceChild(Expression child) {
+        return new ToLower(source(), child, configuration());
+    }
+
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToLower(source(), newChildren.get(0), configuration());
+        assert newChildren.size() == 1;
+        return replaceChild(newChildren.get(0));
     }
 
     @Override

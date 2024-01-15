@@ -1459,19 +1459,15 @@ public final class PlanNamedTypes {
     }
 
     static void writeToLower(PlanStreamOutput out, ToLower toLower) throws IOException {
-        List<Expression> fields = toLower.children();
-        assert fields.size() == 1;
-        out.writeExpression(fields.get(0));
+        out.writeExpression(toLower.field());
     }
 
     static ToUpper readToUpper(PlanStreamInput in) throws IOException {
         return new ToUpper(Source.EMPTY, in.readExpression(), in.configuration());
     }
 
-    static void writeToUpper(PlanStreamOutput out, ToUpper toLower) throws IOException {
-        List<Expression> fields = toLower.children();
-        assert fields.size() == 1;
-        out.writeExpression(fields.get(0));
+    static void writeToUpper(PlanStreamOutput out, ToUpper toUpper) throws IOException {
+        out.writeExpression(toUpper.field());
     }
 
     static Left readLeft(PlanStreamInput in) throws IOException {

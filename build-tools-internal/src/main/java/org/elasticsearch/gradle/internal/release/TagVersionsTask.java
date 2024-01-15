@@ -22,7 +22,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -86,9 +85,7 @@ public class TagVersionsTask extends AbstractVersionsTask {
             Matcher m = VERSION_LINE.matcher(l);
             if (m.matches() == false) throw new IllegalArgumentException(String.format("Incorrect format for line [%s]", l));
             return m;
-        }).collect(Collectors.toMap(m -> Version.fromString(m.group(1)), m -> Integer.parseInt(m.group(2)), (v1, v2) -> {
-            throw new IllegalArgumentException("Duplicate release version in file");
-        }, TreeMap::new));
+        }).collect(Collectors.toMap(m -> Version.fromString(m.group(1)), m -> Integer.parseInt(m.group(2))));
 
         Integer existing = versions.putIfAbsent(release, id);
         if (existing != null) {
@@ -107,6 +104,8 @@ public class TagVersionsTask extends AbstractVersionsTask {
             }
         }
 
-        return Optional.of(versions.entrySet().stream().map(e -> e.getKey() + "," + e.getValue()).toList());
+        return Optional.of(
+            versions.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(e -> e.getKey() + "," + e.getValue()).toList()
+        );
     }
 }

@@ -115,9 +115,9 @@ public class TagVersionsTaskTests {
         List<String> lines = List.of("8.0.0,100", "8.0.0,101");
 
         var ex = assertThrows(
-            IllegalArgumentException.class,
+            IllegalStateException.class,
             () -> TagVersionsTask.addVersionRecord(new ArrayList<>(lines), Version.fromString("8.0.1"), 102)
         );
-        assertThat(ex.getMessage(), is("Duplicate release version in file"));
+        assertThat(ex.getMessage(), is("Duplicate key 8.0.0 (attempted merging values 100 and 101)"));
     }
 }

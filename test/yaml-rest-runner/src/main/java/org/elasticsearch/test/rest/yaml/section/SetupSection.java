@@ -36,7 +36,7 @@ public class SetupSection {
     }
 
     public static SetupSection parse(XContentParser parser) throws IOException {
-        PrerequisiteSection prerequisiteSection = PrerequisiteSection.parseIfNext(parser);
+        PrerequisiteSection prerequisiteSection = PrerequisiteSection.parseIfNext(parser, "setup");
         List<ExecutableSection> executableSections = new ArrayList<>();
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
             ParserUtils.advanceToFieldName(parser);

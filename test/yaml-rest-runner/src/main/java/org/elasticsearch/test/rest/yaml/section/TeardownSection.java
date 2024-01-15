@@ -35,7 +35,7 @@ public class TeardownSection {
     }
 
     public static TeardownSection parse(XContentParser parser) throws IOException {
-        PrerequisiteSection prerequisiteSection = PrerequisiteSection.parseIfNext(parser);
+        PrerequisiteSection prerequisiteSection = PrerequisiteSection.parseIfNext(parser, "teardown");
         List<ExecutableSection> executableSections = new ArrayList<>();
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
             ParserUtils.advanceToFieldName(parser);

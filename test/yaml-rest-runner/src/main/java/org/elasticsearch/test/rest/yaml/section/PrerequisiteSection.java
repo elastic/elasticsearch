@@ -183,8 +183,8 @@ public class PrerequisiteSection {
     /**
      * Parse a {@link PrerequisiteSection} if the next field is {@code skip}, otherwise returns {@link PrerequisiteSection#EMPTY}.
      */
-    public static PrerequisiteSection parseIfNext(XContentParser parser) throws IOException {
-        return parseInternal(parser).build();
+    public static PrerequisiteSection parseIfNext(XContentParser parser, String testName) throws IOException {
+        return parseInternal(parser, testName).build();
     }
 
     private static void maybeAdvanceToNextField(XContentParser parser) throws IOException {
@@ -194,14 +194,14 @@ public class PrerequisiteSection {
         }
     }
 
-    static PrerequisiteSectionBuilder parseInternal(XContentParser parser) throws IOException {
+    static PrerequisiteSectionBuilder parseInternal(XContentParser parser, String testName) throws IOException {
         PrerequisiteSectionBuilder builder = new PrerequisiteSectionBuilder();
         var hasPrerequisiteSection = false;
         var unknownFieldName = false;
         ParserUtils.advanceToFieldName(parser);
         while (unknownFieldName == false) {
             if ("skip".equals(parser.currentName())) {
-                parseSkipSection(parser, builder);
+                parseSkipSection(parser, builder, testName);
                 hasPrerequisiteSection = true;
                 maybeAdvanceToNextField(parser);
             } else if ("requires".equals(parser.currentName())) {
@@ -232,7 +232,7 @@ public class PrerequisiteSection {
     }
 
     // package private for tests
-    static void parseSkipSection(XContentParser parser, PrerequisiteSectionBuilder builder) throws IOException {
+    static void parseSkipSection(XContentParser parser, PrerequisiteSectionBuilder builder, String testName) throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException(
                 "Expected ["
@@ -256,8 +256,10 @@ public class PrerequisiteSection {
                 } else if ("features".equals(currentFieldName)) {
                     // TODO: legacy - remove
                     logger.warn(
-                        "[\"skip\": \"features\"] is deprecated and will be removed. Replace it with "
-                            + "[\"requires\": \"test_runner_features\"]"
+                        "[\"skip\": \"features\"] is deprecated. Replace it with "
+                            + "[\"requires\": \"test_runner_features\"]. Test [\"{}\"], Location: [{}]",
+                        testName,
+                        parser.getTokenLocation()
                     );
                     parseFeatureField(parser.text(), builder);
                 } else if ("os".equals(currentFieldName)) {
@@ -273,8 +275,10 @@ public class PrerequisiteSection {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 // TODO: legacy - remove
                 logger.warn(
-                    "[\"skip\": \"features\"] is deprecated and will be removed. Replace it with "
-                        + "[\"requires\": \"test_runner_features\"]"
+                    "[\"skip\": \"features\"] is deprecated. Replace it with "
+                        + "[\"requires\": \"test_runner_features\"]. Test [\"{}\"], Location: [{}]",
+                    testName,
+                    parser.getTokenLocation()
                 );
                 if ("features".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {

@@ -69,7 +69,7 @@ public class TagVersionsTask extends AbstractVersionsTask {
                 default -> throw new IllegalArgumentException("Unknown version type " + v.getKey());
             };
 
-            LOGGER.lifecycle("Adding version record for {} to [{}]", v.getKey(), recordFile);
+            LOGGER.lifecycle("Adding version record for {} to [{}]: [{},{}]", v.getKey(), recordFile, releaseVersion, v.getValue());
 
             List<String> versionRecords = Files.readAllLines(rootDir.resolve(recordFile));
             var modified = addVersionRecord(versionRecords, releaseVersion, v.getValue());
@@ -107,7 +107,6 @@ public class TagVersionsTask extends AbstractVersionsTask {
             }
         }
 
-        LOGGER.lifecycle("Added version id [{}] record for release [{}]", id, release);
         return Optional.of(versions.entrySet().stream().map(e -> e.getKey() + "," + e.getValue()).toList());
     }
 }

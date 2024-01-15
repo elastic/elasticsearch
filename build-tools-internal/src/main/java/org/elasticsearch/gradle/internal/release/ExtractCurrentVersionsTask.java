@@ -65,8 +65,12 @@ public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
         Files.write(outputFile, output, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    private static class FieldIdExtractor implements Consumer<FieldDeclaration> {
+    static class FieldIdExtractor implements Consumer<FieldDeclaration> {
         private Integer highestVersionId;
+
+        Integer highestVersionId() {
+            return highestVersionId;
+        }
 
         @Override
         public void accept(FieldDeclaration fieldDeclaration) {

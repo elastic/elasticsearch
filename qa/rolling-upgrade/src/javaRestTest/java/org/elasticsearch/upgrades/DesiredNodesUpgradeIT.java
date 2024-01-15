@@ -168,7 +168,8 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                     new DesiredNode.ProcessorsRange(minProcessors, minProcessors + randomIntBetween(10, 20)),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                    ByteSizeValue.ofGb(randomIntBetween(128, 256))
+                    ByteSizeValue.ofGb(randomIntBetween(128, 256)),
+                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_REMOVED) ? null : Version.CURRENT
                 );
             }).toList();
         }
@@ -197,6 +198,11 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
             builder.xContentList(UpdateDesiredNodesRequest.NODES_FIELD.getPreferredName(), nodes);
             builder.endObject();
             request.setJsonEntity(Strings.toString(builder));
+            request.setOptions(
+                expectVersionSpecificWarnings(
+                    v -> v.compatible("[version removal] Specifying node_version in desired nodes requests is deprecated.")
+                )
+            );
             final var response = client().performRequest(request);
             final var statusCode = response.getStatusLine().getStatusCode();
             assertThat(statusCode, equalTo(200));

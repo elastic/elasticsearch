@@ -127,21 +127,25 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final String externalId;
     private final Set<DiscoveryNodeRole> roles;
 
-    public DesiredNode(Settings settings, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage) {
-        this(settings, null, processorsRange, memory, storage, null);
+    @Deprecated
+    public DesiredNode(Settings settings, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage, Version version) {
+        this(settings, null, processorsRange, memory, storage, version);
     }
 
+    @Deprecated
     public DesiredNode(Settings settings, double processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
         this(settings, Processors.of(processors), null, memory, storage, version);
     }
 
-    DesiredNode(
-        Settings settings,
-        Processors processors,
-        ProcessorsRange processorsRange,
-        ByteSizeValue memory,
-        ByteSizeValue storage
-    ) {
+    public DesiredNode(Settings settings, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage) {
+        this(settings, null, processorsRange, memory, storage);
+    }
+
+    public DesiredNode(Settings settings, double processors, ByteSizeValue memory, ByteSizeValue storage) {
+        this(settings, Processors.of(processors), null, memory, storage);
+    }
+
+    DesiredNode(Settings settings, Processors processors, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage) {
         this(settings, processors, processorsRange, memory, storage, null);
     }
 
@@ -151,8 +155,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         ProcessorsRange processorsRange,
         ByteSizeValue memory,
         ByteSizeValue storage,
-        @Deprecated
-        Version version
+        @Deprecated Version version
     ) {
         assert settings != null;
         assert memory != null;

@@ -180,6 +180,7 @@ class S3RetryingInputStream extends InputStream {
     }
 
     // The method throws if the operation should *not* be retried. Otherwise, it keeps a record for the attempt and associated failure
+    // and compute the delay before retry.
     private <T extends Exception> long maybeLogAndComputeRetryDelay(String action, T e) throws T {
         if (shouldRetry(attempt) == false) {
             final var finalException = addSuppressedExceptions(e);
@@ -193,7 +194,7 @@ class S3RetryingInputStream extends InputStream {
             failures.add(e);
         }
         final long delayInMillis = getRetryDelayInMillis();
-        attempt += 1;
+        attempt += 1; // increment after computing delay because attempt affects the result
         return delayInMillis;
     }
 

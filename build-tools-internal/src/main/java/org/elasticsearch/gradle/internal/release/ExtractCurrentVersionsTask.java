@@ -54,12 +54,12 @@ public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
 
         List<String> output = new ArrayList<>();
         int transportVersion = readLatestVersion(rootDir.resolve(TRANSPORT_VERSION_FILE_PATH));
-        LOGGER.lifecycle("Transport version {}", transportVersion);
-        output.add("TransportVersion:" + transportVersion);
+        LOGGER.lifecycle("Transport version: {}", transportVersion);
+        output.add(TRANSPORT_VERSION_TYPE + ":" + transportVersion);
 
         int indexVersion = readLatestVersion(rootDir.resolve(INDEX_VERSION_FILE_PATH));
-        LOGGER.lifecycle("Index version {}", indexVersion);
-        output.add("IndexVersion:" + indexVersion);
+        LOGGER.lifecycle("Index version: {}", indexVersion);
+        output.add(INDEX_VERSION_TYPE + ":" + indexVersion);
 
         LOGGER.lifecycle("Writing version information to {}", outputFile);
         Files.write(outputFile, output, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);

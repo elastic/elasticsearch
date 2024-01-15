@@ -15,6 +15,9 @@ import java.nio.file.Path;
 
 public abstract class AbstractVersionsTask extends DefaultTask {
 
+    static final String TRANSPORT_VERSION_TYPE = "TransportVersion";
+    static final String INDEX_VERSION_TYPE = "IndexVersion";
+
     static final String SERVER_MODULE_PATH = "server/src/main/java/";
     static final String TRANSPORT_VERSION_FILE_PATH = SERVER_MODULE_PATH + "org/elasticsearch/TransportVersions.java";
     static final String INDEX_VERSION_FILE_PATH = SERVER_MODULE_PATH + "org/elasticsearch/index/IndexVersions.java";

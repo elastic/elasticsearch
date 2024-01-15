@@ -64,8 +64,8 @@ public class TagVersionsTask extends AbstractVersionsTask {
 
         for (var v : tagVersions.entrySet()) {
             Path recordFile = switch (v.getKey()) {
-                case "TransportVersion" -> rootDir.resolve(TRANSPORT_VERSIONS_RECORD);
-                case "IndexVersion" -> rootDir.resolve(INDEX_VERSIONS_RECORD);
+                case TRANSPORT_VERSION_TYPE -> rootDir.resolve(TRANSPORT_VERSIONS_RECORD);
+                case INDEX_VERSION_TYPE -> rootDir.resolve(INDEX_VERSIONS_RECORD);
                 default -> throw new IllegalArgumentException("Unknown version type " + v.getKey());
             };
 

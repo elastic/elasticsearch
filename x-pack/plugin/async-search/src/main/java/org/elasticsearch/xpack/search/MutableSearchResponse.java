@@ -346,7 +346,7 @@ class MutableSearchResponse implements Releasable {
             return new AsyncStatusResponse(
                 asyncExecutionId,
                 false,
-                false,  // TODO: this should be isPartial - fix in bug fix PR
+                false,
                 startTime,
                 expirationTime,
                 startTime + finalResponse.getTook().millis(),

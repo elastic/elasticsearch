@@ -16,6 +16,7 @@ import org.elasticsearch.action.delete.DeleteResponseTests;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -23,11 +24,16 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
 import static org.elasticsearch.action.bulk.BulkItemResponseTests.assertBulkItemResponse;
 import static org.elasticsearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -68,11 +74,16 @@ public class BulkResponseTests extends ESTestCase {
         }
 
         BulkResponse bulkResponse = new BulkResponse(bulkItems, took, ingestTook);
-        BytesReference originalBytes = toShuffledXContent(bulkResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsToXContent(bulkResponse),
+            xContentType,
+            ToXContent.EMPTY_PARAMS,
+            humanReadable
+        );
 
         BulkResponse parsedBulkResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsedBulkResponse = BulkResponse.fromXContent(parser);
+            parsedBulkResponse = fromXContent(parser);
             assertNull(parser.nextToken());
         }
 
@@ -147,5 +158,40 @@ public class BulkResponseTests extends ESTestCase {
             fail("Test does not support opType [" + opType + "]");
         }
         return randomDocWriteResponses;
+    }
+
+    private static BulkResponse fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+        long took = -1L;
+        long ingestTook = NO_INGEST_TOOK;
+        List<BulkItemResponse> items = new ArrayList<>();
+
+        String currentFieldName = parser.currentName();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (BulkResponse.TOOK.equals(currentFieldName)) {
+                    took = parser.longValue();
+                } else if (BulkResponse.INGEST_TOOK.equals(currentFieldName)) {
+                    ingestTook = parser.longValue();
+                } else if (BulkResponse.ERRORS.equals(currentFieldName) == false) {
+                    throwUnknownField(currentFieldName, parser);
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (BulkResponse.ITEMS.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        items.add(BulkItemResponseTests.itemResponseFromXContent(parser, items.size()));
+                    }
+                } else {
+                    throwUnknownField(currentFieldName, parser);
+                }
+            } else {
+                throwUnknownToken(token, parser);
+            }
+        }
+        return new BulkResponse(items.toArray(new BulkItemResponse[items.size()]), took, ingestTook);
     }
 }

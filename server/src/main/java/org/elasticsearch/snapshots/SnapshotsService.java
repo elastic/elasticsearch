@@ -1501,7 +1501,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             // a fatal like e.g. this node stopped being the master node
                             snapshotListeners.onResponse(endAndGetListenersToResolve(snapshot));
                             runNextQueuedOperation(updatedRepositoryData, repository, true);
-                        }, e -> handleFinalizationFailure(e, snapshot, repositoryData, shardGenerations)),
+                        },
+                            e -> handleFinalizationFailure(
+                                e,
+                                snapshot,
+                                repositoryData,
+                                // we might have written the new root blob before failing here, so we must use the updated shardGenerations
+                                shardGenerations
+                            )
+                        ),
                         snInfo -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
@@ -1517,7 +1525,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         })
                     )
                 );
-            }, e -> handleFinalizationFailure(e, snapshot, repositoryData, shardGenerations)));
+            },
+                e -> handleFinalizationFailure(
+                    e,
+                    snapshot,
+                    repositoryData,
+                    // a failure here means the root blob was not updated, but the updated shard generation blobs are all in place so we can
+                    // use the updated shardGenerations for all pending shard snapshots
+                    shardGenerations
+                )
+            ));
         } catch (Exception e) {
             logger.error(Strings.format("unexpected failure finalizing %s", snapshot), e);
             assert false : new AssertionError("unexpected failure finalizing " + snapshot, e);

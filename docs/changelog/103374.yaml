@@ -1,0 +1,5 @@
+pr: 103374
+summary: Cut over stored fields to ZSTD for compression
+area: Search
+type: enhancement
+issues: []

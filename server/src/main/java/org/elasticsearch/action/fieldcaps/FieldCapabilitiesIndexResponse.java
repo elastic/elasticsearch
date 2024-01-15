@@ -153,12 +153,6 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
             var first = fieldCapabilitiesIndexResponses.get(0);
-            // for (int i = 1; i < fieldCapabilitiesIndexResponses.size(); i++) { //TODO-MP not needed
-            // var otherIndexResponse = fieldCapabilitiesIndexResponses.get(i);
-            // for (IndexFieldCapabilities caps : otherIndexResponse.responseMap.values()) {
-            // first.responseMap.putIfAbsent(caps.name(), caps);
-            // }
-            // }
             o.writeString(first.indexMappingHash);
             o.writeMap(first.responseMap, StreamOutput::writeWriteable);
         });
@@ -170,12 +164,6 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
             var first = fieldCapabilitiesIndexResponses.get(0);
-            // for (int i = 1; i < fieldCapabilitiesIndexResponses.size(); i++) { //TODO-MP not needed
-            // var otherIndexResponse = fieldCapabilitiesIndexResponses.get(i);
-            // for (IndexFieldCapabilities caps : otherIndexResponse.responseMap.values()) {
-            // first.responseMap.putIfAbsent(caps.name(), caps);
-            // }
-            // }
             o.writeString(first.indexMappingHash);
             o.writeVInt(first.responseMap.size());
             for (IndexFieldCapabilities ifc : first.responseMap.values()) {

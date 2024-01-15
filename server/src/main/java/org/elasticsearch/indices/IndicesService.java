@@ -583,7 +583,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * Creates a new {@link IndexService} for the given metadata.
      *
      * @param indexMetadata          the index metadata to create the index for
-     * @param builtInListeners       a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the
+     * @param builtInListeners       a list of built-in lifecycle {@link IndexEventListener} that should be used alongside with the
      *                               per-index listeners
      * @throws ResourceAlreadyExistsException if the index already exists.
      */
@@ -643,7 +643,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
-        final IndexEventListener afterIndexCreated = new IndexEventListener() {
+        final IndexEventListener afterShardRecoveryLoadFieldHasValue = new IndexEventListener() {
             @Override
             public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
                 Engine engine = indexShard.getEngineOrNull();
@@ -666,7 +666,7 @@ public class IndicesService extends AbstractLifecycleComponent
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
         finalListeners.add(beforeIndexShardRecovery);
-        finalListeners.add(afterIndexCreated);
+        finalListeners.add(afterShardRecoveryLoadFieldHasValue);
         IndexService indexService;
         try (var ignored = threadPool.getThreadContext().newStoredContext()) {
             indexService = createIndexService(

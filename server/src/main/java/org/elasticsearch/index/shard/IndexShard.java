@@ -989,11 +989,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         Engine.IndexResult indexResult = index(engine, operation);
         if (indexResult.isCreated()) {
-            operation.parsedDoc()
-                .docs()
-                .forEach(doc -> { doc.getFields().forEach(indexableField -> setFieldHasValue(indexableField.name())); });
+            updateFieldHasValueWithFieldsFromParsedDoc(operation.parsedDoc());
         }
         return indexResult;
+    }
+
+    private void updateFieldHasValueWithFieldsFromParsedDoc(ParsedDocument document) {
+        // TODO-MP test performance of this op
+        document.docs().forEach(doc -> doc.getFields().forEach(field -> setFieldHasValue(field.name())));
     }
 
     public void setFieldHasValue(String fieldName) {

@@ -287,6 +287,14 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
 
         final String invalidFieldName = randomFrom("doc_type", "invalid", "password");
         assertQueryError(400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
+
+        final String invalidSortName = randomFrom("email", "full_name");
+        assertQueryError(
+            READ_USERS_USER_AUTH_HEADER,
+            400,
+            String.format("{\"sort\":[\"%s\"]}", invalidSortName),
+            String.format("sorting is not supported for field [%s] in User query", invalidSortName)
+        );
     }
 
     private String getReservedUsernameAndAssertExists() throws IOException {
@@ -328,11 +336,18 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertQueryError(String authHeader, int statusCode, String body) {
+        assertQueryError(authHeader, statusCode, body, null);
+    }
+
+    private void assertQueryError(String authHeader, int statusCode, String body, String errorMessage) {
         final Request request = new Request(randomFrom("GET", "POST"), "/_security/_query/user");
         request.setJsonEntity(body);
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         final ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+        if (errorMessage != null) {
+            assertTrue(responseException.getMessage().contains(errorMessage));
+        }
     }
 
     private void assertQuery(String body, Consumer<List<Map<String, Object>>> userVerifier) throws IOException {

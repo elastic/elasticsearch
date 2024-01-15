@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.support.UserBoolQueryBuilder;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.UserBoolQueryBuilder.USER_FIELD_NAME_TRANSLATOR;
 
 public final class TransportQueryUserAction extends TransportAction<QueryUserRequest, QueryUserResponse> {
     private final NativeUsersStore usersStore;
+    private static final Set<String> TEXT_TYPE_INDEX_FIELD_NAMES = Set.of("full_name", "email");
 
     @Inject
     public TransportQueryUserAction(TransportService transportService, ActionFilters actionFilters, NativeUsersStore usersStore) {
@@ -74,6 +76,12 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
                 searchSourceBuilder.sort(fieldSortBuilder);
             } else {
                 final String translatedFieldName = USER_FIELD_NAME_TRANSLATOR.translate(fieldSortBuilder.getFieldName());
+                if (TEXT_TYPE_INDEX_FIELD_NAMES.contains(translatedFieldName)) {
+                    throw new IllegalArgumentException(
+                        String.format("sorting is not supported for field [%s] in User query", fieldSortBuilder.getFieldName())
+                    );
+                }
+
                 if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
                     searchSourceBuilder.sort(fieldSortBuilder);
                 } else {

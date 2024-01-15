@@ -26,10 +26,12 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNot.not;
+import static org.hamcrest.Matchers.empty;
 
 public class QueryUserIT extends SecurityInBasicRestTestCase {
 
@@ -53,6 +55,9 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
     }
 
     public void testQuery() throws IOException {
+        // No users to match yet
+        assertQuery("", users -> assertThat(users, empty()));
+
         int randomUserCount = createRandomUsers().size();
 
         // An empty request body means search for all users (page size = 10)
@@ -112,6 +117,38 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             assertThat(users.size(), equalTo(2));
             assertUser(prefixUser1, users.get(0));
             assertUser(prefixUser2, users.get(1));
+        });
+
+        // Test other fields
+        User otherFieldsTestUser = createUser(
+            "batman-official-user",
+            new String[] { "bat-cave-admin" },
+            "Batman",
+            "batman@hotmail.com",
+            Map.of(),
+            true
+        );
+        String enabledTerm = "\"enabled\":true";
+        String fullNameTerm = "\"full_name\":\"some-user-that-is-very-unique\"";
+        String emailTerm = "\"email\":\"batman@hotmail.com\"";
+
+        final String term = randomFrom(enabledTerm, fullNameTerm, emailTerm);
+        assertQuery(
+            Strings.format("""
+                { "query": { "term": {%s} } }""", term),
+            users -> assertThat(
+                users.stream().map(u -> u.get(User.Fields.USERNAME.getPreferredName()).toString()).toList(),
+                contains("batman-official-user")
+            )
+        );
+
+        // Test complex query
+        assertQuery("""
+            { "query": {"bool": {"must": [
+            {"wildcard": {"username": "batman-official*"}},
+            {"term": {"enabled": true}}],"filter": [{"prefix": {"roles": "bat-cave"}}]}}}""", users -> {
+            assertThat(users.size(), equalTo(1));
+            assertUser(otherFieldsTestUser, users.get(0));
         });
 
         // Search for fields outside the allowlist fails
@@ -230,6 +267,21 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
                 assertUser(testUsers.get(i), users.get(i));
                 // Only first element of array is used for sorting
                 assertThat(((List<String>) users.get(i).get("roles")).get(0), equalTo(((List<String>) users.get(i).get("_sort")).get(0)));
+            }
+        });
+
+        // Make sure sorting on _doc works
+        assertQuery("""
+            {"sort":["_doc"]}""", users -> assertThat(users.size(), equalTo(3)));
+
+        // Make sure multi-field sorting works
+        assertQuery("""
+            {"sort":[{"username":{"order":"asc"}}, {"roles":{"order":"asc"}}]}""", users -> {
+            assertThat(users.size(), equalTo(3));
+            for (int i = 0; i <= 2; i++) {
+                assertUser(testUsers.get(i), users.get(i));
+                assertThat(users.get(i).get("username"), equalTo(((List<String>) users.get(i).get("_sort")).get(0)));
+                assertThat(((List<String>) users.get(i).get("roles")).get(0), equalTo(((List<String>) users.get(i).get("_sort")).get(1)));
             }
         });
 

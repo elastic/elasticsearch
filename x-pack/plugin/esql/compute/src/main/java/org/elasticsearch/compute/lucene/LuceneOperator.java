@@ -26,7 +26,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -90,11 +89,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     continue;
                 }
                 processedSlices++;
-                processedShards.add(
-                    currentSlice.searchContext().getSearchExecutionContext().getFullyQualifiedIndex().getName()
-                        + ":"
-                        + currentSlice.searchContext().getSearchExecutionContext().getShardId()
-                );
+                processedShards.add(currentSlice.shardContext().shardIdentifier());
             }
             final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
             logger.trace("Starting {}", partialLeaf);
@@ -102,7 +97,7 @@ public abstract class LuceneOperator extends SourceOperator {
             if (currentScorer == null || currentScorer.leafReaderContext() != leaf) {
                 final Weight weight = currentSlice.weight().get();
                 processedQueries.add(weight.getQuery());
-                currentScorer = new LuceneScorer(currentSlice.shardIndex(), currentSlice.searchContext(), weight, leaf);
+                currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, leaf);
             }
             assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
             currentScorer.maxPosition = partialLeaf.maxDoc();
@@ -118,8 +113,7 @@ public abstract class LuceneOperator extends SourceOperator {
      * Wraps a {@link BulkScorer} with shard information
      */
     static final class LuceneScorer {
-        private final int shardIndex;
-        private final SearchContext searchContext;
+        private final ShardContext shardContext;
         private final Weight weight;
         private final LeafReaderContext leafReaderContext;
 
@@ -128,9 +122,8 @@ public abstract class LuceneOperator extends SourceOperator {
         private int maxPosition;
         private Thread executingThread;
 
-        LuceneScorer(int shardIndex, SearchContext searchContext, Weight weight, LeafReaderContext leafReaderContext) {
-            this.shardIndex = shardIndex;
-            this.searchContext = searchContext;
+        LuceneScorer(ShardContext shardContext, Weight weight, LeafReaderContext leafReaderContext) {
+            this.shardContext = shardContext;
             this.weight = weight;
             this.leafReaderContext = leafReaderContext;
             reinitialize();
@@ -165,12 +158,8 @@ public abstract class LuceneOperator extends SourceOperator {
             position = DocIdSetIterator.NO_MORE_DOCS;
         }
 
-        int shardIndex() {
-            return shardIndex;
-        }
-
-        SearchContext searchContext() {
-            return searchContext;
+        ShardContext shardContext() {
+            return shardContext;
         }
 
         Weight weight() {
@@ -377,7 +366,7 @@ public abstract class LuceneOperator extends SourceOperator {
         }
     }
 
-    static Function<SearchContext, Weight> weightFunction(Function<SearchContext, Query> queryFunction, ScoreMode scoreMode) {
+    static Function<ShardContext, Weight> weightFunction(Function<ShardContext, Query> queryFunction, ScoreMode scoreMode) {
         return ctx -> {
             final var query = queryFunction.apply(ctx);
             final var searcher = ctx.searcher();

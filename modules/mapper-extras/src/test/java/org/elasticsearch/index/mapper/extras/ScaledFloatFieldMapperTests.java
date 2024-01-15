@@ -438,7 +438,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
         return v -> (Number) v;
     }
 

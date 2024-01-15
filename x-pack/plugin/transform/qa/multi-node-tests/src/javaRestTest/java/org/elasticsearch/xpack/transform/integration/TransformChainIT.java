@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -163,7 +164,7 @@ public class TransformChainIT extends TransformRestTestCase {
 
         List<String> transformIds = new ArrayList<>(numTransforms);
         // Create the chain of transforms. Previous transform's destination index becomes next transform's source index.
-        String transformIdPrefix = "my-transform-" + randomAlphaOfLength(4).toLowerCase() + "-" + numTransforms + "-";
+        String transformIdPrefix = "my-transform-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + "-" + numTransforms + "-";
         for (int i = 0; i < numTransforms; ++i) {
             String transformId = transformIdPrefix + i;
             transformIds.add(transformId);

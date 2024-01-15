@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -17,7 +16,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -49,7 +47,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -102,7 +99,6 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.lucene.LuceneOperator.NO_LIMIT;
 import static org.elasticsearch.compute.operator.LimitOperator.Factory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 
@@ -253,17 +249,7 @@ public class LocalExecutionPlanner {
         EsStatsQueryExec.Stat stat = statsQuery.stats().get(0);
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
-        Function<SearchContext, Query> querySupplier = EsPhysicalOperationProviders.querySupplier(stat.filter(statsQuery.query()));
-
-        Expression limitExp = statsQuery.limit();
-        int limit = limitExp != null ? (Integer) limitExp.fold() : NO_LIMIT;
-        final LuceneOperator.Factory luceneFactory = new LuceneCountOperator.Factory(
-            esProvider.searchContexts(),
-            querySupplier,
-            context.queryPragmas.dataPartitioning(),
-            context.queryPragmas.taskConcurrency(),
-            limit
-        );
+        final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, stat.filter(statsQuery.query()), statsQuery.limit());
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(statsQuery.outputSet());
@@ -356,8 +342,8 @@ public class LocalExecutionPlanner {
                 case "text", "keyword" -> TopNEncoder.UTF8;
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
-                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc", "geo_point", "cartesian_point" ->
-                    TopNEncoder.DEFAULT_SORTABLE;
+                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
+                case "geo_point", "cartesian_point" -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case "unsupported" -> TopNEncoder.UNSUPPORTED;
                 default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());

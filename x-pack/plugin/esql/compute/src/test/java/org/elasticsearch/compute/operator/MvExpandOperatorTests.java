@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -197,12 +196,6 @@ public class MvExpandOperatorTests extends OperatorTestCase {
             }
         }
         assertThat(resultIter2.hasNext(), equalTo(false));
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        assumeFalse("doesn't throw in tests but probably should", true);
-        return ByteSizeValue.ofBytes(1);
     }
 
     public void testNoopStatus() {

@@ -183,7 +183,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             int size = in.readInt();
             this.docs = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                this.docs.add(in.readMap());
+                this.docs.add(in.readGenericMap());
             }
             this.generatedDestIndexSettings = new TransformDestIndexSettings(in);
         }

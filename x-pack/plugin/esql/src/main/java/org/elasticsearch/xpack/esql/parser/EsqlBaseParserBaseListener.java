@@ -864,6 +864,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterSetting(EsqlBaseParser.SettingContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSetting(EsqlBaseParser.SettingContext ctx) { }
 
   /**
    * {@inheritDoc}

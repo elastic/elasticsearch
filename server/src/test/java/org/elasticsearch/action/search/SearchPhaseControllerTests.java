@@ -292,8 +292,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     profile
                 );
+                final SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                 try {
-                    SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
@@ -346,6 +346,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         assertThat(mergedResponse.profile(), is(anEmptyMap()));
                     }
                 } finally {
+                    mergedResponse.decRef();
                     fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {
@@ -410,8 +411,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     false
                 );
+                SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                 try {
-                    SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
@@ -427,6 +428,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs().scoreDocs().length));
                     assertThat(mergedResponse.profile(), is(anEmptyMap()));
                 } finally {
+                    mergedResponse.decRef();
                     fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {

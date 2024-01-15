@@ -173,8 +173,8 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         this.createTime = in.readOptionalInstant();
         this.size = in.readVLong();
         this.sha256 = in.readOptionalString();
-        this.inferenceConfigSource = in.readMap();
-        this.metadata = in.readMap();
+        this.inferenceConfigSource = in.readGenericMap();
+        this.metadata = in.readGenericMap();
         this.modelType = in.readOptionalString();
         this.tags = in.readOptionalCollectionAsList(StreamInput::readString);
         this.vocabularyFile = in.readOptionalString();

@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -369,6 +370,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             if (pt.getRawType() == List.class) {
                 return makeList(toBuildClass, pt);
             }
+            if (pt.getRawType() == Set.class) {
+                return makeSet(toBuildClass, pt);
+            }
             if (pt.getRawType() == EnumSet.class) {
                 @SuppressWarnings("rawtypes")
                 Enum enm = (Enum) makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
@@ -559,6 +563,18 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
     private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
+        }
+        return list;
+    }
+
+    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+        return makeSet(toBuildClass, listType, randomSizeForCollection(toBuildClass));
+    }
+
+    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+        Set<Object> list = new HashSet<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
         }

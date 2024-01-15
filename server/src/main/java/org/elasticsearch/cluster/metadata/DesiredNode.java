@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
@@ -268,7 +269,9 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     @UpdateForV9 // Remove deprecated field from response
     private void addDeprecatedVersionField(XContentBuilder builder) throws IOException {
-        if (version != null) {
+        if (version == null) {
+            builder.field(VERSION_FIELD.getPreferredName(), Build.current().version());
+        } else {
             builder.field(VERSION_FIELD.getPreferredName(), version);
         }
     }

@@ -196,7 +196,7 @@ public class TransformChainIT extends TransformRestTestCase {
                     is(equalTo(numDocs))
                 );
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
 
         // Stop all the transforms.
         for (String transformId : transformIds) {

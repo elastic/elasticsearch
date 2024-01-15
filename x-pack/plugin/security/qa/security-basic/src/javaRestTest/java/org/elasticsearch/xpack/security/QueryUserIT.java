@@ -26,8 +26,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -129,16 +129,16 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             true
         );
         String enabledTerm = "\"enabled\":true";
-        String fullNameTerm = "\"full_name\":\"some-user-that-is-very-unique\"";
+        String fullNameTerm = "\"full_name\":\"Batman\"";
         String emailTerm = "\"email\":\"batman@hotmail.com\"";
 
         final String term = randomFrom(enabledTerm, fullNameTerm, emailTerm);
         assertQuery(
             Strings.format("""
-                { "query": { "term": {%s} } }""", term),
+                {"query":{"term":{%s}},"size":100}""", term),
             users -> assertThat(
                 users.stream().map(u -> u.get(User.Fields.USERNAME.getPreferredName()).toString()).toList(),
-                contains("batman-official-user")
+                hasItem("batman-official-user")
             )
         );
 

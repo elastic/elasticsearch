@@ -69,7 +69,6 @@ public class ShardSplittingQueryTests extends ESTestCase {
         dir.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104349")
     public void testSplitOnRouting() throws IOException {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());

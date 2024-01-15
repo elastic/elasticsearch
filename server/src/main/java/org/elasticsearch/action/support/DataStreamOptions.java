@@ -50,7 +50,7 @@ public record DataStreamOptions(FailureStore failureStore) implements ToXContent
             return toString().toLowerCase(Locale.ROOT);
         }
 
-        public static boolean includeNormalIndices(@Nullable FailureStore failureStore) {
+        public static boolean includeBackingIndices(@Nullable FailureStore failureStore) {
             return failureStore == null || failureStore.equals(ONLY) == false;
         }
 
@@ -63,8 +63,10 @@ public record DataStreamOptions(FailureStore failureStore) implements ToXContent
 
     public static final DataStreamOptions INCLUDE_FAILURE_STORE = new DataStreamOptions(FailureStore.INCLUDE);
 
-    public boolean includeNormalIndices() {
-        return FailureStore.includeNormalIndices(failureStore);
+    public static final DataStreamOptions ONLY_FAILURE_STORE = new DataStreamOptions(FailureStore.ONLY);
+
+    public boolean includeBackingIndices() {
+        return FailureStore.includeBackingIndices(failureStore);
     }
 
     public boolean includeFailureIndices() {

@@ -303,6 +303,27 @@ public class IndexNameExpressionResolver {
         return concreteIndices(context, indexExpressions);
     }
 
+    public Index[] concreteIndices(
+        ClusterState state,
+        IndicesOptions options,
+        DataStreamOptions dataStreamOptions,
+        boolean includeDataStreams,
+        String... indexExpressions
+    ) {
+        Context context = new Context(
+            state,
+            options,
+            dataStreamOptions,
+            false,
+            false,
+            includeDataStreams,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate()
+        );
+        return concreteIndices(context, indexExpressions);
+    }
+
     /**
      * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
@@ -365,7 +386,8 @@ public class IndexNameExpressionResolver {
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
                 if (DataStream.isFailureStoreEnabled() == false
-                    || DataStreamOptions.FailureStore.includeNormalIndices(context.dataStreamOptions.failureStore())) {
+                    || context.dataStreamOptions == null
+                    || context.dataStreamOptions.includeBackingIndices()) {
                     Index writeIndex = indexAbstraction.getWriteIndex();
                     if (addIndex(writeIndex, null, context)) {
                         concreteIndicesResult.add(writeIndex);
@@ -373,11 +395,12 @@ public class IndexNameExpressionResolver {
                 }
                 DataStream dataStream = (DataStream) indexAbstraction;
                 if (DataStream.isFailureStoreEnabled()
+                    && context.dataStreamOptions != null
                     && dataStream.isFailureStore()
-                    && DataStreamOptions.FailureStore.includeFailureIndices(context.dataStreamOptions.failureStore())) {
-                    Index writeIndex = dataStream.getFailureStoreWriteIndex();
-                    if (writeIndex != null && addIndex(writeIndex, null, context)) {
-                        concreteIndicesResult.add(writeIndex);
+                    && context.dataStreamOptions.includeFailureIndices()) {
+                    Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
+                    if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
+                        concreteIndicesResult.add(failureStoreWriteIndex);
                     }
                 }
             } else {
@@ -400,7 +423,9 @@ public class IndexNameExpressionResolver {
 
                 if (indexAbstraction.getType() == Type.DATA_STREAM) {
                     DataStream dataStream = (DataStream) indexAbstraction;
-                    if (context.dataStreamOptions.includeNormalIndices()) {
+                    if (DataStream.isFailureStoreEnabled() == false
+                        || context.dataStreamOptions == null
+                        || context.dataStreamOptions.includeBackingIndices()) {
                         for (Index index : indexAbstraction.getIndices()) {
                             if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
                                 concreteIndicesResult.add(index);
@@ -409,6 +434,7 @@ public class IndexNameExpressionResolver {
                     }
                     if (DataStream.isFailureStoreEnabled()
                         && dataStream.isFailureStore()
+                        && context.dataStreamOptions != null
                         && context.dataStreamOptions.includeFailureIndices()) {
                         for (Index index : dataStream.getFailureIndices()) {
                             if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
@@ -437,7 +463,7 @@ public class IndexNameExpressionResolver {
         if (indexAbstraction.getType() == Type.DATA_STREAM) {
             DataStream dataStream = (DataStream) indexAbstraction;
             int count = 0;
-            if (DataStream.isFailureStoreEnabled() == false || context.dataStreamOptions.includeNormalIndices()) {
+            if (DataStream.isFailureStoreEnabled() == false || context.dataStreamOptions.includeBackingIndices()) {
                 count += dataStream.getIndices().size();
             }
             if (DataStream.isFailureStoreEnabled() && dataStream.isFailureStore() && context.dataStreamOptions.includeFailureIndices()) {

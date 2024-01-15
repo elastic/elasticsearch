@@ -16,45 +16,33 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class TransformChainIT extends TransformRestTestCase {
 
-    private static final String DEST_INDEX_TEMPLATE = """
-        {
-          "index_patterns": [ "my-transform-*-dest" ],
-          "mappings": {
-            "properties": {
-              "timestamp": {
-                "type": "date"
-              },
-              "user_id": {
-                "type": "keyword"
-              },
-              "stars": {
-                "type": "integer"
-              }
-            }
-          }
-        }""";
-
+    private static final String SET_INGEST_TIME_PIPELINE = "set_ingest_time";
     private static final String TRANSFORM_CONFIG_TEMPLATE = """
         {
           "source": {
             "index": "%s"
           },
           "dest": {
-            "index": "%s"
+            "index": "%s",
+            "pipeline": "%s"
           },
           "sync": {
             "time": {
-              "field": "timestamp"
+              "field": "event.ingested",
+              "delay": "10s"
             }
           },
           "frequency": "%s",
@@ -82,15 +70,67 @@ public class TransformChainIT extends TransformRestTestCase {
           },
           "settings": {
             "unattended": true,
-            "deduce_mappings": %s
+            "deduce_mappings": %s,
+            "use_point_in_time": %s
           }
         }""";
 
     private TestThreadPool threadPool;
 
     @Before
-    public void createThreadPool() {
+    public void createThreadPool() throws IOException {
         threadPool = new TestThreadPool(getTestName());
+
+        // Create destination index template. It will be used by all the transforms in this test.
+        Request createIndexTemplateRequest = new Request("PUT", "_template/test_dest_index_template");
+        createIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": [ "my-transform-*-dest" ],
+              "mappings": {
+                "properties": {
+                  "timestamp": {
+                    "type": "date"
+                  },
+                  "user_id": {
+                    "type": "keyword"
+                  },
+                  "stars": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }""");
+        createIndexTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
+        assertAcknowledged(client().performRequest(createIndexTemplateRequest));
+
+        // Create ingest pipeline which sets event.ingested field. This is needed for transform's synchronisation to work correctly.
+        Request putIngestPipelineRequest = new Request("PUT", "_ingest/pipeline/" + SET_INGEST_TIME_PIPELINE);
+        putIngestPipelineRequest.setJsonEntity("""
+            {
+              "description": "Set ingest timestamp.",
+              "processors": [
+                {
+                  "set": {
+                    "field": "event.ingested",
+                    "value": "{{{_ingest.timestamp}}}"
+                  }
+                }
+              ]
+            }""");
+        assertOK(client().performRequest(putIngestPipelineRequest));
+
+        // Set logging levels for debugging.
+        Request settingsRequest = new Request("PUT", "/_cluster/settings");
+        settingsRequest.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
+                "logger.org.elasticsearch.xpack.transform": "debug",
+                "logger.org.elasticsearch.xpack.transform.notifications": "debug",
+                "logger.org.elasticsearch.xpack.transform.transforms": "debug"
+              }
+            }""");
+        assertOK(client().performRequest(settingsRequest));
     }
 
     @After
@@ -100,26 +140,36 @@ public class TransformChainIT extends TransformRestTestCase {
         }
     }
 
-    public void testChainedTransforms() throws Exception {
-        String reviewsIndexName = "reviews";
+    public void testTwoChainedTransforms() throws Exception {
+        testChainedTransforms(2);
+    }
+
+    public void testThreeChainedTransforms() throws Exception {
+        testChainedTransforms(3);
+    }
+
+    private void testChainedTransforms(final int numTransforms) throws Exception {
+        final String reviewsIndexName = "reviews";
         final int numDocs = 100;
-        createReviewsIndex(reviewsIndexName, numDocs, 100, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+        final Instant now = Instant.now();
+        createReviewsIndex(
+            reviewsIndexName,
+            numDocs,
+            100,
+            TransformIT::getUserIdForRow,
+            row -> Instant.ofEpochMilli(now.toEpochMilli() - 1000 * numDocs + 1000 * row).toString(),
+            SET_INGEST_TIME_PIPELINE
+        );
 
-        // Create destination index template. It will be used by all the transforms in this test.
-        Request createIndexTemplateRequest = new Request("PUT", "_template/test_dest_index_template");
-        createIndexTemplateRequest.setJsonEntity(DEST_INDEX_TEMPLATE);
-        createIndexTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
-        assertAcknowledged(client().performRequest(createIndexTemplateRequest));
-
-        final int numberOfTransforms = 3;
-        List<String> transformIds = new ArrayList<>(numberOfTransforms);
+        List<String> transformIds = new ArrayList<>(numTransforms);
         // Create the chain of transforms. Previous transform's destination index becomes next transform's source index.
-        for (int i = 0; i < numberOfTransforms; ++i) {
-            String transformId = "my-transform-" + i;
+        String transformIdPrefix = "my-transform-" + randomAlphaOfLength(4).toLowerCase() + "-" + numTransforms + "-";
+        for (int i = 0; i < numTransforms; ++i) {
+            String transformId = transformIdPrefix + i;
             transformIds.add(transformId);
             // Set up the transform so that its source index is the destination index of the previous transform in the chain.
             // The number of documents is expected to be the same in all the indices.
-            String sourceIndex = i == 0 ? reviewsIndexName : "my-transform-" + (i - 1) + "-dest";
+            String sourceIndex = i == 0 ? reviewsIndexName : transformIds.get(i - 1) + "-dest";
             String destIndex = transformId + "-dest";
             assertFalse(indexExists(destIndex));
 
@@ -135,13 +185,17 @@ public class TransformChainIT extends TransformRestTestCase {
         }
 
         // Give the transforms some time to finish processing. Since the transforms are continuous, we cannot wait for them to be STOPPED.
-        Thread.sleep(60_000);
-
-        // Verify that each transform processed an expected number of documents.
-        for (String transformId : transformIds) {
-            Map<?, ?> stats = getTransformStats(transformId);
-            assertThat("Stats were: " + stats, XContentMapValues.extractValue(stats, "stats", "documents_processed"), is(equalTo(numDocs)));
-        }
+        assertBusy(() -> {
+            // Verify that each transform processed an expected number of documents.
+            for (String transformId : transformIds) {
+                Map<?, ?> stats = getTransformStats(transformId);
+                assertThat(
+                    "Stats were: " + stats,
+                    XContentMapValues.extractValue(stats, "stats", "documents_processed"),
+                    is(equalTo(numDocs))
+                );
+            }
+        }, 30, TimeUnit.SECONDS);
 
         // Stop all the transforms.
         for (String transformId : transformIds) {
@@ -154,6 +208,15 @@ public class TransformChainIT extends TransformRestTestCase {
     }
 
     private static String createTransformConfig(String sourceIndex, String destIndex) {
-        return Strings.format(TRANSFORM_CONFIG_TEMPLATE, sourceIndex, destIndex, "1s", "1s", randomBoolean());
+        return Strings.format(
+            TRANSFORM_CONFIG_TEMPLATE,
+            sourceIndex,
+            destIndex,
+            SET_INGEST_TIME_PIPELINE,
+            "1s",
+            "1s",
+            randomBoolean(),
+            randomBoolean()
+        );
     }
 }

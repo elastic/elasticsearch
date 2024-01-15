@@ -28,10 +28,12 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.parser.ContentLocation;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.TypedParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -40,7 +42,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_ARRAY;
+import static org.elasticsearch.xcontent.ObjectParser.ValueType.OBJECT_OR_VALUE_ARRAY;
 
 public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesRequest {
 
@@ -83,7 +85,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
-    private List<TypedParamValue> params = List.of();
+    private TypedParams params = new TypedParams();
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
@@ -177,11 +179,11 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return pragmas;
     }
 
-    public List<TypedParamValue> params() {
+    public TypedParams params() {
         return params;
     }
 
-    public void params(List<TypedParamValue> params) {
+    public void params(TypedParams params) {
         this.params = params;
     }
 
@@ -226,7 +228,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
             (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
             PRAGMA_FIELD
         );
-        parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
+        parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, OBJECT_OR_VALUE_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
     }
@@ -256,71 +258,97 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return parser;
     }
 
-    private static List<TypedParamValue> parseParams(XContentParser p) throws IOException {
+    private static TypedParams parseParams(XContentParser p) throws IOException {
         List<TypedParamValue> result = new ArrayList<>();
+        HashMap<String, TypedParamValue> namedParams = new HashMap<>();
         XContentParser.Token token = p.currentToken();
 
         if (token == XContentParser.Token.START_ARRAY) {
-            Object value = null;
-            String type = null;
             TypedParamValue previousParam = null;
-            TypedParamValue currentParam;
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
-                XContentLocation loc = p.getTokenLocation();
-
-                if (token == XContentParser.Token.START_OBJECT) {
-                    // we are at the start of a value/type pair... hopefully
-                    currentParam = PARAM_PARSER.apply(p, null);
-                    /*
-                     * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
-                     * that are checked later in validateParams method.
-                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to
-                     * its type being explicitly set or inferred.
-                     */
-                    if ((previousParam != null && previousParam.hasExplicitType() == false) || result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
-                    }
-                } else {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        value = p.text();
-                        type = "keyword";
-                    } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                        XContentParser.NumberType numberType = p.numberType();
-                        if (numberType == XContentParser.NumberType.INT) {
-                            value = p.intValue();
-                            type = "integer";
-                        } else if (numberType == XContentParser.NumberType.LONG) {
-                            value = p.longValue();
-                            type = "long";
-                        } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                            value = p.doubleValue();
-                            type = "double";
-                        }
-                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        value = p.booleanValue();
-                        type = "boolean";
-                    } else if (token == XContentParser.Token.VALUE_NULL) {
-                        value = null;
-                        type = "null";
-                    } else {
-                        throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
-                    }
-
-                    currentParam = new TypedParamValue(type, value, false);
-                    if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
-                    }
-                }
+                TypedParamValue currentParam = parseParam(p, token, previousParam);
 
                 result.add(currentParam);
                 previousParam = currentParam;
             }
         }
+        else if(token == XContentParser.Token.START_OBJECT) {
+            String currentParamName = null;
+            TypedParamValue previousParam = null;
+            TypedParamValue currentParam;
+            while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
+                XContentLocation loc = p.getTokenLocation();
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentParamName = p.currentName();
+                } else {
+                    currentParam = parseParam(p, token, previousParam);
+                    namedParams.put(currentParamName, currentParam);
+                    previousParam = currentParam;
+                }
+            }
+        }
 
-        return result;
+        TypedParams typedParams = new TypedParams();
+        typedParams.positionalParams(result);
+        typedParams.namedParams(namedParams);
+        return typedParams;
     }
 
+    private static TypedParamValue parseParam(
+        XContentParser p,
+        XContentParser.Token token,
+        TypedParamValue previousParam
+    ) throws  IOException {
+        TypedParamValue currentParam;
+        Object value = null;
+        String type = null;
+        XContentLocation loc = p.getTokenLocation();
+        if (token == XContentParser.Token.START_OBJECT) {
+            // we are at the start of a value/type pair... hopefully
+            currentParam = PARAM_PARSER.apply(p, null);
+            /*
+             * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
+             * that are checked later in validateParams method.
+             * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to
+             * its type being explicitly set or inferred.
+             */
+            if ((previousParam != null && previousParam.hasExplicitType() == false)) {
+                currentParam.tokenLocation(toProto(loc));
+            }
+        } else {
+            if (token == XContentParser.Token.VALUE_STRING) {
+                value = p.text();
+                type = "keyword";
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                XContentParser.NumberType numberType = p.numberType();
+                if (numberType == XContentParser.NumberType.INT) {
+                    value = p.intValue();
+                    type = "integer";
+                } else if (numberType == XContentParser.NumberType.LONG) {
+                    value = p.longValue();
+                    type = "long";
+                } else if (numberType == XContentParser.NumberType.DOUBLE) {
+                    value = p.doubleValue();
+                    type = "double";
+                }
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                value = p.booleanValue();
+                type = "boolean";
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                value = null;
+                type = "null";
+            } else {
+                throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
+            }
+
+            currentParam = new TypedParamValue(type, value, false);
+            if ((previousParam != null && previousParam.hasExplicitType())) {
+                currentParam.tokenLocation(toProto(loc));
+            }
+        }
+        return currentParam;
+    }
     static ContentLocation toProto(org.elasticsearch.xcontent.XContentLocation toProto) {
         if (toProto == null) {
             return null;

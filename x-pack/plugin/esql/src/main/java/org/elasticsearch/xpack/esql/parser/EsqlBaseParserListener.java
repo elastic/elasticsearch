@@ -402,6 +402,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#namedParam}.
+   * @param ctx the parse tree
+   */
+  void enterNamedParam(EsqlBaseParser.NamedParamContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#namedParam}.
+   * @param ctx the parse tree
+   */
+  void exitNamedParam(EsqlBaseParser.NamedParamContext ctx);
+  /**
    * Enter a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
@@ -462,17 +472,29 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitBooleanLiteral(EsqlBaseParser.BooleanLiteralContext ctx);
   /**
-   * Enter a parse tree produced by the {@code inputParam}
+   * Enter a parse tree produced by the {@code inputNamedParam}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void enterInputParam(EsqlBaseParser.InputParamContext ctx);
+  void enterInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx);
   /**
-   * Exit a parse tree produced by the {@code inputParam}
+   * Exit a parse tree produced by the {@code inputNamedParam}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void exitInputParam(EsqlBaseParser.InputParamContext ctx);
+  void exitInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code inputPositionalParam}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void enterInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputPositionalParam}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void exitInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx);
   /**
    * Enter a parse tree produced by the {@code stringLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.

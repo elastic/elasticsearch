@@ -244,6 +244,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#namedParam}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNamedParam(EsqlBaseParser.NamedParamContext ctx);
+  /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
@@ -279,12 +285,19 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitBooleanLiteral(EsqlBaseParser.BooleanLiteralContext ctx);
   /**
-   * Visit a parse tree produced by the {@code inputParam}
+   * Visit a parse tree produced by the {@code inputNamedParam}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitInputParam(EsqlBaseParser.InputParamContext ctx);
+  T visitInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code inputPositionalParam}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx);
   /**
    * Visit a parse tree produced by the {@code stringLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.

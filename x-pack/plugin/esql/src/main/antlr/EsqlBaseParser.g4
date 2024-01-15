@@ -141,13 +141,18 @@ identifierPattern
     | QUOTED_IDENTIFIER
     ;
 
+namedParam
+    : OPENING_CURLY_BRACKETS UNQUOTED_IDENTIFIER CLOSING_CURLY_BRACKETS
+    ;
+
 constant
     : NULL                                                                              #nullLiteral
     | integerValue UNQUOTED_IDENTIFIER                                                  #qualifiedIntegerLiteral
     | decimalValue                                                                      #decimalLiteral
     | integerValue                                                                      #integerLiteral
     | booleanValue                                                                      #booleanLiteral
-    | PARAM                                                                             #inputParam
+    | namedParam                                                                        #inputNamedParam
+    | PARAM                                                                             #inputPositionalParam
     | string                                                                            #stringLiteral
     | OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET                #numericArrayLiteral
     | OPENING_BRACKET booleanValue (COMMA booleanValue)* CLOSING_BRACKET                #booleanArrayLiteral

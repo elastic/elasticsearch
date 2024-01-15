@@ -68,7 +68,7 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    public LogicalPlanBuilder(Map<Token, TypedParamValue> params) {
+    public LogicalPlanBuilder(TypedParams params) {
         super(params);
     }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.TypedParams;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -126,7 +127,7 @@ public class EsqlSession {
         );
     }
 
-    private LogicalPlan parse(String query, List<TypedParamValue> params) {
+    private LogicalPlan parse(String query, TypedParams params) {
         var parsed = new EsqlParser().createStatement(query, params);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;

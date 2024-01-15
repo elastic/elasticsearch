@@ -62,7 +62,6 @@ import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.singletonList;
@@ -78,9 +77,9 @@ import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public abstract class ExpressionBuilder extends IdentifierBuilder {
 
-    private final Map<Token, TypedParamValue> params;
+    private final TypedParams params;
 
-    ExpressionBuilder(Map<Token, TypedParamValue> params) {
+    ExpressionBuilder(TypedParams params) {
         this.params = params;
     }
 
@@ -457,8 +456,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitInputParam(EsqlBaseParser.InputParamContext ctx) {
-        TypedParamValue param = param(ctx.PARAM());
+    public Object visitInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx) {
+        TypedParamValue param = namedParam(ctx.namedParam().UNQUOTED_IDENTIFIER());
+        return visitParam(ctx, param);
+    }
+
+    @Override
+    public Object visitInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx) {
+        TypedParamValue param = positionalParam(ctx.PARAM());
+        return visitParam(ctx, param);
+    }
+
+    private Object visitParam(EsqlBaseParser.ConstantContext ctx, TypedParamValue param) {
         DataType dataType = EsqlDataTypes.fromTypeName(param.type);
         Source source = source(ctx);
         if (dataType == null) {
@@ -502,18 +511,32 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
-    private TypedParamValue param(TerminalNode node) {
+    private TypedParamValue positionalParam(TerminalNode node) {
         if (node == null) {
             return null;
         }
 
         Token token = node.getSymbol();
 
-        if (params.containsKey(token) == false) {
+        if (params.containsTokenLocation(token) == false) {
             throw new ParsingException(source(node), "Unexpected parameter");
         }
 
-        return params.get(token);
+        return params.getParamByTokenLocation(token);
+    }
+
+    private TypedParamValue namedParam(TerminalNode node) {
+        if (node == null) {
+            return null;
+        }
+
+        Token token = node.getSymbol();
+
+        if (params.containsParamName(token.getText()) == false) {
+            throw new ParsingException(source(node), "Unexpected parameter");
+        }
+
+        return params.getParamByName(token.getText());
     }
 
 }

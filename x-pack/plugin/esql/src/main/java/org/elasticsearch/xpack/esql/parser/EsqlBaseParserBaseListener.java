@@ -449,6 +449,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterNamedParam(EsqlBaseParser.NamedParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitNamedParam(EsqlBaseParser.NamedParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterNullLiteral(EsqlBaseParser.NullLiteralContext ctx) { }
   /**
    * {@inheritDoc}
@@ -509,13 +521,25 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterInputParam(EsqlBaseParser.InputParamContext ctx) { }
+  @Override public void enterInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitInputParam(EsqlBaseParser.InputParamContext ctx) { }
+  @Override public void exitInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -35,10 +35,10 @@ public class EsqlParser {
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, List.of());
+        return createStatement(query, new TypedParams());
     }
 
-    public LogicalPlan createStatement(String query, List<TypedParamValue> params) {
+    public LogicalPlan createStatement(String query, TypedParams params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
@@ -47,7 +47,7 @@ public class EsqlParser {
 
     private <T> T invokeParser(
         String query,
-        List<TypedParamValue> params,
+        TypedParams params,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -57,8 +57,9 @@ public class EsqlParser {
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
 
-            Map<Token, TypedParamValue> paramTokens = new HashMap<>();
-            TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
+            Map<Token, TypedParamValue> positionalParamTokens = new HashMap<>();
+            TokenSource tokenSource = new ParametrizedTokenSource(lexer, positionalParamTokens, params.positionalParams());
+            params.positionalParamTokens(positionalParamTokens);
 
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
             EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
@@ -75,8 +76,7 @@ public class EsqlParser {
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
-
-            return result.apply(new AstBuilder(paramTokens), tree);
+            return result.apply(new AstBuilder(params), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
         }

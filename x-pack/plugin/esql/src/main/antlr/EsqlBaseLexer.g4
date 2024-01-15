@@ -150,6 +150,9 @@ PERCENT : '%';
 OPENING_BRACKET : '[' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
 CLOSING_BRACKET : ']' -> popMode, popMode;
 
+OPENING_CURLY_BRACKETS : '{{';
+CLOSING_CURLY_BRACKETS : '}}';
+
 UNQUOTED_IDENTIFIER
     : LETTER UNQUOTED_ID_BODY*
     // only allow @ at beginning of identifier to keep the option to allow @ as infix operator in the future

@@ -4,7 +4,14 @@
 <titleabbrev>Processor reference</titleabbrev>
 ++++
 
+An <<ingest,ingest pipeline>> is made up of a sequence of processors that are applied to documents as they are ingested into an index.
+Each processor performs a specific task, such as filtering, transforming, or enriching data.
+
+Each successive processor depends on the output of the previous processor, so the order of processors is important.
+The modified documents are indexed into {es} after all processors are applied.
+
 {es} includes over 40 configurable processors.
+The subpages in this section contain reference documentation for each processor.
 To get a list of available
 processors, use the <<cluster-nodes-info,nodes info>> API.
 
@@ -13,9 +20,11 @@ processors, use the <<cluster-nodes-info,nodes info>> API.
 GET _nodes/ingest?filter_path=nodes.*.ingest.processors
 ----
 
-The subpages in this section contain reference documentation for each processor.
+[discrete]
+[[ingest-processors-categories]]
+=== Ingest processors by category
 
-We've categorized the available processors here and summarized their functions.
+We've categorized the available processors on this page and summarized their functions.
 This will help you find the right processor for your use case.
 
 * <<ingest-process-category-data-enrichment>>
@@ -40,6 +49,10 @@ Points documents to the right time based index based on a date or timestamp fiel
 
 <<enrich-processor, `enrich` processor>>::
 Enriches documents with data from another index.
+[TIP]
+====
+Refer to <<ingest-enriching-data, Enrich your data>> for detailed examples of how to use the `enrich` processor to add data from your existing indices to incoming documents during ingest.
+====
 
 <<inference-processor, `inference` processor>>::
 Uses machine learning to classify and tag text fields.

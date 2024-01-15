@@ -35,7 +35,7 @@ public abstract class EsRejectedExecutionHandler implements RejectedExecutionHan
     }
 
     public void registerCounter(MeterRegistry meterRegistry, String prefix, String name) {
-        rejectionCounter = meterRegistry.registerLongCounter(prefix + "rejected.total", "number of rejected threads for " + name, "count");
+        rejectionCounter = meterRegistry.registerLongCounter(prefix + ".rejected.total", "number of rejected threads for " + name, "count");
         rejectionCounter.incrementBy(rejected());
     }
 

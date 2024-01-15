@@ -24,7 +24,13 @@ import org.elasticsearch.test.hamcrest.RegexMatcher;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.util.*;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;

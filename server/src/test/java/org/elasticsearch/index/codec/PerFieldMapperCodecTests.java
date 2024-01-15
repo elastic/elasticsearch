@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
 public class PerFieldMapperCodecTests extends ESTestCase {
 
     public void testUseBloomFilter() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, randomBoolean(), false);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, randomBoolean(), false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
@@ -36,7 +36,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, false);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
@@ -44,13 +44,13 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, false, false);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, true);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, true);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
         assertWarnings(
@@ -59,12 +59,12 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testUseES87TSDBEncodingForTimestampField() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, true);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, true);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
     }
 
     public void testDoNotUseES87TSDBEncodingForTimestampFieldNonTimeSeriesIndex() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, false, true);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, true);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
     }
 
@@ -85,7 +85,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 }
             }
             """;
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, mapping);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, mapping);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
     }
 
@@ -106,7 +106,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 }
             }
             """;
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, true, mapping);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, true, mapping);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
     }
 
@@ -127,7 +127,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 }
             }
             """;
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, mapping);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, mapping);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
     }
 
@@ -148,11 +148,11 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 }
             }
             """;
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, true, mapping);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, true, mapping);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
     }
 
-    private PerFieldMapperCodec createCodec(boolean timestampField, boolean timeSeries, boolean disableBloomFilter) throws IOException {
+    private PerFieldFormatSupplier createFormatSupplier(boolean timestampField, boolean timeSeries, boolean disableBloomFilter) throws IOException {
         Settings.Builder settings = Settings.builder();
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
@@ -177,7 +177,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 """;
             mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         }
-        return new PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     public void testUseES87TSDBEncodingSettingDisabled() throws IOException {
@@ -201,13 +201,13 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 }
             }
             """;
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, true, mapping);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, true, mapping);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
     }
 
-    private PerFieldMapperCodec createCodec(boolean enableES87TSDBCodec, boolean timeSeries, String mapping) throws IOException {
+    private PerFieldFormatSupplier createFormatSupplier(boolean enableES87TSDBCodec, boolean timeSeries, String mapping) throws IOException {
         Settings.Builder settings = Settings.builder();
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
@@ -216,7 +216,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         settings.put(IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING.getKey(), enableES87TSDBCodec);
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        return new PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
 }

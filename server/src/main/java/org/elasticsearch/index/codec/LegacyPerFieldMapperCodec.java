@@ -12,30 +12,27 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.codec.zstd.Zstd813StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
- * {@link PerFieldMapperCodec This Lucene codec} provides the default
- * {@link PostingsFormat} and {@link KnnVectorsFormat} for Elasticsearch. It utilizes the
- * {@link MapperService} to lookup a {@link PostingsFormat} and {@link KnnVectorsFormat} per field. This
- * allows users to change the low level postings format and vectors format for individual fields
- * per index in real time via the mapping API. If no specific postings format or vector format is
- * configured for a specific field the default postings or vector format is used.
+ * Legacy version of {@link PerFieldMapperCodec}. This codec is preserved to give an escape hatch in case we encounter issues with new
+ * changes in {@link PerFieldMapperCodec}.
  */
-public final class PerFieldMapperCodec extends Elasticsearch813Codec {
+public final class LegacyPerFieldMapperCodec extends Lucene99Codec {
 
     private final PerFieldFormatSupplier formatSupplier;
 
-    public PerFieldMapperCodec(Zstd813StoredFieldsFormat.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
+    public LegacyPerFieldMapperCodec(Lucene99Codec.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super(compressionMode);
         this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays);
         // If the below assertion fails, it is a sign that Lucene released a new codec. You must create a copy of the current Elasticsearch
         // codec that delegates to this new Lucene codec, and make PerFieldMapperCodec extend this new Elasticsearch codec.
-        assert Codec.forName(Lucene.LATEST_CODEC).getClass() == delegate.getClass()
-            : "PerFieldMapperCodec must be on the latest lucene codec: " + Lucene.LATEST_CODEC;
+        assert Codec.forName(Lucene.LATEST_CODEC).getClass() == getClass().getSuperclass()
+            : "LegacyPerFieldMapperCodec must be on the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
     @Override

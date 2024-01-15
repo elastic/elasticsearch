@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.util;
 
-import org.apache.lucene.geo.XShapeTestUtil;
 import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.geo.XYRectangle;
+import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geo.XShapeTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.greaterThan;

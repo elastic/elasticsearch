@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -59,6 +59,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -951,12 +952,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
 
         final DownsampleIndexerAction.ShardDownsampleResponse response2 = indexer.execute();
-        int dim2DocCount = client().prepareSearch(sourceIndex)
-            .setQuery(new TermQueryBuilder(FIELD_DIMENSION_1, "dim2"))
-            .setSize(10_000)
-            .get()
-            .getHits()
-            .getHits().length;
+        long dim2DocCount = SearchResponseUtils.getTotalHitsValue(
+            client().prepareSearch(sourceIndex).setQuery(new TermQueryBuilder(FIELD_DIMENSION_1, "dim2")).setSize(10_000)
+        );
 
         assertDownsampleIndexer(indexService, shardNum, task, response2, dim2DocCount);
     }
@@ -1062,7 +1060,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private Aggregations aggregate(final String index, AggregationBuilder aggregationBuilder) {
-        return client().prepareSearch(index).addAggregation(aggregationBuilder).get().getAggregations();
+        var resp = client().prepareSearch(index).addAggregation(aggregationBuilder).get();
+        try {
+            return resp.getAggregations();
+        } finally {
+            resp.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -1439,9 +1442,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .template(indexTemplate)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
-            .indexTemplate(template);
-        assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet());
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
+            dataStreamName + "_template"
+        ).indexTemplate(template);
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet());
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get());
         return dataStreamName;
     }

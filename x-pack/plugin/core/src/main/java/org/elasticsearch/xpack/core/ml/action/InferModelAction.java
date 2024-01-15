@@ -176,7 +176,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.id = in.readString();
-            this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readMap);
+            this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {

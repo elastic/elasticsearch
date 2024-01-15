@@ -11,6 +11,10 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+/**
+ * Extracts non-sort-key values for top-n from their {@link DoubleBlock}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class ValueExtractorForDouble implements ValueExtractor {
     static ValueExtractorForDouble extractorFor(TopNEncoder encoder, boolean inKey, DoubleBlock block) {
         DoubleVector vector = block.asVector();

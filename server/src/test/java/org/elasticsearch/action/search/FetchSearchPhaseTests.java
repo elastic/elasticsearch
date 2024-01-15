@@ -122,6 +122,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertProfiles(profiled, 1, searchResponse);
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
         } finally {
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
             results.decRef();
         }
     }
@@ -250,6 +254,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertProfiles(profiled, 2, searchResponse);
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
         } finally {
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
             results.decRef();
         }
     }
@@ -374,6 +382,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
             }
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(ctx));
         } finally {
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
             results.decRef();
         }
     }
@@ -489,6 +501,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 mockSearchPhaseContext.releasedSearchContexts.size()
             );
         } finally {
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
             results.decRef();
         }
     }
@@ -600,6 +616,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertThat(mockSearchPhaseContext.searchResponse.get().getShardFailures(), arrayWithSize(1));
             assertThat(mockSearchPhaseContext.releasedSearchContexts, hasSize(1));
         } finally {
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
             results.decRef();
         }
     }
@@ -716,6 +736,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(ctx1));
         } finally {
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
             results.decRef();
         }
 

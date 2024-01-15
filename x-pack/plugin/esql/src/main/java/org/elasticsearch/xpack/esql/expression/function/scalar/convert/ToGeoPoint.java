@@ -21,26 +21,19 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class ToGeoPoint extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
-        Map.entry(LONG, (fieldEval, source) -> fieldEval),
-        Map.entry(UNSIGNED_LONG, (fieldEval, source) -> fieldEval),
         Map.entry(KEYWORD, ToGeoPointFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "geo_point")
-    public ToGeoPoint(
-        Source source,
-        @Param(name = "v", type = { "geo_point", "long", "unsigned_long", "keyword", "text" }) Expression field
-    ) {
+    @FunctionInfo(returnType = "geo_point", description = "Converts an input value to a geo_point value.")
+    public ToGeoPoint(Source source, @Param(name = "v", type = { "geo_point", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 
@@ -65,7 +58,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
-    static long fromKeyword(BytesRef in) {
-        return GEO.pointAsLong(GEO.stringAsPoint(in.utf8ToString()));
+    static BytesRef fromKeyword(BytesRef in) {
+        return GEO.wktToWkb(in.utf8ToString());
     }
 }

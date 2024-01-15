@@ -59,7 +59,7 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            info = in.readMap();
+            info = in.readGenericMap();
         }
 
         public Map<String, Object> getInfo() {

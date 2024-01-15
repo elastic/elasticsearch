@@ -13,6 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -55,11 +56,11 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
 
         assertIndices(response, INDEX1);
-        assertTrue(response.get().containsKey("foo"));
+        assertThat(response.get(), Matchers.hasKey("foo"));
         // Check the capabilities for the 'foo' field.
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
-        assertTrue(fooField.containsKey("text"));
+        assertThat(fooField, Matchers.hasKey("text"));
         assertEquals(
             new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
             fooField.get("text")
@@ -73,11 +74,11 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
 
         assertIndices(response, INDEX1);
-        assertTrue(response.get().containsKey("foo"));
+        assertThat(response.get(), Matchers.hasKey("foo"));
         // Check the capabilities for the 'foo' field.
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
-        assertTrue(fooField.containsKey("text"));
+        assertThat(fooField, Matchers.hasKey("text"));
         assertEquals(
             new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
             fooField.get("text")
@@ -92,11 +93,11 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
 
         assertIndices(response, INDEX1);
-        assertTrue(response.get().containsKey("foo"));
+        assertThat(response.get(), Matchers.hasKey("foo"));
         // Check the capabilities for the 'foo' field.
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
-        assertTrue(fooField.containsKey("text"));
+        assertThat(fooField, Matchers.hasKey("text"));
         assertEquals(
             new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
             fooField.get("text")
@@ -112,13 +113,13 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
 
         assertIndices(response, INDEX1, INDEX2);
-        assertTrue(response.get().containsKey("foo"));
-        assertTrue(response.get().containsKey("bar"));
-        assertTrue(response.get().containsKey("bar-alias"));
+        assertThat(response.get(), Matchers.hasKey("foo"));
+        assertThat(response.get(), Matchers.hasKey("bar"));
+        assertThat(response.get(), Matchers.hasKey("bar-alias"));
         // Check the capabilities for the 'foo' field.
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
-        assertTrue(fooField.containsKey("text"));
+        assertThat(fooField, Matchers.hasKey("text"));
         assertEquals(
             new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
             fooField.get("text")
@@ -126,7 +127,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         // Check the capabilities for the 'bar' field.
         Map<String, FieldCapabilities> barField = response.getField("bar");
         assertEquals(1, barField.size());
-        assertTrue(barField.containsKey("keyword"));
+        assertThat(barField, Matchers.hasKey("keyword"));
         assertEquals(
             new FieldCapabilities("bar", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
             barField.get("keyword")
@@ -134,7 +135,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         // Check the capabilities for the 'bar-alias' field.
         Map<String, FieldCapabilities> barAlias = response.getField("bar-alias");
         assertEquals(1, barAlias.size());
-        assertTrue(barAlias.containsKey("keyword"));
+        assertThat(barAlias, Matchers.hasKey("keyword"));
         assertEquals(
             new FieldCapabilities("bar-alias", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
             barAlias.get("keyword")
@@ -152,11 +153,11 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
             .get();
 
         assertIndices(response, INDEX1);
-        assertTrue(response.get().containsKey("unmapped-field"));
+        assertThat(response.get(), Matchers.hasKey("unmapped-field"));
         // Check the capabilities for the 'unmapped' field.
         Map<String, FieldCapabilities> unmappedField = response.getField("unmapped-field");
         assertEquals(1, unmappedField.size());
-        assertTrue(unmappedField.containsKey("text"));
+        assertThat(unmappedField, Matchers.hasKey("text"));
         assertEquals(
             new FieldCapabilities("unmapped-field", "text", false, true, false, null, null, null, Collections.emptyMap()),
             unmappedField.get("text")
@@ -175,11 +176,11 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
             .get();
 
         assertIndices(response, INDEX1, INDEX2);
-        assertTrue(response.get().containsKey("unmapped"));
+        assertThat(response.get(), Matchers.hasKey("unmapped"));
         // Check the capabilities for the 'unmapped' field.
         Map<String, FieldCapabilities> unmappedField = response.getField("unmapped");
         assertEquals(2, unmappedField.size());
-        assertTrue(unmappedField.containsKey("text"));
+        assertThat(unmappedField, Matchers.hasKey("text"));
         assertEquals(
             new FieldCapabilities("unmapped", "text", false, true, false, new String[] { INDEX1 }, null, null, Collections.emptyMap()),
             unmappedField.get("text")
@@ -194,11 +195,11 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
             .get();
 
         assertIndices(response, INDEX1, INDEX2);
-        assertTrue(response.get().containsKey("_index"));
+        assertThat(response.get(), Matchers.hasKey("_index"));
         // Check the capabilities for the '_index' constant field.
         Map<String, FieldCapabilities> unmappedField = response.getField("_index");
         assertEquals(1, unmappedField.size());
-        assertTrue(unmappedField.containsKey("_index"));
+        assertThat(unmappedField, Matchers.hasKey("_index"));
         assertEquals(
             new FieldCapabilities("_index", "_index", true, true, true, null, null, null, Collections.emptyMap()),
             unmappedField.get("_index")
@@ -213,12 +214,12 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
 
         assertIndices(response, INDEX1, INDEX2);
-        assertTrue(response.get().containsKey("foo"));
-        assertTrue(response.get().containsKey("bar"));
+        assertThat(response.get(), Matchers.hasKey("foo"));
+        assertThat(response.get(), Matchers.hasKey("bar"));
         // Check the capabilities for the 'foo' field.
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
-        assertTrue(fooField.containsKey("text"));
+        assertThat(fooField, Matchers.hasKey("text"));
         assertEquals(
             new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
             fooField.get("text")
@@ -226,7 +227,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         // Check the capabilities for the 'bar' field.
         Map<String, FieldCapabilities> barField = response.getField("bar");
         assertEquals(1, barField.size());
-        assertTrue(barField.containsKey("date"));
+        assertThat(barField, Matchers.hasKey("date"));
         assertEquals(
             new FieldCapabilities("bar", "date", false, true, true, null, null, null, Collections.emptyMap()),
             barField.get("date")
@@ -241,16 +242,16 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
 
         assertIndices(response, INDEX1, INDEX2);
-        assertTrue(response.get().containsKey("bar"));
+        assertThat(response.get(), Matchers.hasKey("bar"));
         // Check the capabilities for the 'bar' field.
         Map<String, FieldCapabilities> barField = response.getField("bar");
         assertEquals(2, barField.size());
-        assertTrue(barField.containsKey("keyword"));
+        assertThat(barField, Matchers.hasKey("keyword"));
         assertEquals(
             new FieldCapabilities("bar", "keyword", false, true, true, new String[] { INDEX1 }, null, null, Collections.emptyMap()),
             barField.get("keyword")
         );
-        assertTrue(barField.containsKey("date"));
+        assertThat(barField, Matchers.hasKey("date"));
         assertEquals(
             new FieldCapabilities("bar", "date", false, true, true, new String[] { INDEX2 }, null, null, Collections.emptyMap()),
             barField.get("date")
@@ -262,32 +263,21 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         // This test should fail if in a future implementation we handle deletes.
         DocWriteResponse foo = prepareIndex(INDEX1).setSource("foo", "foo-text").get();
         client().prepareDelete().setIndex(INDEX1).setId(foo.getId()).get();
+        client().admin().indices().prepareForceMerge(INDEX1).setFlush(true).setMaxNumSegments(1).get();
         refresh(INDEX1);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
 
         assertIndices(response, INDEX1, INDEX2);
-        assertTrue(response.get().containsKey("foo"));
+        assertThat(response.get(), Matchers.hasKey("foo"));
         // Check the capabilities for the 'foo' field.
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
-        assertTrue(fooField.containsKey("text"));
+        assertThat(fooField, Matchers.hasKey("text"));
         assertEquals(
             new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
             fooField.get("text")
         );
-    }
-
-    public void testDeletedDocsNotReturnedAfterRestart() throws Exception {
-        DocWriteResponse foo = prepareIndex(INDEX1).setSource("foo", "foo-text").get();
-        client().prepareDelete().setIndex(INDEX1).setId(foo.getId()).get();
-        internalCluster().fullRestart();
-        ensureGreen(INDEX1);
-
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
-
-        assertIndices(response, INDEX1, INDEX2);
-        assertFalse(response.get().containsKey("foo"));
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

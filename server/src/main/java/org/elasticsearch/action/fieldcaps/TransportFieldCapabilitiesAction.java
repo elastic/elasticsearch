@@ -163,6 +163,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), curr.getIndexMappingHash(), curr.get(), true);
                 }
             }
+            indexResponses.merge(resp.getIndexName(), resp, (a, b) -> {
+                if (request.includeFieldsWithNoValue() || a.get().equals(b.get())) {
+                    return a;
+                }
+                Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
+                mergedCaps.putAll(b.get());
+                return new FieldCapabilitiesIndexResponse(a.getIndexName(), a.getIndexMappingHash(), mergedCaps, a.canMatch());
+
+            });
             indexResponses.putIfAbsent(resp.getIndexName(), resp);
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();

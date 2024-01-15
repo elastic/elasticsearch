@@ -995,12 +995,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void updateFieldHasValueWithFieldsFromParsedDoc(ParsedDocument document) {
-        // TODO-MP test performance of this op
         document.docs().forEach(doc -> doc.getFields().forEach(field -> setFieldHasValue(field.name())));
     }
 
     public void setFieldHasValue(String fieldName) {
-        fieldHasValue.add(fieldName);
+        if (fieldHasValue(fieldName) == false) {
+            fieldHasValue.add(fieldName);
+        }
     }
 
     public boolean fieldHasValue(String fieldName) {

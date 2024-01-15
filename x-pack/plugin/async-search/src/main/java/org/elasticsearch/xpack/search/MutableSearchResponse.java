@@ -49,7 +49,6 @@ class MutableSearchResponse implements Releasable {
     private int successfulShards;
     private TotalHits totalHits;
     /**
-     * For local-only searches and cross-cluster searches when minimize_roundtrips=false:
      * How we get the reduced aggs when {@link #finalResponse} isn't populated.
      * We default to returning no aggs, this {@code -> null}. We'll replace
      * this as we receive updates on the search progress listener.
@@ -64,13 +63,16 @@ class MutableSearchResponse implements Releasable {
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
-    // for CCS minimize_roundtrips=true, true indicates that the local cluster has completed
-    // having returned a final SearchResponse to the SearchResponseMerger
+    /**
+     * Set to true when the local cluster has completed (its full SearchResponse
+     * has been received. Only used for CCS minimize_roundtrips=true.
+     */
     private boolean localClusterComplete;
-    // used for CCS minimize_roundtrips=true in order to provide
-    // partial results before all clusters have reported back results
-    private List<SearchResponse> clusterResponses;  // used for CCS minimize_roundtrips=true only
-
+    /**
+     * For CCS minimize_roundtrips=true, we collect SearchResponses from each cluster in
+     * order to provide partial results before all clusters have reported back results.
+     */
+    private List<SearchResponse> clusterResponses;
     /**
      * Set to true when the final SearchResponse has been received
      * or a fatal error has occurred.
@@ -154,11 +156,11 @@ class MutableSearchResponse implements Releasable {
      * @param clusterResponse SearchResponse from cluster 'clusterAlias'
      */
     synchronized void updateResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
-        clusterResponse.mustIncRef();
         if (clusterResponses == null) {
             clusterResponses = new ArrayList<>();
         }
         clusterResponses.add(clusterResponse);
+        clusterResponse.mustIncRef();
         if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             localClusterComplete = true;
         }
@@ -265,10 +267,7 @@ class MutableSearchResponse implements Releasable {
                         partialAggsSearchResponse.decRef();
                     }
                 } else {
-                    /*
-                     * For CCS MRT=true and the local cluster has reported back only full results (final reduce),
-                     * which are held in the SearchResponseMerger, so just use those results
-                     */
+                    // For CCS MRT=true when the local cluster has reported back full results (via updateResponseMinimizeRoundtrips)
                     searchResponse = getMergedResponse(searchResponseMerger);
                 }
             } finally {
@@ -313,11 +312,11 @@ class MutableSearchResponse implements Releasable {
         return task.getSearchResponseMergerSupplier().get();
     }
 
-    private synchronized SearchResponse getMergedResponse(SearchResponseMerger merger) {
+    private SearchResponse getMergedResponse(SearchResponseMerger merger) {
         return getMergedResponse(merger, null);
     }
 
-    private synchronized SearchResponse getMergedResponse(SearchResponseMerger merger, SearchResponse localPartialAggsOnly) {
+    private SearchResponse getMergedResponse(SearchResponseMerger merger, SearchResponse localPartialAggsOnly) {
         if (clusterResponses != null) {
             for (SearchResponse response : clusterResponses) {
                 merger.add(response);

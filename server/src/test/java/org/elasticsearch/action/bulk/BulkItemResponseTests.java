@@ -13,15 +13,18 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.delete.DeleteResponseTests;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,6 +37,8 @@ import java.util.UUID;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.hamcrest.Matchers.containsString;
 
 public class BulkItemResponseTests extends ESTestCase {
@@ -93,7 +98,7 @@ public class BulkItemResponseTests extends ESTestCase {
             BulkItemResponse parsedBulkItemResponse;
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
+                parsedBulkItemResponse = itemResponseFromXContent(parser, bulkItemId);
                 assertNull(parser.nextToken());
             }
             assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
@@ -127,7 +132,7 @@ public class BulkItemResponseTests extends ESTestCase {
         BulkItemResponse parsedBulkItemResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, itemId);
+            parsedBulkItemResponse = itemResponseFromXContent(parser, itemId);
             assertNull(parser.nextToken());
         }
         assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
@@ -160,5 +165,79 @@ public class BulkItemResponseTests extends ESTestCase {
                 assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse) actualDocResponse).getGetResult());
             }
         }
+    }
+
+    /**
+     * Reads a {@link BulkItemResponse} from a {@link XContentParser}.
+     *
+     * @param parser the {@link XContentParser}
+     * @param id the id to assign to the parsed {@link BulkItemResponse}. It is usually the index of
+     *           the item in the {@link BulkResponse#getItems} array.
+     */
+    public static BulkItemResponse itemResponseFromXContent(XContentParser parser, int id) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+
+        String currentFieldName = parser.currentName();
+        token = parser.nextToken();
+
+        final DocWriteRequest.OpType opType = DocWriteRequest.OpType.fromString(currentFieldName);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+        DocWriteResponse.Builder builder = null;
+        CheckedConsumer<XContentParser, IOException> itemParser = null;
+
+        if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
+            final IndexResponse.Builder indexResponseBuilder = new IndexResponse.Builder();
+            builder = indexResponseBuilder;
+            itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, indexResponseBuilder);
+
+        } else if (opType == DocWriteRequest.OpType.UPDATE) {
+            final UpdateResponse.Builder updateResponseBuilder = new UpdateResponse.Builder();
+            builder = updateResponseBuilder;
+            itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, updateResponseBuilder);
+
+        } else if (opType == DocWriteRequest.OpType.DELETE) {
+            final DeleteResponse.Builder deleteResponseBuilder = new DeleteResponse.Builder();
+            builder = deleteResponseBuilder;
+            itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
+        } else {
+            throwUnknownField(currentFieldName, parser);
+        }
+
+        RestStatus status = null;
+        ElasticsearchException exception = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            }
+
+            if (BulkItemResponse.ERROR.equals(currentFieldName)) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    exception = ElasticsearchException.fromXContent(parser);
+                }
+            } else if (BulkItemResponse.STATUS.equals(currentFieldName)) {
+                if (token == XContentParser.Token.VALUE_NUMBER) {
+                    status = RestStatus.fromCode(parser.intValue());
+                }
+            } else {
+                itemParser.accept(parser);
+            }
+        }
+
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
+        token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
+
+        BulkItemResponse bulkItemResponse;
+        if (exception != null) {
+            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getId(), exception, status);
+            bulkItemResponse = BulkItemResponse.failure(id, opType, failure);
+        } else {
+            bulkItemResponse = BulkItemResponse.success(id, opType, builder.build());
+        }
+        return bulkItemResponse;
     }
 }

@@ -985,8 +985,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         for (Map.Entry<String, SearchShardsResponse> entry : searchShardsResponses.entrySet()) {
             for (SearchShardsGroup group : entry.getValue().getGroups()) {
                 final ShardId shardId = group.shardId();
-                final String clusterAlias = entry.getKey();
                 final SearchContextIdForNode perNode = searchContextId.shards().get(shardId);
+                if (perNode == null) {
+                    // the shard was skipped after can match, hence it is not even part of the pit id
+                    continue;
+                }
+                final String clusterAlias = entry.getKey();
                 assert clusterAlias.equals(perNode.getClusterAlias()) : clusterAlias + " != " + perNode.getClusterAlias();
                 final List<String> targetNodes = new ArrayList<>(group.allocatedNodes().size());
                 targetNodes.add(perNode.getNode());
@@ -1015,7 +1019,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 remoteShardIterators.add(shardIterator);
             }
         }
+        assert checkAllRemotePITShardsWereReturnedBySearchShards(searchContextId.shards(), searchShardsResponses)
+            : "search shards did not return remote shards that PIT included: " + searchContextId.shards();
         return remoteShardIterators;
+    }
+
+    private static boolean checkAllRemotePITShardsWereReturnedBySearchShards(
+        Map<ShardId, SearchContextIdForNode> searchContextIdShards,
+        Map<String, SearchShardsResponse> searchShardsResponses
+    ) {
+        Map<ShardId, SearchContextIdForNode> searchContextIdForNodeMap = new HashMap<>(searchContextIdShards);
+        for (SearchShardsResponse searchShardsResponse : searchShardsResponses.values()) {
+            for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
+                searchContextIdForNodeMap.remove(group.shardId());
+            }
+        }
+        return searchContextIdForNodeMap.values()
+            .stream()
+            .allMatch(searchContextIdForNode -> searchContextIdForNode.getClusterAlias() == null);
     }
 
     Index[] resolveLocalIndices(OriginalIndices localIndices, ClusterState clusterState, SearchTimeProvider timeProvider) {

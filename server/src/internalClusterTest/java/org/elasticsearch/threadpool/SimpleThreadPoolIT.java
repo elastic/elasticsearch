@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -23,15 +24,13 @@ import org.elasticsearch.test.hamcrest.RegexMatcher;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.util.Collection;
-import java.util.List;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SimpleThreadPoolIT extends ESIntegTestCase {
@@ -137,15 +136,36 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)));
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)));
         }
+        plugin.collect();
         final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
         ThreadPoolStats tps = tp.stats();
+        ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
+        registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
         tps.forEach(stats -> {
-            String name = "es.thread_pool." + stats.name() + ".completed.total";
-            final List<Measurement> measurements = plugin.getLongAsyncCounterMeasurement(name);
-            logger.info("Trying for " + name + ":" + measurements.size());
-            assertThat(measurements.size(), greaterThanOrEqualTo(0));
+            Map<String, Long> threadPoolMetrics = Map.of(
+                ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED,
+                stats.completed(),
+                ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE,
+                (long) stats.active(),
+                ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT,
+                (long) stats.threads(),
+                ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST,
+                (long) stats.largest(),
+                ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE,
+                (long) stats.queue()
+            );
+            threadPoolMetrics.forEach((suffix, value) -> {
+                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + stats.name().replace("-", "_") + suffix;
+                List<Measurement> measurements;
+                if (suffix.equals(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)) {
+                    measurements = plugin.getLongAsyncCounterMeasurement(metricName);
+                } else {
+                    measurements = plugin.getLongGaugeMeasurement(metricName);
+                }
+                assertThat(metricName, in(registeredMetrics));
+                assertThat(measurements.get(0).value(), equalTo(value));
+            });
         });
-        assert (false);
     }
 
 }

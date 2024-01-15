@@ -89,6 +89,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SYSTEM_CRITICAL_WRITE = "system_critical_write";
     }
 
+    public static final String THREAD_POOL_METRIC_PREFIX = "es.thread_pool.";
+    public static final String THREAD_POOL_METRIC_NAME_COMPLETED = ".threads.completed.total";
+    public static final String THREAD_POOL_METRIC_NAME_CURRENT = ".threads.count.current";
+    public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
+    public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
+    public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
+
     public enum ThreadPoolType {
         DIRECT("direct"),
         FIXED("fixed"),
@@ -334,11 +341,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Map<String, Object> at = Map.of();
         ArrayList<Instrument> instruments = new ArrayList<>();
         if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
-            String prefix = "es.thread_pool." + name + ".threads.";
-            logger.info("Starting tp metrics {}", name);
+            String prefix = THREAD_POOL_METRIC_PREFIX + name.replace("-", "_");
             instruments.add(
                 meterRegistry.registerLongGauge(
-                    prefix + "count.current",
+                    prefix + THREAD_POOL_METRIC_NAME_CURRENT,
                     "number of threads for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getPoolSize(), at)
@@ -346,7 +352,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             instruments.add(
                 meterRegistry.registerLongGauge(
-                    prefix + "queue.size",
+                    prefix + THREAD_POOL_METRIC_NAME_QUEUE,
                     "number queue size for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getQueue().size(), at)
@@ -354,7 +360,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             instruments.add(
                 meterRegistry.registerLongGauge(
-                    prefix + "active.current",
+                    prefix + THREAD_POOL_METRIC_NAME_ACTIVE,
                     "number of active threads for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getActiveCount(), at)
@@ -362,7 +368,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             instruments.add(
                 meterRegistry.registerLongGauge(
-                    prefix + "largest.current",
+                    prefix + THREAD_POOL_METRIC_NAME_LARGEST,
                     "largest pool size for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getLargestPoolSize(), at)
@@ -370,7 +376,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             instruments.add(
                 meterRegistry.registerLongAsyncCounter(
-                    prefix + "completed.total",
+                    prefix + THREAD_POOL_METRIC_NAME_COMPLETED,
                     "number of completed threads for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getCompletedTaskCount(), at)

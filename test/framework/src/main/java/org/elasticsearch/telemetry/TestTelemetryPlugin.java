@@ -15,6 +15,7 @@ import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -69,8 +70,16 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
         return meter.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, name);
     }
 
+    public void collect() {
+        meter.getRecorder().collect();
+    }
+
     public void resetMeter() {
         meter.getRecorder().resetCalls();
+    }
+
+    public ArrayList<String> getRegisteredMetrics(InstrumentType instrumentType) {
+        return meter.getRecorder().getRegisteredMetrics(instrumentType);
     }
 
     @Override

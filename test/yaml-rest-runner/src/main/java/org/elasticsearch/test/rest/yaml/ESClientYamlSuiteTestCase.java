@@ -458,11 +458,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         assumeFalse(
             "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
-            inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().yamlRunnerHasFeature("fips_140")
+            inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("fips_140")
         );
 
         final Settings globalTemplateSettings = getGlobalTemplateSettings(
-            testCandidate.getTestSection().getPrerequisiteSection().yamlRunnerHasFeature("default_shards")
+            testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("default_shards")
         );
         if (globalTemplateSettings.isEmpty() == false && ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
 

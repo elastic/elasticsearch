@@ -1740,6 +1740,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     (indexId, gens) -> gens.forEach(
                         (shardId, oldGen) -> toDelete.add(
                             shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
+                                .toBlobNamePart()
                         )
                     )
                 );

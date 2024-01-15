@@ -41,7 +41,7 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate(INDEX3).setWaitForActiveShards(ActiveShardCount.ALL)
                 .setSettings(indexSettings())
-                .setMapping("nested_type", "type=nested")
+                .setMapping("nested_type", "type=nested", "object.sub_field", "type=keyword,store=true")
         );
     }
 
@@ -318,6 +318,41 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         assertEquals(
             new FieldCapabilities("nested_type.nested_field", "text", false, true, false, null, null, null, Collections.emptyMap()),
             nestedTypeNestedField.get("text")
+        );
+    }
+
+    public void testNoObjectFieldsInEmptyIndex() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
+
+        assertIndices(response, INDEX3);
+        assertFalse(response.get().containsKey("object"));
+        assertFalse(response.get().containsKey("object.sub_field"));
+    }
+
+    public void testObjectFields() {
+        prepareIndex(INDEX3).setSource("object.sub_field", "value").get();
+        refresh(INDEX3);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX3).setFields("*").setIncludeFieldsWithNoValue(false).get();
+
+        assertIndices(response, INDEX3);
+        assertThat(response.get(), Matchers.hasKey("object"));
+        assertThat(response.get(), Matchers.hasKey("object.sub_field"));
+        // Check the capabilities for the 'object' field.
+        Map<String, FieldCapabilities> objectTypeField = response.getField("object");
+        assertEquals(1, objectTypeField.size());
+        assertThat(objectTypeField, Matchers.hasKey("object"));
+        assertEquals(
+            new FieldCapabilities("object", "object", false, false, false, null, null, null, Collections.emptyMap()),
+            objectTypeField.get("object")
+        );
+        // Check the capabilities for the 'object.sub_field' field.
+        Map<String, FieldCapabilities> objectSubfield = response.getField("object.sub_field");
+        assertEquals(1, objectSubfield.size());
+        assertThat(objectSubfield, Matchers.hasKey("keyword"));
+        assertEquals(
+            new FieldCapabilities("object.sub_field", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
+            objectSubfield.get("keyword")
         );
     }
 

@@ -110,7 +110,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_074;
+        return TransportVersions.V_8_11_X;
     }
 
     @Override

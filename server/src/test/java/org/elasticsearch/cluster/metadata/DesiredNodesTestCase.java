@@ -47,7 +47,11 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode randomDesiredNode(Settings settings) {
-        return randomDesiredNode(settings, randomProcessorRange());
+        if (randomBoolean()) {
+            return randomDesiredNode(settings, randomProcessorRange());
+        } else {
+            return randomDesiredNode(settings, randomNumberOfProcessors());
+        }
     }
 
     public static DesiredNode randomDesiredNode(Settings settings, double processors) {

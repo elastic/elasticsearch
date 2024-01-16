@@ -141,7 +141,7 @@ public class ClusterFormationFailureHelper {
         VotingConfiguration lastCommittedConfiguration,
         List<TransportAddress> resolvedAddresses,
         List<DiscoveryNode> foundPeers,
-        List<DiscoveryNode> mastersOfPeers,
+        Set<DiscoveryNode> mastersOfPeers,
         long currentTerm,
         boolean hasDiscoveredQuorum,
         StatusInfo statusInfo,
@@ -153,7 +153,7 @@ public class ClusterFormationFailureHelper {
             ClusterState clusterState,
             List<TransportAddress> resolvedAddresses,
             List<DiscoveryNode> foundPeers,
-            List<DiscoveryNode> mastersOfPeers,
+            Set<DiscoveryNode> mastersOfPeers,
             long currentTerm,
             ElectionStrategy electionStrategy,
             StatusInfo statusInfo,
@@ -221,8 +221,8 @@ public class ClusterFormationFailureHelper {
                 in.readCollectionAsImmutableList(TransportAddress::new),
                 in.readCollectionAsImmutableList(DiscoveryNode::new),
                 in.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)
-                    ? in.readCollectionAsImmutableList(DiscoveryNode::new)
-                    : List.of(),
+                    ? in.readCollectionAsImmutableSet(DiscoveryNode::new)
+                    : Set.of(),
                 in.readLong(),
                 in.readBoolean(),
                 new StatusInfo(in),

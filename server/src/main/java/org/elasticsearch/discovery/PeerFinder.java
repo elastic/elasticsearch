@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.Strings.format;
@@ -352,9 +353,9 @@ public abstract class PeerFinder {
         }
     }
 
-    public List<DiscoveryNode> getMastersOfPeers() {
+    public Set<DiscoveryNode> getMastersOfPeers() {
         synchronized (mutex) {
-            return peersByAddress.values().stream().flatMap(p -> p.lastKnownMasterNode.stream()).distinct().toList();
+            return peersByAddress.values().stream().flatMap(p -> p.lastKnownMasterNode.stream()).collect(Collectors.toSet());
         }
     }
 

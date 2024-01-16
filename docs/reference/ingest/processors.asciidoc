@@ -133,7 +133,7 @@ Sets a value on a field.
 ==== Specific outcomes
 
 <<bytes-processor, `bytes` processor>>::
-Converts a human-readable byte value to its value in bytes (for example`1kb` becomes `1024`).
+Converts a human-readable byte value to its value in bytes (for example `1kb` becomes `1024`).
 
 <<csv-processor, `csv` processor>>::
 Extracts a single line of CSV data from a text field.

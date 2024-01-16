@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -111,7 +110,6 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
     public TransportTermsEnumAction(
         ClusterService clusterService,
         SearchService searchService,
-        SearchTransportService searchTransportService,
         TransportService transportService,
         IndicesService indicesService,
         ScriptService scriptService,
@@ -132,7 +130,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         this.scriptService = scriptService;
         this.licenseState = licenseState;
         this.settings = settings;
-        this.remoteClusterService = searchTransportService.getRemoteClusterService();
+        this.remoteClusterService = transportService.getRemoteClusterService();
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
 
         transportService.registerRequestHandler(

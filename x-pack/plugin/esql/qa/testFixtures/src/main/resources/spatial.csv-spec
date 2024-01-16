@@ -98,6 +98,7 @@ POINT(-0.030548143003023033 24.37553649504829) | 891
 centroidFromAirportsCountGrouped#[skip:-8.12.99, reason:st_centroid added in 8.13]
 FROM airports
 | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| SORT scalerank DESC
 ;
 
 centroid:geo_point                            | count:long | scalerank:i

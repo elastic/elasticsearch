@@ -16,7 +16,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -513,7 +512,7 @@ public class TasksIT extends ESIntegTestCase {
         );
 
         logger.info("--> cancelling the main test task");
-        CancelTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setActions(TEST_TASK_ACTION.name()).get();
+        ListTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setActions(TEST_TASK_ACTION.name()).get();
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
         expectThrows(TaskCancelledException.class, future);

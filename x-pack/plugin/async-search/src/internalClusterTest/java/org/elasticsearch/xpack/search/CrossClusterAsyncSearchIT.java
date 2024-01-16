@@ -11,7 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -1319,7 +1318,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         SearchListenerPlugin.waitSearchStarted();
 
-        ActionFuture<CancelTasksResponse> cancelFuture;
+        ActionFuture<ListTasksResponse> cancelFuture;
         try {
             ListTasksResponse listTasksResponse = client(LOCAL_CLUSTER).admin()
                 .cluster()

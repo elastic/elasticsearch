@@ -19,8 +19,6 @@ package co.elastic.elasticsearch.stateless.lucene.stats;
 
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,7 +30,6 @@ public record ShardSize(long interactiveSizeInBytes, long nonInteractiveSizeInBy
         Writeable {
 
     public static final ShardSize EMPTY = new ShardSize(0, 0, PrimaryTermAndGeneration.ZERO);
-    public static final TransportVersion PRIMARY_TERM_GENERATION_VERSION = TransportVersions.SHARD_SIZE_PRIMARY_TERM_GEN_ADDED;
 
     public ShardSize {
         assert interactiveSizeInBytes >= 0 : "interactiveSize must be non negative";
@@ -40,9 +37,6 @@ public record ShardSize(long interactiveSizeInBytes, long nonInteractiveSizeInBy
     }
 
     public static ShardSize from(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(PRIMARY_TERM_GENERATION_VERSION)) {
-            return new ShardSize(in.readLong(), in.readLong(), PrimaryTermAndGeneration.ZERO);
-        }
         return new ShardSize(in.readLong(), in.readLong(), new PrimaryTermAndGeneration(in));
     }
 
@@ -50,9 +44,7 @@ public record ShardSize(long interactiveSizeInBytes, long nonInteractiveSizeInBy
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(interactiveSizeInBytes);
         out.writeLong(nonInteractiveSizeInBytes);
-        if (out.getTransportVersion().onOrAfter(PRIMARY_TERM_GENERATION_VERSION)) {
-            primaryTermGeneration.writeTo(out);
-        }
+        primaryTermGeneration.writeTo(out);
     }
 
     public long totalSizeInBytes() {

@@ -442,7 +442,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
-            .realmRef(new RealmRef("native_realm", "na7tive", "node1"))
+            .realmRef(new RealmRef("native_realm", "native", "node1"))
             .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());

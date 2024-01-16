@@ -7,7 +7,7 @@ Also see <<breaking-changes-8.12,Breaking changes in 8.12>>.
 
 [[breaking-8.12.0]]
 [float]
-=== Breaking changes
+=== Breaking and notable changes
 
 Authorization::
 * Fixed JWT principal from claims {es-pull}101333[#101333]

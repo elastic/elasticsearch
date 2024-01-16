@@ -387,7 +387,7 @@ dynamic templates - subobject in passthrough object error:
       features: "default_shards"
       reason: "Support for dynamic fields was added in 8.13"
   - do:
-      catch: /Mapping definition for \[attributes\] has unsupported parameters\:\ \ \[subcategory \:\ \{attributes=\{dim=\{type=keyword\}\}\}\]/
+      catch: /Tried to add subobject \[subcategory\] to object \[attributes\] which does not support subobjects/
       indices.put_index_template:
         name: my-dynamic-template
         body:
@@ -404,10 +404,12 @@ dynamic templates - subobject in passthrough object error:
                   type: passthrough
                   dynamic: true
                   time_series_dimension: true
-                  subcategory:
-                    attributes:
-                      dim:
-                        type: keyword
+                  properties:
+                    subcategory:
+                      type: object
+                      properties:
+                        dim:
+                          type: keyword
 
 ---
 dynamic templates - passthrough not under root error:

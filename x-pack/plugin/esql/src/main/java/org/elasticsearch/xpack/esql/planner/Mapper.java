@@ -144,6 +144,7 @@ public class Mapper {
             return new EnrichExec(
                 enrich.source(),
                 child,
+                enrich.mode(),
                 enrich.matchField(),
                 policyName instanceof BytesRef bytes ? bytes.utf8ToString() : policyName.toString(),
                 enrich.policy().getMatchField(),

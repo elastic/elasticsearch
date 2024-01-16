@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -19,6 +20,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
+    private final Enrich.Mode mode;
     private final NamedExpression matchField;
     private final String policyName;
     private final String policyMatchField;
@@ -38,6 +40,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
     public EnrichExec(
         Source source,
         PhysicalPlan child,
+        Enrich.Mode mode,
         NamedExpression matchField,
         String policyName,
         String policyMatchField,
@@ -45,6 +48,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         List<NamedExpression> enrichFields
     ) {
         super(source, child);
+        this.mode = mode;
         this.matchField = matchField;
         this.policyName = policyName;
         this.policyMatchField = policyMatchField;
@@ -54,12 +58,26 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EnrichExec> info() {
-        return NodeInfo.create(this, EnrichExec::new, child(), matchField, policyName, policyMatchField, concreteIndices, enrichFields);
+        return NodeInfo.create(
+            this,
+            EnrichExec::new,
+            child(),
+            mode,
+            matchField,
+            policyName,
+            policyMatchField,
+            concreteIndices,
+            enrichFields
+        );
     }
 
     @Override
     public EnrichExec replaceChild(PhysicalPlan newChild) {
-        return new EnrichExec(source(), newChild, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
+        return new EnrichExec(source(), newChild, mode, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
+    }
+
+    public Enrich.Mode mode() {
+        return mode;
     }
 
     public NamedExpression matchField() {
@@ -99,7 +117,8 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         EnrichExec that = (EnrichExec) o;
-        return Objects.equals(matchField, that.matchField)
+        return mode.equals(that.mode)
+            && Objects.equals(matchField, that.matchField)
             && Objects.equals(policyName, that.policyName)
             && Objects.equals(policyMatchField, that.policyMatchField)
             && Objects.equals(concreteIndices, that.concreteIndices)
@@ -108,6 +127,6 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), matchField, policyName, policyMatchField, concreteIndices, enrichFields);
+        return Objects.hash(super.hashCode(), mode, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
     }
 }

@@ -890,8 +890,8 @@ public class PeerFinderTests extends ESTestCase {
         transportAddressConnector.addReachableNode(otherNode);
 
         peerFinder.activate(lastAcceptedNodes);
-        final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY)
-            .millis();
+        final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY).millis()
+            + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis();
 
         runAllRunnableTasks();
 
@@ -899,16 +899,7 @@ public class PeerFinderTests extends ESTestCase {
         final DiscoveryNode unreachableMaster = newDiscoveryNode("unreachable-master");
         transportAddressConnector.unreachableAddresses.add(unreachableMaster.getAddress());
 
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(PeerFinder.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "discovery result",
-                    "org.elasticsearch.discovery.PeerFinder",
-                    Level.WARN,
-                    "address [" + unreachableMaster.getAddress() + "]* [current master according to *node-from-hosts-list*"
-                )
-            );
+        MockLogAppender.assertThatLogger(() -> {
             while (deterministicTaskQueue.getCurrentTimeMillis() <= endTime) {
                 deterministicTaskQueue.advanceTime();
                 runAllRunnableTasks();
@@ -917,8 +908,15 @@ public class PeerFinderTests extends ESTestCase {
                     return new PeersResponse(Optional.of(unreachableMaster), emptyList(), randomNonNegativeLong());
                 });
             }
-            appender.assertAllExpectationsMatched();
-        }
+        },
+            PeerFinder.class,
+            new MockLogAppender.SeenEventExpectation(
+                "discovery result",
+                "org.elasticsearch.discovery.PeerFinder",
+                Level.WARN,
+                "address [" + unreachableMaster.getAddress() + "]* [current master according to *node-from-hosts-list*"
+            )
+        );
 
         assertFoundPeers(otherNode);
         assertThat(peerFinder.discoveredMasterNode, nullValue());

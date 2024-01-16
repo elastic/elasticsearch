@@ -456,8 +456,7 @@ public class ApiKeyService {
                             apiKeyAuthCache.put(request.getId(), listenableFuture);
                             listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
                         }, listener::onFailure))
-                    ),
-                    bulkRequestBuilder::close
+                    )
                 );
             } catch (IOException e) {
                 listener.onFailure(e);
@@ -544,37 +543,31 @@ public class ApiKeyService {
 
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        try {
-            for (VersionedApiKeyDoc versionedDoc : targetVersionedDocs) {
-                final String apiKeyId = versionedDoc.id();
-                try {
-                    validateForUpdate(apiKeyId, request.getType(), authentication, versionedDoc.doc());
-                    final IndexRequest indexRequest = maybeBuildIndexRequest(versionedDoc, authentication, request, userRoleDescriptors);
-                    final boolean isNoop = indexRequest == null;
-                    if (isNoop) {
-                        logger.debug("Detected noop update request for API key [{}]. Skipping index request", apiKeyId);
-                        responseBuilder.noop(apiKeyId);
-                    } else {
-                        bulkRequestBuilder.add(indexRequest);
-                    }
-                } catch (Exception ex) {
-                    responseBuilder.error(apiKeyId, traceLog("prepare index request for update", ex));
+        for (VersionedApiKeyDoc versionedDoc : targetVersionedDocs) {
+            final String apiKeyId = versionedDoc.id();
+            try {
+                validateForUpdate(apiKeyId, request.getType(), authentication, versionedDoc.doc());
+                final IndexRequest indexRequest = maybeBuildIndexRequest(versionedDoc, authentication, request, userRoleDescriptors);
+                final boolean isNoop = indexRequest == null;
+                if (isNoop) {
+                    logger.debug("Detected noop update request for API key [{}]. Skipping index request", apiKeyId);
+                    responseBuilder.noop(apiKeyId);
+                } else {
+                    bulkRequestBuilder.add(indexRequest);
                 }
+            } catch (Exception ex) {
+                responseBuilder.error(apiKeyId, traceLog("prepare index request for update", ex));
             }
-            addErrorsForNotFoundApiKeys(responseBuilder, targetVersionedDocs, request.getIds());
-            if (bulkRequestBuilder.numberOfActions() == 0) {
-                logger.trace("No bulk request execution necessary for API key update");
-                listener.onResponse(responseBuilder.build());
-                bulkRequestBuilder.close();
-                return;
-            }
-
-            logger.trace("Executing bulk request to update [{}] API keys", bulkRequestBuilder.numberOfActions());
-            bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
-        } catch (Exception e) {
-            bulkRequestBuilder.close();
-            throw e;
         }
+        addErrorsForNotFoundApiKeys(responseBuilder, targetVersionedDocs, request.getIds());
+        if (bulkRequestBuilder.numberOfActions() == 0) {
+            logger.trace("No bulk request execution necessary for API key update");
+            listener.onResponse(responseBuilder.build());
+            return;
+        }
+
+        logger.trace("Executing bulk request to update [{}] API keys", bulkRequestBuilder.numberOfActions());
+        bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
         securityIndex.prepareIndexIfNeededThenExecute(
             ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(
@@ -586,8 +579,7 @@ public class ApiKeyService {
                     ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
                 ),
                 client::bulk
-            ),
-            bulkRequestBuilder::close
+            )
         );
     }
 
@@ -1739,8 +1731,7 @@ public class ApiKeyService {
                         listener.onFailure(e);
                     }),
                     client::bulk
-                ),
-                bulkRequestBuilder::close
+                )
             );
         }
     }

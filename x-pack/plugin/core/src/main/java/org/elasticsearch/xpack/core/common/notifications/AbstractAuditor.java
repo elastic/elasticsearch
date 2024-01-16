@@ -217,14 +217,14 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             doc = backlog.poll();
         }
 
-        client.bulk(bulkRequest, ActionListener.releaseAfter(ActionListener.wrap(bulkItemResponses -> {
+        client.bulk(bulkRequest, ActionListener.wrap(bulkItemResponses -> {
             if (bulkItemResponses.hasFailures()) {
                 logger.warn("Failures bulk indexing the message back log: {}", bulkItemResponses.buildFailureMessage());
             } else {
                 logger.trace("Successfully wrote audit message backlog after upgrading template");
             }
             backlog = null;
-        }, AbstractAuditor::onIndexFailure), bulkRequest));
+        }, AbstractAuditor::onIndexFailure));
     }
 
     // for testing

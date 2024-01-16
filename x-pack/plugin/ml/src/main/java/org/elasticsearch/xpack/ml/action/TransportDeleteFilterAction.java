@@ -94,28 +94,22 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         bulkRequestBuilder.add(deleteRequest);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            BulkAction.INSTANCE,
-            bulkRequestBuilder.request(),
-            ActionListener.releaseAfter(new ActionListener<>() {
-                @Override
-                public void onResponse(BulkResponse bulkResponse) {
-                    if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
-                        listener.onFailure(
-                            new ResourceNotFoundException("Could not delete filter with ID [" + filterId + "] because it does not exist")
-                        );
-                    } else {
-                        listener.onResponse(AcknowledgedResponse.TRUE);
-                    }
+        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse bulkResponse) {
+                if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
+                    listener.onFailure(
+                        new ResourceNotFoundException("Could not delete filter with ID [" + filterId + "] because it does not exist")
+                    );
+                } else {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(ExceptionsHelper.serverError("Could not delete filter with ID [" + filterId + "]", e));
-                }
-            }, bulkRequestBuilder)
-        );
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(ExceptionsHelper.serverError("Could not delete filter with ID [" + filterId + "]", e));
+            }
+        });
     }
 }

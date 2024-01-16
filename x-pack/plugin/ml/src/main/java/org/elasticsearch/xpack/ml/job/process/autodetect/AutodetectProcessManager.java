@@ -239,6 +239,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
      * Jobs that are already closing continue to close.
      */
     public synchronized void vacateOpenJobsOnThisNode() {
+
         for (ProcessContext processContext : processByAllocation.values()) {
 
             // We ignore jobs that either don't have a running process yet or already closing.
@@ -658,10 +659,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                         // Don't leave a process with no persistent task hanging around
                                         processContext.newKillBuilder().setAwaitCompletion(false).setFinish(false).kill();
-                                        AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
-                                        if (communicator != null) {
-                                            communicator.releaseResources();
-                                        }
                                         processByAllocation.remove(jobTask.getAllocationId());
                                     }
                                 }
@@ -767,14 +764,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
-        JobRenormalizedResultsPersister jobRenormalizedResultsPersister = new JobRenormalizedResultsPersister(job.getId(), client);
-        ScoresUpdater scoresUpdater;
-        try {
-            scoresUpdater = new ScoresUpdater(job, jobResultsProvider, jobRenormalizedResultsPersister, normalizerFactory);
-        } catch (Exception e) {
-            jobRenormalizedResultsPersister.close();
-            throw e;
-        }
+        ScoresUpdater scoresUpdater = new ScoresUpdater(
+            job,
+            jobResultsProvider,
+            new JobRenormalizedResultsPersister(job.getId(), client),
+            normalizerFactory
+        );
         ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater, renormalizerExecutorService);
 
@@ -798,12 +793,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autodetectExecutorService);
-            autodetectExecutorService.submit(() -> processor.process());
+            autodetectExecutorService.submit(processor::process);
         } catch (EsRejectedExecutionException e) {
             // If submitting the operation to read the results from the process fails we need to close
             // the process too, so that other submitted operations to threadpool are stopped.
             try {
-                IOUtils.close(process, jobRenormalizedResultsPersister);
+                IOUtils.close(process);
             } catch (IOException ioe) {
                 logger.error("Can't close autodetect", ioe);
             }
@@ -817,8 +812,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             processor,
             handler,
             xContentRegistry,
-            autodetectWorkerExecutor,
-            jobRenormalizedResultsPersister::close
+            autodetectWorkerExecutor
         );
     }
 
@@ -856,7 +850,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             if (processContext != null) {
                 AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
                 if (communicator != null) {
-                    communicator.releaseResources();
+                    communicator.destroyCategorizationAnalyzer();
                 }
             }
             setJobState(jobTask, JobState.FAILED, reason);

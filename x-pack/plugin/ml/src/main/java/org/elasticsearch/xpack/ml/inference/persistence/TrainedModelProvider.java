@@ -523,13 +523,7 @@ public class TrainedModelProvider {
             wrappedListener.onResponse(true);
         }, wrappedListener::onFailure);
 
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            BulkAction.INSTANCE,
-            bulkRequest.request(),
-            ActionListener.releaseAfter(bulkResponseActionListener, bulkRequest)
-        );
+        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest.request(), bulkResponseActionListener);
     }
 
     /**

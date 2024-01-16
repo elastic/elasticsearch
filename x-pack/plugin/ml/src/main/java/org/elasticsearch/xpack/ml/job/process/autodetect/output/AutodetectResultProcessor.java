@@ -166,6 +166,7 @@ public class AutodetectResultProcessor {
     }
 
     public void process() {
+
         // If a function call in this throws for some reason we don't want it
         // to kill the results reader thread as autodetect will be blocked
         // trying to write its output.
@@ -185,6 +186,7 @@ public class AutodetectResultProcessor {
 
         } catch (Exception e) {
             failed = true;
+
             if (processKilled) {
                 // Don't log the stack trace in this case. Log just enough to hint
                 // that it would have been better to close jobs before shutting down,
@@ -200,7 +202,6 @@ public class AutodetectResultProcessor {
                 logger.error(() -> "[" + jobId + "] error parsing autodetect output", e);
             }
         } finally {
-            bulkAnnotationsPersister.close();
             flushListener.clear();
             handleOpenForecasts();
             completionLatch.countDown();

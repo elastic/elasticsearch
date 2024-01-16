@@ -109,7 +109,7 @@ public class Retry {
             } else {
                 if (canRetry(bulkItemResponses)) {
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
-                    retry(createBulkRequestForRetry(bulkItemResponses), true);
+                    retry(createBulkRequestForRetry(bulkItemResponses));
                 } else {
                     addResponses(bulkItemResponses, (r -> true));
                     finishHim();
@@ -133,26 +133,10 @@ public class Retry {
         }
 
         private void retry(BulkRequest bulkRequestForRetry) {
-            retry(bulkRequestForRetry, false);
-        }
-
-        private void retry(BulkRequest bulkRequestForRetry, boolean releaseRequestWhenDone) {
             assert backoff.hasNext();
             TimeValue next = backoff.next();
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
-            bulkRequestForRetry.incRef();
-            try {
-                retryCancellable = scheduler.schedule(() -> {
-                    try {
-                        this.execute(bulkRequestForRetry, releaseRequestWhenDone);
-                    } finally {
-                        bulkRequestForRetry.decRef();
-                    }
-                }, next, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            } catch (Exception e) {
-                bulkRequestForRetry.decRef();
-                throw e;
-            }
+            retryCancellable = scheduler.schedule(() -> this.execute(bulkRequestForRetry), next, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {
@@ -220,18 +204,8 @@ public class Retry {
         }
 
         public void execute(BulkRequest bulkRequest) {
-            execute(bulkRequest, false);
-        }
-
-        private void execute(BulkRequest bulkRequest, boolean releaseRequestWhenDone) {
             this.currentBulkRequest = bulkRequest;
-            final ActionListener<BulkResponse> listener;
-            if (releaseRequestWhenDone) {
-                listener = ActionListener.releaseAfter(this, bulkRequest);
-            } else {
-                listener = this;
-            }
-            consumer.accept(bulkRequest, listener);
+            consumer.accept(bulkRequest, this);
         }
     }
 }

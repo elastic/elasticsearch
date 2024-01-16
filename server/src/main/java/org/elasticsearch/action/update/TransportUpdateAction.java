@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -188,10 +187,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
-                final BulkRequest bulkRequest = toSingleItemBulkRequest(upsertRequest);
                 client.bulk(
-                    bulkRequest,
-                    ActionListener.releaseAfter(unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                    toSingleItemBulkRequest(upsertRequest),
+                    unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
                             response.getShardId(),
@@ -224,17 +222,16 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         }
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest)
+                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
                 );
             }
             case UPDATED -> {
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
-                final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
                 client.bulk(
-                    bulkRequest,
-                    ActionListener.releaseAfter(unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                    toSingleItemBulkRequest(indexRequest),
+                    unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
                             response.getShardId(),
@@ -258,15 +255,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         );
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest)
+                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
                 );
             }
             case DELETED -> {
                 DeleteRequest deleteRequest = result.action();
-                final BulkRequest bulkRequest = toSingleItemBulkRequest(deleteRequest);
                 client.bulk(
-                    bulkRequest,
-                    ActionListener.releaseAfter(unwrappingSingleItemBulkResponse(ActionListener.<DeleteResponse>wrap(response -> {
+                    toSingleItemBulkRequest(deleteRequest),
+                    unwrappingSingleItemBulkResponse(ActionListener.<DeleteResponse>wrap(response -> {
                         UpdateResponse update = new UpdateResponse(
                             response.getShardInfo(),
                             response.getShardId(),
@@ -290,7 +286,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         );
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest)
+                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
                 );
             }
             case NOOP -> {

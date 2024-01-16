@@ -147,12 +147,11 @@ public class ResultsPersisterService {
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler
     ) throws IOException {
-        try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy)) {
-            try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
-                bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
-            }
-            return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler);
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
+        try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
+            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
         }
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler);
     }
 
     public void indexWithRetry(
@@ -171,7 +170,7 @@ public class ResultsPersisterService {
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
             bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
         }
-        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, ActionListener.releaseAfter(finalListener, bulkRequest));
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, finalListener);
     }
 
     public BulkResponse bulkIndexWithRetry(
@@ -388,16 +387,9 @@ public class ResultsPersisterService {
                             return;
                         }
                     }
-                    BulkRequest originalRequest = bulkRequestRewriter.bulkRequest;
                     bulkRequestRewriter.rewriteRequest(bulkResponse);
-                    ActionListener<BulkResponse> releasingRetryableListener;
-                    if (originalRequest == bulkRequestRewriter.bulkRequest) {
-                        releasingRetryableListener = retryableListener; // we didn't create this bulk request, so don't release it
-                    } else {
-                        releasingRetryableListener = ActionListener.releaseAfter(retryableListener, bulkRequestRewriter.bulkRequest);
-                    }
                     // Let the listener attempt again with the new bulk request
-                    releasingRetryableListener.onFailure(new RecoverableException());
+                    retryableListener.onFailure(new RecoverableException());
                 }, retryableListener::onFailure)),
                 listener
             );

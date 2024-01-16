@@ -1940,19 +1940,9 @@ public class JobResultsProvider {
                 bulkUpdate.add(updateRequest);
             }
             if (bulkUpdate.numberOfActions() > 0) {
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    BulkAction.INSTANCE,
-                    bulkUpdate.request(),
-                    ActionListener.releaseAfter(updateCalendarsListener, bulkUpdate)
-                );
+                executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkUpdate.request(), updateCalendarsListener);
             } else {
-                try {
-                    listener.onResponse(true);
-                } finally {
-                    bulkUpdate.close();
-                }
+                listener.onResponse(true);
             }
         }, listener::onFailure);
 

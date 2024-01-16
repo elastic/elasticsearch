@@ -46,11 +46,7 @@ public abstract class TransportSingleItemBulkWriteAction<
     @Override
     protected void doExecute(Task task, final Request request, final ActionListener<Response> listener) {
         final BulkRequest bulkRequest = toSingleItemBulkRequest(request);
-        bulkAction.execute(
-            task,
-            bulkRequest,
-            ActionListener.releaseAfter(TransportBulkAction.unwrappingSingleItemBulkResponse(listener), bulkRequest)
-        );
+        bulkAction.execute(task, toSingleItemBulkRequest(request), TransportBulkAction.unwrappingSingleItemBulkResponse(listener));
     }
 
     public static BulkRequest toSingleItemBulkRequest(ReplicatedWriteRequest<?> request) {

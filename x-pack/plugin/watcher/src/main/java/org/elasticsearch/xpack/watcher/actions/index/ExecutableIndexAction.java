@@ -133,85 +133,84 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             throw illegalState("could not execute action [{}] of watch [{}]. [doc_id] cannot be used with bulk [_doc] indexing");
         }
 
-        try (BulkRequest bulkRequest = new BulkRequest()) {
-            if (action.refreshPolicy != null) {
-                bulkRequest.setRefreshPolicy(action.refreshPolicy);
+        BulkRequest bulkRequest = new BulkRequest();
+        if (action.refreshPolicy != null) {
+            bulkRequest.setRefreshPolicy(action.refreshPolicy);
+        }
+
+        for (Object item : list) {
+            if ((item instanceof Map) == false) {
+                throw illegalState(
+                    "could not execute action [{}] of watch [{}]. failed to index payload data. "
+                        + "[_data] field must either hold a Map or an List/Array of Maps",
+                    actionId,
+                    ctx.watch().id()
+                );
             }
 
-            for (Object item : list) {
-                if ((item instanceof Map) == false) {
-                    throw illegalState(
-                        "could not execute action [{}] of watch [{}]. failed to index payload data. "
-                            + "[_data] field must either hold a Map or an List/Array of Maps",
-                        actionId,
-                        ctx.watch().id()
-                    );
-                }
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> doc = (Map<String, Object>) item;
-                if (doc.containsKey(INDEX_FIELD) || doc.containsKey(TYPE_FIELD) || doc.containsKey(ID_FIELD)) {
-                    doc = mutableMap(doc);
-                }
-
-                IndexRequest indexRequest = new IndexRequest();
-                indexRequest.index(getField(actionId, ctx.id().watchId(), "index", doc, INDEX_FIELD, action.index));
-                indexRequest.id(getField(actionId, ctx.id().watchId(), "id", doc, ID_FIELD, action.docId));
-                if (action.opType != null) {
-                    indexRequest.opType(action.opType);
-                }
-
-                doc = addTimestampToDocument(doc, ctx.executionTime());
-                try (XContentBuilder builder = jsonBuilder()) {
-                    indexRequest.source(builder.prettyPrint().map(doc));
-                }
-                bulkRequest.add(indexRequest);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = (Map<String, Object>) item;
+            if (doc.containsKey(INDEX_FIELD) || doc.containsKey(TYPE_FIELD) || doc.containsKey(ID_FIELD)) {
+                doc = mutableMap(doc);
             }
 
-            if (ctx.simulateAction(actionId)) {
-                try (XContentBuilder builder = jsonBuilder().startArray()) {
-                    for (DocWriteRequest<?> request : bulkRequest.requests()) {
-                        builder.startObject();
-                        builder.field("_id", request.id());
-                        builder.field("_index", request.index());
-                        builder.endObject();
-                    }
-                    builder.endArray();
-
-                    return new IndexAction.Simulated(
-                        "",
-                        "",
-                        action.refreshPolicy,
-                        new XContentSource(BytesReference.bytes(builder), XContentType.JSON)
-                    );
-                }
+            IndexRequest indexRequest = new IndexRequest();
+            indexRequest.index(getField(actionId, ctx.id().watchId(), "index", doc, INDEX_FIELD, action.index));
+            indexRequest.id(getField(actionId, ctx.id().watchId(), "id", doc, ID_FIELD, action.docId));
+            if (action.opType != null) {
+                indexRequest.opType(action.opType);
             }
 
-            ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
-            BulkResponse bulkResponse = ClientHelper.executeWithHeaders(
-                ctx.watch().status().getHeaders(),
-                ClientHelper.WATCHER_ORIGIN,
-                client,
-                () -> client.bulk(bulkRequest).actionGet(bulkDefaultTimeout)
-            );
-            try (XContentBuilder jsonBuilder = jsonBuilder().startArray()) {
-                for (BulkItemResponse item : bulkResponse) {
-                    itemResponseToXContent(jsonBuilder, item);
-                }
-                jsonBuilder.endArray();
+            doc = addTimestampToDocument(doc, ctx.executionTime());
+            try (XContentBuilder builder = jsonBuilder()) {
+                indexRequest.source(builder.prettyPrint().map(doc));
+            }
+            bulkRequest.add(indexRequest);
+        }
 
-                // different error states, depending on how successful the bulk operation was
-                long failures = Stream.of(bulkResponse.getItems()).filter(BulkItemResponse::isFailed).count();
-                if (failures == 0) {
-                    return new IndexAction.Result(Status.SUCCESS, new XContentSource(BytesReference.bytes(jsonBuilder), XContentType.JSON));
-                } else if (failures == bulkResponse.getItems().length) {
-                    return new IndexAction.Result(Status.FAILURE, new XContentSource(BytesReference.bytes(jsonBuilder), XContentType.JSON));
-                } else {
-                    return new IndexAction.Result(
-                        Status.PARTIAL_FAILURE,
-                        new XContentSource(BytesReference.bytes(jsonBuilder), XContentType.JSON)
-                    );
+        if (ctx.simulateAction(actionId)) {
+            try (XContentBuilder builder = jsonBuilder().startArray()) {
+                for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                    builder.startObject();
+                    builder.field("_id", request.id());
+                    builder.field("_index", request.index());
+                    builder.endObject();
                 }
+                builder.endArray();
+
+                return new IndexAction.Simulated(
+                    "",
+                    "",
+                    action.refreshPolicy,
+                    new XContentSource(BytesReference.bytes(builder), XContentType.JSON)
+                );
+            }
+        }
+
+        ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
+        BulkResponse bulkResponse = ClientHelper.executeWithHeaders(
+            ctx.watch().status().getHeaders(),
+            ClientHelper.WATCHER_ORIGIN,
+            client,
+            () -> client.bulk(bulkRequest).actionGet(bulkDefaultTimeout)
+        );
+        try (XContentBuilder jsonBuilder = jsonBuilder().startArray()) {
+            for (BulkItemResponse item : bulkResponse) {
+                itemResponseToXContent(jsonBuilder, item);
+            }
+            jsonBuilder.endArray();
+
+            // different error states, depending on how successful the bulk operation was
+            long failures = Stream.of(bulkResponse.getItems()).filter(BulkItemResponse::isFailed).count();
+            if (failures == 0) {
+                return new IndexAction.Result(Status.SUCCESS, new XContentSource(BytesReference.bytes(jsonBuilder), XContentType.JSON));
+            } else if (failures == bulkResponse.getItems().length) {
+                return new IndexAction.Result(Status.FAILURE, new XContentSource(BytesReference.bytes(jsonBuilder), XContentType.JSON));
+            } else {
+                return new IndexAction.Result(
+                    Status.PARTIAL_FAILURE,
+                    new XContentSource(BytesReference.bytes(jsonBuilder), XContentType.JSON)
+                );
             }
         }
     }

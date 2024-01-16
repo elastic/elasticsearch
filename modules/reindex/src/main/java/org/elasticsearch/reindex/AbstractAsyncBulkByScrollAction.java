@@ -269,18 +269,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
     protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
         BulkRequest bulkRequest = new BulkRequest();
-        try {
-            for (ScrollableHitSource.Hit doc : docs) {
-                if (accept(doc)) {
-                    RequestWrapper<?> request = scriptApplier.apply(copyMetadata(buildRequest(doc), doc), doc);
-                    if (request != null) {
-                        bulkRequest.add(request.self());
-                    }
+        for (ScrollableHitSource.Hit doc : docs) {
+            if (accept(doc)) {
+                RequestWrapper<?> request = scriptApplier.apply(copyMetadata(buildRequest(doc), doc), doc);
+                if (request != null) {
+                    bulkRequest.add(request.self());
                 }
             }
-        } catch (Exception e) {
-            bulkRequest.close();
-            throw e;
         }
         return bulkRequest;
     }
@@ -417,22 +412,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
-            try {
-                notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
-            } finally {
-                request.close();
-            }
+            notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
             return;
         }
         request.timeout(mainRequest.getTimeout());
         request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()), request::close);
+        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
     }
 
     /**
      * Send a bulk request, handling retries.
      */
-    void sendBulkRequest(BulkRequest request, Runnable onSuccess, Runnable onCompletion) {
+    void sendBulkRequest(BulkRequest request, Runnable onSuccess) {
         final int requestSize = request.requests().size();
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -444,20 +435,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
-            onCompletion.run();
             finishHim(null);
             return;
         }
-        bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<>() {
+        bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
                 logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
-                onBulkResponse(response, onSuccess, onCompletion);
+                onBulkResponse(response, onSuccess);
             }
 
             @Override
             public void onFailure(Exception e) {
-                onCompletion.run();
                 finishHim(e);
             }
         });
@@ -466,7 +455,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     /**
      * Processes bulk responses, accounting for failures.
      */
-    void onBulkResponse(BulkResponse response, Runnable onSuccess, Runnable onCompletion) {
+    void onBulkResponse(BulkResponse response, Runnable onSuccess) {
         try {
             List<Failure> failures = new ArrayList<>();
             Set<String> destinationIndicesThisBatch = new HashSet<>();
@@ -523,8 +512,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
             onSuccess.run();
         } catch (Exception t) {
             finishHim(t);
-        } finally {
-            onCompletion.run();
         }
     }
 

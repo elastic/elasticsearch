@@ -263,11 +263,7 @@ public class BulkProcessor2 implements Closeable {
             if (bulkRequestUnderConstruction.numberOfActions() > 0) {
                 execute();
             }
-            boolean success = this.retry.awaitClose(timeout, unit);
-            if (bulkRequestUnderConstruction.hasReferences()) {
-                bulkRequestUnderConstruction.close();
-            }
-            return success;
+            return this.retry.awaitClose(timeout, unit);
         }
     }
 

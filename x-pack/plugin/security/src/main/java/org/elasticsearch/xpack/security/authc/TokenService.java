@@ -945,10 +945,8 @@ public class TokenService {
                 )
             );
             bulkRequestBuilder.setRefreshPolicy(refreshPolicy);
-            tokensIndexManager.prepareIndexIfNeededThenExecute(ex -> {
-                listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex));
-
-            },
+            tokensIndexManager.prepareIndexIfNeededThenExecute(
+                ex -> listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex)),
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
@@ -1060,8 +1058,7 @@ public class TokenService {
                         }
                     }),
                     client::bulk
-                ),
-                bulkRequestBuilder::close
+                )
             );
         }
     }

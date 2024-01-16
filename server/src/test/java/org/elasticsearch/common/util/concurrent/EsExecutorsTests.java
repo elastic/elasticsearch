@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.util.Locale;
@@ -501,4 +502,41 @@ public class EsExecutorsTests extends ESTestCase {
         }
     }
 
+    // This test must complete to ensure that our basic infrastructure is working as expected.
+    // Specifically that ExecutorScalingQueue, which subclasses LinkedTransferQueue, correctly
+    // tracks tasks submitted to the executor.
+    public void testBasicTaskExecution() {
+        final var executorService = EsExecutors.newScaling(
+            "test",
+            0,
+            between(1, 5),
+            60,
+            TimeUnit.SECONDS,
+            randomBoolean(),
+            EsExecutors.daemonThreadFactory("test"),
+            new ThreadContext(Settings.EMPTY)
+        );
+        try {
+            final var countDownLatch = new CountDownLatch(between(1, 10));
+            class TestTask extends AbstractRunnable {
+                @Override
+                protected void doRun() {
+                    countDownLatch.countDown();
+                    if (countDownLatch.getCount() > 0) {
+                        executorService.execute(TestTask.this);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            }
+
+            executorService.execute(new TestTask());
+            safeAwait(countDownLatch);
+        } finally {
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
+        }
+    }
 }

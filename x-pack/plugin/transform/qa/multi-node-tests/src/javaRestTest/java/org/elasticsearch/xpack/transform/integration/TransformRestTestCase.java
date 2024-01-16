@@ -402,7 +402,14 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void updateConfig(String id, String update, RequestOptions options) throws Exception {
+        updateConfig(id, update, false, options);
+    }
+
+    protected void updateConfig(String id, String update, boolean deferValidation, RequestOptions options) throws Exception {
         Request updateRequest = new Request("POST", "_transform/" + id + "/_update");
+        if (deferValidation) {
+            updateRequest.addParameter("defer_validation", String.valueOf(deferValidation));
+        }
         updateRequest.setJsonEntity(update);
         updateRequest.setOptions(options);
         assertOK(client().performRequest(updateRequest));

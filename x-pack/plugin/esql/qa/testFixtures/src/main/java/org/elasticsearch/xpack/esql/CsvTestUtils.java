@@ -232,6 +232,8 @@ public final class CsvTestUtils {
      * Takes a csv String and converts it to a String array. Also, it recognizes an opening bracket "[" in one string and a closing "]"
      * in another string and it creates a single concatenated comma-separated String of all the values between the opening bracket entry
      * and the closing bracket entry. In other words, entries enclosed by "[]" are returned as a single element.
+     *
+     * Commas can be escaped with \ (backslash) character.
      */
     static String[] multiValuesAwareCsvToStringArray(String csvLine, int lineNumber) {
         var mvCompressedEntries = new ArrayList<String>();
@@ -306,6 +308,15 @@ public final class CsvTestUtils {
 
     public record ExpectedResults(List<String> columnNames, List<Type> columnTypes, List<List<Object>> values) {}
 
+    /**
+     * The method loads a section of a .csv-spec file representing the results of executing the query of that section.
+     * It reads both the schema (field names and their types) and the row values.
+     * Values starting with an opening square bracket and ending with a closing square bracket are considered multi-values. Inside
+     * these multi-values, commas separate the individual values and escaped commas are allowed with a prefixed \
+     * default \ (backslash) character.
+     * @param csv a string representing the header and row values of a single query execution result
+     * @return data structure with column names, their types and values
+     */
     public static ExpectedResults loadCsvSpecValues(String csv) {
         List<String> columnNames;
         List<Type> columnTypes;
@@ -361,8 +372,8 @@ public final class CsvTestUtils {
                             rowValues.add(columnTypes.get(i).convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
                         }
                     } else {
-                        // TODO the value considered here is the one where any potential escaped comma is kept as is (with the escape char)
-                        // if we'd want escaped commas outside multi-values fields, we'd have to adjust this value here as well
+                        // The value considered here is the one where any potential escaped comma is kept as is (with the escape char)
+                        // TODO if we'd want escaped commas outside multi-values fields, we'd have to adjust this value here as well
                         rowValues.add(columnTypes.get(i).convert(value));
                     }
                 }

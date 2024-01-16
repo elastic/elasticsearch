@@ -218,6 +218,20 @@ public class CsvTestsDataLoader {
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     * Loads a classic csv file in an ES cluster using a RestClient.
+     * The structure of the file is as follows:
+     * - commented lines should start with "//"
+     * - the first non-comment line from the file is the schema line (comma separated field_name:ES_data_type elements)
+     *   - sub-fields should be placed after the root field using a dot notation for the name:
+     *       root_field:long,root_field.sub_field:integer
+     *   - a special _id field can be used in the schema and the values of this field will be used in the bulk request as actual doc ids
+     * - all subsequent non-comment lines represent the values that will be used to build the _bulk request
+     * - an empty string "" refers to a null value
+     * - a value starting with an opening square bracket "[" and ending with a closing square bracket "]" refers to a multi-value field
+     *   - multi-values are comma separated
+     *   - commas inside multivalue fields can be escaped with \ (backslash) character
+     */
     private static void loadCsvData(
         RestClient client,
         String indexName,

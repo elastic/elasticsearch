@@ -921,7 +921,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include more details
-                    Exception documentContainsSelfReferenceException = new IllegalArgumentException(
+                    Exception wrappedException = new IllegalArgumentException(
                         format(
                             "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
                             pipelineId,
@@ -931,9 +931,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         ex
                     );
                     if (shouldStoreFailure.test(originalIndex)) {
-                        listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, documentContainsSelfReferenceException));
+                        listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, wrappedException));
                     } else {
-                        listener.onFailure(documentContainsSelfReferenceException);
+                        listener.onFailure(wrappedException);
                     }
                     return; // document failed!
                 }
@@ -944,7 +944,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     // final pipelines cannot change the target index (either directly or by way of a reroute)
                     if (isFinalPipeline) {
-                        Exception finalPipelineChangedIndexException = new IllegalStateException(
+                        Exception ex = new IllegalStateException(
                             format(
                                 "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
                                 pipelineId,
@@ -955,10 +955,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
                         if (shouldStoreFailure.test(originalIndex)) {
                             listener.onResponse(
-                                IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, finalPipelineChangedIndexException)
+                                IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, ex)
                             );
                         } else {
-                            listener.onFailure(finalPipelineChangedIndexException);
+                            listener.onFailure(ex);
                         }
                         return; // document failed!
                     }
@@ -968,7 +968,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     if (cycle) {
                         List<String> indexCycle = new ArrayList<>(ingestDocument.getIndexHistory());
                         indexCycle.add(newIndex);
-                        Exception indexCycleDetectedException = new IllegalStateException(
+                        Exception ex = new IllegalStateException(
                             format(
                                 "index cycle detected while processing pipeline [%s] for document [%s]: %s",
                                 pipelineId,
@@ -977,9 +977,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             )
                         );
                         if (shouldStoreFailure.test(originalIndex)) {
-                            listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, indexCycleDetectedException));
+                            listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, ex));
                         } else {
-                            listener.onFailure(indexCycleDetectedException);
+                            listener.onFailure(ex);
                         }
                         return; // document failed!
                     }

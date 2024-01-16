@@ -101,7 +101,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         if (windowSize != null) {
             rescorer.windowSize(windowSize.intValue());
         } else if (rescorer.isWindowSizeRequired()) {
-            throw new ParsingException(parser.getTokenLocation(), "window_size is required for rescorer of type [" +  rescorerType + "]");
+            throw new ParsingException(parser.getTokenLocation(), "window_size is required for rescorer of type [" + rescorerType + "]");
         }
 
         return rescorer;

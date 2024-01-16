@@ -191,9 +191,9 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
         // Add 3 new annotations...
         Instant lastResultTimestamp = revertSnapshot.getLatestResultTimeStamp().toInstant();
-        client().index(randomAnnotationIndexRequest(job.getId(), lastResultTimestamp.plusSeconds(10), Event.DELAYED_DATA)).actionGet();
-        client().index(randomAnnotationIndexRequest(job.getId(), lastResultTimestamp.plusSeconds(20), Event.MODEL_CHANGE)).actionGet();
-        client().index(randomAnnotationIndexRequest(job.getId(), lastResultTimestamp.minusSeconds(10), Event.MODEL_CHANGE)).actionGet();
+        indexRandomAnnotation(job.getId(), lastResultTimestamp.plusSeconds(10), Event.DELAYED_DATA);
+        indexRandomAnnotation(job.getId(), lastResultTimestamp.plusSeconds(20), Event.MODEL_CHANGE);
+        indexRandomAnnotation(job.getId(), lastResultTimestamp.minusSeconds(10), Event.MODEL_CHANGE);
         // ... and check there are 5 annotations in total now
         assertThatNumberOfAnnotationsIsEqualTo(5);
 
@@ -309,15 +309,20 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         return quantilesSetOnce.get();
     }
 
-    private static IndexRequest randomAnnotationIndexRequest(String jobId, Instant timestamp, Event event) throws IOException {
+    private void indexRandomAnnotation(String jobId, Instant timestamp, Event event) throws IOException {
         Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setTimestamp(Date.from(timestamp))
             .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setEvent(event)
             .build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME).source(xContentBuilder)
-                .setRequireAlias(true)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            try {
+                client().index(
+                    indexRequest.source(xContentBuilder).setRequireAlias(true).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                ).actionGet();
+            } finally {
+                indexRequest.decRef();
+            }
         }
     }
 }

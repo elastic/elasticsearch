@@ -598,8 +598,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Index enough documents to have more classes than the allowed limit
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
             for (int i = 0; i < Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY - 1; i++) {
-                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox-" + i);
-                bulkRequestBuilder.add(indexRequest);
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                try {
+                    indexRequest.source(KEYWORD_FIELD, "fox-" + i);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -622,8 +627,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Index enough documents to have more classes than the allowed limit
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
             for (int i = 0; i < Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY - 1; i++) {
-                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox-" + i);
-                bulkRequestBuilder.add(indexRequest);
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                try {
+                    indexRequest.source(KEYWORD_FIELD, "fox-" + i);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -1178,8 +1188,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                     source.addAll(List.of(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
                 }
                 source.addAll(List.of("@timestamp", "2020-12-12"));
-                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
-                bulkRequestBuilder.add(indexRequest);
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                try {
+                    indexRequest.source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {

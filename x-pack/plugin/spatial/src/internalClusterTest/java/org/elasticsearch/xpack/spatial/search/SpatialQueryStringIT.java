@@ -61,6 +61,9 @@ public class SpatialQueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("1").setSource("geo_shape", "POINT(0 0)", "shape", "POINT(0 0)", "point", "POINT(0 0)"));
         // nothing matches
         indexRandom(true, false, reqs);
+        for (IndexRequestBuilder indexRequestBuilder : reqs) {
+            indexRequestBuilder.request().decRef();
+        }
         assertHitCount(prepareSearch("test").setQuery(queryStringQuery("foo")), 0L);
 
         assertHitCount(prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\"")), 0L);

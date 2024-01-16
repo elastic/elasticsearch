@@ -454,6 +454,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 "2015-10-18 18:01:51,963 INFO [main] org.mortbay.log: jetty-6.1.26"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(index);
             indexRequest.source(
                 "time",

@@ -455,9 +455,13 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 {"query": {"simple_query_string": {"query": "prod 42 true", "fields": ["metadata.*"]}}}""",
             apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
         );
-        ResponseException responseException = assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
-            {"query": {"simple_query_string": {"query": "ke*", "fields": ["i*", "api_key_hash", "*"]}}}""");
-        assertThat(responseException.getMessage(), containsString("Field [api_key_hash] is not allowed for API Key query"));
+        // disallowed fields are silently ignored for the simple query string query type
+        assertQuery(
+            API_KEY_ADMIN_AUTH_HEADER,
+            """
+                {"query": {"simple_query_string": {"query": "ke*", "fields": ["x*", "api_key_hash"]}}}""",
+            apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
+        );
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
             """

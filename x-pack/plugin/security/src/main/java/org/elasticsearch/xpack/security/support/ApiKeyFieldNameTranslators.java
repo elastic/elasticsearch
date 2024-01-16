@@ -67,9 +67,9 @@ public class ApiKeyFieldNameTranslators {
                 indexFieldNames.add(translator.translate(fieldNameOrPattern));
             }
         }
-        if (indexFieldNames.isEmpty() && Regex.isSimpleMatchPattern(fieldNameOrPattern) == false) {
-            throw new IllegalArgumentException("Field [" + fieldNameOrPattern + "] is not allowed for API Key query");
-        }
+        // It's OK to "translate" to the empty set the concrete disallowed or unknown field names, because
+        // the SimpleQueryString query type is lenient in the sense that it ignores unknown fields and field name patterns,
+        // so this preprocessing can ignore them too.
         return indexFieldNames;
     }
 

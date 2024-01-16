@@ -338,7 +338,9 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
 
         {
             final QueryBuilder q1 = randomValueOtherThanMany(
-                q -> q.getClass() == IdsQueryBuilder.class || q.getClass() == MatchAllQueryBuilder.class,
+                q -> q.getClass() == IdsQueryBuilder.class
+                    || q.getClass() == MatchAllQueryBuilder.class
+                    || q.getClass() == SimpleQueryStringBuilder.class,
                 () -> randomSimpleQuery(fieldName)
             );
             final IllegalArgumentException e1 = expectThrows(
@@ -351,7 +353,9 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         // also wrapped in a boolean query
         {
             final QueryBuilder q1 = randomValueOtherThanMany(
-                q -> q.getClass() == IdsQueryBuilder.class || q.getClass() == MatchAllQueryBuilder.class,
+                q -> q.getClass() == IdsQueryBuilder.class
+                    || q.getClass() == MatchAllQueryBuilder.class
+                    || q.getClass() == SimpleQueryStringBuilder.class,
                 () -> randomSimpleQuery(fieldName)
             );
             final BoolQueryBuilder q2 = QueryBuilders.boolQuery();
@@ -685,24 +689,37 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
                 )
             );
         }
-        // disallowed field
+        // disallowed or unknown field is silently ignored
         {
+            List<String> queryFields = new ArrayList<>();
             float boost1 = randomFrom(2.0f, 4.0f, 8.0f);
             float boost2 = randomFrom(2.0f, 4.0f, 8.0f);
             SimpleQueryStringBuilder q = QueryBuilders.simpleQueryStringQuery(queryStringQuery)
                 .field("field_that_does_not*", boost1)
                 .field("unknown_field", boost2);
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> ApiKeyBoolQueryBuilder.build(q, ignored -> {}, authentication)
+            ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(q, queryFields::add, authentication);
+            assertThat(queryFields.get(0), is("doc_type"));
+            if (authentication != null) {
+                assertThat(queryFields.get(1), is("creator.principal"));
+                assertThat(queryFields.get(2), is("creator.realm"));
+                assertThat(queryFields.size(), is(3));
+            } else {
+                assertThat(queryFields.size(), is(1));
+            }
+            assertThat(
+                apiKeyQb.must().get(0),
+                equalTo(
+                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                        .field("match_nothing_place_holder_field_name_wildcard*")
+                        .lenient(false)
+                )
             );
-            assertThat(e.getMessage(), containsString("Field [unknown_field] is not allowed for API Key query"));
 
             // translated field
+            queryFields = new ArrayList<>();
             String translatedField = randomFrom(
                 "creator.principal",
                 "creator.realm",
-                "name",
                 "runtime_key_type",
                 "creation_time",
                 "expiration_time",
@@ -713,8 +730,23 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             SimpleQueryStringBuilder q2 = QueryBuilders.simpleQueryStringQuery(queryStringQuery)
                 .field(translatedField, boost1)
                 .field("field_that_does_not*", boost2);
-            e = expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q2, ignored -> {}, authentication));
-            assertThat(e.getMessage(), containsString("Field [" + translatedField + "] is not allowed for API Key query"));
+            apiKeyQb = ApiKeyBoolQueryBuilder.build(q2, queryFields::add, authentication);
+            assertThat(queryFields.get(0), is("doc_type"));
+            if (authentication != null) {
+                assertThat(queryFields.get(1), is("creator.principal"));
+                assertThat(queryFields.get(2), is("creator.realm"));
+                assertThat(queryFields.size(), is(3));
+            } else {
+                assertThat(queryFields.size(), is(1));
+            }
+            assertThat(
+                apiKeyQb.must().get(0),
+                equalTo(
+                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
+                        .field("match_nothing_place_holder_field_name_wildcard*")
+                        .lenient(false)
+                )
+            );
         }
     }
 

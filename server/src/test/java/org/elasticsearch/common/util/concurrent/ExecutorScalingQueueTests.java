@@ -22,13 +22,13 @@ public class ExecutorScalingQueueTests extends ESTestCase {
 
     public void testAdd() {
         var queue = new EsExecutors.ExecutorScalingQueue<>();
-        queue.add(new Object());
+        assertTrue(queue.add(new Object()));
         assertEquals(queue.size(), 1);
     }
 
     public void testTimedOffer() {
         var queue = new EsExecutors.ExecutorScalingQueue<>();
-        queue.offer(new Object(), 60, TimeUnit.SECONDS);
+        assertTrue(queue.offer(new Object(), 60, TimeUnit.SECONDS));
         assertEquals(queue.size(), 1);
     }
 

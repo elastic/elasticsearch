@@ -329,27 +329,28 @@ public class EsExecutors {
             }
         }
 
-        // The following three methods, put, add, and timed offer, are
-        // overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
         // https://bugs.openjdk.org/browse/JDK-8323659
         @Override
         public void put(E e) {
-            boolean added = super.offer(e);
-            assert added;
+            // As the queue is unbounded, this method will always add to the queue.
+            super.offer(e);
         }
 
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
         @Override
         public boolean add(E e) {
-            boolean added = super.offer(e);
-            assert added;
-            return added;
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
         }
 
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
         @Override
         public boolean offer(E e, long timeout, TimeUnit unit) {
-            boolean added = super.offer(e);
-            assert added;
-            return added;
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
         }
     }
 

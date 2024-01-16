@@ -505,7 +505,7 @@ public class EsExecutorsTests extends ESTestCase {
     // This test must complete to ensure that our basic infrastructure is working as expected.
     // Specifically that ExecutorScalingQueue, which subclasses LinkedTransferQueue, correctly
     // tracks tasks submitted to the executor.
-    public void testLTQIssue() {
+    public void testBasicTaskExecution() {
         final var executorService = EsExecutors.newScaling(
             "test",
             0,

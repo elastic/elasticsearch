@@ -129,7 +129,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             true
         );
         String enabledTerm = "\"enabled\":true";
-        String fullNameTerm = "\"full_name\":\"Batman\"";
+        String fullNameTerm = "\"full_name\":\"batman\"";
         String emailTerm = "\"email\":\"batman@hotmail.com\"";
 
         final String term = randomFrom(enabledTerm, fullNameTerm, emailTerm);

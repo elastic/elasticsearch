@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.security.support.UserBoolQueryBuilder.USER
 
 public final class TransportQueryUserAction extends TransportAction<QueryUserRequest, QueryUserResponse> {
     private final NativeUsersStore usersStore;
-    private static final Set<String> TEXT_TYPE_INDEX_FIELD_NAMES = Set.of("full_name", "email");
+    private static final Set<String> FIELD_NAMES_WITH_SORT_SUPPORT = Set.of("username", "roles", "enabled");
 
     @Inject
     public TransportQueryUserAction(TransportService transportService, ActionFilters actionFilters, NativeUsersStore usersStore) {
@@ -77,7 +77,7 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
                 searchSourceBuilder.sort(fieldSortBuilder);
             } else {
                 final String translatedFieldName = USER_FIELD_NAME_TRANSLATOR.translate(fieldSortBuilder.getFieldName());
-                if (TEXT_TYPE_INDEX_FIELD_NAMES.contains(translatedFieldName)) {
+                if (FIELD_NAMES_WITH_SORT_SUPPORT.contains(translatedFieldName) == false) {
                     throw new IllegalArgumentException(
                         String.format(Locale.ROOT, "sorting is not supported for field [%s] in User query", fieldSortBuilder.getFieldName())
                     );

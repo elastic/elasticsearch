@@ -67,7 +67,6 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     @Override
     public LongBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newLongBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

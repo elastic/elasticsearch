@@ -10,14 +10,18 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -26,6 +30,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
 
@@ -107,6 +112,44 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             dataType = EsqlDataTypeRegistry.INSTANCE.commonType(left().dataType(), right().dataType());
         }
         return dataType;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        TypeResolution typeResolution = super.resolveType();
+        if (typeResolution.unresolved()) {
+            return typeResolution;
+        }
+
+       return checkCompatibility();
+    }
+
+    /**
+     * Check if the two input types are compatible for this operation
+     *
+     * @return TypeResolution.TYPE_RESOLVED iff the types are compatible.  Otherwise, an appropriate type resolution error.
+     */
+    protected TypeResolution checkCompatibility() {
+        // This checks that unsigned longs should only be compatible with other unsigned longs
+        Failure failure = Verifier.validateUnsignedLongOperator(this);
+        if (failure != null) {
+            return new TypeResolution(failure.message());
+        }
+
+        // If the LHS is numeric, the RHS should be numeric or null
+        if (left().dataType().isNumeric()) {
+            if (false == (right().dataType().isNumeric() || DataTypes.isNull(right().dataType()))) {
+                return new TypeResolution(
+                    format("first argument of [{}] is [numeric] so second argument must also be [numeric] but was [{}]",
+                    sourceText(),
+                    right().dataType().typeName()
+                ));
+            }
+        }
+
+        // at this point, left should be null, and right should be null or numeric.
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

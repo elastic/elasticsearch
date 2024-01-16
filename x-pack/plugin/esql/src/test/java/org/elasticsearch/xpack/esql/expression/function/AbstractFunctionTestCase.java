@@ -830,7 +830,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
         if (badArgPosition == -1) {
-            throw new IllegalStateException("can't find badArgPosition");
+            throw new IllegalStateException(
+                "Can't generate error message for these types, you probably need a custom error message function"
+            );
         }
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
         String expectedType = expectedType(validPerPosition.get(badArgPosition));

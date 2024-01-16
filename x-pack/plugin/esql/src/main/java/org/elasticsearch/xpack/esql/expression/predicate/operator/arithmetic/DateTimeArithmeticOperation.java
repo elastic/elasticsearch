@@ -11,8 +11,10 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -53,7 +55,18 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     }
 
     @Override
-    protected TypeResolution resolveType() {
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        return TypeResolutions.isType(
+            e,
+            t -> t.isNumeric() || EsqlDataTypes.isDateTimeOrTemporal(t) || DataTypes.isNull(t),
+            sourceText(),
+            paramOrdinal,
+            "datetime or numeric"
+        );
+    }
+
+    @Override
+    protected TypeResolution checkCompatibility() {
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
 
@@ -76,7 +89,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), leftType, rightType)
             );
         }
-        return super.resolveType();
+        return super.checkCompatibility();
     }
 
     /**

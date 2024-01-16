@@ -128,16 +128,26 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = checkpoint.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).opType(
-                DocWriteRequest.OpType.INDEX
-            )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .id(TransformCheckpoint.documentId(checkpoint.getTransformId(), checkpoint.getCheckpoint()))
-                .source(source);
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME);
+            try {
+                indexRequest.opType(DocWriteRequest.OpType.INDEX)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .id(TransformCheckpoint.documentId(checkpoint.getTransformId(), checkpoint.getCheckpoint()))
+                    .source(source);
 
-            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.wrap(r -> {
-                listener.onResponse(true);
-            }, listener::onFailure));
+                executeAsyncWithOrigin(
+                    client,
+                    TRANSFORM_ORIGIN,
+                    TransportIndexAction.TYPE,
+                    indexRequest,
+                    ActionListener.runAfter(ActionListener.wrap(r -> {
+                        listener.onResponse(true);
+                    }, listener::onFailure), indexRequest::decRef)
+                );
+            } catch (Exception e) {
+                indexRequest.decRef();
+                throw e;
+            }
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(e);
@@ -324,35 +334,51 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).opType(opType)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .id(TransformConfig.documentId(transformConfig.getId()))
-                .source(source);
-            if (seqNoPrimaryTermAndIndex != null) {
-                indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo()).setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
-            }
-            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.wrap(r -> {
-                listener.onResponse(true);
-            }, e -> {
-                if (e instanceof VersionConflictEngineException) {
-                    if (DocWriteRequest.OpType.CREATE.equals(opType)) {  // we want to create the transform but it already exists
-                        listener.onFailure(
-                            new ResourceAlreadyExistsException(
-                                TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformConfig.getId())
-                            )
-                        );
-                    } else {  // we want to update the transform but it got updated in the meantime, report version conflict
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                TransformMessages.getMessage(TransformMessages.REST_UPDATE_TRANSFORM_CONFLICT, transformConfig.getId()),
-                                RestStatus.CONFLICT
-                            )
-                        );
-                    }
-                } else {
-                    listener.onFailure(new RuntimeException(TransformMessages.REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME);
+            try {
+                indexRequest.opType(opType)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .id(TransformConfig.documentId(transformConfig.getId()))
+                    .source(source);
+                if (seqNoPrimaryTermAndIndex != null) {
+                    indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
+                        .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
                 }
-            }));
+                executeAsyncWithOrigin(
+                    client,
+                    TRANSFORM_ORIGIN,
+                    TransportIndexAction.TYPE,
+                    indexRequest,
+                    ActionListener.runAfter(ActionListener.wrap(r -> {
+                        listener.onResponse(true);
+                    }, e -> {
+                        if (e instanceof VersionConflictEngineException) {
+                            if (DocWriteRequest.OpType.CREATE.equals(opType)) {  // we want to create the transform but it already exists
+                                listener.onFailure(
+                                    new ResourceAlreadyExistsException(
+                                        TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformConfig.getId())
+                                    )
+                                );
+                            } else {  // we want to update the transform but it got updated in the meantime, report version conflict
+                                listener.onFailure(
+                                    new ElasticsearchStatusException(
+                                        TransformMessages.getMessage(
+                                            TransformMessages.REST_UPDATE_TRANSFORM_CONFLICT,
+                                            transformConfig.getId()
+                                        ),
+                                        RestStatus.CONFLICT
+                                    )
+                                );
+                            }
+                        } else {
+                            listener.onFailure(new RuntimeException(TransformMessages.REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
+                        }
+                    }), indexRequest::decRef)
+                );
+            } catch (Exception e) {
+                indexRequest.decRef();
+                throw e;
+            }
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(
@@ -696,38 +722,47 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = storedDoc.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).setRefreshPolicy(
-                WriteRequest.RefreshPolicy.IMMEDIATE
-            ).id(TransformStoredDoc.documentId(storedDoc.getId())).source(source);
-            if (seqNoPrimaryTermAndIndex != null) {
-                // if seqNoPrimaryTermAndIndex is set, use optype index even if not on the latest index, because the upgrader
-                // could have been called, see gh#80073
-                indexRequest.opType(DocWriteRequest.OpType.INDEX);
-                // if on the latest index use optimistic concurrency control in addition
-                if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
-                    indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
-                        .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME);
+            try {
+                indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .id(TransformStoredDoc.documentId(storedDoc.getId()))
+                    .source(source);
+                if (seqNoPrimaryTermAndIndex != null) {
+                    // if seqNoPrimaryTermAndIndex is set, use optype index even if not on the latest index, because the upgrader
+                    // could have been called, see gh#80073
+                    indexRequest.opType(DocWriteRequest.OpType.INDEX);
+                    // if on the latest index use optimistic concurrency control in addition
+                    if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+                        indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
+                            .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+                    }
+                } else {
+                    // we have not created this doc before or we are called from the upgrader
+                    indexRequest.opType(DocWriteRequest.OpType.CREATE);
                 }
-            } else {
-                // we have not created this doc before or we are called from the upgrader
-                indexRequest.opType(DocWriteRequest.OpType.CREATE);
-            }
 
-            executeAsyncWithOrigin(
-                client,
-                TRANSFORM_ORIGIN,
-                TransportIndexAction.TYPE,
-                indexRequest,
-                ActionListener.wrap(
-                    r -> listener.onResponse(SeqNoPrimaryTermAndIndex.fromIndexResponse(r)),
-                    e -> listener.onFailure(
-                        new RuntimeException(
-                            TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_PERSIST_STATS, storedDoc.getId()),
-                            e
-                        )
+                executeAsyncWithOrigin(
+                    client,
+                    TRANSFORM_ORIGIN,
+                    TransportIndexAction.TYPE,
+                    indexRequest,
+                    ActionListener.runAfter(
+                        ActionListener.wrap(
+                            r -> listener.onResponse(SeqNoPrimaryTermAndIndex.fromIndexResponse(r)),
+                            e -> listener.onFailure(
+                                new RuntimeException(
+                                    TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_PERSIST_STATS, storedDoc.getId()),
+                                    e
+                                )
+                            )
+                        ),
+                        indexRequest::decRef
                     )
-                )
-            );
+                );
+            } catch (Exception e) {
+                indexRequest.decRef();
+                throw e;
+            }
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(

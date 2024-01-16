@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
@@ -259,21 +260,25 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         // We can safely re-try this if it fails, which makes it less likely that the index request will fail
         authenticateUser(client, user, 3);
 
-        DocWriteResponse indexResponse = client.prepareIndex(index)
-            .setSource(jsonBuilder().startObject().field("name", "value").endObject())
-            .get();
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+        try {
+            DocWriteResponse indexResponse = indexRequestBuilder.setSource(jsonBuilder().startObject().field("name", "value").endObject())
+                .get();
 
-        assertEquals(
-            "user " + user + " should have write access to index " + index,
-            DocWriteResponse.Result.CREATED,
-            indexResponse.getResult()
-        );
+            assertEquals(
+                "user " + user + " should have write access to index " + index,
+                DocWriteResponse.Result.CREATED,
+                indexResponse.getResult()
+            );
 
-        refresh();
+            refresh();
 
-        GetResponse getResponse = client.prepareGet(index, indexResponse.getId()).get();
+            GetResponse getResponse = client.prepareGet(index, indexResponse.getId()).get();
 
-        assertThat("user " + user + " should have read access to index " + index, getResponse.getId(), equalTo(indexResponse.getId()));
+            assertThat("user " + user + " should have read access to index " + index, getResponse.getId(), equalTo(indexResponse.getId()));
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
     protected void assertAccessDenied(String user, String index) throws IOException {
@@ -283,8 +288,13 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         authenticateUser(client, user, 3);
 
         try {
-            client.prepareIndex(index).setSource(jsonBuilder().startObject().field("name", "value").endObject()).get();
-            fail("Write access to index " + index + " should not be allowed for user " + user);
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+            try {
+                indexRequestBuilder.setSource(jsonBuilder().startObject().field("name", "value").endObject()).get();
+                fail("Write access to index " + index + " should not be allowed for user " + user);
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         } catch (ElasticsearchSecurityException e) {
             // expected
         }

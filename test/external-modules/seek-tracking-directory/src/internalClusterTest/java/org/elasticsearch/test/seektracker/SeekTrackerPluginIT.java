@@ -43,9 +43,11 @@ public class SeekTrackerPluginIT extends ESIntegTestCase {
         for (int i = 0; i < 100; i++) {
             IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setSource("field", "term" + i % 5);
             docs.add(indexRequestBuilder);
-            indexRequestBuilder.request().decRef();
         }
         indexRandom(true, docs);
+        for (IndexRequestBuilder indexRequestBuilder : docs) {
+            indexRequestBuilder.request().decRef();
+        }
 
         prepareSearch("index").setQuery(QueryBuilders.termQuery("field", "term2")).get().decRef();
 

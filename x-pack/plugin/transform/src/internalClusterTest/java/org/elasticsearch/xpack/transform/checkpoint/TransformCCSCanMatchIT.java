@@ -12,6 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -150,7 +151,12 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
         int numDocs = between(100, 500);
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource("position", i, "@timestamp", timestamp + i).get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+            try {
+                indexRequestBuilder.setSource("position", i, "@timestamp", timestamp + i).get();
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         }
         if (exposeTimestamp) {
             client.admin().indices().prepareClose(index).get();

@@ -880,6 +880,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 // cache fully used, no entry old enough to be evicted
                 assertEquals(0, cacheService.freeRegionCount());
                 final var cacheKey = generateCacheKey();
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
                 cacheService.maybeFetchRegion(
                     cacheKey,
                     randomIntBetween(0, 10),
@@ -887,8 +888,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     (channel, channelPos, relativePos, length, progressUpdater) -> {
                         throw new AssertionError("should not be executed");
                     },
-                    ActionListener.noop()
+                    future
                 );
+                assertThat("Listener is immediately completed", future.isDone(), is(true));
             }
             {
                 // simulate elapsed time and compute decay

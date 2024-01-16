@@ -102,6 +102,9 @@ tasks.named("test").configure {
   } else {
     nonInputProperties.systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
   }
+  if (BuildParams.random.nextBoolean()) {
+    environment 'AWS_METADATA_SERVICE_TIMEOUT', '1'
+  }
 }
 
 tasks.named("check").configure {

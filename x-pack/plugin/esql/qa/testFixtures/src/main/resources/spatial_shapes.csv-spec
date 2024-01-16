@@ -54,7 +54,7 @@ row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22
 ;
 
 warning:Line 3:13: evaluation of [to_geography(wkt)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: java.lang.IllegalArgumentException: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
 warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
 
 wkt:keyword                               |pt:geography
@@ -118,7 +118,7 @@ row wkt = ["POINTX(4297.11 -1475.53)", "POINT(7580.93 2272.77)", "POINT(111)"]
 ;
 
 warning:Line 3:13: evaluation of [to_geometry(wkt)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: java.lang.IllegalArgumentException: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
 warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
 
 wkt:keyword                |pt:geometry

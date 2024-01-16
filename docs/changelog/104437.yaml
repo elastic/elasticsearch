@@ -1,0 +1,5 @@
+pr: 104437
+summary: "Making `BulkRequest` Releasable, and updating all tests to release it"
+area: Ingest Node
+type: enhancement
+issues: []

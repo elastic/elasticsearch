@@ -23,6 +23,7 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   module ':modules:data-streams'
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
+  module ':x-pack:plugin:autoscaling'
   module ':x-pack:plugin:ql'
   module ':x-pack:plugin:esql'
   user username: "test_user", password: "x-pack-test-password"
@@ -36,6 +37,7 @@ def queryingCluster = testClusters.register('querying-cluster') {
   module ':modules:data-streams'
   module ':x-pack:plugin:mapper-constant-keyword'
   module ':x-pack:plugin:async-search'
+  module ':x-pack:plugin:autoscaling'
   module ':x-pack:plugin:ql'
   module ':x-pack:plugin:esql'
   setting 'cluster.remote.connections_per_cluster', "1"

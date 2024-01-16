@@ -63,6 +63,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -233,6 +234,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     private final Map<String, MappingMetadata> mappingsByHash;
 
     private final IndexVersion oldestIndexVersion;
+
+    // Used in the findAliases and findDataStreamAliases functions
+    private interface AliasInfoGetter {
+        List<? extends AliasInfo> get(String entityName);
+    }
+
+    // Used in the findAliases and findDataStreamAliases functions
+    private interface AliasInfoSetter {
+        void put(String entityName, List<AliasInfo> aliases);
+    }
 
     private Metadata(
         String clusterUUID,
@@ -799,51 +810,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * aliases then the result will <b>not</b> include the index's key.
      */
     public Map<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
-        assert aliases != null;
-        assert concreteIndices != null;
-        if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
-        }
-        String[] patterns = new String[aliases.length];
-        boolean[] include = new boolean[aliases.length];
-        for (int i = 0; i < aliases.length; i++) {
-            String alias = aliases[i];
-            if (alias.charAt(0) == '-') {
-                patterns[i] = alias.substring(1);
-                include[i] = false;
-            } else {
-                patterns[i] = alias;
-                include[i] = true;
-            }
-        }
-        boolean matchAllAliases = patterns.length == 0;
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
-        for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = indices.get(index);
-            List<AliasMetadata> filteredValues = new ArrayList<>();
-            for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
-                boolean matched = matchAllAliases;
-                String alias = aliasMetadata.alias();
-                for (int i = 0; i < patterns.length; i++) {
-                    if (include[i]) {
-                        if (matched == false) {
-                            String pattern = patterns[i];
-                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
-                        }
-                    } else if (matched) {
-                        matched = Regex.simpleMatch(patterns[i], alias) == false;
-                    }
-                }
-                if (matched) {
-                    filteredValues.add(aliasMetadata);
-                }
-            }
-            if (filteredValues.isEmpty() == false) {
-                // Make the list order deterministic
-                CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetadata::alias));
-                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
-            }
-        }
+
+        AliasInfoGetter getter = index -> indices.get(index).getAliases().values().stream().toList();
+
+        AliasInfoSetter setter = (index, foundAliases) -> {
+            List<AliasMetadata> d = new ArrayList<>();
+            foundAliases.forEach(i -> d.add((AliasMetadata) i));
+            mapBuilder.put(index, d);
+        };
+
+        findAliasInfo(aliases, concreteIndices, getter, setter);
+
         return mapBuilder.build();
     }
 
@@ -857,11 +835,32 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * aliases then the result will <b>not</b> include the data stream's key.
      */
     public Map<String, List<DataStreamAlias>> findDataStreamAliases(final String[] aliases, final String[] dataStreams) {
+        ImmutableOpenMap.Builder<String, List<DataStreamAlias>> mapBuilder = ImmutableOpenMap.builder();
+        Collection<DataStreamAlias> allDataStreamAliases = dataStreamAliases().values();
+
+        AliasInfoGetter getter = dataStream -> allDataStreamAliases.stream()
+            .filter(alias -> alias.getDataStreams().contains(dataStream))
+            .toList();
+
+        AliasInfoSetter setter = (dataStream, foundAliases) -> {
+            List<DataStreamAlias> dsAliases = new ArrayList<>();
+            foundAliases.forEach(alias -> dsAliases.add((DataStreamAlias) alias));
+            mapBuilder.put(dataStream, dsAliases);
+        };
+
+        findAliasInfo(aliases, dataStreams, getter, setter);
+
+        return mapBuilder.build();
+    }
+
+    private void findAliasInfo(final String[] aliases, final String[] possibleMatches, AliasInfoGetter getter, AliasInfoSetter setter) {
         assert aliases != null;
-        assert dataStreams != null;
-        if (dataStreams.length == 0) {
-            return ImmutableOpenMap.of();
+        assert possibleMatches != null;
+        if (possibleMatches.length == 0) {
+            return;
         }
+
+        // create patterns to use to search for targets
         String[] patterns = new String[aliases.length];
         boolean[] include = new boolean[aliases.length];
         for (int i = 0; i < aliases.length; i++) {
@@ -874,18 +873,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 include[i] = true;
             }
         }
-        boolean matchAllAliases = patterns.length == 0;
-        ImmutableOpenMap.Builder<String, List<DataStreamAlias>> mapBuilder = ImmutableOpenMap.builder();
 
-        var allDataStreamAliases = dataStreamAliases().values();
-        for (String dataStream : dataStreams) {
-            List<DataStreamAlias> filteredValues = new ArrayList<>();
-            List<DataStreamAlias> dsAliases = allDataStreamAliases.stream()
-                .filter(alias -> alias.getDataStreams().contains(dataStream))
-                .toList();
-            for (DataStreamAlias dsAlias : dsAliases) {
+        boolean matchAllAliases = patterns.length == 0;
+
+        for (String index : possibleMatches) {
+            List<AliasInfo> filteredValues = new ArrayList<>();
+
+            List<? extends AliasInfo> entities = getter.get(index);
+            for (AliasInfo aliasInfo : entities) {
                 boolean matched = matchAllAliases;
-                String alias = dsAlias.getName();
+                String alias = aliasInfo.getAlias();
                 for (int i = 0; i < patterns.length; i++) {
                     if (include[i]) {
                         if (matched == false) {
@@ -897,16 +894,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     }
                 }
                 if (matched) {
-                    filteredValues.add(dsAlias);
+                    filteredValues.add(aliasInfo);
                 }
             }
             if (filteredValues.isEmpty() == false) {
                 // Make the list order deterministic
-                CollectionUtil.timSort(filteredValues, Comparator.comparing(DataStreamAlias::getName));
-                mapBuilder.put(dataStream, Collections.unmodifiableList(filteredValues));
+                CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasInfo::getAlias));
+                setter.put(index, Collections.unmodifiableList(filteredValues));
             }
         }
-        return mapBuilder.build();
     }
 
     /**

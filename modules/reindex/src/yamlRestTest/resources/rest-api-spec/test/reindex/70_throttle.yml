@@ -92,6 +92,9 @@
 
 ---
 "Rethrottle to -1 which turns off throttling":
+  - skip:
+      features: allowed_warnings_regex
+
   # Throttling happens between each scroll batch so we need to control the size of the batch by using a single shard
   # and a small batch size on the request
   - do:
@@ -129,6 +132,8 @@
             size: 1
           dest:
             index: dest
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
   - match: {task: '/.+:\d+/'}
   - set: {task: task}
 
@@ -144,6 +149,9 @@
 
 ---
 "Rethrottle but not unlimited":
+  - skip:
+      features: allowed_warnings_regex
+
   # Throttling happens between each scroll batch so we need to control the size of the batch by using a single shard
   # and a small batch size on the request
   - do:
@@ -181,6 +189,8 @@
             size: 1
           dest:
             index: dest
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
   - match: {task: '/.+:\d+/'}
   - set: {task: task}
 

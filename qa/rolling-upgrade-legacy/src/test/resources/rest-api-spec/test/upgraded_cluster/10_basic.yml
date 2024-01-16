@@ -91,6 +91,7 @@
       features:
         - headers
         - warnings
+        - allowed_warnings_regex
 
   - do:
       warnings:
@@ -124,6 +125,8 @@
             size: 1
           dest:
             index: reindexed_index_another_copy
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
   - match: { task: '/.+:\d+/' }
   - set: { task: task_id }
 

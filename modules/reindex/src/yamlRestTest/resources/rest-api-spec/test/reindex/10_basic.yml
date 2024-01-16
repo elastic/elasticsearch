@@ -73,6 +73,8 @@
 
 ---
 "wait_for_completion=false":
+  - skip:
+      features: allowed_warnings_regex
   - do:
       index:
         index:   source
@@ -84,6 +86,69 @@
   - do:
       reindex:
         wait_for_completion: false
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
+  - is_false: timed_out
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+  - is_false: updated
+  - is_false: version_conflicts
+  - is_false: batches
+  - is_false: failures
+  - is_false: noops
+  - is_false: took
+  - is_false: throttled_millis
+  - is_false: created
+  - is_false: deleted
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+  - is_false: node_failures
+  # The task will be in the response even if it finished before we got here
+  # because of task persistence.
+  - is_true: task
+  - match: {response.created: 1}
+  - match: {response.updated: 0}
+  - match: {response.version_conflicts: 0}
+  - match: {response.batches: 1}
+  - match: {response.failures: []}
+  - match: {response.throttled_millis: 0}
+  - gte: { response.took: 0 }
+  - is_false: response.task
+  - is_false: response.deleted
+
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}
+
+---
+"wait_for_completion=false and log_task_completion=false":
+  - skip:
+      version: " - 8.12.99"
+      reason: ?log_task_completion parameter introduced in 8.13
+
+  - do:
+      index:
+        index:   source
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        wait_for_completion: false
+        log_task_completion: false
         body:
           source:
             index: source

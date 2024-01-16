@@ -11,7 +11,6 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -69,10 +68,13 @@ public abstract class AbstractBaseReindexRestHandler<
         if (validationException != null) {
             throw validationException;
         }
-        final var responseListener = new SubscribableListener<BulkByScrollResponse>();
-        final var task = client.executeLocally(action, internal, responseListener);
-        responseListener.addListener(new LoggingTaskListener<>(task));
-        return sendTask(client.getLocalNodeId(), task);
+        return sendTask(
+            client.getLocalNodeId(),
+            LoggingTaskListener.<BulkByScrollResponse>runWithLoggingTaskListener(
+                request.paramAsBoolean(LoggingTaskListener.LOGGING_ENABLED_QUERY_PARAMETER, true),
+                l -> client.executeLocally(action, internal, l)
+            )
+        );
     }
 
     /**

@@ -169,6 +169,11 @@
         "type":"number|string",
         "default":1,
         "description":"The number of slices this task should be divided into. Defaults to 1, meaning the task isn't sliced into subtasks. Can be set to `auto`."
+      },
+      "log_task_completion":{
+        "type":"boolean",
+        "default":true,
+        "description":"If ?wait_for_completion is set, suppress the deprecated legacy completion message in the node logs."
       }
     },
     "body":{

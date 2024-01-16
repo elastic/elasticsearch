@@ -59,7 +59,9 @@
 ---
 "Multiple slices with wait_for_completion=false":
   - skip:
-      features: warnings
+      features:
+        - warnings
+        - allowed_warnings_regex
   - do:
       index:
         index:   source
@@ -92,6 +94,8 @@
             index: source
           dest:
             index: dest
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
   - is_false: timed_out
   - match: {task: '/.+:\d+/'}
   - set: {task: task}
@@ -178,7 +182,9 @@
 ---
 "Multiple slices with rethrottle":
   - skip:
-      features: warnings
+      features:
+        - warnings
+        - allowed_warnings_regex
   - do:
       index:
         index:   source
@@ -223,6 +229,8 @@
             index: source
           dest:
             index: dest
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
   - is_false: timed_out
   - match: {task: '/.+:\d+/'}
   - set: {task: task}

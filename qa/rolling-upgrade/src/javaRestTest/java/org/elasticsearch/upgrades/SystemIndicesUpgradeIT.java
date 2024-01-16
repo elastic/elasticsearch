@@ -11,9 +11,11 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils.JsonMapView;
+import org.elasticsearch.test.rest.LoggingTaskListenerWarningHandler;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.util.Map;
@@ -59,6 +61,7 @@ public class SystemIndicesUpgradeIT extends ParameterizedRollingUpgradeTestCase 
                   }
                 }""");
             reindex.addParameter("wait_for_completion", "false");
+            reindex.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(LoggingTaskListenerWarningHandler.INSTANCE));
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
 

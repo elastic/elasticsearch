@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -65,10 +64,13 @@ public class RestForceMergeAction extends BaseRestHandler {
             if (validationException != null) {
                 throw validationException;
             }
-            final var responseListener = new SubscribableListener<BroadcastResponse>();
-            final var task = client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, responseListener);
-            responseListener.addListener(new LoggingTaskListener<>(task));
-            return sendTask(client.getLocalNodeId(), task);
+            return sendTask(
+                client.getLocalNodeId(),
+                LoggingTaskListener.<BroadcastResponse>runWithLoggingTaskListener(
+                    request.paramAsBoolean(LoggingTaskListener.LOGGING_ENABLED_QUERY_PARAMETER, true),
+                    l -> client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, l)
+                )
+            );
         }
     }
 

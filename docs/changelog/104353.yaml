@@ -1,0 +1,22 @@
+pr: 104353
+summary: Deprecate `LoggingTaskListener`
+area: Task Management
+type: deprecation
+issues:
+ - 104278
+deprecation:
+  title: Deprecate `LoggingTaskListener`
+  area: Logging
+  details: >-
+    Logs from `org.elasticsearch.tasks.LoggingTaskListener` contain very little
+    information which makes them very hard to use. Moreover, the information it
+    reports is also available, and much easier to consume, when using the Task
+    Management APIs instead. This logger is deprecated, and will be removed in
+    the next major version.
+  impact: >-
+
+    * Use the task management APIs to obtain the status of long-running tasks.
+
+    * Set the `?log_task_completion=false` query parameter when calling the
+    affected APIs to disable the deprecated logger and suppress the deprecation
+    warning.

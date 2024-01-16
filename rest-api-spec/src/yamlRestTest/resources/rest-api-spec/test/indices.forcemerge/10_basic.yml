@@ -33,6 +33,7 @@
 ---
 "Force merge with wait_for_completion parameter":
   - skip:
+      features: allowed_warnings_regex
       version: " - 8.0.99"
       reason: wait_for_completion is introduced since 8.1
 
@@ -44,6 +45,30 @@
       indices.forcemerge:
         max_num_segments: 1
         wait_for_completion: false
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
+  - match: { task: '/^\S+:\d+$/' }
+
+  - do:
+      tasks.list:
+        wait_for_completion: true
+
+---
+"Force merge with wait_for_completion and log_task_completion parameters":
+  - skip:
+      version: " - 8.12.99"
+      reason: ?log_task_completion parameter introduced in 8.13
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.forcemerge:
+        max_num_segments: 1
+        wait_for_completion: false
+        log_task_completion: false
+
   - match: { task: '/^\S+:\d+$/' }
 
   - do:

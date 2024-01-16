@@ -126,7 +126,10 @@
   - skip:
       version: " - 7.5.99"
       reason: "sort deprecated in 7.6"
-      features: "warnings"
+      features:
+        - warnings
+        - allowed_warnings_regex
+
 
   - do:
       index:
@@ -149,6 +152,8 @@
             sort: order
           dest:
             index: target
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
   - set: {task: task}
 
   - do:

@@ -314,6 +314,9 @@ setup:
 
 ---
 "Reindex wait_for_completion=false as minimal with task API":
+  - skip:
+      features:
+        - allowed_warnings_regex
 
   - do:
       index:
@@ -333,6 +336,8 @@ setup:
             index: source
           dest:
             index: dest
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
   - set: {task: task}
 
   - do:

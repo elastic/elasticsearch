@@ -12,8 +12,10 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.rest.LoggingTaskListenerWarningHandler;
 
 import java.util.Collections;
 import java.util.List;
@@ -60,6 +62,7 @@ public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                   }
                 }""");
             reindex.addParameter("wait_for_completion", "false");
+            reindex.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(LoggingTaskListenerWarningHandler.INSTANCE));
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
 

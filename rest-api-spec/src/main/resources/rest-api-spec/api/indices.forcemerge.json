@@ -68,6 +68,11 @@
         "type":"boolean",
         "default":true,
         "description":"Should the request wait until the force merge is completed."
+      },
+      "log_task_completion":{
+        "type":"boolean",
+        "default":true,
+        "description":"If ?wait_for_completion is set, suppress the deprecated legacy completion message in the node logs."
       }
     }
   }

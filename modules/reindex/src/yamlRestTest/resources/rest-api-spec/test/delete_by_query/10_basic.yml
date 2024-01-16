@@ -38,6 +38,9 @@
 
 ---
 "wait_for_completion=false":
+  - skip:
+      features: allowed_warnings_regex
+
   - do:
       index:
         index:   test
@@ -49,6 +52,63 @@
   - do:
       delete_by_query:
         wait_for_completion: false
+        index: test
+        body:
+          query:
+            match_all: {}
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
+
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+  - is_false: version_conflicts
+  - is_false: batches
+  - is_false: failures
+  - is_false: noops
+  - is_false: took
+  - is_false: throttled_millis
+  - is_false: created
+  - is_false: updated
+  - is_false: deleted
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+  - is_false: node_failures
+  # The task will be in the response even if it finished before we got here
+  # because of task persistence.
+  - is_true: task
+  - is_false: response.timed_out
+  - match: {response.deleted: 1}
+  - is_false: response.created
+  - is_false: response.updated
+  - match: {response.version_conflicts: 0}
+  - match: {response.batches: 1}
+  - match: {response.failures: []}
+  - match: {response.noops: 0}
+  - match: {response.throttled_millis: 0}
+  - gte: { response.took: 0 }
+  - is_false: response.task
+
+---
+"wait_for_completion=false and log_task_completion=false":
+  - skip:
+      version: " - 8.12.99"
+      reason: ?log_task_completion parameter introduced in 8.13
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      delete_by_query:
+        wait_for_completion: false
+        log_task_completion: false
         index: test
         body:
           query:

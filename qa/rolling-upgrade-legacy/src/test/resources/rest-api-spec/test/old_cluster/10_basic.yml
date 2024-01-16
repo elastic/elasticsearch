@@ -166,6 +166,9 @@
 
 ---
 "Create a task result record in the old cluster":
+  - skip:
+      features: allowed_warnings_regex
+
   - do:
       indices.create:
         index: reindexed_index
@@ -197,6 +200,8 @@
             size: 1
           dest:
             index: reindexed_index_copy
+      allowed_warnings_regex:
+        - "Logging the completion of a task using .*LoggingTaskListener.* is deprecated.*"
   - match: {task: '/.+:\d+/'}
   - set: {task: task}
 

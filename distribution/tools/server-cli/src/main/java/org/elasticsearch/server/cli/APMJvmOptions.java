@@ -236,6 +236,17 @@ class APMJvmOptions {
         StringJoiner globalLabels = extractGlobalLabels(telemetryAgentPrefix, propertiesMap, settings);
         if (globalLabels.length() == 0) {
             globalLabels = extractGlobalLabels(tracingAgentPrefix, propertiesMap, settings);
+        } else {
+            StringJoiner tracingGlobalLabels = extractGlobalLabels(tracingAgentPrefix, propertiesMap, settings);
+            if (tracingGlobalLabels.length() != 0) {
+                throw new IllegalArgumentException(
+                    "Cannot have global labels using tracing.agent prefix ["
+                        + globalLabels
+                        + "] and telemetry.apm.agent prefix ["
+                        + tracingGlobalLabels
+                        + "]"
+                );
+            }
         }
         if (globalLabels.length() > 0) {
             propertiesMap.put("global_labels", globalLabels.toString());

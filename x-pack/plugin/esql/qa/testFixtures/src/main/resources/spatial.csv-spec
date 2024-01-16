@@ -122,6 +122,16 @@ centroid:geo_point                         | count:long
 POINT(83.27726172452623 28.99289782286029) | 33
 ;
 
+centroidFromAirportsCountGroupedCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+;
+
+centroid:geo_point                           | count:long
+POINT (7.572387259169772 26.836561792945492) | 891
+;
+
 centroidFromAirportsFilteredAndSorted#[skip:-8.12.99, reason:st_centroid added in 8.13]
 FROM airports
 | WHERE scalerank == 9
@@ -360,6 +370,16 @@ FROM airports_web
 
 centroid:cartesian_point            | count:long
 POINT(9003597.4375 3429344.0078125) | 8
+;
+
+cartesianCentroidFromAirportsCountGroupedCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports_web
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+;
+
+centroid:cartesian_point                    | count:long
+POINT (726480.0130685265 3359566.331716279) | 849
 ;
 
 cartesianPointEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Less
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -103,6 +104,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
+import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.Expressions.names;
@@ -1914,7 +1916,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFinal = as(limit.child(), AggregateExec.class);
         assertThat(aggFinal.getMode(), equalTo(FINAL));
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
-        assertThat(aggPartial.getMode(), equalTo(AggregateExec.Mode.PARTIAL));
+        assertThat(aggPartial.getMode(), equalTo(PARTIAL));
         limit = as(aggPartial.child(), LimitExec.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(limit.limit().fold(), equalTo(10));
@@ -2142,7 +2144,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
-    public void testSpatialTypesAndStatsUseDocValues2() {
+    public void testSpatialTypesAndStatsUseDocValuesMultiAggregations() {
         var plan = physicalPlanAirports("""
             from airports
             | stats centroid = st_centroid(location), count = COUNT()
@@ -2150,6 +2152,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         // Before optimization the aggregation does not use doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
@@ -2168,6 +2171,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
@@ -2202,14 +2206,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
-    public void testSpatialTypesAndStatsUseDocValues3() {
+    public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsFiltered() {
         var plan = physicalPlanAirports("""
             FROM airports
             | WHERE scalerank == 9
             | STATS centroid=ST_CENTROID(location), count=COUNT()
             """);
+
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         // Before optimization the aggregation does not use doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
@@ -2230,6 +2236,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
         // below the exchange (in data node) the aggregation is using doc-values
         assertAggregation(agg, "count", Count.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
@@ -2241,6 +2248,168 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = source(extract.child());
         var qb = as(source.query(), SingleValueQuery.Builder.class);
         assertThat("Expected predicate to be passed to Lucene query", qb.source().text(), equalTo("scalerank == 9"));
+    }
+
+    /**
+     * Before local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10],
+     * FINAL,null]
+     *   \_ExchangeExec[[scalerank{f}#10, xVal{r}#13, xDel{r}#14, yVal{r}#15, yDel{r}#16, count{r}#17, count{r}#18, seen{r}#19],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10]]
+     * \_EsRelation[airports][abbrev{f}#8, location{f}#12, name{f}#9, scalerank{f..]]]
+     *
+     * After local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10],
+     * FINAL,62]
+     *   \_ExchangeExec[[scalerank{f}#10, xVal{r}#13, xDel{r}#14, yVal{r}#15, yDel{r}#16, count{r}#17, count{r}#18, seen{r}#19],true]
+     *     \_AggregateExec[[scalerank{f}#10],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count, scalerank{f}#10],
+     * PARTIAL,62]
+     *       \_FieldExtractExec[location{f}#12][location{f}#12]
+     *         \_EsQueryExec[airports], query[][_doc{f}#34], limit[], sort[] estimatedRowSize[54]
+     *
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     */
+    public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGrouped() {
+        var plan = physicalPlanAirports("""
+            FROM airports
+            | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
+        var att = as(agg.groupings().get(0), Attribute.class);
+        assertThat(att.name(), equalTo("scalerank"));
+        // Before optimization the aggregation does not use doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fAgg = as(fragment.fragment(), Aggregate.class);
+        as(fAgg.child(), EsRelation.class);
+
+        // Now optimize the plan and assert the aggregation uses doc-values
+        var optimized = optimizedPlan(plan);
+        limit = as(optimized, LimitExec.class);
+        agg = as(limit.child(), AggregateExec.class);
+        att = as(agg.groupings().get(0), Attribute.class);
+        assertThat(att.name(), equalTo("scalerank"));
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        att = as(agg.groupings().get(0), Attribute.class);
+        assertThat(att.name(), equalTo("scalerank"));
+        // below the exchange (in data node) the aggregation is using doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+        var extract = as(agg.child(), FieldExtractExec.class);
+        assertTrue("Expect attributes to be forStats", extract.attributesToExtract().stream().allMatch(attr -> {
+            boolean forStats = extract.forStats(attr);
+            return forStats && attr.dataType() == GEO_POINT;
+        }));
+        source(extract.child());
+    }
+
+    /**
+     * Before local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],FINAL,null]
+     *   \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],PARTIAL,null]
+     *     \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
+     *       \_ExchangeExec[[scalerank{f}#16, xVal{r}#19, xDel{r}#20, yVal{r}#21, yDel{r}#22, count{r}#23, count{r}#24, seen{r}#25],true]
+     *         \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count]]
+     * \_EsRelation[airports][abbrev{f}#14, location{f}#18, name{f}#15, scalerank..]]]
+     *
+     * After local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],FINAL,58]
+     *   \_AggregateExec[[],[SPATIALCENTROID(centroid{r}#4) AS centroid, SUM(count{r}#6) AS count],PARTIAL,58]
+     *     \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
+     *       \_ExchangeExec[[scalerank{f}#16, xVal{r}#19, xDel{r}#20, yVal{r}#21, yDel{r}#22, count{r}#23, count{r}#24, seen{r}#25],true]
+     *         \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],PARTIAL,58]
+     *           \_FieldExtractExec[location{f}#18][location{f}#18]
+     *             \_EsQueryExec[airports], query[][_doc{f}#42], limit[], sort[] estimatedRowSize[54]
+     *
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     */
+    public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGroupedAggregated() {
+        var plan = physicalPlanAirports("""
+            FROM airports
+            | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+            | STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        assertAggregation(agg, "count", Sum.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        agg = as(agg.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        assertAggregation(agg, "count", Sum.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        agg = as(agg.child(), AggregateExec.class);
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
+        var att = as(agg.groupings().get(0), Attribute.class);
+        assertThat(att.name(), equalTo("scalerank"));
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fAgg = as(fragment.fragment(), Aggregate.class);
+        as(fAgg.child(), EsRelation.class);
+
+        // Now optimize the plan and assert the aggregation uses doc-values
+        var optimized = optimizedPlan(plan);
+        limit = as(optimized, LimitExec.class);
+        agg = as(limit.child(), AggregateExec.class);
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        assertAggregation(agg, "count", Sum.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        agg = as(agg.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        assertAggregation(agg, "count", Sum.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        agg = as(agg.child(), AggregateExec.class);
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
+        att = as(agg.groupings().get(0), Attribute.class);
+        assertThat(att.name(), equalTo("scalerank"));
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        assertThat("One grouping in aggregation", agg.groupings().size(), equalTo(1));
+        att = as(agg.groupings().get(0), Attribute.class);
+        assertThat(att.name(), equalTo("scalerank"));
+        // below the exchange (in data node) the aggregation is using doc-values
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+        var extract = as(agg.child(), FieldExtractExec.class);
+        assertTrue("Expect attributes to be forStats", extract.attributesToExtract().stream().allMatch(attr -> {
+            boolean forStats = extract.forStats(attr);
+            return forStats && attr.dataType() == GEO_POINT;
+        }));
+        source(extract.child());
     }
 
     @SuppressWarnings("SameParameterValue")
@@ -2265,7 +2434,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         boolean useDocValues
     ) {
         var aggFunc = assertAggregation(plan, aliasName, aggClass);
-        var aggField = as(aggFunc.field(), FieldAttribute.class);
+        var aggField = as(aggFunc.field(), Attribute.class);
         var spatialAgg = as(aggFunc, SpatialAggregateFunction.class);
         assertThat("Expected spatial aggregation to use doc-values", spatialAgg.useDocValues(), equalTo(useDocValues));
         assertThat("", aggField.dataType(), equalTo(fieldType));

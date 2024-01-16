@@ -1,12 +1,11 @@
 [role="xpack"]
 [[list-connector-sync-jobs-api]]
 === List connector sync jobs API
-
-preview::[]
-
 ++++
 <titleabbrev>List connector sync jobs</titleabbrev>
 ++++
+
+preview::[]
 
 Returns information about all stored connector sync jobs ordered by their creation date in ascending order.
 

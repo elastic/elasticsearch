@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 
@@ -26,6 +27,8 @@ public final class QueryApiKeyRequest extends ActionRequest {
 
     @Nullable
     private final QueryBuilder queryBuilder;
+    @Nullable
+    private final AggregatorFactories.Builder aggsBuilder;
     @Nullable
     private final Integer from;
     @Nullable
@@ -42,11 +45,12 @@ public final class QueryApiKeyRequest extends ActionRequest {
     }
 
     public QueryApiKeyRequest(QueryBuilder queryBuilder) {
-        this(queryBuilder, null, null, null, null, false);
+        this(queryBuilder, null, null, null, null, null, false);
     }
 
     public QueryApiKeyRequest(
         @Nullable QueryBuilder queryBuilder,
+        @Nullable AggregatorFactories.Builder aggsBuilder,
         @Nullable Integer from,
         @Nullable Integer size,
         @Nullable List<FieldSortBuilder> fieldSortBuilders,
@@ -54,6 +58,7 @@ public final class QueryApiKeyRequest extends ActionRequest {
         boolean withLimitedBy
     ) {
         this.queryBuilder = queryBuilder;
+        this.aggsBuilder = aggsBuilder;
         this.from = from;
         this.size = size;
         this.fieldSortBuilders = fieldSortBuilders;
@@ -77,10 +82,19 @@ public final class QueryApiKeyRequest extends ActionRequest {
         } else {
             this.withLimitedBy = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_API_KEY_AGGS_ADDED)) {
+            this.aggsBuilder = in.readOptionalWriteable(AggregatorFactories.Builder::new);
+        } else {
+            this.aggsBuilder = null;
+        }
     }
 
     public QueryBuilder getQueryBuilder() {
         return queryBuilder;
+    }
+
+    public AggregatorFactories.Builder getAggsBuilder() {
+        return aggsBuilder;
     }
 
     public Integer getFrom() {
@@ -138,6 +152,9 @@ public final class QueryApiKeyRequest extends ActionRequest {
         out.writeOptionalWriteable(searchAfterBuilder);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             out.writeBoolean(withLimitedBy);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_API_KEY_AGGS_ADDED)) {
+            out.writeOptionalWriteable(aggsBuilder);
         }
     }
 }

@@ -34,7 +34,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
     @Override
     protected QueryApiKeyResponse createTestInstance() {
         final List<QueryApiKeyResponse.Item> items = randomList(0, 3, this::randomItem);
-        return new QueryApiKeyResponse(randomIntBetween(items.size(), 100), items);
+        return new QueryApiKeyResponse(randomIntBetween(items.size(), 100), items, null);
     }
 
     @Override
@@ -43,13 +43,13 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
         switch (randomIntBetween(0, 3)) {
             case 0:
                 items.add(randomItem());
-                return new QueryApiKeyResponse(instance.getTotal(), items);
+                return new QueryApiKeyResponse(instance.getTotal(), items, null);
             case 1:
                 if (false == items.isEmpty()) {
-                    return new QueryApiKeyResponse(instance.getTotal(), items.subList(1, items.size()));
+                    return new QueryApiKeyResponse(instance.getTotal(), items.subList(1, items.size()), null);
                 } else {
                     items.add(randomItem());
-                    return new QueryApiKeyResponse(instance.getTotal(), items);
+                    return new QueryApiKeyResponse(instance.getTotal(), items, null);
                 }
             case 2:
                 if (false == items.isEmpty()) {
@@ -58,9 +58,9 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
                 } else {
                     items.add(randomItem());
                 }
-                return new QueryApiKeyResponse(instance.getTotal(), items);
+                return new QueryApiKeyResponse(instance.getTotal(), items, null);
             default:
-                return new QueryApiKeyResponse(instance.getTotal() + 1, items);
+                return new QueryApiKeyResponse(instance.getTotal() + 1, items, null);
         }
     }
 

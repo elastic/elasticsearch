@@ -9,10 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.utils.GeographyValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -20,15 +16,13 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
-import java.io.IOException;
-import java.nio.ByteOrder;
-import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEOGRAPHY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class ToGeography extends AbstractConvertFunction {
 
@@ -65,11 +59,6 @@ public class ToGeography extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        try {
-            final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), false, in.utf8ToString());
-            return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
-        } catch (IOException | ParseException e) {
-            throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
-        }
+        return GEO.wktToWkb(in.utf8ToString());
     }
 }

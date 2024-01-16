@@ -187,6 +187,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                 }
             }
             if (simpleQueryStringBuilder.fields().isEmpty()) {
+                // A SimpleQueryStringBuilder with empty fields() will eventually produce a SimpleQueryString query
+                // that accesses all the fields, including disallowed ones. This hack prevents that, by instead
+                // putting in a field name pattern that's guaranteed to not match any field name in the .security index.
                 simpleQueryStringBuilder.field("match_nothing_place_holder_field_name_wildcard*");
             }
             return simpleQueryStringBuilder;

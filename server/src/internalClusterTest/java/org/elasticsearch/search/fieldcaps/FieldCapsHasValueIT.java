@@ -11,13 +11,18 @@ package org.elasticsearch.search.fieldcaps;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -25,6 +30,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class FieldCapsHasValueIT extends ESIntegTestCase {
     private final String INDEX1 = "index-1";
+    private final String ALIAS1 = "alias-1";
     private final String INDEX2 = "index-2";
     private final String INDEX3 = "index-3";
 
@@ -33,16 +39,19 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate(INDEX1).setWaitForActiveShards(ActiveShardCount.ALL)
                 .setSettings(indexSettings())
-                .setMapping("foo", "type=text", "bar", "type=keyword", "bar-alias", "type=alias,path=bar")
+                .setMapping("foo", "type=text", "bar", "type=keyword", "bar-alias", "type=alias,path=bar", "timestamp", "type=date")
         );
         assertAcked(
-            prepareCreate(INDEX2).setWaitForActiveShards(ActiveShardCount.ALL).setSettings(indexSettings()).setMapping("bar", "type=date")
+            prepareCreate(INDEX2).setWaitForActiveShards(ActiveShardCount.ALL)
+                .setSettings(indexSettings())
+                .setMapping("bar", "type=date", "timestamp", "type=date")
         );
         assertAcked(
             prepareCreate(INDEX3).setWaitForActiveShards(ActiveShardCount.ALL)
                 .setSettings(indexSettings())
                 .setMapping("nested_type", "type=nested", "object.sub_field", "type=keyword,store=true")
         );
+        assertAcked(indicesAdmin().prepareAliases().addAlias(INDEX1, ALIAS1));
     }
 
     public void testNoFieldsInEmptyIndex() {
@@ -55,7 +64,43 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         assertFalse(response.get().containsKey("bar-alias"));
     }
 
-    public void testOnlyFieldsWithValue() {
+    public void testOnlyFieldsWithValueInIndex() {
+        prepareIndex(INDEX1).setSource("foo", "foo-text").get();
+        refresh(INDEX1);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
+
+        assertIndices(response, INDEX1, INDEX2, INDEX3);
+        assertThat(response.get(), Matchers.hasKey("foo"));
+        // Check the capabilities for the 'foo' field.
+        Map<String, FieldCapabilities> fooField = response.getField("foo");
+        assertEquals(1, fooField.size());
+        assertThat(fooField, Matchers.hasKey("text"));
+        assertEquals(
+            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
+            fooField.get("text")
+        );
+    }
+
+    public void testOnlyFieldsWithValueInAlias() {
+        prepareIndex(ALIAS1).setSource("foo", "foo-text").get();
+        refresh(ALIAS1);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeFieldsWithNoValue(false).get();
+
+        assertIndices(response, INDEX1, INDEX2, INDEX3);
+        assertThat(response.get(), Matchers.hasKey("foo"));
+        // Check the capabilities for the 'foo' field.
+        Map<String, FieldCapabilities> fooField = response.getField("foo");
+        assertEquals(1, fooField.size());
+        assertThat(fooField, Matchers.hasKey("text"));
+        assertEquals(
+            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
+            fooField.get("text")
+        );
+    }
+
+    public void testOnlyFieldsWithValueInSpecifiedIndex() {
         prepareIndex(INDEX1).setSource("foo", "foo-text").get();
         refresh(INDEX1);
 
@@ -73,11 +118,11 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         );
     }
 
-    public void testOnlyFieldsWithValueWithIndexFilter() {
-        prepareIndex(INDEX1).setSource("foo", "foo-text").get();
-        refresh(INDEX1);
+    public void testOnlyFieldsWithValueInSpecifiedAlias() {
+        prepareIndex(ALIAS1).setSource("foo", "foo-text").get();
+        refresh(ALIAS1);
 
-        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(ALIAS1).setFields("*").setIncludeFieldsWithNoValue(false).get();
 
         assertIndices(response, INDEX1);
         assertThat(response.get(), Matchers.hasKey("foo"));
@@ -354,6 +399,54 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
             new FieldCapabilities("object.sub_field", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
             objectSubfield.get("keyword")
         );
+    }
+
+    public void testWithIndexFilter() throws InterruptedException {
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(prepareIndex(INDEX1).setSource("timestamp", "2015-07-08"));
+        reqs.add(prepareIndex(INDEX1).setSource("timestamp", "2018-07-08"));
+        reqs.add(prepareIndex(INDEX2).setSource("timestamp", "2019-10-12"));
+        reqs.add(prepareIndex(INDEX2).setSource("timestamp", "2020-07-08"));
+        indexRandom(true, reqs);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("index-*")
+            .setFields("*")
+            .setIndexFilter(QueryBuilders.rangeQuery("timestamp").gte("2019-11-01"))
+            .setIncludeFieldsWithNoValue(false)
+            .get();
+        assertIndices(response, INDEX2);
+        // Check the capabilities for the 'timestamp' field.
+        Map<String, FieldCapabilities> timestampField = response.getField("timestamp");
+        assertEquals(1, timestampField.size());
+        assertThat(timestampField, Matchers.hasKey("date"));
+        assertNull(response.getField("foo"));
+        assertNull(response.getField("bar"));
+        assertNull(response.getField("bar"));
+
+        response = client().prepareFieldCaps("index-*")
+            .setFields("*")
+            .setIndexFilter(QueryBuilders.rangeQuery("timestamp").lte("2017-01-01"))
+            .setIncludeFieldsWithNoValue(false)
+            .get();
+        assertIndices(response, INDEX1);
+        // Check the capabilities for the 'timestamp' field.
+        timestampField = response.getField("timestamp");
+        assertEquals(1, timestampField.size());
+        assertThat(timestampField, Matchers.hasKey("date"));
+        assertNull(response.getField("foo"));
+        assertNull(response.getField("bar"));
+    }
+
+    public void testRunntimeMappingsNotReturned() {
+        Map<String, Object> runtimeFields = new HashMap<>();
+        runtimeFields.put("day_of_week", Collections.singletonMap("type", "keyword"));
+        FieldCapabilitiesResponse response = client().prepareFieldCaps()
+            .setFields("*")
+            .setRuntimeFields(runtimeFields)
+            .setIncludeFieldsWithNoValue(false)
+            .get();
+        assertNull(response.getField("day_of_week"));
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

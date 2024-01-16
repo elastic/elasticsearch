@@ -9,9 +9,9 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -133,7 +133,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
+        BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
@@ -203,7 +203,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
+        BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
@@ -270,7 +270,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
+        BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
@@ -344,7 +344,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index-3", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin()
+        BroadcastResponse forceMergeResponse = client.admin()
             .indices()
             .prepareForceMerge("index-1", "index-2", "index-3")
             .setFlush(true)
@@ -425,7 +425,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
+        BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
@@ -535,7 +535,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         indexRequestBuilder.get();
         indexRequestBuilder.request().decRef();
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
+        BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
 

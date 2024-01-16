@@ -34,10 +34,7 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -57,6 +54,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.AdminClient;
@@ -1503,9 +1501,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *
      * @see #waitForRelocation()
      */
-    protected final RefreshResponse refresh(String... indices) {
+    protected final BroadcastResponse refresh(String... indices) {
         waitForRelocation();
-        RefreshResponse actionGet = indicesAdmin().prepareRefresh(indices)
+        BroadcastResponse actionGet = indicesAdmin().prepareRefresh(indices)
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
             .get();
         assertNoFailures(actionGet);
@@ -1523,9 +1521,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Flush some or all indices in the cluster.
      */
-    protected final FlushResponse flush(String... indices) {
+    protected final BroadcastResponse flush(String... indices) {
         waitForRelocation();
-        FlushResponse actionGet = indicesAdmin().prepareFlush(indices).get();
+        BroadcastResponse actionGet = indicesAdmin().prepareFlush(indices).get();
         for (DefaultShardOperationFailedException failure : actionGet.getShardFailures()) {
             assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
@@ -1535,9 +1533,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Waits for all relocations and force merge all indices in the cluster to 1 segment.
      */
-    protected ForceMergeResponse forceMerge() {
+    protected BroadcastResponse forceMerge() {
         waitForRelocation();
-        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
+        BroadcastResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(actionGet);
         return actionGet;
     }

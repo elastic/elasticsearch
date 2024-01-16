@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.indices;
 
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -102,7 +102,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             indexRequestBuilder.request().decRef();
         }
         // Force merge so we know all merges are done before we start deleting:
-        ForceMergeResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).get();
+        BaseBroadcastResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(r);
         final RefreshStats refreshStats = shard.refreshStats();
         for (int i = 0; i < 100; i++) {

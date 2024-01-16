@@ -10,11 +10,7 @@ package org.elasticsearch.document;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -23,6 +19,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -68,7 +66,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
         logger.info("Refreshing");
-        RefreshResponse refreshResponse = refresh();
+        BroadcastResponse refreshResponse = refresh();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         logger.info("--> index exists?");
@@ -77,7 +75,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = indicesAdmin().clearCache(
+        BroadcastResponse clearIndicesCacheResponse = indicesAdmin().clearCache(
             new ClearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true)
         ).actionGet();
         assertNoFailures(clearIndicesCacheResponse);
@@ -85,7 +83,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
         logger.info("Force Merging");
         waitForRelocation(ClusterHealthStatus.GREEN);
-        ForceMergeResponse mergeResponse = forceMerge();
+        BaseBroadcastResponse mergeResponse = forceMerge();
         assertThat(mergeResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         GetResponse getResult;
@@ -139,7 +137,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         indexRequest.decRef();
 
         logger.info("Flushing");
-        FlushResponse flushResult = indicesAdmin().prepareFlush("test").get();
+        BroadcastResponse flushResult = indicesAdmin().prepareFlush("test").get();
         assertThat(flushResult.getSuccessfulShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResult.getFailedShards(), equalTo(0));
         logger.info("Refreshing");
@@ -238,7 +236,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
             assertThat(bulkResponse.getItems()[5].getIndex(), equalTo(getConcreteIndexName()));
 
             waitForRelocation(ClusterHealthStatus.GREEN);
-            RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
+            BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
             assertNoFailures(refreshResponse);
             assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 

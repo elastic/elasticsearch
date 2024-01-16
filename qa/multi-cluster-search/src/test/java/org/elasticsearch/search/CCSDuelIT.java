@@ -17,8 +17,8 @@ import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -199,7 +199,7 @@ public class CCSDuelIT extends ESRestTestCase {
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
 
-        RefreshResponse refreshResponse = refresh(INDEX_NAME);
+        BroadcastResponse refreshResponse = refresh(INDEX_NAME);
         ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 

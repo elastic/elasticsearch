@@ -10,7 +10,6 @@ package org.elasticsearch.get;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -642,7 +642,7 @@ public class GetActionIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("flushing");
-        FlushResponse flushResponse = indicesAdmin().prepareFlush("my-index").setForce(true).get();
+        BroadcastResponse flushResponse = indicesAdmin().prepareFlush("my-index").setForce(true).get();
         if (flushResponse.getSuccessfulShards() == 0) {
             StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [").append(
                 flushResponse.getTotalShards()

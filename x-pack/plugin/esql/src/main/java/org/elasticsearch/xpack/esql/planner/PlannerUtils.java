@@ -197,7 +197,7 @@ public class PlannerUtils {
 
     /**
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
-     * This specifically excludes spatial data types, which are not themselves sortable .
+     * This specifically excludes spatial data types, which are not themselves sortable.
      */
     public static ElementType toSortableElementType(DataType dataType) {
         if (EsqlDataTypes.isSpatial(dataType)) {

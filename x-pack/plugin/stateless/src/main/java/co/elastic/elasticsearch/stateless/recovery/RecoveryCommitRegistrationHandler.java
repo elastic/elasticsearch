@@ -19,20 +19,12 @@ package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 public class RecoveryCommitRegistrationHandler {
-    public static final TransportVersion REQUIRED_MIN_VERSION = TransportVersions.V_8_500_066;
-    private static final Logger logger = LogManager.getLogger(RecoveryCommitRegistrationHandler.class);
-
     private final Client client;
     private final ClusterService clusterService;
 
@@ -42,22 +34,10 @@ public class RecoveryCommitRegistrationHandler {
     }
 
     public void register(PrimaryTermAndGeneration commit, ShardId shardId, ActionListener<PrimaryTermAndGeneration> listener) {
-        var clusterMinVerion = clusterService.state().getMinTransportVersion();
-        if (clusterMinVerion.before(REQUIRED_MIN_VERSION)) {
-            logger.debug(
-                () -> Strings.format(
-                    "Skipping recovery commit registration since it requires version {} and cluster is at version {}.",
-                    REQUIRED_MIN_VERSION,
-                    clusterMinVerion
-                )
-            );
-            listener.onResponse(commit);
-        } else {
-            client.execute(
-                TransportSendRecoveryCommitRegistrationAction.TYPE,
-                new RegisterCommitRequest(commit, shardId, clusterService.localNode().getId()),
-                listener.map(RegisterCommitResponse::getCommit)
-            );
-        }
+        client.execute(
+            TransportSendRecoveryCommitRegistrationAction.TYPE,
+            new RegisterCommitRequest(commit, shardId, clusterService.localNode().getId()),
+            listener.map(RegisterCommitResponse::getCommit)
+        );
     }
 }

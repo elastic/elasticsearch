@@ -42,9 +42,6 @@ public class PublishShardSizesRequest extends MasterNodeRequest<PublishShardSize
     public PublishShardSizesRequest(StreamInput in) throws IOException {
         super(in);
         this.nodeId = in.readString();
-        if (in.getTransportVersion().before(ShardSize.PRIMARY_TERM_GENERATION_VERSION)) {
-            in.readLong(); // seqNo
-        }
         this.shardSizes = in.readImmutableMap(ShardId::new, ShardSize::from);
     }
 
@@ -52,9 +49,6 @@ public class PublishShardSizesRequest extends MasterNodeRequest<PublishShardSize
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(nodeId);
-        if (out.getTransportVersion().before(ShardSize.PRIMARY_TERM_GENERATION_VERSION)) {
-            out.writeLong(0); // seqNo
-        }
         out.writeMap(shardSizes);
     }
 

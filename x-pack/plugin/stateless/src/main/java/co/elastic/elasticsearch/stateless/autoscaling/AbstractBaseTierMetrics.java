@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.autoscaling;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,20 +47,12 @@ public abstract class AbstractBaseTierMetrics implements Writeable, ToXContentOb
     }
 
     public AbstractBaseTierMetrics(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.V_8_500_063)) {
-            this.reason = null;
-            this.exception = null;
-            return;
-        }
         reason = in.readOptionalString();
         exception = in.readOptionalWriteable(ElasticsearchException::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_500_063)) {
-            return;
-        }
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(exception);
     }

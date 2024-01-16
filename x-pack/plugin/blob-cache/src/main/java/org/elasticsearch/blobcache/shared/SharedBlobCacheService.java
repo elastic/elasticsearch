@@ -768,8 +768,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     if (gaps.isEmpty() == false) {
                         final var cacheFileRegion = CacheFileRegion.this;
                         for (SparseFileTracker.Gap gap : gaps) {
-                            var fillGap = fillGap(cacheFileRegion, writer, gap);
-                            executor.execute(ActionRunnable.run(refs.acquire(), fillGap::run));
+                            var fillGapRunnable = fillGapRunnable(cacheFileRegion, writer, gap);
+                            executor.execute(ActionRunnable.run(refs.acquire(), fillGapRunnable::run));
                         }
                     }
                 }
@@ -815,7 +815,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 if (gaps.isEmpty() == false) {
                     final var cacheFileRegion = CacheFileRegion.this;
                     for (SparseFileTracker.Gap gap : gaps) {
-                        executor.execute(fillGap(cacheFileRegion, writer, gap));
+                        executor.execute(fillGapRunnable(cacheFileRegion, writer, gap));
                     }
                 }
             } catch (Exception e) {
@@ -823,7 +823,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        private AbstractRunnable fillGap(CacheFileRegion cacheFileRegion, RangeMissingHandler writer, SparseFileTracker.Gap gap) {
+        private AbstractRunnable fillGapRunnable(CacheFileRegion cacheFileRegion, RangeMissingHandler writer, SparseFileTracker.Gap gap) {
             return new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {

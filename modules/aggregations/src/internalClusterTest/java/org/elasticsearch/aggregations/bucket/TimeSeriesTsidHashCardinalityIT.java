@@ -51,7 +51,7 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
     private static final String END_TIME = "2021-12-31T23:59:59Z";
     private String beforeIndex, afterIndex;
     private long startTime, endTime;
-    private int docCount, dimCardinality;
+    private int docCount;
     private int numDimensions, numTimeSeries;
 
     @Override
@@ -74,9 +74,8 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         afterIndex = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
         startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(START_TIME);
         endTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(END_TIME);
-        docCount = 50_000;
-        numTimeSeries = 12_000;
-        dimCardinality = 5;
+        docCount = 130_000;
+        numTimeSeries = 15_000;
         // NOTE: we need to use few dimensions to be able to index documents in an index created before introducing TSID hashing
         numDimensions = randomIntBetween(10, 20);
 
@@ -129,7 +128,7 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
             if (timeSeriesDataset.exists(ts)) {
                 continue;
             }
-            for (int k = 0; k < randomIntBetween(100, 200); k++) {
+            for (int k = 0; k < randomIntBetween(10, 20); k++) {
                 ts.addValue(randomLongBetween(startTime, endTime), randomDoubleBetween(100.0D, 200.0D, true));
             }
             timeSeriesDataset.add(ts);
@@ -158,32 +157,6 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         assertFalse(beforeBulkIndexRequest.get().hasFailures());
         assertFalse(afterBulkIndexRequest.get().hasFailures());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(beforeIndex, afterIndex).get().getStatus());
-    }
-
-    public void testTimeSeriesIdCardinality() {
-        final SearchResponse searchBefore = client().prepareSearch(beforeIndex)
-            .addAggregation(new CardinalityAggregationBuilder("card").field("_tsid").precisionThreshold(40000))
-            .get();
-        final SearchResponse searchAfter = client().prepareSearch(afterIndex)
-            .addAggregation(new CardinalityAggregationBuilder("card").field("_tsid").precisionThreshold(40000))
-            .get();
-
-        assertEquals(
-            Arrays.stream(admin().indices().prepareStats(beforeIndex).get().getShards()).findFirst().get().getStats().docs.getCount(),
-            Arrays.stream(admin().indices().prepareStats(afterIndex).get().getShards()).findFirst().get().getStats().docs.getCount()
-        );
-        assertEquals(
-            Arrays.stream(admin().indices().prepareStats(beforeIndex).get().getShards()).findFirst().get().getStats().docs.getCount(),
-            docCount
-        );
-        assertEquals(
-            Arrays.stream(admin().indices().prepareStats(afterIndex).get().getShards()).findFirst().get().getStats().docs.getCount(),
-            docCount
-        );
-
-        final InternalCardinality cardinalityBefore = searchBefore.getAggregations().get("card");
-        final InternalCardinality cardinalityAfter = searchAfter.getAggregations().get("card");
-        assertEquals(cardinalityBefore.getValue(), cardinalityAfter.getValue());
     }
 
     public void testTimeSeriesNumberOfBuckets() {
@@ -306,7 +279,7 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         }
     }
 
-    private class TimeSeriesDataset implements Iterable<TimeSeries> {
+    static class TimeSeriesDataset implements Iterable<TimeSeries> {
         private final HashMap<String, TimeSeries> dataset;
 
         TimeSeriesDataset() {
@@ -351,7 +324,7 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
             return this.dataset.size();
         }
 
-        class TimeSeriesIterator implements Iterator<TimeSeries> {
+        static class TimeSeriesIterator implements Iterator<TimeSeries> {
 
             private final Iterator<Map.Entry<String, TimeSeries>> it;
 

@@ -213,6 +213,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(index, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
         });
         assertBusy(
             () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
@@ -299,6 +300,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(originalIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
         });
     }
 
@@ -345,6 +347,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
         });
     }
 
@@ -477,6 +480,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 assertEquals(downsampleIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
                 assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
                 assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+                assertEquals("1h", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
             }, 60, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             if (indexExists(firstBackingIndex)) {
@@ -557,6 +561,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey()));
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals("5m", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
         }, 60, TimeUnit.SECONDS);
 

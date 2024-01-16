@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsActi
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
@@ -803,12 +802,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request) {
+        public ActionFuture<ListTasksResponse> cancelTasks(CancelTasksRequest request) {
             return execute(CancelTasksAction.INSTANCE, request);
         }
 
         @Override
-        public void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener) {
+        public void cancelTasks(CancelTasksRequest request, ActionListener<ListTasksResponse> listener) {
             execute(CancelTasksAction.INSTANCE, request, listener);
         }
 

@@ -48,7 +48,7 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     }
 
     @Override
-    public void close() {
+    public final void close() {
         if (closed.compareAndSet(false, true)) {
             releasable.close();
             doClose();

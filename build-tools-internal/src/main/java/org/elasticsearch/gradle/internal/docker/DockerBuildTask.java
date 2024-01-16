@@ -20,6 +20,7 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.OutputFile;
@@ -36,14 +37,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
-
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 /**
  * This task wraps up the details of building a Docker image, including adding a pull
  * mechanism that can retry, and emitting the image SHA as a task output.
  */
-public class DockerBuildTask extends DefaultTask {
+public abstract class DockerBuildTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
 
     private final WorkerExecutor workerExecutor;
@@ -55,7 +56,6 @@ public class DockerBuildTask extends DefaultTask {
     private boolean noCache = true;
     private String[] baseImages;
     private MapProperty<String, String> buildArgs;
-    private Property<String> platform;
 
     @Inject
     public DockerBuildTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
@@ -63,7 +63,6 @@ public class DockerBuildTask extends DefaultTask {
         this.markerFile = objectFactory.fileProperty();
         this.dockerContext = objectFactory.directoryProperty();
         this.buildArgs = objectFactory.mapProperty(String.class, String.class);
-        this.platform = objectFactory.property(String.class).convention(Architecture.current().dockerPlatform);
         this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
@@ -75,9 +74,10 @@ public class DockerBuildTask extends DefaultTask {
             params.getTags().set(Arrays.asList(tags));
             params.getPull().set(pull);
             params.getNoCache().set(noCache);
+            params.getPush().set(getPush().getOrElse(false));
             params.getBaseImages().set(Arrays.asList(baseImages));
             params.getBuildArgs().set(buildArgs);
-            params.getPlatform().set(platform);
+            params.getPlatforms().set(getPlatforms());
         });
     }
 
@@ -129,9 +129,10 @@ public class DockerBuildTask extends DefaultTask {
     }
 
     @Input
-    public Property<String> getPlatform() {
-        return platform;
-    }
+    public abstract SetProperty<String> getPlatforms();
+
+    @Input
+    public abstract Property<Boolean> getPush();
 
     @OutputFile
     public RegularFileProperty getMarkerFile() {
@@ -181,7 +182,7 @@ public class DockerBuildTask extends DefaultTask {
             }
 
             final List<String> tags = parameters.getTags().get();
-            final boolean isCrossPlatform = parameters.getPlatform().get().equals(Architecture.current().dockerPlatform) == false;
+            final boolean isCrossPlatform = isCrossPlatform();
 
             LoggedExec.exec(execOperations, spec -> {
                 spec.executable("docker");
@@ -193,7 +194,7 @@ public class DockerBuildTask extends DefaultTask {
                 spec.args("build", parameters.getDockerContext().get().getAsFile().getAbsolutePath());
 
                 if (isCrossPlatform) {
-                    spec.args("--platform", parameters.getPlatform().get());
+                    spec.args("--platform", parameters.getPlatforms().get().stream().collect(Collectors.joining(",")));
                 }
 
                 if (parameters.getNoCache().get()) {
@@ -203,6 +204,10 @@ public class DockerBuildTask extends DefaultTask {
                 tags.forEach(tag -> spec.args("--tag", tag));
 
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
+
+                if(parameters.getPush().get()) {
+                    spec.args("--push");
+                }
             });
 
             // Fetch the Docker image's hash, and write it to desk as the task's output. Doing this allows us
@@ -213,6 +218,13 @@ public class DockerBuildTask extends DefaultTask {
             } catch (IOException e) {
                 throw new RuntimeException("Failed to write marker file", e);
             }
+        }
+
+        private boolean isCrossPlatform() {
+            return getParameters().getPlatforms()
+                .get()
+                .stream()
+                .anyMatch(any -> any.equals(Architecture.current().dockerPlatform) == false);
         }
 
         private String getImageChecksum(String imageTag) {
@@ -243,6 +255,8 @@ public class DockerBuildTask extends DefaultTask {
 
         MapProperty<String, String> getBuildArgs();
 
-        Property<String> getPlatform();
+        SetProperty<String> getPlatforms();
+
+        Property<Boolean> getPush();
     }
 }

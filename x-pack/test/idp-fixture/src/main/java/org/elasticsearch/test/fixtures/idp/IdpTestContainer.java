@@ -28,7 +28,7 @@ import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.
 public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer {
 
     // private static final String PRE_BAKED_IMAGE = "breskeby/test-fixture-idp:" + getArchTag();
-    private static final String PRE_BAKED_IMAGE = "breskeby/idp-fixture:latest";
+    private static final String PRE_BAKED_IMAGE = "docker.elastic.co/elasticsearch-dev/idp-fixture/idp-fixture:latest";
     private static final String OPENJDK_BASE_IMAGE = "openjdk:11.0.16-jre";
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();

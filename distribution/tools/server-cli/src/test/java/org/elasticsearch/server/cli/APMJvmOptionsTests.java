@@ -132,7 +132,7 @@ public class APMJvmOptionsTests extends ESTestCase {
         assertThat(err.getMessage(), is("Duplicate telemetry setting: [telemetry.agent.server_url] and [tracing.apm.agent.server_url]"));
     }
 
-    public void testNoMixedLabels() throws UserException {
+    public void testNoMixedLabels() {
         String telemetryAgent = "telemetry.agent.";
         String tracingAgent = "tracing.apm.agent.";
         Settings settings = Settings.builder()
@@ -147,7 +147,8 @@ public class APMJvmOptionsTests extends ESTestCase {
         assertThat(
             err.getMessage(),
             is(
-                "Cannot have global labels with tracing.agent prefix [organization_id=456] and telemetry.apm.agent prefix [deployment_id=123]"
+                "Cannot have global labels with tracing.agent prefix [organization_id=456] and"
+                    + " telemetry.apm.agent prefix [deployment_id=123]"
             )
         );
     }

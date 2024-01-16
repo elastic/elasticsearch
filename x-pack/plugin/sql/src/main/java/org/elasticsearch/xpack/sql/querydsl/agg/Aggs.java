@@ -10,6 +10,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -83,10 +84,17 @@ public class Aggs {
             List<CompositeValuesSourceBuilder<?>> keys = new ArrayList<>(groups.size());
             // first iterate to compute the sources
             for (GroupByKey key : groups) {
-                keys.add(key.asValueSource());
+                if ((key instanceof GroupByConstant) == false) {
+                    keys.add(key.asValueSource());
+                }
             }
 
-            rootGroup = new CompositeAggregationBuilder(ROOT_GROUP_NAME, keys);
+            if (keys.isEmpty()) {
+                // it was a constant aggregation
+                rootGroup = new GlobalAggregationBuilder(ROOT_GROUP_NAME);
+            } else {
+                rootGroup = new CompositeAggregationBuilder(ROOT_GROUP_NAME, keys);
+            }
 
         } else {
             rootGroup = new FiltersAggregationBuilder(ROOT_GROUP_NAME, matchAllQuery());
@@ -105,6 +113,10 @@ public class Aggs {
 
     public boolean useImplicitGroupBy() {
         return groups.isEmpty();
+    }
+
+    public boolean groupByConstant() {
+        return groups.size() > 0 && groups.stream().allMatch(x -> x instanceof GroupByConstant);
     }
 
     public Aggs addGroups(Collection<GroupByKey> groups) {

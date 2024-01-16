@@ -134,34 +134,49 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(0).toString(), startsWith("E(){r}#"));
     }
 
-    public void testFoldingToLocalExecWithAggregationAndLimit() {
+    public void testFoldingToLocalExecWithNoTargetAggregationAndLimit() {
+        PhysicalPlan p = plan("SELECT 'foo' GROUP BY 1 LIMIT 10");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("'foo'{r}#"));
+    }
+
+    public void testFoldingToLocalExecWithNoTargetAggregationAndOrderBy() {
+        PhysicalPlan p = plan("SELECT 'foo' GROUP BY 1 ORDER BY 1");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("'foo'{r}#"));
+    }
+
+    public void testFoldingToLocalExecWithNoTargetAggregationAndOrderByAndLimit() {
+        PhysicalPlan p = plan("SELECT 'foo' GROUP BY 1 ORDER BY 1 LIMIT 10");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("'foo'{r}#"));
+    }
+
+    public void testNotFoldingToLocalExecWithAggregationAndLimit() {
         PhysicalPlan p = plan("SELECT 'foo' FROM test GROUP BY 1 LIMIT 10");
-        assertEquals(LocalExec.class, p.getClass());
-        LocalExec le = (LocalExec) p;
-        assertEquals(SingletonExecutable.class, le.executable().getClass());
-        SingletonExecutable ee = (SingletonExecutable) le.executable();
-        assertEquals(1, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("'foo'{r}#"));
+        assertNotEquals(LocalExec.class, p.getClass());
     }
 
-    public void testFoldingToLocalExecWithAggregationAndOrderBy() {
+    public void testNotFoldingToLocalExecWithAggregationAndOrderBy() {
         PhysicalPlan p = plan("SELECT 'foo' FROM test GROUP BY 1 ORDER BY 1");
-        assertEquals(LocalExec.class, p.getClass());
-        LocalExec le = (LocalExec) p;
-        assertEquals(SingletonExecutable.class, le.executable().getClass());
-        SingletonExecutable ee = (SingletonExecutable) le.executable();
-        assertEquals(1, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("'foo'{r}#"));
+        assertNotEquals(LocalExec.class, p.getClass());
     }
 
-    public void testFoldingToLocalExecWithAggregationAndOrderByAndLimit() {
+    public void testNotFoldingToLocalExecWithAggregationAndOrderByAndLimit() {
         PhysicalPlan p = plan("SELECT 'foo' FROM test GROUP BY 1 ORDER BY 1 LIMIT 10");
-        assertEquals(LocalExec.class, p.getClass());
-        LocalExec le = (LocalExec) p;
-        assertEquals(SingletonExecutable.class, le.executable().getClass());
-        SingletonExecutable ee = (SingletonExecutable) le.executable();
-        assertEquals(1, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("'foo'{r}#"));
+        assertNotEquals(LocalExec.class, p.getClass());
     }
 
     public void testLocalExecWithoutFromClause() {

@@ -89,6 +89,14 @@ groupByConstantLocalWithWhereContradiction
 SELECT COUNT(*), 'c' c WHERE 1 = 2 GROUP BY c;
 groupByConstantWithHavingContradiction
 SELECT COUNT(*), 'c' c FROM test_emp GROUP BY c HAVING c = 'z';
+groupByConstantWithMultipleMatchingRecords
+SELECT 1 as c FROM test_emp WHERE gender = 'F' GROUP BY c;
+multipleGroupByConstantWithMultipleMatchingRecords
+SELECT 1 as c FROM test_emp WHERE gender = 'F' GROUP BY c, 'foo', 'bar';
+groupByConstantWithFalseFilterOnData
+SELECT  COUNT(*), 'x'  c FROM test_emp WHERE gender = 'doesNotExist' GROUP BY c;
+groupByConstantWithAlwaysFalseFilter
+SELECT  COUNT(*), 'x'  c FROM test_emp WHERE 'x' = 'y' GROUP BY c;
 
 // multiple group by
 groupByMultiOnText

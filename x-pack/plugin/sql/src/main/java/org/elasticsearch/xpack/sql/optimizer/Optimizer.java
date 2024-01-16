@@ -276,7 +276,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
-            if (prunedGroupings.size() > 0) {
+            // avoid complete removal of the grouping, that could change the query semantics
+            if (prunedGroupings.size() > 0 && prunedGroupings.size() != groupings.size()) {
                 List<Expression> newGroupings = new ArrayList<>(groupings);
                 newGroupings.removeAll(prunedGroupings);
                 return new Aggregate(agg.source(), agg.child(), newGroupings, agg.aggregates());

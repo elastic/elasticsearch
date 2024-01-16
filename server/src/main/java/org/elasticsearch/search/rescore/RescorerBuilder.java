@@ -83,8 +83,10 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
-                rescorerNameConsumer.accept(fieldName);
+                if (fieldName != null) {
+                    rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
+                    rescorerNameConsumer.accept(fieldName);
+                }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
             }

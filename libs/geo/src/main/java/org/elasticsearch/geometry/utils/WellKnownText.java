@@ -24,6 +24,8 @@ import org.elasticsearch.geometry.Rectangle;
 import java.io.IOException;
 import java.io.StreamTokenizer;
 import java.io.StringReader;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -213,6 +215,196 @@ public class WellKnownText {
                 }
             });
         }
+    }
+
+    public static String fromWKB(byte[] wkb, int offset, int length) {
+        final StringBuilder builder = new StringBuilder();
+        final ByteBuffer byteBuffer = ByteBuffer.wrap(wkb, offset, length);
+        parseGeometry(byteBuffer, builder);
+        assert byteBuffer.remaining() == 0;
+        return builder.toString();
+    }
+
+    private static void parseGeometry(ByteBuffer byteBuffer, StringBuilder sb) {
+        byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+        final int type = byteBuffer.getInt();
+        switch (type) {
+            case 1 -> parsePoint(byteBuffer, false, sb);
+            case 1001 -> parsePoint(byteBuffer, true, sb);
+            case 2 -> parseLine(byteBuffer, false, sb);
+            case 1002 -> parseLine(byteBuffer, true, sb);
+            case 3 -> parsePolygon(byteBuffer, false, sb);
+            case 1003 -> parsePolygon(byteBuffer, true, sb);
+            case 4 -> parseMultiPoint(byteBuffer, false, sb);
+            case 1004 -> parseMultiPoint(byteBuffer, true, sb);
+            case 5 -> parseMultiLine(byteBuffer, false, sb);
+            case 1005 -> parseMultiLine(byteBuffer, true, sb);
+            case 6 -> parseMultiPolygon(byteBuffer, false, sb);
+            case 1006 -> parseMultiPolygon(byteBuffer, true, sb);
+            case 7, 1007 -> parseGeometryCollection(byteBuffer, sb);
+            case 17 -> parseCircle(byteBuffer, false, sb);
+            case 1017 -> parseCircle(byteBuffer, true, sb);
+            case 18 -> parseBBox(byteBuffer, false, sb);
+            case 1018 -> parseBBox(byteBuffer, true, sb);
+            default -> throw new IllegalArgumentException("Unknown geometry type: " + type);
+        }
+        ;
+    }
+
+    private static void writeCoordinate(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append(byteBuffer.getDouble()).append(SPACE).append(byteBuffer.getDouble());
+        if (hasZ) {
+            sb.append(SPACE).append(byteBuffer.getDouble());
+        }
+    }
+
+    private static void parsePoint(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("POINT").append(SPACE);
+        sb.append(LPAREN);
+        writeCoordinate(byteBuffer, hasZ, sb);
+        sb.append(RPAREN);
+    }
+
+    private static void parseMultiPoint(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("MULTIPOINT").append(SPACE);
+        final int numPoints = byteBuffer.getInt();
+        if (numPoints == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < numPoints; i++) {
+            byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+            byteBuffer.getInt();
+            writeCoordinate(byteBuffer, hasZ, sb);
+            if (i != numPoints - 1) {
+                sb.append(COMMA);
+                sb.append(SPACE);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseLine(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("LINESTRING").append(SPACE);
+        parseLineString(byteBuffer, hasZ, sb);
+    }
+
+    private static void parseMultiLine(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("MULTILINESTRING").append(SPACE);
+        final int numLines = byteBuffer.getInt();
+        if (numLines == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < numLines; i++) {
+            byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+            byteBuffer.getInt();
+            parseLineString(byteBuffer, hasZ, sb);
+            if (i != numLines - 1) {
+                sb.append(COMMA);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parsePolygon(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("POLYGON").append(SPACE);
+        parseRings(byteBuffer, hasZ, sb, byteBuffer.getInt());
+
+    }
+
+    private static void parseRings(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb, int numRings) {
+        if (numRings == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        parseLineString(byteBuffer, hasZ, sb);
+        for (int i = 1; i < numRings; i++) {
+            sb.append(COMMA);
+            sb.append(SPACE);
+            parseLineString(byteBuffer, hasZ, sb);
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseMultiPolygon(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("MULTIPOLYGON").append(SPACE);
+        final int numPolygons = byteBuffer.getInt();
+        if (numPolygons == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < numPolygons; i++) {
+            byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+            byteBuffer.getInt();
+            parseRings(byteBuffer, hasZ, sb, byteBuffer.getInt());
+            if (i != numPolygons - 1) {
+                sb.append(COMMA);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseLineString(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        final int length = byteBuffer.getInt();
+        if (length == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < length; i++) {
+            writeCoordinate(byteBuffer, hasZ, sb);
+            if (i != length - 1) {
+                sb.append(COMMA);
+                sb.append(SPACE);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseGeometryCollection(ByteBuffer byteBuffer, StringBuilder sb) {
+        sb.append("GEOMETRYCOLLECTION").append(SPACE);
+        final int numGeometries = byteBuffer.getInt();
+        if (numGeometries == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < numGeometries; i++) {
+            parseGeometry(byteBuffer, sb);
+            if (i != numGeometries - 1) {
+                sb.append(COMMA);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseCircle(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("CIRCLE").append(SPACE);
+        sb.append(LPAREN);
+        sb.append(byteBuffer.getDouble()).append(SPACE).append(byteBuffer.getDouble());
+        final double r = byteBuffer.getDouble();
+        if (hasZ) {
+            sb.append(SPACE).append(byteBuffer.getDouble()).append(SPACE).append(r);
+        } else {
+            sb.append(SPACE).append(r);
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseBBox(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("BBOX").append(SPACE);
+        sb.append(LPAREN);
+        sb.append(byteBuffer.getDouble()).append(COMMA).append(SPACE).append(byteBuffer.getDouble());
+        sb.append(COMMA).append(SPACE).append(byteBuffer.getDouble()).append(COMMA).append(SPACE).append(byteBuffer.getDouble());
+        if (hasZ) {
+            sb.append(COMMA).append(SPACE).append(byteBuffer.getDouble()).append(COMMA).append(SPACE).append(byteBuffer.getDouble());
+        }
+        sb.append(RPAREN);
     }
 
     public static Geometry fromWKT(GeometryValidator validator, boolean coerce, String wkt) throws IOException, ParseException {

@@ -21,13 +21,10 @@ import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Map;
 
 public class SearchTemplateResponse extends ActionResponse implements ToXContentObject {
     public static ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
@@ -104,27 +101,6 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
-    }
-
-    public static SearchTemplateResponse fromXContent(XContentParser parser) throws IOException {
-        SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-        Map<String, Object> contentAsMap = parser.map();
-
-        if (contentAsMap.containsKey(TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
-            Object source = contentAsMap.get(TEMPLATE_OUTPUT_FIELD.getPreferredName());
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
-            searchTemplateResponse.setSource(BytesReference.bytes(builder));
-        } else {
-            XContentType contentType = parser.contentType();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
-            try (
-                XContentParser searchResponseParser = contentType.xContent()
-                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput())
-            ) {
-                searchTemplateResponse.setResponse(SearchResponse.fromXContent(searchResponseParser));
-            }
-        }
-        return searchTemplateResponse;
     }
 
     @Override

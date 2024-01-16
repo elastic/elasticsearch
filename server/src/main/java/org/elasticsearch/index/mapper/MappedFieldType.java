@@ -663,6 +663,11 @@ public abstract class MappedFieldType {
          * If field is a leaf multi-field return the path to the parent field. Otherwise, return null.
          */
         String parentField(String field);
+
+        /**
+         * The {@code _field_names} field mapper, mostly used to check if it is enabled.
+         */
+        FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
     }
 
 }

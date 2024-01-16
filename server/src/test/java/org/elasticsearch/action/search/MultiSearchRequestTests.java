@@ -30,6 +30,7 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -87,7 +88,7 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testFailWithUnknownKey() {
         final String requestContent = """
-            {"index":"test", "ignore_unavailable" : true, "unknown_key" : "open,closed"}}
+            {"index":"test", "ignore_unavailable" : true, "unknown_key" : "open,closed"}
             {"query" : {"match_all" :{}}}
             """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
@@ -103,7 +104,7 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testSimpleAddWithCarriageReturn() throws Exception {
         final String requestContent = """
-            {"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}}
+            {"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}
             {"query" : {"match_all" :{}}}
             """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
@@ -121,7 +122,7 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testDefaultIndicesOptions() throws IOException {
         final String requestContent = """
-            {"index":"test", "expand_wildcards" : "open,closed"}}
+            {"index":"test", "expand_wildcards" : "open,closed"}
             {"query" : {"match_all" :{}}}
             """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
@@ -540,6 +541,41 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
+    }
+
+    public void testFailOnExtraCharacters() throws IOException {
+        try {
+            parseMultiSearchRequestFromString("""
+                {"index": "test"}{{{{{extra chars that shouldn't be here
+                { "query": {"match_all": {}}}
+                """, null);
+            fail("should have caught first line; extra open brackets");
+        } catch (XContentParseException e) {
+            assertEquals("[1:18] Unexpected token after end of object", e.getMessage());
+        }
+        try {
+            parseMultiSearchRequestFromString("""
+                {"index": "test"}
+                { "query": {"match_all": {}}}{{{{even more chars
+                """, null);
+            fail("should have caught second line");
+        } catch (XContentParseException e) {
+            assertEquals("[1:30] Unexpected token after end of object", e.getMessage());
+        }
+        try {
+            parseMultiSearchRequestFromString("""
+                {}
+                { "query": {"match_all": {}}}}}}different error message
+                """, null);
+            fail("should have caught second line; extra closing brackets");
+        } catch (XContentParseException e) {
+            assertEquals(
+                "[1:31] Unexpected close marker '}': expected ']' (for root starting at "
+                    + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 0])\n "
+                    + "at [Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 31]",
+                e.getMessage()
+            );
+        }
     }
 
     private static MultiSearchRequest mutate(MultiSearchRequest searchRequest) throws IOException {

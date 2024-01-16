@@ -58,7 +58,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
@@ -516,8 +515,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             try (Translog.Snapshot snapshot = getTranslog().newSnapshot(localCheckpoint + 1, Long.MAX_VALUE)) {
                 return translogRecoveryRunner.run(this, snapshot);
@@ -527,8 +525,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
             int numNoOpsAdded = 0;
@@ -567,22 +564,19 @@ public class InternalEngine extends Engine {
 
     @Override
     public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo, ActionListener<Void> listener) {
-        ActionListener.run(listener, l -> {
-            try (ReleasableLock lock = readLock.acquire()) {
-                ensureOpen();
-                if (pendingTranslogRecovery.get() == false) {
-                    throw new IllegalStateException("Engine has already been recovered");
-                }
-                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo, l.delegateResponse((ll, e) -> {
-                    try {
-                        pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
-                        failEngine("failed to recover from translog", e);
-                    } catch (Exception inner) {
-                        e.addSuppressed(inner);
-                    }
-                    ll.onFailure(e);
-                }));
+        ActionListener.runWithResource(listener, this::acquireEnsureOpenRef, (l, ignoredRef) -> {
+            if (pendingTranslogRecovery.get() == false) {
+                throw new IllegalStateException("Engine has already been recovered");
             }
+            recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo, l.delegateResponse((ll, e) -> {
+                try {
+                    pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
+                    failEngine("failed to recover from translog", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                ll.onFailure(e);
+            }));
         });
     }
 
@@ -840,8 +834,7 @@ public class InternalEngine extends Engine {
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     ) {
         assert assertGetUsesIdField(get);
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             if (get.realtime()) {
                 var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, true);
                 assert result != null : "real-time get result must not be null";
@@ -861,8 +854,7 @@ public class InternalEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         assert assertGetUsesIdField(get);
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, false);
         }
     }
@@ -878,71 +870,75 @@ public class InternalEngine extends Engine {
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper,
         boolean getFromSearcher
     ) {
-        assert readLock.isHeldByCurrentThread();
+        assert isDrainedForClose() == false;
         assert get.realtime();
         final VersionValue versionValue;
         try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
             // we need to lock here to access the version map to do this truly in RT
             versionValue = getVersionFromMap(get.uid().bytes());
         }
-        boolean getFromSearcherIfNotInTranslog = getFromSearcher;
-        if (versionValue != null) {
-            /*
-             * Once we've seen the ID in the live version map, in two cases it is still possible not to
-             * be able to follow up with serving the get from the translog:
-             *  1. It is possible that once attempt handling the get, we won't see the doc in the translog
-             *     since it might have been moved out.
-             *     TODO: ideally we should keep around translog entries long enough to cover this case
-             *  2. We might not be tracking translog locations in the live version map (see @link{trackTranslogLocation})
-             *
-             * In these cases, we should always fall back to get the doc from the internal searcher.
-             */
+        try {
+            boolean getFromSearcherIfNotInTranslog = getFromSearcher;
+            if (versionValue != null) {
+                /*
+                 * Once we've seen the ID in the live version map, in two cases it is still possible not to
+                 * be able to follow up with serving the get from the translog:
+                 *  1. It is possible that once attempt handling the get, we won't see the doc in the translog
+                 *     since it might have been moved out.
+                 *     TODO: ideally we should keep around translog entries long enough to cover this case
+                 *  2. We might not be tracking translog locations in the live version map (see @link{trackTranslogLocation})
+                 *
+                 * In these cases, we should always fall back to get the doc from the internal searcher.
+                 */
 
-            getFromSearcherIfNotInTranslog = true;
-            if (versionValue.isDelete()) {
-                return GetResult.NOT_EXISTS;
-            }
-            if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
-                throw new VersionConflictEngineException(
-                    shardId,
-                    "[" + get.id() + "]",
-                    get.versionType().explainConflictForReads(versionValue.version, get.version())
-                );
-            }
-            if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
-                throw new VersionConflictEngineException(
-                    shardId,
-                    get.id(),
-                    get.getIfSeqNo(),
-                    get.getIfPrimaryTerm(),
-                    versionValue.seqNo,
-                    versionValue.term
-                );
-            }
-            if (get.isReadFromTranslog()) {
-                if (versionValue.getLocation() != null) {
-                    try {
-                        final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
-                        if (operation != null) {
-                            return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
-                        }
-                    } catch (IOException e) {
-                        maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
-                        throw new EngineException(shardId, "failed to read operation from translog", e);
-                    }
-                } else {
-                    // We need to start tracking translog locations in the live version map.
-                    trackTranslogLocation.set(true);
+                getFromSearcherIfNotInTranslog = true;
+                if (versionValue.isDelete()) {
+                    return GetResult.NOT_EXISTS;
                 }
+                if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
+                    throw new VersionConflictEngineException(
+                        shardId,
+                        "[" + get.id() + "]",
+                        get.versionType().explainConflictForReads(versionValue.version, get.version())
+                    );
+                }
+                if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                    && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
+                    throw new VersionConflictEngineException(
+                        shardId,
+                        get.id(),
+                        get.getIfSeqNo(),
+                        get.getIfPrimaryTerm(),
+                        versionValue.seqNo,
+                        versionValue.term
+                    );
+                }
+                if (get.isReadFromTranslog()) {
+                    if (versionValue.getLocation() != null) {
+                        try {
+                            final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                            if (operation != null) {
+                                return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
+                            }
+                        } catch (IOException e) {
+                            maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
+                            throw new EngineException(shardId, "failed to read operation from translog", e);
+                        }
+                    } else {
+                        // We need to start tracking translog locations in the live version map.
+                        trackTranslogLocation.set(true);
+                    }
+                }
+                assert versionValue.seqNo >= 0 : versionValue;
+                refreshIfNeeded(REAL_TIME_GET_REFRESH_SOURCE, versionValue.seqNo);
             }
-            assert versionValue.seqNo >= 0 : versionValue;
-            refreshIfNeeded(REAL_TIME_GET_REFRESH_SOURCE, versionValue.seqNo);
+            if (getFromSearcherIfNotInTranslog) {
+                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+            }
+            return null;
+        } finally {
+            assert isDrainedForClose() == false;
         }
-        if (getFromSearcherIfNotInTranslog) {
-            return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
-        }
-        return null;
     }
 
     /**
@@ -1140,8 +1136,7 @@ public class InternalEngine extends Engine {
     public IndexResult index(Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         final boolean doThrottle = index.origin().isRecovery() == false;
-        try (ReleasableLock releasableLock = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored1 = acquireEnsureOpenRef()) {
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             int reservedDocs = 0;
             try (
@@ -1607,8 +1602,7 @@ public class InternalEngine extends Engine {
         final DeleteResult deleteResult;
         int reservedDocs = 0;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
             reservedDocs = plan.reservedDocs;
@@ -1935,8 +1929,7 @@ public class InternalEngine extends Engine {
     @Override
     public NoOpResult noOp(final NoOp noOp) throws IOException {
         final NoOpResult noOpResult;
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
             try {
@@ -1950,7 +1943,7 @@ public class InternalEngine extends Engine {
     }
 
     private NoOpResult innerNoOp(final NoOp noOp) throws IOException {
-        assert readLock.isHeldByCurrentThread();
+        assert isDrainedForClose() == false;
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
@@ -2005,6 +1998,8 @@ public class InternalEngine extends Engine {
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
             noOpResult.freeze();
             return noOpResult;
+        } finally {
+            assert isDrainedForClose() == false;
         }
     }
 
@@ -2098,14 +2093,14 @@ public class InternalEngine extends Engine {
 
     @Override
     public void writeIndexingBuffer() throws IOException {
-        final long versionMapBytesUsed = versionMap.ramBytesUsedForRefresh();
+        final long reclaimableVersionMapBytes = versionMap.reclaimableRefreshRamBytes();
         // Only count bytes that are not already being written to disk. Note: this number may be negative at times if these two metrics get
         // updated concurrently. It's fine as it's only being used as a heuristic to decide on a full refresh vs. writing a single segment.
         // TODO: it might be more relevant to use the RAM usage of the largest DWPT as opposed to the overall RAM usage? Can we get this
         // exposed in Lucene?
         final long indexWriterBytesUsed = indexWriter.ramBytesUsed() - indexWriter.getFlushingBytes();
 
-        if (versionMapBytesUsed >= indexWriterBytesUsed) {
+        if (reclaimableVersionMapBytes >= indexWriterBytesUsed) {
             // This method expects to reclaim memory quickly, so if the version map is using more memory than the IndexWriter buffer then we
             // do a refresh, which is the only way to reclaim memory from the version map. IndexWriter#flushNextBuffer has similar logic: if
             // pending deletes occupy more than half of RAMBufferSizeMB then deletes are applied too.
@@ -2116,7 +2111,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void reclaimVersionMapMemory() {
+    protected void reclaimVersionMapMemory() {
         // If we're already halfway through the flush thresholds, then we do a flush. This will save us from writing segments twice
         // independently in a short period of time, once to reclaim version map memory and then to reclaim the translog. For
         // memory-constrained deployments that need to refresh often to reclaim memory, this may require flushing 2x more often than
@@ -2180,7 +2175,7 @@ public class InternalEngine extends Engine {
 
     @Override
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-        ensureOpen();
+        ensureOpen(); // best-effort, a concurrent failEngine() can still happen but that's ok
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
             throw new IllegalArgumentException(
@@ -2295,8 +2290,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             translog.rollGeneration();
             translog.trimUnreferencedReaders();
         } catch (AlreadyClosedException e) {
@@ -2314,8 +2308,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void trimUnreferencedTranslogFiles() throws EngineException {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             translog.trimUnreferencedReaders();
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -2337,8 +2330,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             translog.trimOperations(belowTerm, aboveSeqNo);
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -2524,7 +2516,8 @@ public class InternalEngine extends Engine {
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
             engineFailed = true;
-        } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
+        } else if (failedEngine.get() == null && isClosing() == false && isClosed.get() == false) {
+            // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
             // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
             throw new AssertionError("Unexpected AlreadyClosedException", ex);
@@ -2576,7 +2569,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
-        try (ReleasableLock lock = readLock.acquire()) {
+        try (var ignored = acquireEnsureOpenRef()) {
             Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos);
 
             // fill in the merges flag
@@ -2595,16 +2588,11 @@ public class InternalEngine extends Engine {
         }
     }
 
-    /**
-     * Closes the engine without acquiring the write lock. This should only be
-     * called while the write lock is hold or in a disaster condition ie. if the engine
-     * is failed.
-     */
     @Override
     protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
-            assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
-                : "Either the write lock must be held or the engine must be currently be failing itself";
+            assert isDrainedForClose() || failEngineLock.isHeldByCurrentThread()
+                : "Either all operations must have been drained or the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();
                 if (internalReaderManager != null) {

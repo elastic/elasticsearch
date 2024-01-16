@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -66,7 +64,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple() {
         return new ProjectOperator.ProjectOperatorFactory(Arrays.asList(1));
     }
 
@@ -94,12 +92,6 @@ public class ProjectOperatorTests extends OperatorTestCase {
             }
         }
         assertThat(total, equalTo(input.stream().mapToInt(Page::getPositionCount).sum()));
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        assumeTrue("doesn't allocate", false);
-        return null;
     }
 
     public void testDescriptionOfMany() {

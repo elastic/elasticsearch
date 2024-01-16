@@ -35,14 +35,14 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newLongArrayBlock(
                 new long[] {},
                 0,
-                new int[] {},
+                new int[] { 0 },
                 BitSet.valueOf(new byte[] { 0b00 }),
                 randomFrom(Block.MvOrdering.values())
             ),
             blockFactory.newLongArrayBlock(
                 new long[] { 0 },
                 0,
-                new int[] {},
+                new int[] { 0 },
                 BitSet.valueOf(new byte[] { 0b00 }),
                 randomFrom(Block.MvOrdering.values())
             ),

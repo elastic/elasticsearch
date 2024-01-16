@@ -1,11 +1,10 @@
 [[update-connector-configuration-api]]
 === Update connector configuration API
-
-preview::[]
-
 ++++
 <titleabbrev>Update connector configuration</titleabbrev>
 ++++
+
+preview::[]
 
 Updates the `configuration` of a connector.
 

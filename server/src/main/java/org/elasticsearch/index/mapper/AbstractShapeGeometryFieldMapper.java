@@ -55,12 +55,24 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             Orientation orientation,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, parser, meta);
+            super(name, isSearchable, isStored, hasDocValues, parser, null, meta);
             this.orientation = orientation;
         }
 
         public Orientation orientation() {
             return this.orientation;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // TODO: Support shapes in ESQL
+            return null;
+        }
+
+        @Override
+        protected Object nullValueAsSource(Object nullValue) {
+            // TODO: When we support shapes in ESQL; we need to return a shape in source format here
+            return nullValue;
         }
     }
 

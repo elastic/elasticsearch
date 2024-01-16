@@ -154,7 +154,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
  * Service responsible for the creation, validation, and other management of {@link UserToken}
  * objects for authentication
  */
-public final class TokenService {
+public class TokenService {
 
     /**
      * The parameters below are used to generate the cryptographic key that is used to encrypt the
@@ -234,6 +234,7 @@ public final class TokenService {
     /**
      * Creates a new token service
      */
+    @SuppressWarnings("this-escape")
     public TokenService(
         Settings settings,
         Clock clock,

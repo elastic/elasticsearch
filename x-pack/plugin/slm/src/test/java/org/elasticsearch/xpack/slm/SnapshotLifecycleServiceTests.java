@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -454,13 +455,13 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                 )
             )
         );
-        final SetOnce<ClusterStateUpdateTask> task = new SetOnce<>();
+        final SetOnce<OperationModeUpdateTask> task = new SetOnce<>();
         ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool, null) {
             @Override
             public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
                 logger.info("--> got task: [source: {}]: {}", source, updateTask);
-                if (updateTask instanceof OperationModeUpdateTask) {
-                    task.set(updateTask);
+                if (updateTask instanceof OperationModeUpdateTask operationModeUpdateTask) {
+                    task.set(operationModeUpdateTask);
                 }
             }
         };
@@ -476,7 +477,9 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             true
         );
         service.clusterChanged(new ClusterChangedEvent("blah", state, ClusterState.EMPTY_STATE));
-        assertThat(task.get(), equalTo(OperationModeUpdateTask.slmMode(OperationMode.STOPPED)));
+        assertEquals(task.get().priority(), Priority.IMMEDIATE);
+        assertNull(task.get().getILMOperationMode());
+        assertEquals(task.get().getSLMOperationMode(), OperationMode.STOPPED);
         threadPool.shutdownNow();
     }
 

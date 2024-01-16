@@ -174,6 +174,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField SYSTEM_FIELD = new ParseField("system");
             public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
             public static final ParseField REPLICATED = new ParseField("replicated");
+            public static final ParseField ROLLOVER_ON_WRITE = new ParseField("rollover_on_write");
             public static final ParseField TIME_SERIES = new ParseField("time_series");
             public static final ParseField TEMPORAL_RANGES = new ParseField("temporal_ranges");
             public static final ParseField TEMPORAL_RANGE_START = new ParseField("start");
@@ -345,6 +346,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(SYSTEM_FIELD.getPreferredName(), dataStream.isSystem());
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
+                builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
                 if (DataStream.isFailureStoreEnabled()) {
                     builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
                 }

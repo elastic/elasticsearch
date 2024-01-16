@@ -37,18 +37,18 @@ public class MvCount extends AbstractMultivalueFunction {
         @Param(
             name = "v",
             type = {
-                "unsigned_long",
-                "date",
                 "boolean",
+                "cartesian_point",
+                "date",
                 "double",
-                "ip",
-                "text",
-                "integer",
-                "keyword",
-                "version",
-                "long",
                 "geo_point",
-                "cartesian_point" }
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
         ) Expression v
     ) {
         super(source, v);
@@ -92,11 +92,8 @@ public class MvCount extends AbstractMultivalueFunction {
     }
 
     private static class Evaluator extends AbstractEvaluator {
-        private final DriverContext driverContext;
-
         protected Evaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
-            super(field);
-            this.driverContext = driverContext;
+            super(driverContext, field);
         }
 
         @Override

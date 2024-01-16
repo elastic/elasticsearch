@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -66,7 +65,6 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
 
     private final ThreadPool threadPool;
     private final Client client;
-    private final ClusterService clusterService;
     private final JobManager jobManager;
 
     @Inject
@@ -74,7 +72,6 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
         ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
-        ClusterService clusterService,
         JobManager jobManager,
         Client client
     ) {
@@ -86,7 +83,6 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
-        this.clusterService = clusterService;
         this.client = client;
         this.jobManager = jobManager;
     }
@@ -124,22 +120,6 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
     ) {
         JobsContext jobsContext = JobsContext.build(jobs, request);
 
-        ActionListener<List<OverallBucket>> overallBucketsListener = ActionListener.wrap(overallBuckets -> {
-            listener.onResponse(
-                new GetOverallBucketsAction.Response(new QueryPage<>(overallBuckets, overallBuckets.size(), OverallBucket.RESULTS_FIELD))
-            );
-        }, listener::onFailure);
-
-        ActionListener<ChunkedBucketSearcher> chunkedBucketSearcherListener = ActionListener.wrap(searcher -> {
-            if (searcher == null) {
-                listener.onResponse(
-                    new GetOverallBucketsAction.Response(new QueryPage<>(Collections.emptyList(), 0, OverallBucket.RESULTS_FIELD))
-                );
-                return;
-            }
-            searcher.searchAndComputeOverallBuckets(overallBucketsListener);
-        }, listener::onFailure);
-
         OverallBucketsProvider overallBucketsProvider = new OverallBucketsProvider(
             jobsContext.maxBucketSpan,
             request.getTopN(),
@@ -148,7 +128,29 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
         OverallBucketsProcessor overallBucketsProcessor = requiresAggregation(request, jobsContext.maxBucketSpan)
             ? new OverallBucketsAggregator(request.getBucketSpan())
             : new OverallBucketsCollector();
-        initChunkedBucketSearcher(request, jobsContext, overallBucketsProvider, overallBucketsProcessor, chunkedBucketSearcherListener);
+        initChunkedBucketSearcher(
+            request,
+            jobsContext,
+            overallBucketsProvider,
+            overallBucketsProcessor,
+            listener.delegateFailureAndWrap((l, searcher) -> {
+                if (searcher == null) {
+                    l.onResponse(
+                        new GetOverallBucketsAction.Response(new QueryPage<>(Collections.emptyList(), 0, OverallBucket.RESULTS_FIELD))
+                    );
+                    return;
+                }
+                searcher.searchAndComputeOverallBuckets(
+                    l.delegateFailureAndWrap(
+                        (ll, overallBuckets) -> ll.onResponse(
+                            new GetOverallBucketsAction.Response(
+                                new QueryPage<>(overallBuckets, overallBuckets.size(), OverallBucket.RESULTS_FIELD)
+                            )
+                        )
+                    )
+                );
+            })
+        );
     }
 
     private static boolean requiresAggregation(GetOverallBucketsAction.Request request, TimeValue maxBucketSpan) {

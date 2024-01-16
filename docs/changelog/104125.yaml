@@ -1,6 +1,6 @@
 pr: 104125
 summary: Disable machine learning on macOS x86_64
-area: Packaging
+area: Machine Learning
 type: breaking
 issues: []
 breaking:

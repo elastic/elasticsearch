@@ -1,0 +1,236 @@
+---
+setup:
+  - skip:
+      version: " - 8.12.99"
+      reason: "Insensitive equals implemented in v 8.13"
+      features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+              keyword:
+                type: keyword
+              keywordUpper:
+                type: keyword
+              text:
+                type: text
+              textCamel:
+                type: text
+              wildcard:
+                type: keyword
+              wildcardText:
+                type: text
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 0, "keyword": "Foo", "keywordUpper": "FOO", "text": "foo", "textCamel": "FoO", "wildcard": "Foo*", "wildcardText": "Foo*" }
+          - { "index": { } }
+          - { "id": 1, "keyword": "Foo", "keywordUpper": "BAR", "text": "baz", "textCamel": "BaR", "wildcard": "Bar*", "wildcardText": "Foo*" }
+
+---
+"insensitive equals field vs field keywords":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keyword =~ keywordUpper | keep id, keyword, keywordUpper'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keyword" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "keywordUpper" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "Foo", "FOO"] }
+
+---
+"insensitive equals field vs field text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where text =~ textCamel | keep id, text, textCamel'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "text" }
+  - match: { columns.1.type: "text" }
+  - match: { columns.2.name: "textCamel" }
+  - match: { columns.2.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "foo", "FoO"] }
+
+
+
+---
+"insensitive equals keyword field vs text field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keyword =~ text | keep id, keyword, text'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keyword" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "text" }
+  - match: { columns.2.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "Foo", "foo"] }
+
+
+---
+"insensitive equals keyword field vs text field 2":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keywordUpper =~ textCamel | keep id, keywordUpper, textCamel | sort id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keywordUpper" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "textCamel" }
+  - match: { columns.2.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 0, "FOO", "FoO"] }
+  - match: { values.1: [ 1, "BAR", "BaR"] }
+
+
+---
+"like tilde":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keywordUpper LIKE~ "fo*" | keep id, keywordUpper'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keywordUpper" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "FOO"] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keywordUpper LIKE~ "fo?" | keep id, keywordUpper'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keywordUpper" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "FOO"] }
+
+---
+"like tilde on text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where text LIKE~ "Fo*" | keep id, text | sort id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "text" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "foo"] }
+
+---
+"like tilde no match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where keyword LIKE~ "fo\\*" | keep id, keyword'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "keyword" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 0 }
+
+---
+"like tilde on text no match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where text =~ "fo\\*" | keep id, text'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "text" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 0 }
+
+
+---
+"like tilde quoted":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcard LIKE~ "foo\\*" | keep id, wildcard'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcard" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 0, "Foo*"] }
+
+---
+"like tilde quoted on text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where wildcardText LIKE~ "foo\\*" | keep id, wildcardText | sort id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcardText" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 0, "Foo*"] }
+  - match: { values.1: [ 1, "Foo*"] }
+

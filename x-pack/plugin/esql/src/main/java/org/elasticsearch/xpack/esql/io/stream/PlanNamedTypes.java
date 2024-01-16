@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
@@ -298,6 +299,13 @@ public final class PlanNamedTypes {
             of(BinaryComparison.class, GreaterThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            // InsensitiveEquals
+            of(
+                InsensitiveEquals.class,
+                InsensitiveEquals.class,
+                PlanNamedTypes::writeInsensitiveEquals,
+                PlanNamedTypes::readInsensitiveEquals
+            ),
             // InComparison
             of(ScalarFunction.class, In.class, PlanNamedTypes::writeInComparison, PlanNamedTypes::readInComparison),
             // RegexMatch
@@ -1100,6 +1108,20 @@ public final class PlanNamedTypes {
         out.writeOptionalZoneId(binaryComparison.zoneId());
     }
 
+    // -- InsensitiveEquals
+    static InsensitiveEquals readInsensitiveEquals(PlanStreamInput in, String name) throws IOException {
+        var source = in.readSource();
+        var left = in.readExpression();
+        var right = in.readExpression();
+        return new InsensitiveEquals(source, left, right);
+    }
+
+    static void writeInsensitiveEquals(PlanStreamOutput out, InsensitiveEquals eq) throws IOException {
+        out.writeSource(eq.source());
+        out.writeExpression(eq.left());
+        out.writeExpression(eq.right());
+    }
+
     // -- InComparison
 
     static In readInComparison(PlanStreamInput in) throws IOException {
@@ -1115,13 +1137,23 @@ public final class PlanNamedTypes {
     // -- RegexMatch
 
     static WildcardLike readWildcardLike(PlanStreamInput in, String name) throws IOException {
-        return new WildcardLike(in.readSource(), in.readExpression(), new WildcardPattern(in.readString()));
+        return new WildcardLike(
+            in.readSource(),
+            in.readExpression(),
+            new WildcardPattern(
+                in.readString(),
+                in.getTransportVersion().before(TransportVersions.ESQL_CASE_INSENSITIVE) ? false : in.readBoolean()
+            )
+        );
     }
 
     static void writeWildcardLike(PlanStreamOutput out, WildcardLike like) throws IOException {
         out.writeSource(like.source());
         out.writeExpression(like.field());
         out.writeString(like.pattern().pattern());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CASE_INSENSITIVE)) {
+            out.writeBoolean(like.caseInsensitive());
+        }
     }
 
     static RLike readRLike(PlanStreamInput in, String name) throws IOException {

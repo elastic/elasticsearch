@@ -228,7 +228,10 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testConstantFoldingLikes() {
         assertEquals(TRUE, new ConstantFolding().rule(new Like(EMPTY, of("test_emp"), new LikePattern("test%", (char) 0))).canonical());
-        assertEquals(TRUE, new ConstantFolding().rule(new WildcardLike(EMPTY, of("test_emp"), new WildcardPattern("test*"))).canonical());
+        assertEquals(
+            TRUE,
+            new ConstantFolding().rule(new WildcardLike(EMPTY, of("test_emp"), new WildcardPattern("test*", false), false)).canonical()
+        );
         assertEquals(TRUE, new ConstantFolding().rule(new RLike(EMPTY, of("test_emp"), new RLikePattern("test.emp"))).canonical());
     }
 
@@ -1441,9 +1444,9 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testMatchAllWildcardLikeToExist() throws Exception {
         for (String s : asList("*", "**", "***")) {
-            WildcardPattern pattern = new WildcardPattern(s);
+            WildcardPattern pattern = new WildcardPattern(s, false);
             FieldAttribute fa = getFieldAttribute();
-            WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
+            WildcardLike l = new WildcardLike(EMPTY, fa, pattern, false);
             Expression e = new ReplaceRegexMatch().rule(l);
             assertEquals(IsNotNull.class, e.getClass());
             IsNotNull inn = (IsNotNull) e;
@@ -1476,9 +1479,9 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testExactMatchWildcardLike() throws Exception {
         String s = "ab";
-        WildcardPattern pattern = new WildcardPattern(s);
+        WildcardPattern pattern = new WildcardPattern(s, false);
         FieldAttribute fa = getFieldAttribute();
-        WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
+        WildcardLike l = new WildcardLike(EMPTY, fa, pattern, false);
         Expression e = new ReplaceRegexMatch().rule(l);
         assertEquals(Equals.class, e.getClass());
         Equals eq = (Equals) e;

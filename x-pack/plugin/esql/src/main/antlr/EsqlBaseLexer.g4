@@ -120,6 +120,7 @@ LP : '(';
 IN: 'in';
 IS: 'is';
 LIKE: 'like';
+SLIKE: 'like~';
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
@@ -130,6 +131,7 @@ RP : ')';
 TRUE : 'true';
 
 EQ  : '==';
+CIEQ  : '=~';
 NEQ : '!=';
 LT  : '<';
 LTE : '<=';

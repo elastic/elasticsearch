@@ -14,6 +14,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -41,7 +43,9 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -1049,9 +1053,41 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    public static class ReplaceRegexMatch extends OptimizerRules.ReplaceRegexMatch {
+    public static class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
+
+        public ReplaceRegexMatch() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(RegexMatch<?> regexMatch) {
+            Expression e = regexMatch;
+            StringPattern pattern = regexMatch.pattern();
+            if (pattern.matchesAll()) {
+                e = new IsNotNull(e.source(), regexMatch.field());
+            } else if (regexMatch instanceof WildcardLike wl
+                && wl.caseInsensitive()
+                && containsWildcards(wl.pattern().pattern()) == false) {
+                    Literal literal = new Literal(regexMatch.source(), wl.pattern().pattern(), DataTypes.KEYWORD);
+                    e = regexToEquals(regexMatch, literal);
+                } else {
+                    String match = pattern.exactMatch();
+                    if (match != null) {
+                        Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                        e = regexToEquals(regexMatch, literal);
+                    }
+                }
+            return e;
+        }
+
+        private boolean containsWildcards(String pattern) {
+            return pattern.contains("*") || pattern.contains("?");
+        }
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
+            if (regexMatch instanceof WildcardLike wl && wl.caseInsensitive()) {
+                return new InsensitiveEquals(regexMatch.source(), regexMatch.field(), literal);
+            }
             return new Equals(regexMatch.source(), regexMatch.field(), literal);
         }
     }

@@ -1,0 +1,181 @@
+
+equalsTildeSimpleFilter#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "mary" | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+
+equalsTildeSimpleFilterUpper#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "MARY" | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+equalsTildeSimpleFilterPartial#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "mar" | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+;
+
+equalsTildeMixedConditionsAnd#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "mary" AND emp_no == 10011 | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+
+equalsTildeMixedConditionsOr#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "mary" OR emp_no == 10001 | keep emp_no, first_name, last_name |sort emp_no;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | Georgi             | Facello
+10011          | Mary               | Sluis
+;
+
+
+evalEqualsTilde#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where emp_no == 10001 
+| eval a = first_name =~ "georgi", b = first_name == "georgi", c = first_name =~ "GEORGI", d = first_name =~ "Geor", e = first_name =~ "GeoRgI" 
+| keep emp_no, first_name, a, b, c, d, e;
+
+emp_no:integer | first_name:keyword | a:boolean | b:boolean | c:boolean | d:boolean | e:boolean
+10001          | Georgi             | true      | false     | true      | false     | true
+;
+
+
+equalsTildeConstantsAndFolding#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+row name = "foobar" | where "FoObAr" =~ name;
+
+name:keyword
+foobar
+;
+
+
+wildcardEqualsTildeFold#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+row name = "foobar" | where name =~ "FoOb*";
+
+name:keyword
+;
+
+
+wildcardEqualsTilde#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "georg*" | sort emp_no | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+;
+
+
+
+######## LIKE~ 
+
+likeTildeExactFold#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+row name = "foobar" | where name LIKE~ "FoObAr";
+
+name:keyword
+foobar
+;
+
+likeTildeExactFold2#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+row name = "foobar" | where name LIKE~ "foobar";
+
+name:keyword
+foobar
+;
+
+
+likeTildeExact#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name LIKE~ "georgy" | sort emp_no | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10055          | Georgy
+;
+
+likeTildeExact2#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name LIKE~ "GeOrGy" | sort emp_no | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10055          | Georgy
+;
+
+
+likeTildeSimple#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+row name = "foobar" | where name LIKE~ "FoOb*";
+
+name:keyword
+foobar
+;
+
+likeTildeNoMatchSimple#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+row name = "foobar" | where name LIKE~ "FoOb";
+
+name:keyword
+;
+
+
+likeTilde#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name LIKE~ "georg*" | sort emp_no | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10055          | Georgy
+;
+
+likeTildeSuffix#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name LIKE~ "*eOrGi" | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+likeTildePrefixSuffix#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name LIKE~ "*eOrG*" | sort emp_no | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10055          | Georgy
+;
+
+
+likeTildeMixedConditionsOr#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name LIKE~ "mar*" OR emp_no == 10001 | keep emp_no, first_name, last_name |sort emp_no;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | Georgi             | Facello
+10011          | Mary               | Sluis
+10069          | Margareta          | Bierman
+;
+
+
+likeTildeMixedConditionsAnd#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name LIKE~ "mar*" AND emp_no == 10011 | keep emp_no, first_name, last_name |sort emp_no;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+likeTildePrefixSuffixNot#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where not (first_name LIKE~ "*eOrG*") | sort emp_no | keep emp_no, first_name | limit 1;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+;
+
+
+likeTildePrefixSuffixNotNot#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where not (not (first_name LIKE~ "*eOrG*")) | sort emp_no | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10055          | Georgy
+;
+
+
+likeTildeQuoted#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name LIKE~ "georg\\*" | sort emp_no | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+;

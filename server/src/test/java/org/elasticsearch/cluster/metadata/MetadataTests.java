@@ -200,8 +200,6 @@ public class MetadataTests extends ESTestCase {
             Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d2" });
             assertEquals(1, aliases.size());
             List<DataStreamAlias> found = aliases.get("d2");
-            var x = found.stream().map(DataStreamAlias::getName).toList();
-
             assertThat(found, transformedItemsMatch(DataStreamAlias::getAlias, contains("alias2", "alias2-part2")));
         }
     }

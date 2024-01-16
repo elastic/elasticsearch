@@ -677,6 +677,26 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    /**
+     * Executes all applicable pipelines for a collection of documents.
+     * @param numberOfActionRequests The total number of requests to process.
+     * @param actionRequests The collection of requests to be processed.
+     * @param onDropped A callback executed when a document is dropped by a pipeline.
+     *                  Accepts the slot in the collection of requests that the document occupies.
+     * @param shouldStoreFailure A predicate executed on each ingest failure to determine if the
+     *                           failure should be stored somewhere.
+     * @param onStoreFailure A callback executed when a document fails ingest but the failure should
+     *                       be persisted elsewhere. Accepts the slot in the collection of requests
+     *                       that the document occupies, the index name that the request was targeting
+     *                       at the time of failure, and the exception that the document encountered.
+     * @param onFailure A callback executed when a document fails ingestion and does not need to be
+     *                  persisted. Accepts the slot in the collection of requests that the document
+     *                  occupies, and the exception that the document encountered.
+     * @param onCompletion A callback executed once all documents have been processed. Accepts the thread
+     *                     that ingestion completed on or an exception in the event that the entire operation
+     *                     has failed.
+     * @param executorName Which executor the bulk request should be executed on.
+     */
     public void executeBulkRequest(
         final int numberOfActionRequests,
         final Iterable<DocWriteRequest<?>> actionRequests,

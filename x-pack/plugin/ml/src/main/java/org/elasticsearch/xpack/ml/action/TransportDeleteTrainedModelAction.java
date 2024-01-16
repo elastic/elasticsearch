@@ -133,7 +133,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         );
 
         // setting waitForCompletion to false here so that we don't block waiting for an existing task to complete before returning it
-        getDownloadTaskInfo(mlClient, modelId, false, taskListener, timeout);
+        getDownloadTaskInfo(mlClient, modelId, false, timeout, () -> null, taskListener);
     }
 
     static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata, IngestService ingestService) {

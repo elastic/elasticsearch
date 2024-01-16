@@ -41,7 +41,8 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
         SearchScrollRequest request,
         SearchTask task,
         ParsedScrollId scrollId,
-        ActionListener<SearchResponse> listener, SearchResponseTookMetrics searchResponseTookMetrics
+        ActionListener<SearchResponse> listener,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
         super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService, searchResponseTookMetrics);
         this.task = task;

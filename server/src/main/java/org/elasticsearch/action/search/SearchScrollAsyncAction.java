@@ -52,7 +52,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     private final AtomicInteger successfulOps;
     private final SearchResponseTookMetrics searchResponseTookMetrics;
 
-
     protected SearchScrollAsyncAction(
         ParsedScrollId scrollId,
         Logger logger,

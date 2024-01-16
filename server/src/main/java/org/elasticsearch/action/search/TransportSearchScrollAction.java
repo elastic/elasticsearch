@@ -34,7 +34,6 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final SearchTransportService searchTransportService;
     private final SearchResponseTookMetrics searchResponseTookMetrics;
 
-
     @Inject
     public TransportSearchScrollAction(
         TransportService transportService,

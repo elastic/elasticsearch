@@ -493,7 +493,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
         }
-        return new SearchResponse( //done
+        return new SearchResponse(
+            // done
             hits,
             aggs,
             suggest,

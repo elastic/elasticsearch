@@ -27,7 +27,6 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
     private final AtomicArray<QueryFetchSearchResult> queryFetchResults;
     private final SearchResponseTookMetrics searchResponseTookMetrics;
 
-
     SearchScrollQueryAndFetchAsyncAction(
         Logger logger,
         ClusterService clusterService,

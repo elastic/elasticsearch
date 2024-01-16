@@ -72,12 +72,23 @@ public class APMAgentSettingsTests extends ESTestCase {
      * Check that invalid or forbidden APM agent settings are rejected.
      */
     public void testRejectForbiddenOrUnknownSettings() {
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
-            .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "unknown", "true")
-            .build();
+        Exception exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(
+                Settings.builder()
+                    .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+                    .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "unknown", "true")
+                    .build()
+            )
+        );
+        assertThat(exception.getMessage(), containsString("[telemetry.agent.unknown]"));
 
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings));
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(
+                Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).put("tracing.apm.agent.unknown", "true").build()
+            )
+        );
         assertThat(exception.getMessage(), containsString("[tracing.apm.agent.unknown]"));
     }
 }

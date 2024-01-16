@@ -92,6 +92,7 @@ public class APMAgentSettings {
     }
 
     private static final String APM_SETTING_PREFIX = "tracing.apm.";
+    private static final String TELEMETRY_SETTING_PREFIX = "telemetry.";
 
     /**
      * Allow-list of APM agent config keys users are permitted to configure.
@@ -221,6 +222,7 @@ public class APMAgentSettings {
     );
 
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
+        TELEMETRY_SETTING_PREFIX + "agent.",
         APM_SETTING_PREFIX + "agent.",
         (qualifiedKey) -> {
             final String[] parts = qualifiedKey.split("\\.");

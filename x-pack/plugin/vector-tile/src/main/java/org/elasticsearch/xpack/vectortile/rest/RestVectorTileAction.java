@@ -145,8 +145,6 @@ public class RestVectorTileAction extends BaseRestHandler {
                                 .filter(a -> GRID_FIELD.equals(a.getName()) == false && BOUNDS_FIELD.equals(a.getName()) == false)
                                 .collect(Collectors.toList())
                         );
-                    // TODO: I think this is copying a Search Response to strip out the hits,
-                    // but took should have been captured at the transport layer so no need to measure here.
                     final SearchResponse meta = new SearchResponse(
                         // remove actual hits
                         SearchHits.empty(searchResponse.getHits().getTotalHits(), searchResponse.getHits().getMaxScore()),

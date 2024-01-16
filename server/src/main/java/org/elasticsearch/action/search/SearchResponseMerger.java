@@ -229,7 +229,7 @@ public final class SearchResponseMerger implements Releasable {
             totalShards,
             successfulShards,
             skippedShards,
-            searchResponseTookMetrics.record(searchTimeProvider.buildTookInMillis()),  // TODO: John here
+            searchResponseTookMetrics.record(searchTimeProvider.buildTookInMillis()),
             shardFailures,
             clusters,
             null

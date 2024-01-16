@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,14 +31,13 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 
 public final class RestResponse {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
 
-    private static final String STATUS = "status";
+    static final String STATUS = "status";
 
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
 
@@ -187,42 +184,6 @@ public final class RestResponse {
             status,
             channel.newErrorBuilder().startObject().field("error", errorMessage).field("status", status.getStatus()).endObject()
         );
-    }
-
-    public static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-
-        ElasticsearchException exception = null;
-        RestStatus status = null;
-
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            }
-            if (STATUS.equals(currentFieldName)) {
-                if (token != XContentParser.Token.FIELD_NAME) {
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                    status = RestStatus.fromCode(parser.intValue());
-                }
-            } else {
-                exception = ElasticsearchException.failureFromXContent(parser);
-            }
-        }
-
-        if (exception == null) {
-            throw new IllegalStateException("Failed to parse elasticsearch status exception: no exception was found");
-        }
-
-        ElasticsearchStatusException result = new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
-        for (String header : exception.getHeaderKeys()) {
-            result.addHeader(header, exception.getHeader(header));
-        }
-        for (String metadata : exception.getMetadataKeys()) {
-            result.addMetadata(metadata, exception.getMetadata(metadata));
-        }
-        return result;
     }
 
     public void copyHeaders(ElasticsearchException ex) {

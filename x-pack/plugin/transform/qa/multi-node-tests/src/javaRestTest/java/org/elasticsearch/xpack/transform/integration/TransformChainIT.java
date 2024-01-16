@@ -79,7 +79,7 @@ public class TransformChainIT extends TransformRestTestCase {
     private TestThreadPool threadPool;
 
     @Before
-    public void createThreadPool() throws IOException {
+    public void setupTransformTests() throws IOException {
         threadPool = new TestThreadPool(getTestName());
 
         // Create destination index template. It will be used by all the transforms in this test.

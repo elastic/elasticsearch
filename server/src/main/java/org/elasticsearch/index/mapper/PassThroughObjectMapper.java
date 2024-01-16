@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,8 +27,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  * is set, all keyword subfields are marked as dimensions and included in routing and tsid calculations.
  */
 public class PassThroughObjectMapper extends ObjectMapper {
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PassThroughObjectMapper.class);
-
     public static final String CONTENT_TYPE = "passthrough";
 
     public static class Builder extends ObjectMapper.Builder {

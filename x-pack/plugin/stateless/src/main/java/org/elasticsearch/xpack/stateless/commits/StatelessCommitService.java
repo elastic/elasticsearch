@@ -29,9 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -1324,11 +1322,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     commit,
                     compoundCommit
                 );
-                if (state.getMinTransportVersion().onOrAfter(TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED)) {
-                    throw new RecoveryCommitTooNewException(shardId, message);
-                } else {
-                    throw new ElasticsearchException(message);
-                }
+                throw new RecoveryCommitTooNewException(shardId, message);
             }
             // Register the commit that is going to be used for unpromotable recovery
             long previousGenerationUploaded = -1;

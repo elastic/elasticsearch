@@ -481,9 +481,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public Response(StreamInput in) throws IOException {
             this(
                 in.readCollectionAsList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
-                    ? in.readOptionalWriteable(RolloverConfiguration::new)
-                    : null
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null
             );
         }
 

@@ -447,20 +447,20 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             API_KEY_ADMIN_AUTH_HEADER,
             """
                 {"query": {"simple_query_string": {"query": "key*", "fields": ["no_such_field_pattern*"]}}}""",
-            apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
+            apiKeys -> assertThat(apiKeys, is(empty()))
         );
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
             """
                 {"query": {"simple_query_string": {"query": "prod 42 true", "fields": ["metadata.*"]}}}""",
-            apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
+            apiKeys -> assertThat(apiKeys, is(empty()))
         );
         // disallowed fields are silently ignored for the simple query string query type
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
             """
                 {"query": {"simple_query_string": {"query": "ke*", "fields": ["x*", "api_key_hash"]}}}""",
-            apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
+            apiKeys -> assertThat(apiKeys, is(empty()))
         );
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
@@ -496,7 +496,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             API_KEY_ADMIN_AUTH_HEADER,
             """
                 {"query": {"simple_query_string": {"query": "-rest term_which_does_not_exist"}}}""",
-            apiKeys -> assertThat(apiKeys.isEmpty(), is(true))
+            apiKeys -> assertThat(apiKeys, is(empty()))
         );
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
@@ -535,7 +535,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         );
         assertQuery(batmanUserCredentials, """
             {"query": {"simple_query_string": {"query": "+prod key*", "fields": ["name", "username", "metadata"],
-            "default_operator": "AND"}}}""", apiKeys -> assertThat(apiKeys.isEmpty(), is(true)));
+            "default_operator": "AND"}}}""", apiKeys -> assertThat(apiKeys, is(empty())));
         assertQuery(
             batmanUserCredentials,
             """

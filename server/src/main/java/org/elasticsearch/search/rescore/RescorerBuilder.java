@@ -116,16 +116,9 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
      * execute the rescore against a particular shard.
      */
     public final RescoreContext buildContext(SearchExecutionContext context) throws IOException {
-        int finalWindowSize = windowSize == null ? defaultWindowSize() : windowSize;
+        int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
         RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
         return rescoreContext;
-    }
-
-    /**
-     * Returns the computed window size for the rescorer.
-     */
-    protected int defaultWindowSize() {
-        return DEFAULT_WINDOW_SIZE;
     }
 
     /**

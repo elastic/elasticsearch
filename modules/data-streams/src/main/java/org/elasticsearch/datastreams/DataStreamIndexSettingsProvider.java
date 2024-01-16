@@ -179,9 +179,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 for (String pathMatch : template.pathMatch()) {
                     var mapper = parserContext.typeParser(mappingSnippetType)
                         // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
-                        // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
-                        // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
-                        // Note that a shallow copy of the map is not enough if there are multi-fields.
+                        // that only the first pathMatch passed in gets recognized as a time_series_dimension.
+                        // To avoid this, each parsing call uses a new mapping snippet.
+                        // Note that a shallow copy of the mappingSnippet map is not enough if there are multi-fields.
                         .parse(pathMatch, template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE), parserContext)
                         .build(MapperBuilderContext.root(false, false));
                     extractPath(routingPaths, mapper);

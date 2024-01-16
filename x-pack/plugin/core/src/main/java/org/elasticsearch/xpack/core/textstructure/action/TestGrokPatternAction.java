@@ -105,10 +105,10 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (grokPattern == null) {
-                validationException = addValidationError("[" + GROK_PATTERN.getPreferredName() + "] missing.", validationException);
+                validationException = addValidationError("[" + GROK_PATTERN.getPreferredName() + "] missing", validationException);
             }
-            if (texts == null || texts.isEmpty()) {
-                validationException = addValidationError("[" + TEXTS.getPreferredName() + "] missing or empty.", validationException);
+            if (texts == null) {
+                validationException = addValidationError("[" + TEXTS.getPreferredName() + "] missing", validationException);
             }
             return validationException;
         }

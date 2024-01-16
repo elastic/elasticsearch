@@ -7,17 +7,27 @@
 
 package org.elasticsearch.xpack.textstructure.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.textstructure.action.TestGrokPatternAction;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 public class TransportTestGrokPatternAction extends HandledTransportAction<TestGrokPatternAction.Request, TestGrokPatternAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportTestGrokPatternAction.class);
 
     private final ThreadPool threadPool;
 
@@ -35,6 +45,23 @@ public class TransportTestGrokPatternAction extends HandledTransportAction<TestG
 
     @Override
     protected void doExecute(Task task, TestGrokPatternAction.Request request, ActionListener<TestGrokPatternAction.Response> listener) {
-        listener.onFailure(new Exception("not implemented yet! request=" + request));
+        // As determining the text structure might take a while, we run
+        // in a different thread to avoid blocking the network thread.
+        threadPool.generic().execute(() -> {
+            try {
+                listener.onResponse(getResponse(request));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private TestGrokPatternAction.Response getResponse(TestGrokPatternAction.Request request) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(true), request.getGrokPattern(), logger::warn);
+        List<Map<String, Object>> ranges = new ArrayList<>();
+        for (String text : request.getTexts()) {
+            ranges.add(grok.captureRanges(text));
+        }
+        return new TestGrokPatternAction.Response(ranges);
     }
 }

@@ -11,7 +11,7 @@ package org.elasticsearch.grok;
 import org.joni.Region;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -39,7 +39,7 @@ public interface GrokCaptureExtracter {
             List<GrokCaptureConfig> captureConfig,
             Function<GrokCaptureConfig, Function<Consumer<Object>, GrokCaptureExtracter>> getExtracter
         ) {
-            result = captureConfig.isEmpty() ? emptyMap() : new HashMap<>();
+            result = captureConfig.isEmpty() ? emptyMap() : new LinkedHashMap<>();
             fieldExtracters = new ArrayList<>(captureConfig.size());
             for (GrokCaptureConfig config : captureConfig) {
                 fieldExtracters.add(getExtracter.apply(config).apply(value -> {

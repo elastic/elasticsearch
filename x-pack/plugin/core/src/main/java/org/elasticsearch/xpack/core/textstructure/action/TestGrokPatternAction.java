@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.grok.GrokCaptureExtracter;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -132,16 +134,58 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
 
     public static class Response extends ActionResponse implements ToXContentObject, Writeable {
 
-        Response(StreamInput in) throws IOException {
+        private final List<Map<String, Object>> ranges;
+
+        public Response(List<Map<String, Object>> ranges) {
+            this.ranges = ranges;
+        }
+
+        public Response(StreamInput in) throws IOException {
             super(in);
+            ranges = in.readCollectionAsList(StreamInput::readGenericMap);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startArray("matches");
+            for (Map<String, Object> ranges : ranges) {
+                if (ranges == null) {
+                    builder.nullValue();
+                } else {
+                    builder.startObject();
+                    for (Map.Entry<String, Object> rangeOrList : ranges.entrySet()) {
+                        if (rangeOrList.getValue() instanceof GrokCaptureExtracter.Range) {
+                            GrokCaptureExtracter.Range range = (GrokCaptureExtracter.Range) rangeOrList.getValue();
+                            builder.startObject(rangeOrList.getKey());
+                            builder.field("match", range.match());
+                            builder.field("offset", range.offset());
+                            builder.field("length", range.length());
+                            builder.endObject();
+                        } else if (rangeOrList.getValue() instanceof List) {
+                            builder.startArray(rangeOrList.getKey());
+                            for (Object rangeObject : (List<?>) rangeOrList.getValue()) {
+                                GrokCaptureExtracter.Range range = (GrokCaptureExtracter.Range) rangeObject;
+                                builder.startObject();
+                                builder.field("match", range.match());
+                                builder.field("offset", range.offset());
+                                builder.field("length", range.length());
+                                builder.endObject();
+                            }
+                            builder.endArray();
+                        }
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.endObject();
             return builder;
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeGenericList(ranges, StreamOutput::writeGenericMap);
+        }
     }
 }

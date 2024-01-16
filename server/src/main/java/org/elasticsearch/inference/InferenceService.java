@@ -98,6 +98,17 @@ public interface InferenceService extends Closeable {
     }
 
     /**
+     * Put the model definition (if applicable)
+     * The main purpose of this function is to download ELSER
+     * The default action does nothing except acknowledge the request (true).
+     * @param modelVariant The configuration of the model variant to be downloaded
+     * @param listener The listener
+     */
+    default void putModel(Model modelVariant, ActionListener<Boolean> listener) {
+        listener.onResponse(true);
+    }
+
+    /**
      * Optionally test the new model configuration in the inference service.
      * This function should be called when the model is first created, the
      * default action is to do nothing.

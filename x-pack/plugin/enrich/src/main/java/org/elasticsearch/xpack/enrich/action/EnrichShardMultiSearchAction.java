@@ -315,7 +315,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             1,
             1,
             0,
-            1L,
+            1L, // TODO: This does not measure "took", as it's part of an internal API. What should we do here?
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );

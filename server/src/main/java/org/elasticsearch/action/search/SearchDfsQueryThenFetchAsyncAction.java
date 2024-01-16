@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -44,7 +45,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final TransportSearchAction.SearchTimeProvider timeProvider,
         final ClusterState clusterState,
         final SearchTask task,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
         super(
             "dfs",
@@ -62,7 +64,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             task,
             new ArraySearchPhaseResults<>(shardsIts.size()),
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters,
+            searchResponseTookMetrics
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         addReleasable(queryPhaseResultConsumer::decRef);

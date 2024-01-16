@@ -15,6 +15,8 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -29,7 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class RestSearchScrollActionTests extends ESTestCase {
 
     public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        RestSearchScrollAction action = new RestSearchScrollAction();
+        RestSearchScrollAction action = new RestSearchScrollAction(
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+        );
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray("{invalid_json}"),
             XContentType.JSON
@@ -49,7 +53,9 @@ public class RestSearchScrollActionTests extends ESTestCase {
                     assertThat(request.scroll().keepAlive().getStringRep(), equalTo("1m"));
                 }
             };
-            RestSearchScrollAction action = new RestSearchScrollAction();
+            RestSearchScrollAction action = new RestSearchScrollAction(
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            );
             Map<String, String> params = new HashMap<>();
             params.put("scroll_id", "QUERY_STRING");
             params.put("scroll", "1000m");

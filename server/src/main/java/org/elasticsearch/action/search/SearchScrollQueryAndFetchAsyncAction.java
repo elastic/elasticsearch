@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -24,6 +25,8 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
 
     private final SearchTask task;
     private final AtomicArray<QueryFetchSearchResult> queryFetchResults;
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
+
 
     SearchScrollQueryAndFetchAsyncAction(
         Logger logger,
@@ -32,11 +35,13 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
         SearchScrollRequest request,
         SearchTask task,
         ParsedScrollId scrollId,
-        ActionListener<SearchResponse> listener
+        ActionListener<SearchResponse> listener,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
-        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService);
+        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService, searchResponseTookMetrics);
         this.task = task;
         this.queryFetchResults = new AtomicArray<>(scrollId.getContext().length);
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
     }
 
     @Override

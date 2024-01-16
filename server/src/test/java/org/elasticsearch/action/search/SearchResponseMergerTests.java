@@ -18,6 +18,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -104,7 +106,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 randomIntBetween(0, 10000),
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 timeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -141,7 +144,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             PriorityQueue<Tuple<SearchShardTarget, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(
@@ -213,7 +217,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
@@ -274,7 +279,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             List<ShardSearchFailure> expectedFailures = new ArrayList<>();
@@ -323,7 +329,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             Map<String, SearchProfileShardResult> expectedProfile = new HashMap<>();
@@ -379,7 +386,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -465,7 +473,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -569,7 +578,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
-                emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1")))
+                emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1"))),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             for (Max max : Arrays.asList(max1, max2)) {
@@ -619,7 +629,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 emptyReduceContextBuilder(
                     new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                         .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
-                )
+                ),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             int totalCount = 0;
@@ -730,7 +741,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 size,
                 trackTotalHitsUpTo,
                 timeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
 
@@ -891,7 +903,16 @@ public class SearchResponseMergerTests extends ESTestCase {
     public void testMergeNoResponsesAdded() {
         long currentRelativeTime = randomNonNegativeLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
-        try (SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, emptyReduceContextBuilder())) {
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                10,
+                Integer.MAX_VALUE,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            )
+        ) {
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
             assertEquals(0, merger.numResponses());
             SearchResponse response = merger.getMergedResponse(clusters);
@@ -923,7 +944,16 @@ public class SearchResponseMergerTests extends ESTestCase {
     public void testMergeEmptySearchHitsWithNonEmpty() {
         long currentRelativeTime = randomLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
-        try (SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, emptyReduceContextBuilder())) {
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                10,
+                Integer.MAX_VALUE,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            )
+        ) {
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
             int numFields = randomIntBetween(1, 3);
             SortField[] sortFields = new SortField[numFields];
@@ -1019,7 +1049,16 @@ public class SearchResponseMergerTests extends ESTestCase {
         Tuple<Integer, TotalHits.Relation> randomTrackTotalHits = randomTrackTotalHits();
         int trackTotalHitsUpTo = randomTrackTotalHits.v1();
         TotalHits.Relation totalHitsRelation = randomTrackTotalHits.v2();
-        try (SearchResponseMerger merger = new SearchResponseMerger(0, 10, trackTotalHitsUpTo, timeProvider, emptyReduceContextBuilder())) {
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                10,
+                trackTotalHitsUpTo,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            )
+        ) {
             int numResponses = randomIntBetween(1, 5);
             TotalHits expectedTotalHits = null;
             for (int i = 0; i < numResponses; i++) {

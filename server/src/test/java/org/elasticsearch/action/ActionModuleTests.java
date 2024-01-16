@@ -32,8 +32,10 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -123,7 +125,8 @@ public class ActionModuleTests extends ESTestCase {
             mock(ClusterService.class),
             null,
             List.of(),
-            RestExtension.allowAll()
+            RestExtension.allowAll(),
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         );
         actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -184,7 +187,8 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
-                RestExtension.allowAll()
+                RestExtension.allowAll(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
@@ -238,7 +242,8 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
-                RestExtension.allowAll()
+                RestExtension.allowAll(),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             );
             actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -287,7 +292,8 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     null,
                     List.of(),
-                    RestExtension.allowAll()
+                    RestExtension.allowAll(),
+                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                 )
             );
             assertThat(
@@ -327,7 +333,8 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     null,
                     List.of(),
-                    RestExtension.allowAll()
+                    RestExtension.allowAll(),
+                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                 )
             );
             assertThat(

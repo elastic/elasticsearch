@@ -18,11 +18,13 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
@@ -87,7 +89,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             null,
             results,
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         ) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

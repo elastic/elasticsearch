@@ -27,6 +27,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -75,19 +76,22 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     private final SetOnce<MutableSearchResponse> searchResponse = new SetOnce<>();
 
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
+
     /**
      * Creates an instance of {@link AsyncSearchTask}.
      *
-     * @param id The id of the task.
-     * @param type The type of the task.
-     * @param action The action name.
-     * @param parentTaskId The parent task id.
-     * @param originHeaders All the request context headers.
-     * @param taskHeaders The filtered request headers for the task.
-     * @param searchId The {@link AsyncExecutionId} of the task.
-     * @param threadPool The threadPool to schedule runnable.
+     * @param id                              The id of the task.
+     * @param type                            The type of the task.
+     * @param action                          The action name.
+     * @param parentTaskId                    The parent task id.
+     * @param originHeaders                   All the request context headers.
+     * @param taskHeaders                     The filtered request headers for the task.
+     * @param searchId                        The {@link AsyncExecutionId} of the task.
+     * @param threadPool                      The threadPool to schedule runnable.
      * @param aggReduceContextSupplierFactory A factory that creates as supplier to create final reduce contexts, we need a factory in
      *                                        order to inject the task itself to the reduce context.
+     * @param searchResponseTookMetrics
      */
     AsyncSearchTask(
         long id,
@@ -101,7 +105,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         AsyncExecutionId searchId,
         Client client,
         ThreadPool threadPool,
-        Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory
+        Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
@@ -110,6 +115,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         this.client = client;
         this.threadPool = threadPool;
         this.aggReduceContextSupplier = aggReduceContextSupplierFactory.apply(this::isCancelled);
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
         this.progressListener = new Listener();
         setProgressListener(progressListener);
     }
@@ -454,7 +460,13 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
             }
             searchResponse.set(
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
+                new MutableSearchResponse(
+                    shards.size() + skipped.size(),
+                    skipped.size(),
+                    clusters,
+                    threadPool.getThreadContext(),
+                    searchResponseTookMetrics
+                )
             );
             executeInitListeners();
         }
@@ -508,7 +520,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         @Override
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
-            var r = new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext());
+            var r = new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext(), searchResponseTookMetrics);
             if (searchResponse.trySet(r) == false) {
                 r.close();
             }

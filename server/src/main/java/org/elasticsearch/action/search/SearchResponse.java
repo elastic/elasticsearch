@@ -60,7 +60,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
-    private static final ParseField TOOK = new ParseField("took");
+    private static final ParseField TOOK = new ParseField("took"); // here
     private static final ParseField TIMED_OUT = new ParseField("timed_out");
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
@@ -79,7 +79,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final int skippedShards;
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
-    private final long tookInMillis;
+    private final long tookInMillis; // here
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -493,7 +493,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
         }
-        return new SearchResponse(
+        return new SearchResponse( //done
             hits,
             aggs,
             suggest,

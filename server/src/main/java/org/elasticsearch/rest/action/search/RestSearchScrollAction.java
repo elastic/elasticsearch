@@ -31,6 +31,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSearchScrollAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
+
+    public RestSearchScrollAction(SearchResponseTookMetrics searchResponseTookMetrics) {
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
+    }
+
     @Override
     public String getName() {
         return "search_scroll_action";

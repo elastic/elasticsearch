@@ -60,6 +60,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -147,6 +148,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final ExecutorSelector executorSelector;
     private final int defaultPreFilterShardSize;
     private final boolean ccsCheckCompatibility;
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
 
     @Inject
     public TransportSearchAction(
@@ -161,7 +163,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
         ExecutorSelector executorSelector,
-        SearchTransportAPMMetrics searchTransportMetrics
+        SearchTransportAPMMetrics searchTransportMetrics,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -178,6 +181,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.executorSelector = executorSelector;
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -381,7 +385,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             clusters,
                             searchContext,
                             searchPhaseProvider.apply(l)
-                        )
+                        ),
+                        searchResponseTookMetrics
                     );
                 } else {
                     SearchResponse.Clusters clusters = new SearchResponse.Clusters(
@@ -506,7 +511,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         RemoteClusterService remoteClusterService,
         ThreadPool threadPool,
         ActionListener<SearchResponse> listener,
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (localIndices == null && remoteIndices.size() == 1) {
@@ -554,7 +560,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getTotalShards(),
                             searchResponse.getSuccessfulShards(),
                             searchResponse.getSkippedShards(),
-                            timeProvider.buildTookInMillis(),
+                            searchResponseTookMetrics.record(timeProvider.buildTookInMillis()),
                             searchResponse.getShardFailures(),
                             clusters,
                             searchResponse.pointInTimeId()
@@ -578,7 +584,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
                 searchRequest.source(),
                 timeProvider,
-                aggReduceContextBuilder
+                aggReduceContextBuilder,
+                searchResponseTookMetrics
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
@@ -637,7 +644,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     static SearchResponseMerger createSearchResponseMerger(
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
         final int from;
         final int size;
@@ -656,7 +664,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder);
+        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder, searchResponseTookMetrics);
     }
 
     /**
@@ -1319,7 +1327,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                        searchResponseTookMetrics
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -1337,7 +1346,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                        searchResponseTookMetrics
                     );
                 }
             }

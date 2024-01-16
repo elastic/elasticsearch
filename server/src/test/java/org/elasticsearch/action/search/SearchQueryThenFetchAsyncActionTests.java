@@ -34,6 +34,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -44,6 +45,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -212,7 +214,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             ) {
                 @Override
                 protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -372,7 +375,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             timeProvider,
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         );
 
         newSearchAsyncAction.start();
@@ -511,7 +515,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             timeProvider,
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -660,7 +665,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             timeProvider,
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

@@ -21,6 +21,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -89,7 +91,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new AsyncExecutionId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool),
             threadPool,
-            (t) -> () -> null
+            (t) -> () -> null,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         );
     }
 
@@ -109,7 +112,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new AsyncExecutionId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool),
             threadPool,
-            (t) -> () -> null
+            (t) -> () -> null,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         );
         assertEquals("""
             async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], source\
@@ -129,7 +133,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new AsyncExecutionId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool),
             threadPool,
-            (t) -> () -> null
+            (t) -> () -> null,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         );
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();

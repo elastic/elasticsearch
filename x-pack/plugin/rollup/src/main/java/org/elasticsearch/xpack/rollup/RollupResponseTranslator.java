@@ -353,7 +353,7 @@ public class RollupResponseTranslator {
             totalShards,
             sucessfulShards,
             skippedShards,
-            took,
+            took, // TODO: since this is combining multiple pre-existing search responses, we don't want to measure twice.
             ShardSearchFailure.EMPTY_ARRAY,
             rolledResponses.get(0).getClusters()
         );

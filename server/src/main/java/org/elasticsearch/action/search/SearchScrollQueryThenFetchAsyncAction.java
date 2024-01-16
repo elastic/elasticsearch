@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
@@ -31,6 +32,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
     private final SearchTask task;
     private final AtomicArray<FetchSearchResult> fetchResults;
     private final AtomicArray<QuerySearchResult> queryResults;
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
 
     SearchScrollQueryThenFetchAsyncAction(
         Logger logger,
@@ -39,12 +41,13 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
         SearchScrollRequest request,
         SearchTask task,
         ParsedScrollId scrollId,
-        ActionListener<SearchResponse> listener
+        ActionListener<SearchResponse> listener, SearchResponseTookMetrics searchResponseTookMetrics
     ) {
-        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService);
+        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService, searchResponseTookMetrics);
         this.task = task;
         this.fetchResults = new AtomicArray<>(scrollId.getContext().length);
         this.queryResults = new AtomicArray<>(scrollId.getContext().length);
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
     }
 
     protected void onFirstPhaseResult(int shardId, ScrollQuerySearchResult result) {

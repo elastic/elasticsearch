@@ -16,10 +16,12 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
@@ -57,7 +59,14 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, dummyListener(), request, null) {
+            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId,
+            logger,
+            discoveryNodes,
+            dummyListener(),
+            request,
+            null,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,
@@ -154,7 +163,15 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             }
         };
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, listener, request, null) {
+            SearchAsyncActionTests.TestSearchPhaseResult>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            listener,
+            request,
+            null,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,
@@ -227,7 +244,15 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, dummyListener(), request, null) {
+            SearchAsyncActionTests.TestSearchPhaseResult>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            dummyListener(),
+            request,
+            null,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,
@@ -312,7 +337,15 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, dummyListener(), request, null) {
+            SearchAsyncActionTests.TestSearchPhaseResult>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            dummyListener(),
+            request,
+            null,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,
@@ -415,7 +448,15 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             }
         };
         SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, listener, request, null) {
+            SearchAsyncActionTests.TestSearchPhaseResult>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            listener,
+            request,
+            null,
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,

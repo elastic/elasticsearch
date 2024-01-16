@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -49,6 +50,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
+
 
     protected SearchScrollAsyncAction(
         ParsedScrollId scrollId,
@@ -56,8 +59,10 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         DiscoveryNodes nodes,
         ActionListener<SearchResponse> listener,
         SearchScrollRequest request,
-        SearchTransportService searchTransportService
+        SearchTransportService searchTransportService,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
         this.startTime = System.currentTimeMillis();
         this.scrollId = scrollId;
         this.successfulOps = new AtomicInteger(scrollId.getContext().length);
@@ -255,7 +260,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                         this.scrollId.getContext().length,
                         successfulOps.get(),
                         0,
-                        buildTookInMillis(),
+                        searchResponseTookMetrics.record(buildTookInMillis()),
                         buildShardFailures(),
                         SearchResponse.Clusters.EMPTY,
                         null

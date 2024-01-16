@@ -13,6 +13,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -36,6 +37,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
 
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
+
     SearchQueryThenFetchAsyncAction(
         final Logger logger,
         final SearchTransportService searchTransportService,
@@ -50,7 +53,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
         super(
             "query",
@@ -68,11 +72,13 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             task,
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters,
+            searchResponseTookMetrics
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.progressListener = task.getProgressListener();
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
 
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {

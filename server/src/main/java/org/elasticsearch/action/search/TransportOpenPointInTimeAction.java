@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -63,6 +64,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final SearchTransportService searchTransportService;
     private final TransportService transportService;
     private final SearchService searchService;
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
 
     @Inject
     public TransportOpenPointInTimeAction(
@@ -70,13 +72,15 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         SearchService searchService,
         ActionFilters actionFilters,
         TransportSearchAction transportSearchAction,
-        SearchTransportService searchTransportService
+        SearchTransportService searchTransportService,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -156,7 +160,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                             clusterState,
                             aliasFilter,
                             concreteIndexBoosts,
-                            clusters
+                            clusters,
+                            searchResponseTookMetrics
                         ).start()
                     )
                 );
@@ -171,7 +176,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     clusterState,
                     aliasFilter,
                     concreteIndexBoosts,
-                    clusters
+                    clusters,
+                    searchResponseTookMetrics
                 );
             }
         }
@@ -186,7 +192,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
             Map<String, Float> concreteIndexBoosts,
-            SearchResponse.Clusters clusters
+            SearchResponse.Clusters clusters,
+            SearchResponseTookMetrics searchResponseTookMetrics
         ) {
             assert searchRequest.getMaxConcurrentShardRequests() == pitRequest.maxConcurrentShardRequests()
                 : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
@@ -206,7 +213,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 task,
                 new ArraySearchPhaseResults<>(shardIterators.size()),
                 searchRequest.getMaxConcurrentShardRequests(),
-                clusters
+                clusters,
+                searchResponseTookMetrics
             ) {
                 @Override
                 protected void executePhaseOnShard(

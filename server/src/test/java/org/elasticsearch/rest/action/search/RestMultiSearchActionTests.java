@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.usage.UsageService;
@@ -32,7 +33,11 @@ public final class RestMultiSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestMultiSearchAction(Settings.EMPTY, new UsageService().getSearchUsageHolder());
+        action = new RestMultiSearchAction(
+            Settings.EMPTY,
+            new UsageService().getSearchUsageHolder(),
+            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+        );
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));

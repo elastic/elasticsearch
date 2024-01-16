@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.vectortile.rest;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
-
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -145,6 +144,8 @@ public class RestVectorTileAction extends BaseRestHandler {
                                 .filter(a -> GRID_FIELD.equals(a.getName()) == false && BOUNDS_FIELD.equals(a.getName()) == false)
                                 .collect(Collectors.toList())
                         );
+                    // TODO: I think this is copying a Search Response to strip out the hits,
+                    //  but took should have been captured at the transport layer so no need to measure here.
                     final SearchResponse meta = new SearchResponse(
                         // remove actual hits
                         SearchHits.empty(searchResponse.getHits().getTotalHits(), searchResponse.getHits().getMaxScore()),

@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -61,22 +62,31 @@ class MutableSearchResponse implements Releasable {
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
 
     private boolean frozen;
 
     /**
      * Creates a new mutable search response.
      *
-     * @param totalShards The number of shards that participate in the request, or -1 to indicate a failure.
-     * @param skippedShards The number of skipped shards, or -1 to indicate a failure.
-     * @param clusters The remote clusters statistics.
-     * @param threadContext The thread context to retrieve the final response headers.
+     * @param totalShards               The number of shards that participate in the request, or -1 to indicate a failure.
+     * @param skippedShards             The number of skipped shards, or -1 to indicate a failure.
+     * @param clusters                  The remote clusters statistics.
+     * @param threadContext             The thread context to retrieve the final response headers.
+     * @param searchResponseTookMetrics
      */
-    MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters, ThreadContext threadContext) {
+    MutableSearchResponse(
+        int totalShards,
+        int skippedShards,
+        Clusters clusters,
+        ThreadContext threadContext,
+        SearchResponseTookMetrics searchResponseTookMetrics
+    ) {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
 
         this.clusters = clusters;
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
         this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
@@ -174,7 +184,7 @@ class MutableSearchResponse implements Releasable {
             totalShards,
             successfulShards,
             skippedShards,
-            tookInMillis,
+            searchResponseTookMetrics.record(TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis()),
             buildQueryFailures(),
             clusters
         );

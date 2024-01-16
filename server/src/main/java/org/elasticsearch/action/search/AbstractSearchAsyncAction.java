@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -102,6 +103,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private final List<Releasable> releasables = new ArrayList<>();
 
+    private final SearchResponseTookMetrics searchResponseTookMetrics;
+
     AbstractSearchAsyncAction(
         String name,
         Logger logger,
@@ -118,9 +121,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchResponseTookMetrics searchResponseTookMetrics
     ) {
         super(name);
+        this.searchResponseTookMetrics = searchResponseTookMetrics;
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
         for (final SearchShardIterator iterator : shardsIts) {
@@ -669,7 +674,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             getNumShards(),
             numSuccess,
             skippedOps.get(),
-            buildTookInMillis(),
+            searchResponseTookMetrics.record(buildTookInMillis()),
             failures,
             clusters,
             searchContextId

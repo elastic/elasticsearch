@@ -85,11 +85,8 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
 
     @Override
     protected LearningToRankRescorerBuilder createXContextTestInstance(XContentType xContentType) {
-        return new LearningToRankRescorerBuilder(
-            randomAlphaOfLength(10),
-            randomBoolean() ? randomParams() : null,
-            learningToRankService
-        ).windowSize(randomIntBetween(1, 10000));
+        return new LearningToRankRescorerBuilder(randomAlphaOfLength(10), randomBoolean() ? randomParams() : null, learningToRankService)
+            .windowSize(randomIntBetween(1, 10000));
     }
 
     @Override

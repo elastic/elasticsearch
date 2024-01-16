@@ -48,7 +48,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
     // Versions over the wire
-    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_500_061;
+    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
 

@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -29,7 +29,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "The value that is greater than half of all values and less than half of all values.",
-        isAggregation = true
+        type = "aggregation"
     )
     public Median(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);

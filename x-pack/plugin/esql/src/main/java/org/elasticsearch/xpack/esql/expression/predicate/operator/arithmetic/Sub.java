@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
@@ -29,7 +31,16 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongSubtractE
 
 public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
 
-    public Sub(Source source, Expression left, Expression right) {
+    @FunctionInfo(
+        returnType = { "date", "double", "integer", "long", "unsigned_long" },
+        description = "Subtracts two numbers or two dates.",
+        type = "builtin"
+    )
+    public Sub(
+        Source source,
+        @Param(name = "left", type = { "date", "double", "integer", "long", "unsigned_long" }) Expression left,
+        @Param(name = "right", type = { "date", "double", "integer", "long", "unsigned_long" }) Expression right
+    ) {
         super(
             source,
             left,

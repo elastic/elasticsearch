@@ -15,8 +15,8 @@ import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -37,7 +37,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     private static final int DEFAULT_PRECISION = 3000;
     private final Expression precision;
 
-    @FunctionInfo(returnType = "long", description = "Returns the approximate number of distinct values.", isAggregation = true)
+    @FunctionInfo(returnType = "long", description = "Returns the approximate number of distinct values.", type = "aggregation")
     public CountDistinct(
         Source source,
         @Param(

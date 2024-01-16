@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 
 public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator {
 
-    @FunctionInfo(returnType = "long", description = "Returns the total number (count) of input values.", isAggregation = true)
+    @FunctionInfo(returnType = "long", description = "Returns the total number (count) of input values.", type = "aggregation")
     public Count(
         Source source,
         @Param(

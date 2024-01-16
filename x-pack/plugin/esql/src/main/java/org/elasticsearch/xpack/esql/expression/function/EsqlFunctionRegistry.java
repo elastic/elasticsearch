@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -85,6 +87,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
@@ -200,7 +207,15 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMin.class, MvMin::new, "mv_min"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
-                def(Split.class, Split::new, "split") } };
+                def(Split.class, Split::new, "split") },
+            // builtin functions
+            new FunctionDefinition[] {
+                def(Add.class, Add::new, "+"),
+                def(Sub.class, Sub::new, "-"),
+                def(Mul.class, Mul::new, "*"),
+                // def(Div.class, Div::new, "/"),
+                def(Mod.class, Mod::new, "%"),
+                def(In.class, In::new, "in") } };
     }
 
     @Override
@@ -220,30 +235,52 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         String[] returnType,
         String description,
         boolean variadic,
-        boolean isAggregation
+        String functionType
     ) {
         public String fullSignature() {
             StringBuilder builder = new StringBuilder();
             builder.append(ShowFunctions.withPipes(returnType));
             builder.append(" ");
-            builder.append(name);
-            builder.append("(");
-            for (int i = 0; i < args.size(); i++) {
-                ArgSignature arg = args.get(i);
-                if (i > 0) {
-                    builder.append(", ");
-                }
-                if (arg.optional()) {
-                    builder.append("?");
-                }
-                builder.append(arg.name());
-                if (i == args.size() - 1 && variadic) {
-                    builder.append("...");
-                }
+            if (functionType.equals("builtin")) {
+                builder.append("(");
+                ArgSignature argLeft = args.get(0);
+                builder.append(argLeft.name());
                 builder.append(":");
-                builder.append(ShowFunctions.withPipes(arg.type()));
+                builder.append(ShowFunctions.withPipes(argLeft.type()));
+                builder.append(" ");
+                builder.append(name);
+                builder.append(" ");
+                if (name.equals("in")) {
+                    builder.append("(");
+                }
+                ArgSignature argRight = args.get(1);
+                builder.append(argRight.name());
+                builder.append(":");
+                builder.append(ShowFunctions.withPipes(argRight.type()));
+                if (name.equals("in")) {
+                    builder.append(")");
+                }
+                builder.append(")");
+            } else {
+                builder.append(name);
+                builder.append("(");
+                for (int i = 0; i < args.size(); i++) {
+                    ArgSignature arg = args.get(i);
+                    if (i > 0) {
+                        builder.append(", ");
+                    }
+                    if (arg.optional()) {
+                        builder.append("?");
+                    }
+                    builder.append(arg.name());
+                    if (i == args.size() - 1 && variadic) {
+                        builder.append("...");
+                    }
+                    builder.append(":");
+                    builder.append(ShowFunctions.withPipes(arg.type()));
+                }
+                builder.append(")");
             }
-            builder.append(")");
             return builder.toString();
         }
 
@@ -256,7 +293,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
     public static FunctionDescription description(FunctionDefinition def) {
         var constructors = def.clazz().getConstructors();
         if (constructors.length == 0) {
-            return new FunctionDescription(def.name(), List.of(), null, null, false, false);
+            return new FunctionDescription(def.name(), List.of(), null, null, false, "");
         }
         Constructor<?> constructor = constructors[0];
         FunctionInfo functionInfo = constructor.getAnnotation(FunctionInfo.class);
@@ -266,7 +303,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
-        boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
+        String functionType = functionInfo == null ? "" : functionInfo.type();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                 Param paramInfo = params[i].getAnnotation(Param.class);
@@ -279,7 +316,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional));
             }
         }
-        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
+        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, functionType);
     }
 
 }

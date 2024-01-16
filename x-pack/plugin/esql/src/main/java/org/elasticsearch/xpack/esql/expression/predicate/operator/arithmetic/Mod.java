@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -17,7 +19,16 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 
 public class Mod extends EsqlArithmeticOperation {
 
-    public Mod(Source source, Expression left, Expression right) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "The modulo operator, returns the remainder of a division",
+        type = "builtin"
+    )
+    public Mod(
+        Source source,
+        @Param(name = "left", type = { "double", "integer", "long", "unsigned_long" }) Expression left,
+        @Param(name = "right", type = { "double", "integer", "long", "unsigned_long" }) Expression right
+    ) {
         super(
             source,
             left,

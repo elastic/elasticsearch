@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;

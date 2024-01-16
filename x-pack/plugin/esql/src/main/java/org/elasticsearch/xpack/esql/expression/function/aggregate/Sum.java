@@ -10,8 +10,8 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
  */
 public class Sum extends NumericAggregate {
 
-    @FunctionInfo(returnType = "long", description = "The sum of a numeric field.", isAggregation = true)
+    @FunctionInfo(returnType = "long", description = "The sum of a numeric field.", type = "aggregation")
     public Sum(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }

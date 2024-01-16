@@ -11,8 +11,8 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -30,7 +30,7 @@ public class Percentile extends NumericAggregate {
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "The value at which a certain percentage of observed values occur.",
-        isAggregation = true
+        type = "aggregation"
     )
     public Percentile(
         Source source,

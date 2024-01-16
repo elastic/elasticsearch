@@ -11,7 +11,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function;
+package org.elasticsearch.xpack.esql.expression;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -13,14 +13,16 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Describes functions.
+ * Describes function parameters.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.CONSTRUCTOR)
-public @interface FunctionInfo {
-    String[] returnType();
+@Target(ElementType.PARAMETER)
+public @interface Param {
+    String name();
+
+    String[] type();
 
     String description() default "";
 
-    boolean isAggregation() default false;
+    boolean optional() default false;
 }

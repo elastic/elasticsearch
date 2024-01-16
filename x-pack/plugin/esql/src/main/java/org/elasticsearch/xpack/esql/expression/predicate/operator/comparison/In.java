@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -24,7 +26,47 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.util.StringUtils.ordinal;
 
 public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In {
-    public In(Source source, Expression value, List<Expression> list) {
+
+    @FunctionInfo(
+        returnType = "boolean",
+        description = "Allows testing whether a field or expression equals an element in a list of literals, fields or expressions",
+        type = "builtin"
+    )
+    public In(
+        Source source,
+        @Param(
+            name = "value",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "date",
+                "double",
+                "geo_point",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
+        ) Expression value,
+        @Param(
+            name = "list",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "date",
+                "double",
+                "geo_point",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
+        ) List<Expression> list
+    ) {
         super(source, value, list);
     }
 

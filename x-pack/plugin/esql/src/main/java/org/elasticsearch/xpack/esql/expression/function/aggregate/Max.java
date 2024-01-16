@@ -11,8 +11,8 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -25,7 +25,7 @@ public class Max extends NumericAggregate {
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "The maximum value of a numeric field.",
-        isAggregation = true
+        type = "aggregation"
     )
     public Max(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);

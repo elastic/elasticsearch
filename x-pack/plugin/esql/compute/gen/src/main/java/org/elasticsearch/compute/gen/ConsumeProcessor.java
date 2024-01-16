@@ -37,8 +37,8 @@ public class ConsumeProcessor implements Processor {
         return Set.of(
             "org.elasticsearch.core.Nullable",
             "org.elasticsearch.common.inject.Inject",
-            "org.elasticsearch.xpack.esql.expression.function.FunctionInfo",
-            "org.elasticsearch.xpack.esql.expression.function.Param",
+            "org.elasticsearch.xpack.esql.expression.FunctionInfo",
+            "org.elasticsearch.xpack.esql.expression.Param",
             "org.elasticsearch.rest.ServerlessScope",
             "org.elasticsearch.xcontent.ParserConstructor",
             Fixed.class.getName()

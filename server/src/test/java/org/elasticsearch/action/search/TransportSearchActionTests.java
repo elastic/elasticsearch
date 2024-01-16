@@ -658,7 +658,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());

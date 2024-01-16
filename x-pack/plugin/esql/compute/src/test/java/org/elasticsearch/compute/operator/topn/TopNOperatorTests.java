@@ -177,15 +177,6 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
     }
 
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        /*
-         * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker.
-         */
-        return ByteSizeValue.ofBytes(775);
-    }
-
     public void testRamBytesUsed() {
         RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
             @Override
@@ -955,6 +946,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         Set<TopNOperator.SortOrder> uniqueOrders = new LinkedHashSet<>(sortingByColumns);
         List<List<List<Object>>> expectedValues = new ArrayList<>(rows);
         List<Block> blocks = new ArrayList<>(blocksCount);
+        boolean[] validSortKeys = new boolean[blocksCount];
         List<ElementType> elementTypes = new ArrayList<>(blocksCount);
         List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
 
@@ -968,6 +960,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
+            validSortKeys[type] = true;
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
                 List<Object> previousValue = null;
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
@@ -975,23 +968,22 @@ public class TopNOperatorTests extends OperatorTestCase {
                     if (rarely()) {
                         randomValueSupplier = switch (randomInt(2)) {
                             case 0 -> {
-                                // use the right BytesRef encoder (don't touch the bytes)
+                                // Simulate ips
                                 encoders.add(TopNEncoder.IP);
-                                // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
                                 yield (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
                             }
                             case 1 -> {
-                                // use the right BytesRef encoder (don't touch the bytes)
+                                // Simulate version fields
                                 encoders.add(TopNEncoder.VERSION);
-                                // create a valid Version
                                 yield (blockType) -> randomVersion().toBytesRef();
                             }
-                            default -> {
-                                // use the right BytesRef encoder (don't touch the bytes)
+                            case 2 -> {
+                                // Simulate geo_shape and geo_point
                                 encoders.add(DEFAULT_UNSORTABLE);
-                                // create a valid geo_point
+                                validSortKeys[type] = false;
                                 yield (blockType) -> randomPointAsWKB();
                             }
+                            default -> throw new UnsupportedOperationException();
                         };
                     } else {
                         encoders.add(UTF8);
@@ -1041,10 +1033,16 @@ public class TopNOperatorTests extends OperatorTestCase {
             }
         }
 
-        // simulate the LogicalPlanOptimizer.PruneRedundantSortClauses by eliminating duplicate sorting columns (same column, same asc/desc,
-        // same "nulls" handling)
-        while (uniqueOrders.size() < sortingByColumns) {
-            int column = randomIntBetween(0, blocksCount - 1);
+        /*
+         * Build sort keys, making sure not to include duplicates. This could
+         * build fewer than the desired sort columns, but it's more important
+         * to make sure that we don't include dups
+         * (to simulate LogicalPlanOptimizer.PruneRedundantSortClauses) and
+         * not to include sort keys that simulate geo objects. Those aren't
+         * sortable at all.
+         */
+        for (int i = 0; i < sortingByColumns; i++) {
+            int column = randomValueOtherThanMany(c -> false == validSortKeys[c], () -> randomIntBetween(0, blocksCount - 1));
             uniqueOrders.add(new TopNOperator.SortOrder(column, randomBoolean(), randomBoolean()));
         }
 

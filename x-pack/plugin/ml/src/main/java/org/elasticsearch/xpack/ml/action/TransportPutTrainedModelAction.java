@@ -237,38 +237,24 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             return;
         }
 
-        ActionListener<TrainedModelConfig> finalResponseAction = ActionListener.wrap(
-            (configToReturn) -> finalResponseListener.onResponse(new Response(configToReturn)),
-            finalResponseListener::onFailure
-        );
-
-        ActionListener<TrainedModelConfig> verifyClusterAndModelArchitectures = ActionListener.wrap(
-            (configToReturn) -> verifyMlNodesAndModelArchitectures(configToReturn, client, threadPool, finalResponseAction),
-            finalResponseListener::onFailure
-        );
-
-        ActionListener<Boolean> finishedStoringListener = ActionListener.wrap(bool -> {
+        var isPackageModel = config.isPackagedModel();
+        ActionListener<Void> checkStorageIndexSizeListener = finalResponseListener.<Boolean>delegateFailureAndWrap((delegate, bool) -> {
             TrainedModelConfig configToReturn = trainedModelConfig.clearDefinition().build();
             if (modelPackageConfigHolder.get() != null) {
                 triggerModelFetchIfNecessary(
                     configToReturn.getModelId(),
                     modelPackageConfigHolder.get(),
                     request.isWaitForCompletion(),
-                    ActionListener.wrap(
-                        downloadTriggered -> verifyClusterAndModelArchitectures.onResponse(configToReturn),
-                        finalResponseListener::onFailure
-                    )
+                    delegate.<TrainedModelConfig>delegateFailureAndWrap((l, cfg) -> l.onResponse(new Response(cfg)))
+                        .<TrainedModelConfig>delegateFailureAndWrap(
+                            (l, cfg) -> verifyMlNodesAndModelArchitectures(cfg, client, threadPool, l)
+                        )
+                        .delegateFailureAndWrap((l, downloadTriggered) -> l.onResponse(configToReturn))
                 );
             } else {
-                finalResponseListener.onResponse(new PutTrainedModelAction.Response(configToReturn));
+                delegate.onResponse(new PutTrainedModelAction.Response(configToReturn));
             }
-        }, finalResponseListener::onFailure);
-
-        var isPackageModel = config.isPackagedModel();
-        ActionListener<Void> checkStorageIndexSizeListener = ActionListener.wrap(
-            r -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), finishedStoringListener, isPackageModel),
-            finalResponseListener::onFailure
-        );
+        }).delegateFailureAndWrap((l, r) -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), l, isPackageModel));
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(r -> {
             if (TrainedModelType.PYTORCH.equals(trainedModelConfig.getModelType())) {
@@ -394,14 +380,21 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         ActionListener<Void> storeModelListener,
         TimeValue timeout
     ) {
-        TaskRetriever.getDownloadTaskInfo(client, modelId, isWaitForCompletion, ActionListener.wrap(taskInfo -> {
-            if (taskInfo != null) {
-                getModelInformation(client, modelId, sendResponseListener);
-            } else {
-                // no task exists so proceed with creating the model
-                storeModelListener.onResponse(null);
-            }
-        }, sendResponseListener::onFailure), timeout);
+        TaskRetriever.getDownloadTaskInfo(
+            client,
+            modelId,
+            isWaitForCompletion,
+            timeout,
+            () -> "Timed out waiting for model download to complete",
+            ActionListener.wrap(taskInfo -> {
+                if (taskInfo != null) {
+                    getModelInformation(client, modelId, sendResponseListener);
+                } else {
+                    // no task exists so proceed with creating the model
+                    storeModelListener.onResponse(null);
+                }
+            }, sendResponseListener::onFailure)
+        );
     }
 
     private static void getModelInformation(Client client, String modelId, ActionListener<Response> listener) {

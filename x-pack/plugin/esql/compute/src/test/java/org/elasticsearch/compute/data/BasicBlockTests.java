@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -22,6 +21,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -445,11 +447,11 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testBytesRefBlockOnGeoPoints() {
-        testBytesRefBlock(() -> GEO.pointAsWKB(randomGeoPoint()), false, GEO::wkbAsPoint);
+        testBytesRefBlock(() -> GEO.asWkb(GeometryTestUtils.randomPoint()), false, GEO::wkbToWkt);
     }
 
     public void testBytesRefBlockOnCartesianPoints() {
-        testBytesRefBlock(() -> CARTESIAN.pointAsWKB(randomCartesianPoint()), false, CARTESIAN::wkbAsPoint);
+        testBytesRefBlock(() -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), false, CARTESIAN::wkbToWkt);
     }
 
     public void testBytesRefBlockBuilderWithNulls() {
@@ -895,7 +897,7 @@ public class BasicBlockTests extends ESTestCase {
         List<List<Object>> values = new ArrayList<>();
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
             boolean bytesRefFromPoints = randomBoolean();
-            Supplier<SpatialPoint> pointSupplier = randomBoolean() ? ESTestCase::randomGeoPoint : ESTestCase::randomCartesianPoint;
+            Supplier<Point> pointSupplier = randomBoolean() ? GeometryTestUtils::randomPoint : ShapeTestUtils::randomPoint;
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
                 if (valueCount == 0 || nullAllowed && randomBoolean()) {
@@ -928,7 +930,7 @@ public class BasicBlockTests extends ESTestCase {
                         }
                         case BYTES_REF -> {
                             BytesRef b = bytesRefFromPoints
-                                ? GEO.pointAsWKB(pointSupplier.get())
+                                ? GEO.asWkb(pointSupplier.get())
                                 : new BytesRef(randomRealisticUnicodeOfLength(4));
                             valuesAtPosition.add(b);
                             ((BytesRefBlock.Builder) builder).appendBytesRef(b);

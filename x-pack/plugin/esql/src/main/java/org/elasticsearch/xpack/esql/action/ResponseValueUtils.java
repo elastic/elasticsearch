@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -30,7 +29,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -103,8 +101,8 @@ public final class ResponseValueUtils {
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
-            case "geo_point" -> pointValueAt(GEO, dataType, block, offset, scratch);
-            case "cartesian_point" -> pointValueAt(CARTESIAN, dataType, block, offset, scratch);
+            case "geo_point" -> GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
+            case "cartesian_point" -> CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -119,17 +117,6 @@ public final class ResponseValueUtils {
             }
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
-    }
-
-    private static SpatialPoint pointValueAt(SpatialCoordinateTypes spatial, String dataType, Block block, int offset, BytesRef scratch) {
-        // TODO: Should we already return the WKT String here - if this is only used to display results?
-        if (block instanceof LongBlock longBlock) {
-            return spatial.longAsPoint(longBlock.getLong(offset));
-        } else if (block instanceof BytesRefBlock wkbBlock) {
-            return spatial.wkbAsPoint(wkbBlock.getBytesRef(offset, scratch));
-        } else {
-            throw new IllegalArgumentException("Unsupported block type for " + dataType + ": " + block.getWriteableName());
-        }
     }
 
     /**
@@ -176,12 +163,12 @@ public final class ResponseValueUtils {
                     }
                     case "geo_point" -> {
                         // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
-                        BytesRef wkb = GEO.stringAsWKB(value.toString());
+                        BytesRef wkb = GEO.wktToWkb(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     case "cartesian_point" -> {
                         // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
-                        BytesRef wkb = CARTESIAN.stringAsWKB(value.toString());
+                        BytesRef wkb = CARTESIAN.wktToWkb(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));

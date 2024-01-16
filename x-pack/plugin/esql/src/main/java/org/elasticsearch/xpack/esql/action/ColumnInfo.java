@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -163,8 +162,20 @@ public record ColumnInfo(String name, String type) implements Writeable {
                     return builder.value(UTC_DATE_TIME_FORMATTER.formatMillis(longVal));
                 }
             };
-            case "geo_point" -> new PointPositionToXContent(block, GEO, scratch);
-            case "cartesian_point" -> new PointPositionToXContent(block, CARTESIAN, scratch);
+            case "geo_point" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    return builder.value(GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
+                }
+            };
+            case "cartesian_point" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    return builder.value(CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(valueIndex, scratch)));
+                }
+            };
             case "boolean" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
@@ -207,32 +218,5 @@ public record ColumnInfo(String name, String type) implements Writeable {
             };
             default -> throw new IllegalArgumentException("can't convert values of type [" + type + "]");
         };
-    }
-
-    private class PointPositionToXContent extends PositionToXContent {
-        private final SpatialCoordinateTypes spatial;
-        private final BytesRef scratch;
-
-        private PointPositionToXContent(Block block, SpatialCoordinateTypes spatial, BytesRef scratch) {
-            super(block);
-            this.spatial = spatial;
-            this.scratch = scratch;
-        }
-
-        @Override
-        protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex) throws IOException {
-            if (block instanceof LongBlock longBlock) {
-                long encoded = longBlock.getLong(valueIndex);
-                String wkt = spatial.pointAsString(spatial.longAsPoint(encoded));
-                return builder.value(wkt);
-            } else if (block instanceof BytesRefBlock wkbBlock) {
-                // This block only converts WKB to WKT, so does not need CRS, so we could remove this class if WKB was the only block type
-                BytesRef wkb = wkbBlock.getBytesRef(valueIndex, scratch);
-                String wkt = spatial.wkbAsString(wkb);
-                return builder.value(wkt);
-            } else {
-                throw new IllegalArgumentException("Unrecognized block type " + block.getWriteableName() + " for type " + type);
-            }
-        }
     }
 }

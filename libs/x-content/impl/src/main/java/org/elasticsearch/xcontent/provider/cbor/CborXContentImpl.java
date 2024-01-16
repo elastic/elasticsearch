@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.XContentImplUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,7 +46,7 @@ public final class CborXContentImpl implements XContent {
     }
 
     static {
-        cborFactory = new CBORFactory();
+        cborFactory = XContentImplUtils.configure(CBORFactory.builder());
         cborFactory.configure(CBORFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.cbor.CBORGenerator#close() method
         cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);

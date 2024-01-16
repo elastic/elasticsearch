@@ -146,6 +146,23 @@ public class TextEmbeddingConfig implements NlpConfig {
     }
 
     @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof TextEmbeddingConfigUpdate configUpdate) {
+            return new TextEmbeddingConfig(
+                vocabularyConfig,
+                configUpdate.tokenizationUpdate == null ? tokenization : configUpdate.tokenizationUpdate.apply(tokenization),
+                configUpdate.getResultsField() == null ? resultsField : configUpdate.getResultsField(),
+                embeddingSize
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateSpanSettings(tokenizationUpdate.getSpanSettings());
+            return new TextEmbeddingConfig(vocabularyConfig, updatedTokenization, resultsField, embeddingSize);
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
         return MlConfigVersion.V_8_0_0;
     }

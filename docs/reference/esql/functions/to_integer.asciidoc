@@ -26,7 +26,7 @@ provide information on the source of the failure:
 
 A following header will contain the failure reason and the offending value:
 
-`"org.elasticsearch.xpack.ql.QlIllegalArgumentException: [501379200000] out of [integer] range"`
+`"org.elasticsearch.xpack.ql.InvalidArgumentException: [501379200000] out of [integer] range"`
 
 
 If the input parameter is of a date type, its value will be interpreted as

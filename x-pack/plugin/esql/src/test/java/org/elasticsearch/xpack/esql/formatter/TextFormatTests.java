@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.geometry.Point;
@@ -122,16 +124,16 @@ public class TextFormatTests extends ESTestCase {
         String text = format(CSV, req(), regularData());
         assertEquals("""
             string,number,location,location2\r
-            Along The River Bank,708,POINT (12.000000 56.000000),POINT (1234.000000 5678.000000)\r
-            Mind Train,280,POINT (-97.000000 26.000000),POINT (-9753.000000 2611.000000)\r
+            Along The River Bank,708,POINT (12.0 56.0),POINT (1234.0 5678.0)\r
+            Mind Train,280,POINT (-97.0 26.0),POINT (-9753.0 2611.0)\r
             """, text);
     }
 
     public void testCsvFormatNoHeaderWithRegularData() {
         String text = format(CSV, reqWithParam("header", "absent"), regularData());
         assertEquals("""
-            Along The River Bank,708,POINT (12.000000 56.000000),POINT (1234.000000 5678.000000)\r
-            Mind Train,280,POINT (-97.000000 26.000000),POINT (-9753.000000 2611.000000)\r
+            Along The River Bank,708,POINT (12.0 56.0),POINT (1234.0 5678.0)\r
+            Mind Train,280,POINT (-97.0 26.0),POINT (-9753.0 2611.0)\r
             """, text);
     }
 
@@ -146,12 +148,12 @@ public class TextFormatTests extends ESTestCase {
             "location2",
             "Along The River Bank",
             "708",
-            "POINT (12.000000 56.000000)",
-            "POINT (1234.000000 5678.000000)",
+            "POINT (12.0 56.0)",
+            "POINT (1234.0 5678.0)",
             "Mind Train",
             "280",
-            "POINT (-97.000000 26.000000)",
-            "POINT (-9753.000000 2611.000000)"
+            "POINT (-97.0 26.0)",
+            "POINT (-9753.0 2611.0)"
         );
         List<String> expectedTerms = terms.stream()
             .map(x -> x.contains(String.valueOf(delim)) ? '"' + x + '"' : x)
@@ -174,8 +176,8 @@ public class TextFormatTests extends ESTestCase {
         String text = format(TSV, req(), regularData());
         assertEquals("""
             string\tnumber\tlocation\tlocation2
-            Along The River Bank\t708\tPOINT (12.000000 56.000000)\tPOINT (1234.000000 5678.000000)
-            Mind Train\t280\tPOINT (-97.000000 26.000000)\tPOINT (-9753.000000 2611.000000)
+            Along The River Bank\t708\tPOINT (12.0 56.0)\tPOINT (1234.0 5678.0)
+            Mind Train\t280\tPOINT (-97.0 26.0)\tPOINT (-9753.0 2611.0)
             """, text);
     }
 
@@ -257,6 +259,9 @@ public class TextFormatTests extends ESTestCase {
             new ColumnInfo("location2", "cartesian_point")
         );
 
+        BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
+        geoPoints.append(GEO.asWkb(new Point(12, 56)));
+        geoPoints.append(GEO.asWkb(new Point(-97, 26)));
         // values
         List<Page> values = List.of(
             new Page(
@@ -265,10 +270,10 @@ public class TextFormatTests extends ESTestCase {
                     .appendBytesRef(new BytesRef("Mind Train"))
                     .build(),
                 blockFactory.newIntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock(),
-                blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
+                blockFactory.newBytesRefArrayVector(geoPoints, 2).asBlock(),
                 blockFactory.newBytesRefBlockBuilder(2)
-                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(1234, 5678)))
-                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(-9753, 2611)))
+                    .appendBytesRef(CARTESIAN.asWkb(new Point(1234, 5678)))
+                    .appendBytesRef(CARTESIAN.asWkb(new Point(-9753, 2611)))
                     .build()
             )
         );

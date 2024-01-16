@@ -415,6 +415,17 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         Function<Integer, Integer> userIdProvider,
         Function<Integer, String> dateStringProvider
     ) throws Exception {
+        createReviewsIndex(indexName, numDocs, numUsers, userIdProvider, dateStringProvider, null);
+    }
+
+    protected void createReviewsIndex(
+        String indexName,
+        int numDocs,
+        int numUsers,
+        Function<Integer, Integer> userIdProvider,
+        Function<Integer, String> dateStringProvider,
+        String defaultPipeline
+    ) throws Exception {
         assert numUsers > 0;
 
         // create mapping
@@ -454,6 +465,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     .endObject()
                     .endObject()
                     .endObject();
+                if (defaultPipeline != null) {
+                    builder.startObject("settings").field("index.default_pipeline", defaultPipeline).endObject();
+                }
             }
             builder.endObject();
 

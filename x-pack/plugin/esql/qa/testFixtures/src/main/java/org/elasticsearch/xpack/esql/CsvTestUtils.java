@@ -242,8 +242,8 @@ public final class CsvTestUtils {
         int commaPos;         // current "," character position
         int previousCommaPos = 0;
         while ((commaPos = csvLine.indexOf(",", pos)) != -1 || pos <= csvLine.length()) {
-            if (commaPos > 0 && csvLine.charAt(commaPos - 1) == ESCAPE_CHAR) {
-                pos = commaPos + 1;
+            if (commaPos > 0 && csvLine.charAt(commaPos - 1) == ESCAPE_CHAR) {// skip the escaped comma
+                pos = commaPos + 1;// moving on to the next character after comma
                 continue;
             }
 
@@ -349,7 +349,7 @@ public final class CsvTestUtils {
                         throw new IllegalArgumentException("Incomplete multi-value (opening and closing square brackets) found " + value);
                     }
                     if (value.contains(",") && value.startsWith("[")) {
-                        // split on comma ignoring escaped commas, ignoring any potential starting and stopping square brackets
+                        // split on commas but ignoring escaped commas
                         String[] multiValues = value.substring(1, value.length() - 1).split(COMMA_ESCAPING_REGEX);
                         if (multiValues.length > 0) {
                             List<Object> listOfMvValues = new ArrayList<>();
@@ -361,6 +361,8 @@ public final class CsvTestUtils {
                             rowValues.add(columnTypes.get(i).convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
                         }
                     } else {
+                        // TODO the value considered here is the one where any potential escaped comma is kept as is (with the escape char)
+                        // if we'd want escaped commas outside multi-values fields, we'd have to adjust this value here as well
                         rowValues.add(columnTypes.get(i).convert(value));
                     }
                 }

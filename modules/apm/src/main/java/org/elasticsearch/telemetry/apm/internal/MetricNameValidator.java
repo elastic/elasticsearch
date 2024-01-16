@@ -35,7 +35,8 @@ public class MetricNameValidator {
     static final Set<String> SKIP_VALIDATION_METRIC_NAMES_DUE_TO_BWC = Set.of(
         "searchable_snapshots_cache_fetch_async",
         "searchable_snapshots_cache_prewarming",
-        "security-token-key"
+        "security-token-key",
+        "security-crypto"
     );
 
     private MetricNameValidator() {}

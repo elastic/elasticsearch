@@ -8,9 +8,6 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.SDKGlobalConfiguration;
-import com.amazonaws.util.StringUtils;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
@@ -27,11 +24,7 @@ import java.util.Optional;
 class AwsEc2Utils {
 
     private static final Logger logger = LogManager.getLogger(AwsEc2Utils.class);
-    // The timeout can be configured via the AWS_METADATA_SERVICE_TIMEOUT environment variable
-    private static final int TIMEOUT = Optional.ofNullable(System.getenv(SDKGlobalConfiguration.AWS_METADATA_SERVICE_TIMEOUT_ENV_VAR))
-        .filter(StringUtils::hasValue)
-        .map(s -> Integer.parseInt(s) * 1000)
-        .orElse(2000);
+    private static final int CONNECT_TIMEOUT = 2000;
     private static final int METADATA_TOKEN_TTL_SECONDS = 10;
     static final String X_AWS_EC_2_METADATA_TOKEN = "X-aws-ec2-metadata-token";
 
@@ -46,10 +39,7 @@ class AwsEc2Utils {
             try {
                 urlConnection = (HttpURLConnection) new URL(metadataTokenUrl).openConnection();
                 urlConnection.setRequestMethod("PUT");
-                // Use both timeout for connect and read timeout analogous to AWS SDK.
-                // See com.amazonaws.internal.HttpURLConnection#connectToEndpoint
-                urlConnection.setConnectTimeout(TIMEOUT);
-                urlConnection.setReadTimeout(TIMEOUT);
+                urlConnection.setConnectTimeout(CONNECT_TIMEOUT);
                 urlConnection.setRequestProperty("X-aws-ec2-metadata-token-ttl-seconds", String.valueOf(METADATA_TOKEN_TTL_SECONDS));
             } catch (IOException e) {
                 logger.warn("Unable to access the IMDSv2 URI: " + metadataTokenUrl, e);

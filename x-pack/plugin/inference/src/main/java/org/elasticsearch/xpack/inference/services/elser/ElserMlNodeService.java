@@ -27,8 +27,11 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -37,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -227,6 +232,31 @@ public class ElserMlNodeService implements InferenceService {
             request,
             listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(SparseEmbeddingResults.of(inferenceResult.getResults())))
         );
+    }
+
+    @Override
+    public void putModel(Model model, ActionListener<Boolean> listener) {
+        if (model instanceof ElserMlNodeModel == false) {
+            listener.onFailure(
+                new IllegalStateException("Error starting model, [" + model.getConfigurations().getModelId() + "] is not an elser model")
+            );
+            return;
+        } else {
+            String modelVariant = ((ElserMlNodeModel) model).getServiceSettings().getModelVariant();
+            var fieldNames = List.<String>of();
+            var input = new TrainedModelInput(fieldNames);
+            var config = TrainedModelConfig.builder().setInput(input).setModelId(modelVariant).build();
+            PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
+            executeAsyncWithOrigin(
+                client,
+                INFERENCE_ORIGIN,
+                PutTrainedModelAction.INSTANCE,
+                putRequest,
+                listener.delegateFailure((l, r) -> {
+                    l.onResponse(Boolean.TRUE);
+                })
+            );
+        }
     }
 
     private static ElserMlNodeTaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {

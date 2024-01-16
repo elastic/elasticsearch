@@ -89,6 +89,7 @@ steps:
           setup:
             image:
               - amazonlinux-2023
+              - amazonlinux-2
         agents:
           provider: aws
           imagePrefix: elasticsearch-{{matrix.image}}

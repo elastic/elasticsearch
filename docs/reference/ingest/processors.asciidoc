@@ -45,7 +45,7 @@ This will help you find the right processor for your use case.
 Appends a value to a field.
 
 <<date-index-name-processor, `date_index_name` processor>>::
-Points documents to the right time based index based on a date or timestamp field.
+Points documents to the right time-based index based on a date or timestamp field.
 
 <<enrich-processor, `enrich` processor>>::
 Enriches documents with data from another index.
@@ -55,7 +55,7 @@ Refer to <<ingest-enriching-data, Enrich your data>> for detailed examples of ho
 ====
 
 <<inference-processor, `inference` processor>>::
-Uses machine learning to classify and tag text fields.
+Uses {ml} to classify and tag text fields.
 
 [discrete]
 [[ingest-process-category-data-enrichment-specific]]
@@ -114,13 +114,13 @@ Unlike the <<grok-processor,grok processor>>, dissect does not use regular expre
 This makes the dissect's a simpler and often faster alternative.
 
 <<grok-processor, `grok` processor>>::
-Extracts fields via structured text parsing and pattern matching.
+Extracts structured fields out of a single text field within a document, using the <<grok, Grok>> regular expression dialect that supports reusable aliased expressions.
 
 <<gsub-processor, `gsub` processor>>::
 Converts a string field by applying a regular expression and a replacement.
 
 <<redact-processor, `redact` processor>>::
-Uses the <<grok, Grok>> rules engine to obscure text in the input document matching the given Grok patterns
+Uses the <<grok, Grok>> rules engine to obscure text in the input document matching the given Grok patterns.
 
 <<rename-processor, `rename` processor>>::
 Renames an existing field.
@@ -133,7 +133,7 @@ Sets a value on a field.
 ==== Specific outcomes
 
 <<bytes-processor, `bytes` processor>>::
-Converts a human readable byte value (e.g. 1kb) to its value in bytes (e.g. 1024).
+Converts a human-readable byte value to its value in bytes (for example`1kb` becomes `1024`).
 
 <<csv-processor, `csv` processor>>::
 Extracts a single line of CSV data from a text field.

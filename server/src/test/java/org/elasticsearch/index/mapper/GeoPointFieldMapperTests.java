@@ -723,7 +723,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Function<Object, Object> loadBlockExpected() {
-        throw new IllegalStateException("Should never reach here, call loadBlockExpected(boolean) instead");
+        throw new IllegalStateException("Should never reach here, call loadBlockExpected(BlockReaderSupport, boolean) instead");
     }
 
     @Override

@@ -12,6 +12,11 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
 
+/**
+ * All spatial aggregate functions extend this class to enable the planning of reading from doc values for higher performance.
+ * The AggregateMapper class will generate multiple aggregation functions for each combination, allowing the planner to
+ * select the best one.
+ */
 public abstract class SpatialAggregateFunction extends AggregateFunction {
     protected final boolean useDocValues;
 

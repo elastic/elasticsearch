@@ -17,8 +17,11 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 /**
- * This aggregator calculates the centroid of a set of geo points. It is assumes that the geo points are encoded as longs.
- * This requires that the planner has planned that points are loaded from the index as doc-values.
+ * This aggregator calculates the centroid of a set of geo points.
+ * It is assumes that the geo points are encoded as WKB BytesRef.
+ * This requires that the planner has NOT planned that points are loaded from the index as doc-values, but from source instead.
+ * This is also used for final aggregations and aggregations in the coordinator node,
+ * even if the local node partial aggregation is done with {@link SpatialCentroidGeoPointDocValuesAggregator}.
  */
 @Aggregator(
     {

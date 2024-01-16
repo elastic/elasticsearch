@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -144,7 +145,7 @@ public class AggregateMapper {
             types = NUMERIC;
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
-        } else if (clazz == SpatialCentroid.class) {
+        } else if (SpatialAggregateFunction.class.isAssignableFrom(clazz)) {
             types = SPATIAL;
             extraConfigs = List.of("SourceValues", "DocValues");
         } else {

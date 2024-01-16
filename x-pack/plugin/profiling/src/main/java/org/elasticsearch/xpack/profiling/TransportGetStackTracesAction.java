@@ -683,6 +683,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
      * Collects stack trace details which are retrieved concurrently and sends a response only when all details are known.
      */
     private static class DetailsHandler {
+        private static final String[] PATH_FILE_NAME = new String[] { "Executable", "file", "name" };
         private final GetStackTracesResponseBuilder builder;
         private final ActionListener<GetStackTracesResponse> submitListener;
         private final Map<String, String> executables;
@@ -740,7 +741,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 if (executable.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
-                        String fileName = ObjectPath.eval("Executable.file.name", executable.getResponse().getSource());
+                        String fileName = ObjectPath.eval(PATH_FILE_NAME, executable.getResponse().getSource());
                         if (fileName != null) {
                             executables.putIfAbsent(executable.getId(), fileName);
                         } else {

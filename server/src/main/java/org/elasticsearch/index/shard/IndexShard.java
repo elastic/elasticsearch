@@ -400,7 +400,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.fieldHasValue = fieldHasValue;
+        this.fieldHasValue = fieldHasValue; // fieldHasValue Set is shared between all shards for a certain index in a data node
     }
 
     public ThreadPool getThreadPool() {

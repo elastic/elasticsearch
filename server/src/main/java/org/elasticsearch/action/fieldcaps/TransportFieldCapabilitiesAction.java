@@ -295,6 +295,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
+        remoteRequest.includeFieldsWithNoValue(request.includeFieldsWithNoValue());
         return remoteRequest;
     }
 

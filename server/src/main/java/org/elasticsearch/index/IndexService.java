@@ -556,7 +556,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 snapshotCommitSupplier,
                 System::nanoTime,
                 indexCommitListener,
-                fieldHasValue
+                fieldHasValue // fieldHasValue Set is shared between all shards for a certain index in a data node
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

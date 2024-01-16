@@ -46,6 +46,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
                 IndexRequest indexRequest = new IndexRequest(sourceIndex);
                 indexRequest.source("numeric", 42.0);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
 
             // Add a doc with missing field
@@ -53,6 +54,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
                 IndexRequest missingIndexRequest = new IndexRequest(sourceIndex);
                 missingIndexRequest.source("categorical", "foo");
                 bulkRequestBuilder.add(missingIndexRequest);
+                missingIndexRequest.decRef();
             }
 
             // Add a doc with numeric being array which is also treated as missing
@@ -60,6 +62,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
                 IndexRequest arrayIndexRequest = new IndexRequest(sourceIndex);
                 arrayIndexRequest.source("numeric", new double[] { 1.0, 2.0 }, "categorical", "foo");
                 bulkRequestBuilder.add(arrayIndexRequest);
+                arrayIndexRequest.decRef();
             }
 
             BulkResponse bulkResponse = bulkRequestBuilder.get();

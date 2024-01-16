@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -308,7 +309,12 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void indexDocForInference(String pipelineId) {
-        prepareIndex("foo").setPipeline(pipelineId).setSource("{\"text\": \"this is some plain text.\"}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("foo");
+        try {
+            indexRequestBuilder.setPipeline(pipelineId).setSource("{\"text\": \"this is some plain text.\"}", XContentType.JSON).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
 }

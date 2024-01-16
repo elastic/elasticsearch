@@ -77,6 +77,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 indexRequest.id(docId);
                 indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1, "categorical_1", "foo_" + i);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -174,6 +175,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 indexRequest.id(docId);
                 indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1, "categorical_1", "foo_" + i);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -212,6 +214,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 IndexRequest indexRequest = new IndexRequest(sourceIndex);
                 indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -295,6 +298,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 IndexRequest indexRequest = new IndexRequest(sourceIndex);
                 indexRequest.source(source.toString(), XContentType.JSON);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -372,6 +376,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 IndexRequest indexRequest = new IndexRequest(sourceIndex);
                 indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -446,6 +451,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                     IndexRequest indexRequest = new IndexRequest(index);
                     indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
                     bulkRequestBuilder.add(indexRequest);
+                    indexRequest.decRef();
                 }
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -514,6 +520,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 IndexRequest indexRequest = new IndexRequest(sourceIndex);
                 indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -566,6 +573,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             for (int i = 0; i < 10000; i++) {  // This number of rows should make memory usage estimate greater than 1MB
                 IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_" + i).source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -599,6 +607,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
             IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_1").source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
                 fail("Failed to index data: " + bulkResponse.buildFailureMessage());
@@ -658,6 +667,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 IndexRequest indexRequest = new IndexRequest(sourceIndex);
                 indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -730,6 +740,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 indexRequest.id(docId);
                 indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1.0, "categorical_1", "foo_" + i);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -842,6 +853,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 indexRequest.id(docId);
                 indexRequest.source("numeric", i == 0 ? 100.0 : 1.0);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -944,6 +956,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 indexRequest.id(docId);
                 indexRequest.source("numeric", i == 0 ? 100.0 : 1.0);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -1046,6 +1059,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 indexRequest.id(String.valueOf(i));
                 indexRequest.source("numeric_1", randomInt(), "numeric_2", randomInt());
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {

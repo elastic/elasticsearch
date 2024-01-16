@@ -122,6 +122,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
                 IndexRequest indexRequest = new IndexRequest(dfId);
                 indexRequest.source("time", curTime, "field", randomFrom("foo", "bar", "baz"));
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
                 curTime += TimeValue.timeValueSeconds(1).millis();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

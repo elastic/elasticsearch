@@ -574,8 +574,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
             for (int i = 0; i < totalDocCount; i++) {
                 List<Object> source = List.of("field_1", i, "field_2", 2 * i);
-                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
-                bulkRequestBuilder.add(indexRequest);
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                try {
+                    indexRequest.source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -927,8 +932,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                     "@timestamp",
                     Instant.now().toEpochMilli()
                 );
-                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
-                bulkRequestBuilder.add(indexRequest);
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                try {
+                    indexRequest.source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
                 List<Object> source = List.of(
@@ -939,8 +949,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                     "@timestamp",
                     Instant.now().toEpochMilli()
                 );
-                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
-                bulkRequestBuilder.add(indexRequest);
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                try {
+                    indexRequest.source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {

@@ -30,6 +30,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -65,9 +67,10 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -87,7 +90,7 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DefaultSearchContextTests extends ESTestCase {
+public class DefaultSearchContextTests extends MapperServiceTestCase {
 
     public void testPreProcess() throws Exception {
         TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
@@ -475,6 +478,19 @@ public class DefaultSearchContextTests extends ESTestCase {
         }
     }
 
+    public void testNewIdLoaderWithTsdbAndDynamicTemplates() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2001-01-01T00:00:00.000Z")
+            .put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true)
+            .build();
+        try (DefaultSearchContext context = createDefaultSearchContext(settings, true)) {
+            assertThat(context.newIdLoader(), instanceOf(IdLoader.TsIdLoader.class));
+            context.indexShard().getThreadPool().shutdown();
+        }
+    }
+
     public void testDetermineMaximumNumberOfSlices() {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("index", "uuid", 0));
@@ -790,7 +806,25 @@ public class DefaultSearchContextTests extends ESTestCase {
         assertEquals(-1, DefaultSearchContext.getFieldCardinality("field", indexService, null));
     }
 
+    protected static XContentBuilder mapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
+        buildFields.accept(builder);
+        return builder.endObject().endObject().endObject();
+    }
+
+    protected static XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+        return mapping(b -> {
+            b.startObject("field");
+            buildField.accept(b);
+            b.endObject();
+        });
+    }
+
     private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings) throws IOException {
+        return createDefaultSearchContext(providedIndexSettings, false);
+    }
+
+    private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings, boolean withDimension) throws IOException {
         TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
         ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
@@ -813,15 +847,28 @@ public class DefaultSearchContextTests extends ESTestCase {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
             .thenReturn(searchExecutionContext);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.hasNested()).thenReturn(randomBoolean());
-        when(indexService.mapperService()).thenReturn(mapperService);
 
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        MapperService mapperService;
+        if (withDimension) {
+            mapperService = createMapperService(
+                IndexVersion.current(),
+                settings,
+                () -> true,
+                fieldMapping(b -> b.field("type", "keyword").field("time_series_dimension", true))
+            );
+            indexSettings = mapperService.getIndexSettings();
+        } else {
+            mapperService = mock(MapperService.class);
+            when(mapperService.hasNested()).thenReturn(randomBoolean());
+            when(indexService.mapperService()).thenReturn(mapperService);
+            when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        }
         when(indexService.getIndexSettings()).thenReturn(indexSettings);
+        when(indexService.mapperService()).thenReturn(mapperService);
         when(indexService.getMetadata()).thenReturn(indexMetadata);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(indexSettings.getIndexVersionCreated());
 

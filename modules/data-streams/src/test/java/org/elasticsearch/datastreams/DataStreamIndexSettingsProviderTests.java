@@ -34,6 +34,7 @@ import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
@@ -222,7 +223,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
-        Settings settings = builder().put("index.mode", "time_series").put("index.look_ahead_time", lookAheadTime.getStringRep()).build();
+        Settings settings = builder().put("index.mode", "time_series")
+            .put("index.look_ahead_time", lookAheadTime.getStringRep())
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field2")
+            .build();
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
@@ -243,7 +247,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookBackTime = TimeValue.timeValueHours(12);
-        Settings settings = builder().put("index.mode", "time_series").put("index.look_back_time", lookBackTime.getStringRep()).build();
+        Settings settings = builder().put("index.mode", "time_series")
+            .put("index.look_back_time", lookBackTime.getStringRep())
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field2")
+            .build();
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
@@ -270,7 +277,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         ).getMetadata();
 
         Instant now = sixHoursAgo.plus(6, ChronoUnit.HOURS);
-        Settings settings = Settings.EMPTY;
+        Settings settings = builder().putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field").build();
         var result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
@@ -587,6 +594,299 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
         assertEquals(2, IndexMetadata.INDEX_ROUTING_PATH.get(result).size());
+    }
+
+    public void testGetDynamicDimensions() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Settings settings = builder().put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true).build();
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "label1": {
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        },
+                        {
+                            "label2": {
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+            """;
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of(new CompressedXContent(mapping))
+        );
+        assertThat(result.size(), equalTo(3));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        assertThat(IndexMetadata.DYNAMIC_DIMENSION_NAMES.get(result), contains("label1", "label2"));
+    }
+
+    public void testGetDynamicDimensionsWithPredefinedRoutingPath() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Settings settings = builder().putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true)
+            .build();
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "data": {
+                           "type": "integer",
+                           "time_series_metric": "counter"
+                        },
+                        "dim": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of(new CompressedXContent(mapping))
+        );
+        assertThat(result.size(), equalTo(3));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        assertThat(IndexMetadata.DYNAMIC_DIMENSION_NAMES.get(result), contains("labels"));
+    }
+
+    public void testGetDynamicDimensionsWithDerivedRoutingPath() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Settings settings = builder().put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true).build();
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "data": {
+                           "type": "integer",
+                           "time_series_metric": "counter"
+                        },
+                        "dim": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of(new CompressedXContent(mapping))
+        );
+        assertThat(result.size(), equalTo(4));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        assertThat(IndexMetadata.DYNAMIC_DIMENSION_NAMES.get(result), contains("labels"));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("dim"));
+    }
+
+    public void testGetDynamicDimensionsThrowsWithRoutingPathFromDynamicTemplate() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Settings settings = builder().put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true).build();
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "path_match": "prometheus.labels.*",
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "data": {
+                           "type": "integer",
+                           "time_series_metric": "counter"
+                        },
+                        "another_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> provider.getAdditionalIndexSettings(
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                dataStreamName,
+                true,
+                metadata,
+                now,
+                settings,
+                List.of(new CompressedXContent(mapping))
+            )
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "time-series indexes with [time_series_dynamic_templates=true] are only compatible with dynamic templates containing "
+                    + "fields with no 'match' or 'path_match' or 'match_mapping_type' spec"
+            )
+        );
+    }
+
+    public void testGetDynamicDimensionsNoMatch() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Settings settings = builder().putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true)
+            .build();
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "mapping": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "data": {
+                           "type": "integer",
+                           "time_series_metric": "counter"
+                        },
+                        "dim": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of(new CompressedXContent(mapping))
+        );
+        assertThat(result.size(), equalTo(2));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+    }
+
+    public void testGetDynamicDimensionsNoRouting() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Settings settings = builder().put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true).build();
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "mapping": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "data": {
+                           "type": "integer",
+                           "time_series_metric": "counter"
+                        },
+                        "dim": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> provider.getAdditionalIndexSettings(
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                dataStreamName,
+                true,
+                metadata,
+                now,
+                settings,
+                List.of(new CompressedXContent(mapping))
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "[index.mode=time_series] has no routing path and no dynamic templates with fields marked as [time_series_dimension]"
+            )
+        );
     }
 
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {

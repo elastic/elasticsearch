@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,8 +35,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
 /**
  * An {@link IndexSettingProvider} implementation that adds the index.time_series.start_time,
@@ -113,33 +112,57 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
-                    if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
-                        && combinedTemplateMappings.isEmpty() == false) {
-                        List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
-                        if (routingPaths.isEmpty() == false) {
-                            builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
+                    boolean hasRoutingPath = allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                    boolean useDynamicDimensions = allSettings.getAsBoolean(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), false);
+                    if ((hasRoutingPath == false || useDynamicDimensions) && combinedTemplateMappings.isEmpty() == false) {
+                        try (
+                            MapperService mapperService = getMapperServiceForDimensions(indexName, allSettings, combinedTemplateMappings)
+                        ) {
+                            List<String> routingPaths = hasRoutingPath ? List.of() : findRoutingPaths(mapperService);
+                            List<String> dynamicDimensions = useDynamicDimensions ? findDynamicDimensions(mapperService) : List.of();
+                            if (useDynamicDimensions && hasRoutingPath == false && routingPaths.isEmpty() && dynamicDimensions.isEmpty()) {
+                                throw new IllegalStateException(
+                                    "index "
+                                        + indexName
+                                        + " with [index.mode=time_series] has no routing path and no dynamic templates with fields marked"
+                                        + " as [time_series_dimension]"
+                                );
+                            }
+                            if (routingPaths.isEmpty() == false) {
+                                builder.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths);
+                            }
+                            if (dynamicDimensions.isEmpty() == false) {
+                                builder.putList(IndexMetadata.DYNAMIC_DIMENSION_NAMES.getKey(), dynamicDimensions);
+                            }
+                        } catch (IOException exception) {
+                            throw new UncheckedIOException(exception);
                         }
                     }
                     return builder.build();
                 }
             }
         }
-
         return Settings.EMPTY;
     }
 
     /**
-     * Find fields in mapping that are of type keyword and time_series_dimension enabled.
-     * Using MapperService here has an overhead, but allows the mappings from template to
-     * be merged correctly and fetching the fields without manually parsing the mappings.
+     * Get a MapperService instance to retrieve all dimension fields, from the index mapping and
+     * dynamic mappings, if any.
      *
-     * Alternatively this method can instead parse mappings into map of maps and merge that and
-     * iterate over all values to find the field that can serve as routing value. But this requires
+     * Using MapperService here has an overhead, but allows the mappings from the index template
+     * and dynamic templates to be merged correctly and fetching the fields without manually parsing
+     * the mappings.
+     *
+     * Alternatively this method can instead parse mappings into map of maps and merge that, to
+     * iterate over all values for fields that can serve as routing value. But this requires
      * mapping specific logic to exist here.
      */
-    private List<String> findRoutingPaths(String indexName, Settings allSettings, List<CompressedXContent> combinedTemplateMappings) {
+    private MapperService getMapperServiceForDimensions(
+        String indexName,
+        Settings allSettings,
+        List<CompressedXContent> combinedTemplateMappings
+    ) throws IOException {
         var tmpIndexMetadata = IndexMetadata.builder(indexName);
-
         int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(allSettings);
         int dummyShards = allSettings.getAsInt(
             IndexMetadata.SETTING_NUMBER_OF_SHARDS,
@@ -152,45 +175,83 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            // Avoid failing because index.routing_path is missing
-            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            // Avoid failing in case index.routing_path is empty.
+            .put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true)
             .build();
 
         tmpIndexMetadata.settings(finalResolvedSettings);
         // Create MapperService just to extract keyword dimension fields:
-        try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
-            List<String> routingPaths = new ArrayList<>();
-            for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
-                extractPath(routingPaths, fieldMapper);
-            }
-            for (var template : mapperService.getAllDynamicTemplates()) {
-                if (template.pathMatch().isEmpty()) {
-                    continue;
-                }
+        MapperService mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build());
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
+        return mapperService;
+    }
 
-                var templateName = "__dynamic__" + template.name();
-                var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
-                String mappingSnippetType = (String) mappingSnippet.get("type");
-                if (mappingSnippetType == null) {
-                    continue;
-                }
-
-                MappingParserContext parserContext = mapperService.parserContext();
-                for (String pathMatch : template.pathMatch()) {
-                    var mapper = parserContext.typeParser(mappingSnippetType)
-                        // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
-                        // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
-                        // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
-                        .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
-                        .build(MapperBuilderContext.root(false, false));
-                    extractPath(routingPaths, mapper);
-                }
-            }
-            return routingPaths;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    /**
+     * Find fields in mapping that are of type keyword and time_series_dimension enabled.
+     * Check also dynamic templates for such fields with path matching spec and include their path
+     * to the routing path, to detect matching fields during (and after) ingestion.
+     */
+    private static List<String> findRoutingPaths(MapperService mapperService) {
+        List<String> routingPaths = new ArrayList<>();
+        for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
+            extractPath(routingPaths, fieldMapper);
         }
+        for (var template : mapperService.getAllDynamicTemplates()) {
+            var templateName = "__dynamic__" + template.name();
+            var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
+            String mappingSnippetType = (String) mappingSnippet.get("type");
+            if (mappingSnippetType == null) {
+                continue;
+            }
+
+            MappingParserContext parserContext = mapperService.parserContext();
+            for (String pathMatch : template.pathMatch()) {
+                var mapper = parserContext.typeParser(mappingSnippetType)
+                    // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
+                    // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
+                    // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
+                    .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
+                    .build(MapperBuilderContext.root(false, false));
+                extractPath(routingPaths, mapper);
+            }
+        }
+        return routingPaths;
+    }
+
+    /**
+     *  Find all fields in dynamic templates that are marked with 'time_series_dimension'. If these fields are referenced in a
+     *  dynamic template spec during bulk ingestion, the fields that are mapped to them become part of the routing path.
+     *
+     *  While there can be overlap between these dynamic dimensions and the routing path that gets constructed from dynamic templates using
+     *  path matching, this method retrieves the field names from dynamic templates, whereas the routing path includes path match specs.
+     *  It's still possible that both mechanism will identify the same field as a dimension during ingestion, so the routing logic is
+     *  expected to deduplicate matches.
+     */
+    private static List<String> findDynamicDimensions(MapperService mapperService) {
+        List<String> dynamicDimensions = new ArrayList<>();
+        for (var template : mapperService.getAllDynamicTemplates()) {
+            if (template.match().isEmpty() == false
+                || template.pathMatch().isEmpty() == false
+                || template.getXContentFieldTypes().length > 0) {
+                throw new IllegalStateException(
+                    "time-series indexes with [time_series_dynamic_templates=true] are only compatible with"
+                        + " dynamic templates containing fields with no 'match' or 'path_match' or 'match_mapping_type' spec, got: "
+                        + mapperService.documentMapper().mappingSource().toString()
+                );
+            }
+            var templateName = "__dynamic__" + template.name();
+            var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
+            String mappingSnippetType = (String) mappingSnippet.get("type");
+            if (mappingSnippetType == null) {
+                continue;
+            }
+            Boolean isDimension = (Boolean) mappingSnippet.get(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM);
+            if (isDimension != null && isDimension) {
+                dynamicDimensions.add(template.name());
+            }
+        }
+        return dynamicDimensions;
     }
 
     /**

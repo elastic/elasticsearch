@@ -410,6 +410,10 @@ public class DynamicTemplate implements ToXContentObject {
         return match;
     }
 
+    public XContentFieldType[] getXContentFieldTypes() {
+        return xContentFieldTypes;
+    }
+
     public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {
         // If the template name parameter is specified, then we will check only the name of the template and ignore other matches.
         if (templateName != null) {
@@ -512,10 +516,6 @@ public class DynamicTemplate implements ToXContentObject {
 
     String getName() {
         return name;
-    }
-
-    XContentFieldType[] getXContentFieldTypes() {
-        return xContentFieldTypes;
     }
 
     Map<String, Object> getMapping() {

@@ -492,6 +492,21 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.ServerlessPublic
     );
 
+    public static final Setting<List<String>> DYNAMIC_DIMENSION_NAMES = Setting.stringListSetting(
+        "index._dynamic_dimension_names",
+        Setting.Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    public static final Setting<Boolean> TIME_SERIES_DYNAMIC_TEMPLATES = Setting.boolSetting(
+        "index.time_series_dynamic_templates",
+        false,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -550,6 +565,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int routingFactor;
     private final int routingPartitionSize;
     private final List<String> routingPaths;
+
+    private final List<String> dynamicDimensionNames;
 
     private final int numberOfShards;
     private final int numberOfReplicas;
@@ -653,6 +670,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int routingNumShards,
         final int routingPartitionSize,
         final List<String> routingPaths,
+        final List<String> dynamicDimensionNames,
         final ActiveShardCount waitForActiveShards,
         final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
@@ -704,6 +722,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.routingFactor = routingNumShards / numberOfShards;
         this.routingPartitionSize = routingPartitionSize;
         this.routingPaths = routingPaths;
+        this.dynamicDimensionNames = dynamicDimensionNames;
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
@@ -759,6 +778,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -817,6 +837,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -873,6 +894,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -929,6 +951,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -981,6 +1004,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.dynamicDimensionNames,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -1087,6 +1111,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public List<String> getRoutingPaths() {
         return routingPaths;
+    }
+
+    public List<String> getDynamicDimensionNames() {
+        return dynamicDimensionNames;
     }
 
     public int getTotalNumberOfShards() {
@@ -2159,6 +2187,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final List<String> routingPaths = INDEX_ROUTING_PATH.get(settings);
 
+            final List<String> dynamicDimensionNames = DYNAMIC_DIMENSION_NAMES.get(settings);
+
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
             List<String> tierPreference;
@@ -2233,6 +2263,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 getRoutingNumShards(),
                 routingPartitionSize,
                 routingPaths,
+                dynamicDimensionNames,
                 waitForActiveShards,
                 rolloverInfos.build(),
                 isSystem,

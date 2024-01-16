@@ -681,7 +681,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     if (addFailureIfIndexIsClosed(docWriteRequest, concreteIndex, i, metadata)) {
                         continue;
                     }
-                    IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
+                    Map<String, String> dynamicTemplates = (docWriteRequest instanceof IndexRequest ir)
+                        ? ir.getDynamicTemplates()
+                        : Map.of();
+                    IndexRouting indexRouting = concreteIndices.routing(concreteIndex, dynamicTemplates);
                     docWriteRequest.process(indexRouting);
                     int shardId = docWriteRequest.route(indexRouting);
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
@@ -894,8 +897,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        IndexRouting routing(Index index) {
-            return routings.computeIfAbsent(index, idx -> IndexRouting.fromIndexMetadata(state.metadata().getIndexSafe(idx)));
+        IndexRouting routing(Index index, Map<String, String> dynamicTemplates) {
+            return routings.computeIfAbsent(
+                index,
+                idx -> IndexRouting.fromIndexMetadataAndDynamicTemplates(state.metadata().getIndexSafe(idx), dynamicTemplates)
+            );
         }
     }
 

@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -890,10 +891,20 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            var indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
-            return IdLoader.createTsIdLoader(indexRouting, indexService.getMetadata().getRoutingPaths());
-        } else {
-            return IdLoader.fromLeafStoredFieldLoader();
+            IndexRouting indexRouting = indexService.getIndexSettings().getIndexRouting();
+            List<String> routingPaths = indexService.getMetadata().getRoutingPaths();
+            if (indexService.getIndexSettings().getValue(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES)) {
+                // If the TSDS supports dynamic metrics and dimensions, some dimensions (or even all of them) may not be included in the
+                // routing path. In this case, they can be retrieved from the index mapping as they're initialized through dynamic template
+                // fields with `time_series_dimension` annotations.
+                List<String> dynamicDimensions = indexService.mapperService().mappingLookup().getDimensions();
+                if (dynamicDimensions.isEmpty() == false) {
+                    indexRouting = IndexRouting.fromIndexMetadataAndDynamicDimensions(indexService.getMetadata(), dynamicDimensions);
+                    routingPaths = IndexRouting.mergeDimensions(routingPaths, dynamicDimensions);
+                }
+            }
+            return IdLoader.createTsIdLoader((IndexRouting.ExtractFromSource) indexRouting, routingPaths);
         }
+        return IdLoader.fromLeafStoredFieldLoader();
     }
 }

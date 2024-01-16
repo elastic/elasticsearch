@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -249,12 +247,6 @@ public class Verifier {
                 failures.add(f);
             }
         });
-        p.forEachExpression(InsensitiveBinaryComparison.class, bc -> {
-            Failure f = validateBinaryComparison(bc);
-            if (f != null) {
-                failures.add(f);
-            }
-        });
     }
 
     private void gatherMetrics(LogicalPlan plan, BitSet b) {
@@ -268,15 +260,6 @@ public class Verifier {
      * Limit QL's comparisons to types we support.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
-        return validateBinaryComparison((BinaryScalarFunction) bc);
-    }
-
-    public static Failure validateBinaryComparison(InsensitiveBinaryComparison bc) {
-        return validateBinaryComparison((BinaryScalarFunction) bc);
-    }
-
-    private static Failure validateBinaryComparison(BinaryScalarFunction bc) {
-        assert bc instanceof BinaryComparison || bc instanceof InsensitiveBinaryComparison;
         if (bc.left().dataType().isNumeric()) {
             if (false == bc.right().dataType().isNumeric()) {
                 return fail(

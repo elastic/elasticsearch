@@ -178,6 +178,11 @@ class S3Service implements Closeable {
 
     // proxy for testing
     AmazonS3 buildClient(final S3ClientSettings clientSettings) {
+        final AmazonS3ClientBuilder builder = buildClientBuilder(clientSettings);
+        return SocketAccess.doPrivileged(builder::build);
+    }
+
+    protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
         builder.withCredentials(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
         builder.withClientConfiguration(buildConfiguration(clientSettings));
@@ -206,7 +211,7 @@ class S3Service implements Closeable {
         if (clientSettings.disableChunkedEncoding) {
             builder.disableChunkedEncoding();
         }
-        return SocketAccess.doPrivileged(builder::build);
+        return builder;
     }
 
     // pkg private for tests

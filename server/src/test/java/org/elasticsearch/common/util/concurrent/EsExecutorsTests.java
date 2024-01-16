@@ -512,7 +512,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             60,
             TimeUnit.SECONDS,
-            true,
+            randomBoolean(),
             EsExecutors.daemonThreadFactory("test"),
             new ThreadContext(Settings.EMPTY)
         );

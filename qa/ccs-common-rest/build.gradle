@@ -27,6 +27,7 @@ dependencies {
   clusterModules project(':x-pack:plugin:analytics')
   clusterModules project(':x-pack:plugin:vector-tile')
   clusterModules project(':modules:legacy-geo')
+  clusterModules project(':x-pack:plugin:autoscaling')
   clusterModules project(':x-pack:plugin:eql')
   clusterModules project(':x-pack:plugin:sql')
 }

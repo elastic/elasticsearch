@@ -58,7 +58,7 @@ public class LearningToRankRescorer implements Rescorer {
 
         if (rescoreContext.getWindowSize() < topDocs.scoreDocs.length) {
             throw new IllegalArgumentException(
-                "Rescore window is too small and should be at least equals to from + size but was [" + rescoreContext.getWindowSize() + "]"
+                "Rescore window is too small and should be at least the value of from + size but was [" + rescoreContext.getWindowSize() + "]"
             );
         }
 

@@ -23,7 +23,6 @@ import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -74,9 +73,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
  * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
-public abstract class AbstractAsyncBulkByScrollAction<
-    Request extends AbstractBulkByScrollRequest<Request>,
-    Action extends TransportAction<Request, ?>> {
+public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>> {
 
     protected final Logger logger;
     protected final BulkByScrollTask task;
@@ -122,7 +119,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
         Logger logger,
         ParentTaskAssigningClient client,
-        ThreadPool threadPool,
         Request mainRequest,
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ScriptService scriptService,
@@ -135,7 +131,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
             logger,
             client,
             client,
-            threadPool,
             mainRequest,
             listener,
             scriptService,
@@ -150,7 +145,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         Logger logger,
         ParentTaskAssigningClient searchClient,
         ParentTaskAssigningClient bulkClient,
-        ThreadPool threadPool,
         Request mainRequest,
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ScriptService scriptService,
@@ -167,7 +161,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.logger = logger;
         this.searchClient = searchClient;
         this.bulkClient = bulkClient;
-        this.threadPool = threadPool;
+        this.threadPool = searchClient.threadPool();
         this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();

@@ -9,7 +9,8 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.script.ScriptService;
@@ -54,22 +55,20 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
-            threadPool,
             new ActionFilters(Collections.emptySet()),
-            null,
+            client,
             transportService,
-            scriptService,
-            null
+            scriptService
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
             task,
             logger,
-            null,
-            threadPool,
+            new ParentTaskAssigningClient(client, null),
             scriptService,
             request,
-            ClusterState.EMPTY_STATE,
             listener()
         );
     }

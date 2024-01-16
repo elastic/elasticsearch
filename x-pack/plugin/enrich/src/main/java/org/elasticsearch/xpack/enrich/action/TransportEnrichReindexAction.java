@@ -53,7 +53,6 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         super(
             EnrichReindexAction.NAME,
             settings,
-            threadPool,
             actionFilters,
             indexNameExpressionResolver,
             clusterService,

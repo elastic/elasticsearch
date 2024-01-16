@@ -9,10 +9,12 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+
+import static org.mockito.Mockito.mock;
 
 public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionMetadataTestCase<
     UpdateByQueryRequest,
@@ -39,11 +41,9 @@ public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionM
             super(
                 UpdateByQueryMetadataTests.this.task,
                 UpdateByQueryMetadataTests.this.logger,
-                null,
-                UpdateByQueryMetadataTests.this.threadPool,
+                mock(ParentTaskAssigningClient.class),
                 null,
                 request(),
-                ClusterState.EMPTY_STATE,
                 listener()
             );
         }

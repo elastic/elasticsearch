@@ -72,7 +72,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
                 }
             }
         );
-        AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
+        AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;
     }
@@ -109,5 +109,5 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         assertThat(e.getMessage(), equalTo("[op] must be one of delete, index, noop, not [unknown]"));
     }
 
-    protected abstract AbstractAsyncBulkByScrollAction<Request, ?> action(ScriptService scriptService, Request request);
+    protected abstract AbstractAsyncBulkByScrollAction<Request> action(ScriptService scriptService, Request request);
 }

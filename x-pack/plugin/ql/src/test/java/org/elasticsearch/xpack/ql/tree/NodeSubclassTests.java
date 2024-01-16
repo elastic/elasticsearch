@@ -188,16 +188,15 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                     continue;
                 }
 
-                List<?> originalList = (List<?>) originalArgValue;
-
-                if (node.children().equals(originalList)) {
+                if (col instanceof List<?> originalList && node.children().equals(originalList)) {
                     // The arg we're looking at *is* the children
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results
                     List<B> newChildren = (List<B>) makeListOfSameSizeOtherThan(changedArgType, originalList);
                     B transformed = node.replaceChildren(newChildren);
                     assertTransformedOrReplacedChildren(node, transformed, ctor, nodeCtorArgs, changedArgOffset, newChildren);
-                } else if (false == originalList.isEmpty() && node.children().containsAll(originalList)) {
+                } else if (false == col.isEmpty() && node.children().containsAll(col)) {
                     // The arg we're looking at is a collection contained within the children
+                    List<?> originalList = (List<?>) originalArgValue;
 
                     // First make the new children
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results

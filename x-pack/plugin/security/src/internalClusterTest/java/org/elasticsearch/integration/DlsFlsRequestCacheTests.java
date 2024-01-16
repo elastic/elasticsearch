@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -353,22 +354,22 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
             {"script":{"source":"{\\"match\\":{\\"username\\":\\"{{_user.username}}\\"}}","lang":"mustache"}}"""), XContentType.JSON));
 
         assertAcked(indicesAdmin().prepareCreate(DLS_INDEX).addAlias(new Alias("dls-alias")).get());
-        client.prepareIndex(DLS_INDEX).setId("101").setSource("number", 101, "letter", "A").get();
-        client.prepareIndex(DLS_INDEX).setId("102").setSource("number", 102, "letter", "B").get();
+        indexDoc(client, DLS_INDEX, "101", "number", 101, "letter", "A");
+        indexDoc(client, DLS_INDEX, "102", "number", 102, "letter", "B");
 
         assertAcked(indicesAdmin().prepareCreate(FLS_INDEX).addAlias(new Alias("fls-alias")).get());
-        client.prepareIndex(FLS_INDEX).setId("201").setSource("public", "X", "private", "x").get();
-        client.prepareIndex(FLS_INDEX).setId("202").setSource("public", "Y", "private", "y").get();
+        indexDoc(client, FLS_INDEX, "201", "public", "X", "private", "x");
+        indexDoc(client, FLS_INDEX, "202", "public", "Y", "private", "y");
 
         assertAcked(
             indicesAdmin().prepareCreate(INDEX).addAlias(new Alias(ALIAS1)).addAlias(new Alias(ALIAS2)).addAlias(new Alias(ALL_ALIAS))
         );
-        client.prepareIndex(INDEX).setId("1").setSource("number", 1, "letter", "a", "private", "sesame_1", "public", "door_1").get();
-        client.prepareIndex(INDEX).setId("2").setSource("number", 2, "letter", "b", "private", "sesame_2", "public", "door_2").get();
+        indexDoc(client, INDEX, "1", "number", 1, "letter", "a", "private", "sesame_1", "public", "door_1");
+        indexDoc(client, INDEX, "2", "number", 2, "letter", "b", "private", "sesame_2", "public", "door_2");
 
         assertAcked(indicesAdmin().prepareCreate(DLS_TEMPLATE_ROLE_QUERY_INDEX).addAlias(new Alias(DLS_TEMPLATE_ROLE_QUERY_ALIAS)).get());
-        client.prepareIndex(DLS_TEMPLATE_ROLE_QUERY_INDEX).setId("1").setSource("username", DLS_TEMPLATE_ROLE_QUERY_USER_1).get();
-        client.prepareIndex(DLS_TEMPLATE_ROLE_QUERY_INDEX).setId("2").setSource("username", DLS_TEMPLATE_ROLE_QUERY_USER_2).get();
+        indexDoc(client, DLS_TEMPLATE_ROLE_QUERY_INDEX, "1", "username", DLS_TEMPLATE_ROLE_QUERY_USER_1);
+        indexDoc(client, DLS_TEMPLATE_ROLE_QUERY_INDEX, "2", "username", DLS_TEMPLATE_ROLE_QUERY_USER_2);
 
         ensureGreen(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX);
         assertCacheState(DLS_INDEX, 0, 0);
@@ -448,6 +449,15 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
             Arrays.asList(expectedHits, expectedMisses, 0L),
             Arrays.asList(requestCacheStats.getHitCount(), requestCacheStats.getMissCount(), requestCacheStats.getEvictions())
         );
+    }
+
+    private void indexDoc(Client client, String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
 }

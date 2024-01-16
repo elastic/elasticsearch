@@ -7,6 +7,7 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
@@ -111,8 +113,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSimpleQuery() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text"));
-        prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "id", "1", "field1", "value1");
+        indexDocImmediate("test", "2", "id", "2", "field2", "value2");
 
         assertResponse(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -158,7 +160,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
                     .setSettings(indexSettings(1, 0))
             );
-            prepareIndex(indexName).setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+            indexDocImmediate(indexName, "1", "id", "1", "field1", "value1");
 
             ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, () -> {
                 client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -194,8 +196,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testDLSIsAppliedBeforeFLS() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field1", "value2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1", "field2", "value1");
+        indexDocImmediate("test", "2", "field1", "value2", "field2", "value2");
 
         assertResponse(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
@@ -223,8 +225,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
                 .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
         );
-        prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "id", "1", "field1", "value1");
+        indexDocImmediate("test", "2", "id", "2", "field2", "value2");
 
         // Both users have the same role query, but user3 has access to field2 and not field1, which should result in zero hits:
         int max = scaledRandomIntBetween(4, 32);
@@ -288,8 +290,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetMappingsIsFiltered() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1");
+        indexDocImmediate("test", "2", "field2", "value2");
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
@@ -322,8 +324,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetIndexMappingsIsFiltered() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1");
+        indexDocImmediate("test", "2", "field2", "value2");
 
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
@@ -353,8 +355,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetFieldMappingsIsFiltered() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1");
+        indexDocImmediate("test", "2", "field2", "value2");
 
         {
             GetFieldMappingsResponse getFieldMappingsResponse = client().filterWithHeader(
@@ -396,8 +398,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testFieldCapabilitiesIsFiltered() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1");
+        indexDocImmediate("test", "2", "field2", "value2");
 
         {
             FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().fields("*").indices("test");
@@ -467,5 +469,14 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             assertNotNull("expected field [" + field + "] not found", fieldMappingMetadata);
         }
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
+    }
+
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

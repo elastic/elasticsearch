@@ -102,6 +102,9 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
             builder.addAlias("test", "alias" + i, QueryBuilders.termQuery("field1", value));
         }
         indexRandom(true, requests);
+        for (IndexRequestBuilder indexRequestBuilder : requests) {
+            indexRequestBuilder.request().decRef();
+        }
         builder.get();
 
         for (int roleI = 1; roleI <= numberOfRoles; roleI++) {

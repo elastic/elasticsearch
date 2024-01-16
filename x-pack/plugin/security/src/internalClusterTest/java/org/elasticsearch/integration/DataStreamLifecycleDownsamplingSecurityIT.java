@@ -383,10 +383,15 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         try (BulkRequestBuilder bulkRequestBuilder = client.prepareBulk()) {
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int i = 0; i < docCount; i++) {
-                IndexRequest indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-                XContentBuilder source = docSourceSupplier.get();
-                indexRequest.source(source);
-                bulkRequestBuilder.add(indexRequest);
+                IndexRequest indexRequest = new IndexRequest(dataStreamName);
+                try {
+                    indexRequest.opType(DocWriteRequest.OpType.CREATE);
+                    XContentBuilder source = docSourceSupplier.get();
+                    indexRequest.source(source);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             int duplicates = 0;

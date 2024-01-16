@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -238,30 +239,35 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 listener.onFailure(e);
                 return;
             }
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareIndex(SECURITY_MAIN_ALIAS)
-                    .setId(getIdForName(mapping.getName()))
-                    .setSource(xContentBuilder)
-                    .setRefreshPolicy(request.getRefreshPolicy())
-                    .setWaitForActiveShards(ActiveShardCount.NONE)
-                    .request(),
-                new ActionListener<DocWriteResponse>() {
-                    @Override
-                    public void onResponse(DocWriteResponse indexResponse) {
-                        boolean created = indexResponse.getResult() == CREATED;
-                        listener.onResponse(created);
-                    }
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(SECURITY_MAIN_ALIAS);
+            try {
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    indexRequestBuilder.setId(getIdForName(mapping.getName()))
+                        .setSource(xContentBuilder)
+                        .setRefreshPolicy(request.getRefreshPolicy())
+                        .setWaitForActiveShards(ActiveShardCount.NONE)
+                        .request(),
+                    ActionListener.runAfter(new ActionListener<DocWriteResponse>() {
+                        @Override
+                        public void onResponse(DocWriteResponse indexResponse) {
+                            boolean created = indexResponse.getResult() == CREATED;
+                            listener.onResponse(created);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(() -> "failed to put role-mapping [" + mapping.getName() + "]", e);
-                        listener.onFailure(e);
-                    }
-                },
-                client::index
-            );
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error(() -> "failed to put role-mapping [" + mapping.getName() + "]", e);
+                            listener.onFailure(e);
+                        }
+                    }, () -> indexRequestBuilder.request().decRef()),
+                    client::index
+                );
+            } catch (Exception e) {
+                indexRequestBuilder.request().decRef();
+                throw e;
+            }
         });
     }
 

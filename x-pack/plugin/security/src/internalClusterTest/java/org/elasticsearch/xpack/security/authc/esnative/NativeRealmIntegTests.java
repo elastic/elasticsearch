@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -316,7 +318,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("idx", "1", "body", "foo");
 
         String token = basicAuthHeaderValue(username, new SecureString("s3krit-password"));
         assertResponse(
@@ -340,7 +342,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("idx", "1", "body", "foo");
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
         assertResponse(
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
@@ -377,7 +379,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("idx", "1", "body", "foo");
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
         assertResponse(
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx"),
@@ -689,7 +691,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testUsersAndRolesDoNotInterfereWithIndicesStats() throws Exception {
-        prepareIndex("foo").setSource("ignore", "me").get();
+        indexDoc("foo", null, "ignore", "me");
 
         if (randomBoolean()) {
             preparePutUser("joe", "s3krit-password", hasher, SecuritySettingsSource.TEST_ROLE).get();
@@ -1023,4 +1025,12 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         return new PutRoleRequestBuilder(client()).name(name);
     }
 
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
 }

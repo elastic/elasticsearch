@@ -209,9 +209,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSimpleQuery() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text"));
-        indexDocWithRefreshPolicy("test", "1", IMMEDIATE, "field1", "value1", IMMEDIATE);
-        indexDocWithRefreshPolicy("test", "2", IMMEDIATE, "field2", "value2", IMMEDIATE);
-        indexDocWithRefreshPolicy("test", "3", IMMEDIATE, "field3", "value3", IMMEDIATE);
+        indexDocWithRefreshPolicy("test", "1", IMMEDIATE, "field1", "value1");
+        indexDocWithRefreshPolicy("test", "2", IMMEDIATE, "field2", "value2");
+        indexDocWithRefreshPolicy("test", "3", IMMEDIATE, "field3", "value3");
 
         assertSearchHitsWithoutFailures(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -877,8 +877,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings).setMapping(builder));
 
         for (int i = 0; i < 5; i++) {
-            indexDoc("test", "field1", "value1", "other", "valueA", "vector", new float[] { i, i, i });
-            indexDoc("test", "field2", "value2", "other", "valueB", "vector", new float[] { i, i, i });
+            indexDoc("test", null, "field1", "value1", "other", "valueA", "vector", new float[] { i, i, i });
+            indexDoc("test", null, "field2", "value2", "other", "valueB", "vector", new float[] { i, i, i });
         }
 
         indicesAdmin().prepareRefresh("test").get();
@@ -1269,10 +1269,15 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         try {
             UpdateRequestBuilder updateRequestBuilder = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2");
-            updateRequestBuilder.get();
-            updateRequestBuilder.request().decRef();
-            fail("failed, because update request shouldn't be allowed if document level security is enabled");
+            ).prepareUpdate("test", "1");
+            try {
+                updateRequestBuilder.setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2");
+                updateRequestBuilder.get();
+                updateRequestBuilder.request().decRef();
+                fail("failed, because update request shouldn't be allowed if document level security is enabled");
+            } finally {
+                updateRequestBuilder.request().decRef();
+            }
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(e.getMessage(), equalTo("Can't execute an update request if field or document level security is enabled"));
@@ -1280,10 +1285,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value1"));
 
         // With no document level security enabled the update is allowed:
-        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "1")
-            .setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2");
-        updateRequestBuilder.get();
-        updateRequestBuilder.request().decRef();
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "1");
+        try {
+            updateRequestBuilder.setDoc(Requests.INDEX_CONTENT_TYPE, "field1", "value2");
+            updateRequestBuilder.get();
+        } finally {
+            updateRequestBuilder.request().decRef();
+        }
         assertThat(client().prepareGet("test", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 
         // With document level security enabled the update in bulk is not allowed:

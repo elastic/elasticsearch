@@ -927,8 +927,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest>
 
     @Override
     public void close() {
-        boolean closed = decRef();
-        assert closed : "Attempted to close IndexRequest but it still has references";
+        decRef();
     }
 
     private static class IndexRequestRefCounted extends AbstractRefCounted {

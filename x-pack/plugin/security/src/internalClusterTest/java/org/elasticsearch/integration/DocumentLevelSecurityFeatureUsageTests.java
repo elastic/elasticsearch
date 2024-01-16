@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -85,9 +87,9 @@ public class DocumentLevelSecurityFeatureUsageTests extends AbstractDocumentAndF
 
     public void testDlsFeatureUsageTracking() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text"));
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1");
+        indexDocImmediate("test", "2", "field2", "value2");
+        indexDocImmediate("test", "3", "field3", "value3");
 
         assertResponse(
             internalCluster().coordOnlyNodeClient()
@@ -108,8 +110,8 @@ public class DocumentLevelSecurityFeatureUsageTests extends AbstractDocumentAndF
 
     public void testDlsFlsFeatureUsageNotTracked() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text"));
-        prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "id", "1", "field1", "value1");
+        indexDocImmediate("test", "2", "id", "2", "field2", "value2");
 
         // Running a search with user2 (which has role3 without DLS/FLS) should not trigger feature tracking.
         assertResponse(
@@ -122,6 +124,15 @@ public class DocumentLevelSecurityFeatureUsageTests extends AbstractDocumentAndF
             }
         );
         assertDlsFlsNotTrackedAcrossAllNodes();
+    }
+
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
 }

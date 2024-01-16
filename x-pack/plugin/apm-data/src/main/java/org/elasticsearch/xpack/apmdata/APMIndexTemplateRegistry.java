@@ -45,7 +45,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
     private final List<IngestPipelineConfig> ingestPipelines;
-    private boolean enabled;
+    private volatile boolean enabled;
 
     @SuppressWarnings("unchecked")
     public APMIndexTemplateRegistry(
@@ -78,10 +78,6 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
                 Map.Entry<String, Map<String, Object>> pipelineConfig = map.entrySet().iterator().next();
                 return loadIngestPipeline(pipelineConfig.getKey(), version, (List<String>) pipelineConfig.getValue().get("dependencies"));
             }).collect(Collectors.toList());
-
-            setEnabled(APMPlugin.APM_DATA_REGISTRY_ENABLED.get(nodeSettings));
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(APMPlugin.APM_DATA_REGISTRY_ENABLED, this::setEnabled);
-
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -91,12 +87,12 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
         return version;
     }
 
-    private synchronized void setEnabled(boolean enabled) {
+    void setEnabled(boolean enabled) {
         logger.info("APM index template registry is {}", enabled ? "enabled" : "disabled");
         this.enabled = enabled;
     }
 
-    public synchronized boolean isEnabled() {
+    public boolean isEnabled() {
         return enabled;
     }
 
@@ -116,7 +112,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        if (isEnabled()) {
+        if (enabled) {
             return componentTemplates;
         } else {
             return Map.of();
@@ -125,7 +121,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        if (isEnabled()) {
+        if (enabled) {
             return composableIndexTemplates;
         } else {
             return Map.of();
@@ -134,7 +130,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
-        if (isEnabled()) {
+        if (enabled) {
             return ingestPipelines;
         } else {
             return Collections.emptyList();

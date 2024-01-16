@@ -58,7 +58,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.XPackSettings.APM_DATA_ENABLED;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -93,7 +92,8 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         );
 
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
-            Settings.builder().put(APM_DATA_ENABLED.getKey(), true).put(APMPlugin.APM_DATA_REGISTRY_ENABLED.getKey(), true).build(),
+            // Settings.builder().put(APM_DATA_ENABLED.getKey(), true).put(APMPlugin.APM_DATA_REGISTRY_ENABLED.getKey(), true).build(),
+            Settings.EMPTY,
             clusterService,
             threadPool,
             client,
@@ -125,9 +125,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        // Disable the index template registry.
-        clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(APMPlugin.APM_DATA_REGISTRY_ENABLED.getKey(), false).build());
+        apmIndexTemplateRegistry.setEnabled(false);
         assertThat(apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet(), hasSize(0));
         assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet(), hasSize(0));
         assertThat(apmIndexTemplateRegistry.getIngestPipelines(), hasSize(0));
@@ -139,9 +137,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
         apmIndexTemplateRegistry.clusterChanged(event);
 
-        // Re-enable the index template registry.
-        clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(APMPlugin.APM_DATA_REGISTRY_ENABLED.getKey(), true).build());
+        apmIndexTemplateRegistry.setEnabled(true);
         assertThat(apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet(), not(hasSize(0)));
         assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet(), not(hasSize(0)));
         assertThat(apmIndexTemplateRegistry.getIngestPipelines(), not(hasSize(0)));

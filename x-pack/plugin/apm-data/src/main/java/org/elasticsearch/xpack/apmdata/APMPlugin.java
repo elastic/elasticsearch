@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.apmdata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -23,7 +24,7 @@ import java.util.List;
 public class APMPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(APMPlugin.class);
 
-    private final SetOnce<APMIndexTemplateRegistry> registry = new SetOnce<>();
+    final SetOnce<APMIndexTemplateRegistry> registry = new SetOnce<>();
 
     private final boolean enabled;
 
@@ -44,29 +45,23 @@ public class APMPlugin extends Plugin implements ActionPlugin {
     @Override
     public Collection<?> createComponents(PluginServices services) {
         logger.info("APM ingest plugin is {}", enabled ? "enabled" : "disabled");
-        if (enabled == false) {
-            return Collections.emptyList();
-        }
-
+        Settings settings = services.environment().settings();
+        ClusterService clusterService = services.clusterService();
         registry.set(
-            new APMIndexTemplateRegistry(
-                services.environment().settings(),
-                services.clusterService(),
-                services.threadPool(),
-                services.client(),
-                services.xContentRegistry()
-            )
+            new APMIndexTemplateRegistry(settings, clusterService, services.threadPool(), services.client(), services.xContentRegistry())
         );
-        APMIndexTemplateRegistry registryInstance = registry.get();
-        registryInstance.initialize();
-        return List.of(registryInstance);
+        if (enabled) {
+            APMIndexTemplateRegistry registryInstance = registry.get();
+            registryInstance.setEnabled(APM_DATA_REGISTRY_ENABLED.get(settings));
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_DATA_REGISTRY_ENABLED, registryInstance::setEnabled);
+            registryInstance.initialize();
+        }
+        return Collections.emptyList();
     }
 
     @Override
     public void close() {
-        if (enabled) {
-            registry.get().close();
-        }
+        registry.get().close();
     }
 
     @Override

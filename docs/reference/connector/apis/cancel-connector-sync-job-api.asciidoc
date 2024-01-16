@@ -4,6 +4,8 @@
 <titleabbrev>Cancel connector sync job</titleabbrev>
 ++++
 
+preview::[]
+
 Cancels a connector sync job.
 
 [[cancel-connector-sync-job-api-request]]

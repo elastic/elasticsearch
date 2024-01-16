@@ -379,8 +379,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             SubscribableListener
                 // run pre-recovery activities
                 .newForked(indexShard::preRecovery)
-                // recover the shard locally and construct the start-recovery request
-                .andThenApply(v -> {
+                // recover the shard as far as possible based on data held locally
+                .<Long>andThen((l, v) -> {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
@@ -394,7 +394,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                             store.decRef();
                         }
                     }
-                    final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
+                    indexShard.recoverLocallyUpToGlobalCheckpoint(ActionListener.assertOnce(l));
+                })
+                // now construct the start-recovery request
+                .andThenApply(startingSeqNo -> {
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                     final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);

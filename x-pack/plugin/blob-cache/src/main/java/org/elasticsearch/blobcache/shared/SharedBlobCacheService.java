@@ -255,6 +255,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
+    // used in tests
+    void computeDecay() {
+        if (cache instanceof LFUCache lfuCache) {
+            lfuCache.computeDecay();
+        }
+    }
+
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
@@ -1101,6 +1108,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             LFUCacheEntry(CacheFileRegion chunk, long lastAccessed) {
                 super(chunk);
                 this.lastAccessed = lastAccessed;
+                this.freq = 1;
             }
 
             void touch() {
@@ -1201,7 +1209,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 throwAlreadyClosed("no free region found (contender)");
             }
             // new item
-            assert entry.freq == 0;
+            assert entry.freq == 1;
             assert entry.prev == null;
             assert entry.next == null;
             final SharedBytes.IO freeSlot = freeRegions.poll();
@@ -1369,22 +1377,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         /**
-         * This method tries to evict the oldest least used {@link LFUCacheEntry}. Only entries with the lowest possible frequency are
-         * considered for eviction.
+         * This method tries to evict the least used {@link LFUCacheEntry}. Only entries with the lowest possible frequency are considered
+         * for eviction.
          *
          * @return true if an entry was evicted, false otherwise.
          */
         public boolean maybeEvictLeastUsed() {
             synchronized (SharedBlobCacheService.this) {
-                long now = relativeTimeInMillis();
                 for (LFUCacheEntry entry = freqs[0]; entry != null; entry = entry.next) {
-                    if (now - entry.lastAccessed >= 2 * minTimeDelta) {
-                        boolean evicted = entry.chunk.tryEvict();
-                        if (evicted && entry.chunk.io != null) {
-                            unlink(entry);
-                            keyMapping.remove(entry.chunk.regionKey, entry);
-                            return true;
-                        }
+                    boolean evicted = entry.chunk.tryEvict();
+                    if (evicted && entry.chunk.io != null) {
+                        unlink(entry);
+                        keyMapping.remove(entry.chunk.regionKey, entry);
+                        return true;
                     }
                 }
             }

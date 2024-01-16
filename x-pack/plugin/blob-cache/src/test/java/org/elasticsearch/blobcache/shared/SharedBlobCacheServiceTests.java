@@ -261,27 +261,33 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var region1 = cacheService.get(cacheKey2, size(250), 1);
             assertEquals(3, cacheService.freeRegionCount());
 
-            assertEquals(0, cacheService.getFreq(region0));
-            assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
 
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
 
             final var region0Again = cacheService.get(cacheKey1, size(250), 0);
             assertSame(region0Again, region0);
-            assertEquals(1, cacheService.getFreq(region0));
-            assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(2, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
 
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
             cacheService.get(cacheKey1, size(250), 0);
-            assertEquals(2, cacheService.getFreq(region0));
+            assertEquals(3, cacheService.getFreq(region0));
             cacheService.get(cacheKey1, size(250), 0);
-            assertEquals(2, cacheService.getFreq(region0));
+            assertEquals(3, cacheService.getFreq(region0));
 
             // advance 2 ticks (decay only starts after 2 ticks)
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+            assertEquals(2, cacheService.getFreq(region0));
+            assertEquals(0, cacheService.getFreq(region1));
+
+            // advance another tick
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
             assertEquals(1, cacheService.getFreq(region0));
@@ -701,7 +707,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testMaybeEvictLeastUsed() throws Exception {
-        final int numRegions = randomIntBetween(1, 500);
+        final int numRegions = 3;randomIntBetween(1, 500);
         final long regionSize = size(1L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -739,6 +745,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     taskQueue.getThreadPool().generic(),
                     ActionListener.noop()
                 );
+                assertThat(cacheService.getFreq(entry), equalTo(1));
+                relativeTimeInMillis.incrementAndGet();
                 cacheKeys.add(cacheKey);
             }
 
@@ -759,17 +767,18 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             cacheKeys.forEach(key -> {
                 if (unusedCacheKeys.contains(key) == false) {
                     var entry = cacheService.get(key, regionSize, 0);
-                    assertThat(cacheService.getFreq(entry), equalTo(1));
+                    assertThat(cacheService.getFreq(entry), equalTo(2));
                 }
             });
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
             assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
 
-            // simulate elapsed time
-            relativeTimeInMillis.addAndGet(minInternalMillis);
-
             for (int i = 1; i <= unusedCacheKeys.size(); i++) {
+                // need to advance time and compute decay to decrease frequencies in cache and have an evictable entry
+                relativeTimeInMillis.addAndGet(minInternalMillis);
+                cacheService.computeDecay();
+
                 assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(true));
                 assertThat(cacheService.freeRegionCount(), equalTo(i));
             }
@@ -882,9 +891,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 );
             }
             {
-                // simulate elapsed time
+                // simulate elapsed time and compute decay
                 var minInternalMillis = SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getDefault(Settings.EMPTY).millis();
                 relativeTimeInMillis.addAndGet(minInternalMillis * 2);
+                cacheService.computeDecay();
 
                 // fetch one more region should evict an old cache entry
                 final var cacheKey = generateCacheKey();

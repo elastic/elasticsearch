@@ -147,6 +147,7 @@ centroidFromAirportsGroupedAfterMvExpand#[skip:-8.12.99, reason:st_centroid adde
 FROM airports
 | MV_EXPAND type
 | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| SORT scalerank DESC
 ;
 
 centroid:geo_point                            | count:long | scalerank:i
@@ -324,6 +325,7 @@ POINT(-266681.67563861894 3053301.5120195406) | 849
 cartesianCentroidFromAirportsCountGrouped#[skip:-8.12.99, reason:st_centroid added in 8.13]
 FROM airports_web
 | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
+| SORT scalerank DESC
 ;
 
 centroid:cartesian_point                      | count:long | scalerank:i

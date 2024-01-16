@@ -15,13 +15,17 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
@@ -52,25 +56,19 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     public void testIndex() {
         createIndex("test1", "index1");
-        prepareIndex("test1").setId("id").setSource("field", "value").get();
+        indexDoc("test1", "id", "field", "value");
 
-        assertThrowsAuthorizationExceptionDefaultUsers(
-            prepareIndex("index1").setId("id").setSource("field", "value")::get,
-            BulkAction.NAME + "[s]"
-        );
+        assertThrowsAuthorizationExceptionDefaultUsers(() -> indexDoc("index1", "id", "field", "value"), BulkAction.NAME + "[s]");
 
-        prepareIndex("test4").setId("id").setSource("field", "value").get();
+        indexDoc("test4", "id", "field", "value");
         // the missing index gets automatically created (user has permissions for that), but indexing fails due to missing authorization
-        assertThrowsAuthorizationExceptionDefaultUsers(
-            prepareIndex("missing").setId("id").setSource("field", "value")::get,
-            BulkAction.NAME + "[s]"
-        );
+        assertThrowsAuthorizationExceptionDefaultUsers(() -> indexDoc("missing", "id", "field", "value"), BulkAction.NAME + "[s]");
         ensureGreen();
     }
 
     public void testDelete() {
         createIndex("test1", "index1");
-        prepareIndex("test1").setId("id").setSource("field", "value").get();
+        indexDoc("test1", "id", "field", "value");
         assertEquals(RestStatus.OK, client().prepareDelete("test1", "id").get().status());
 
         assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "id")::get, BulkAction.NAME + "[s]");
@@ -81,24 +79,18 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     public void testUpdate() {
         createIndex("test1", "index1");
-        prepareIndex("test1").setId("id").setSource("field", "value").get();
-        assertEquals(
-            RestStatus.OK,
-            client().prepareUpdate("test1", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get().status()
-        );
+        indexDoc("test1", "id", "field", "value");
+        assertEquals(RestStatus.OK, updateDoc("test1", "id", Requests.INDEX_CONTENT_TYPE, "field2", "value2").status());
 
         assertThrowsAuthorizationExceptionDefaultUsers(
-            client().prepareUpdate("index1", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get,
+            () -> updateDoc("index1", "id", Requests.INDEX_CONTENT_TYPE, "field2", "value2"),
             TransportUpdateAction.NAME
         );
 
-        expectThrows(
-            DocumentMissingException.class,
-            () -> client().prepareUpdate("test4", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get()
-        );
+        expectThrows(DocumentMissingException.class, () -> updateDoc("test4", "id", Requests.INDEX_CONTENT_TYPE, "field2", "value2"));
 
         assertThrowsAuthorizationExceptionDefaultUsers(
-            client().prepareUpdate("missing", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get,
+            () -> updateDoc("missing", "id", Requests.INDEX_CONTENT_TYPE, "field2", "value2"),
             TransportUpdateAction.NAME
         );
         ensureGreen();
@@ -123,6 +115,11 @@ public class WriteActionsTests extends SecurityIntegTestCase {
                 .add(new UpdateRequest("test4", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
                 .add(new UpdateRequest("missing", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
                 .get();
+            for (DocWriteRequest<?> request : bulkRequestBuilder.request().requests()) {
+                if (request instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
             assertTrue(bulkResponse.hasFailures());
             assertThat(bulkResponse.getItems().length, equalTo(13));
             assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());
@@ -213,5 +210,14 @@ public class WriteActionsTests extends SecurityIntegTestCase {
             );
         }
         ensureGreen();
+    }
+
+    private UpdateResponse updateDoc(String index, String id, XContentType contentType, Object... source) {
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(index, id);
+        try {
+            return updateRequestBuilder.setDoc(contentType, source).get();
+        } finally {
+            updateRequestBuilder.request().decRef();
+        }
     }
 }

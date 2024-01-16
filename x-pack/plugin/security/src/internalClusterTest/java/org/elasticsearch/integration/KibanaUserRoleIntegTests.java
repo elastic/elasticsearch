@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
@@ -63,7 +64,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
     public void testFieldMappings() throws Exception {
         final String index = "logstash-20-12-2015";
         final String field = "foo";
-        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
+        indexRandomAndDecRefRequests(true, prepareIndex(index).setSource(field, "bar"));
 
         GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings()
             .addIndices("logstash-*")
@@ -85,7 +86,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "event";
         final String field = "foo";
-        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
+        indexRandomAndDecRefRequests(true, prepareIndex(index).setSource(field, "bar"));
 
         ValidateQueryResponse response = indicesAdmin().prepareValidateQuery(index).setQuery(QueryBuilders.termQuery(field, "bar")).get();
         assertThat(response.isValid(), is(true));
@@ -100,7 +101,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "event";
         final String field = "foo";
-        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
+        indexRandomAndDecRefRequests(true, prepareIndex(index).setSource(field, "bar"));
 
         assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), response -> {
             final long hits = response.getHits().getTotalHits().value;
@@ -136,7 +137,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "event";
         final String field = "foo";
-        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
+        indexRandomAndDecRefRequests(true, prepareIndex(index).setSource(field, "bar"));
 
         GetIndexResponse response = indicesAdmin().prepareGetIndex().setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
@@ -151,7 +152,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = "logstash-20-12-2015";
         final String type = "_doc";
         final String field = "foo";
-        indexRandom(true, prepareIndex(index).setSource(field, "bar"));
+        indexRandomAndDecRefRequests(true, prepareIndex(index).setSource(field, "bar"));
 
         GetMappingsResponse response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
@@ -165,6 +166,16 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
         assertThat(propertiesMap, hasKey(field));
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 
     // TODO: When we have an XPackIntegTestCase, this should test that we can send MonitoringBulkActions

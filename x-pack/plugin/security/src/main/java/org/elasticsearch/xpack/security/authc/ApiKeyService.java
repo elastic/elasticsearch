@@ -557,7 +557,11 @@ public class ApiKeyService {
                         logger.debug("Detected noop update request for API key [{}]. Skipping index request", apiKeyId);
                         responseBuilder.noop(apiKeyId);
                     } else {
-                        bulkRequestBuilder.add(indexRequest);
+                        try {
+                            bulkRequestBuilder.add(indexRequest);
+                        } finally {
+                            indexRequest.decRef();
+                        }
                     }
                 } catch (Exception ex) {
                     responseBuilder.error(apiKeyId, traceLog("prepare index request for update", ex));

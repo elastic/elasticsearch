@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -690,70 +691,91 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the expiration time
         Instant withinRetention = created.minus(deleteRetentionPeriodDays - 1, ChronoUnit.DAYS);
         assertFalse(created.isBefore(withinRetention));
-        UpdateResponse expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(0).getId())
-            .setDoc("expiration_time", withinRetention.toEpochMilli())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        UpdateResponse expirationDateUpdatedResponse = updateDocImmediate(
+            client,
+            SECURITY_MAIN_ALIAS,
+            createdApiKeys.get(0).getId(),
+            "expiration_time",
+            withinRetention.toEpochMilli()
+        );
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Expire the 2nd key such that it can be deleted by the remover
         // hack doc to modify the expiration time
         Instant outsideRetention = created.minus(deleteRetentionPeriodDays + 1, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(outsideRetention));
-        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(1).getId())
-            .setDoc("expiration_time", outsideRetention.toEpochMilli())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        expirationDateUpdatedResponse = updateDocImmediate(
+            client,
+            SECURITY_MAIN_ALIAS,
+            createdApiKeys.get(1).getId(),
+            "expiration_time",
+            outsideRetention.toEpochMilli()
+        );
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Invalidate the 3rd key such that it cannot be deleted by the remover
-        UpdateResponse invalidateUpdateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(2).getId())
-            .setDoc("invalidation_time", withinRetention.toEpochMilli(), "api_key_invalidated", true)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        UpdateResponse invalidateUpdateResponse = updateDocImmediate(
+            client,
+            SECURITY_MAIN_ALIAS,
+            createdApiKeys.get(2).getId(),
+            "invalidation_time",
+            withinRetention.toEpochMilli(),
+            "api_key_invalidated",
+            true
+        );
         assertThat(invalidateUpdateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Invalidate the 4th key such that it will be deleted by the remover
-        invalidateUpdateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(3).getId())
-            .setDoc("invalidation_time", outsideRetention.toEpochMilli(), "api_key_invalidated", true)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        invalidateUpdateResponse = updateDocImmediate(
+            client,
+            SECURITY_MAIN_ALIAS,
+            createdApiKeys.get(3).getId(),
+            "invalidation_time",
+            outsideRetention.toEpochMilli(),
+            "api_key_invalidated",
+            true
+        );
         assertThat(invalidateUpdateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // 5th key will be deleted because its expiration is outside of retention even though its invalidation time is not
-        UpdateResponse updateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(4).getId())
-            .setDoc(
-                "expiration_time",
-                outsideRetention.toEpochMilli(),
-                "invalidation_time",
-                withinRetention.toEpochMilli(),
-                "api_key_invalidated",
-                true
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        UpdateResponse updateResponse = updateDocImmediate(
+            client,
+            SECURITY_MAIN_ALIAS,
+            createdApiKeys.get(4).getId(),
+            "expiration_time",
+            outsideRetention.toEpochMilli(),
+            "invalidation_time",
+            withinRetention.toEpochMilli(),
+            "api_key_invalidated",
+            true
+        );
         assertThat(updateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // 6th key will be deleted because its invalidation time is outside of retention even though its expiration is not
-        updateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(5).getId())
-            .setDoc(
-                "expiration_time",
-                withinRetention.toEpochMilli(),
-                "invalidation_time",
-                outsideRetention.toEpochMilli(),
-                "api_key_invalidated",
-                true
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        updateResponse = updateDocImmediate(
+            client,
+            SECURITY_MAIN_ALIAS,
+            createdApiKeys.get(5).getId(),
+            "expiration_time",
+            withinRetention.toEpochMilli(),
+            "invalidation_time",
+            outsideRetention.toEpochMilli(),
+            "api_key_invalidated",
+            true
+        );
         assertThat(updateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // 7th key will be deleted because it has old style invalidation (no invalidation time)
         // It does not matter whether it has an expiration time or whether the expiration time is still within retention period
-        updateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(6).getId())
-            .setDoc("api_key_invalidated", true, "expiration_time", randomBoolean() ? withinRetention.toEpochMilli() : null)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        updateResponse = updateDocImmediate(
+            client,
+            SECURITY_MAIN_ALIAS,
+            createdApiKeys.get(6).getId(),
+            "api_key_invalidated",
+            true,
+            "expiration_time",
+            randomBoolean() ? withinRetention.toEpochMilli() : null
+        );
         assertThat(updateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Invalidate to trigger the remover
@@ -2424,10 +2446,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         if (invalidated == false || randomBoolean()) {
             final var dayBefore = Instant.now().minus(1L, ChronoUnit.DAYS);
             assertTrue(Instant.now().isAfter(dayBefore));
-            final var expirationDateUpdatedResponse = client().prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
-                .setDoc("expiration_time", dayBefore.toEpochMilli())
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
+            final var expirationDateUpdatedResponse = updateDocImmediate(
+                client(),
+                SECURITY_MAIN_ALIAS,
+                apiKeyId,
+                "expiration_time",
+                dayBefore.toEpochMilli()
+            );
             assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
         }
 
@@ -3355,6 +3380,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             return expectedType.cast(ex.getCause());
         } else {
             return expectedType.cast(ex);
+        }
+    }
+
+    private UpdateResponse updateDocImmediate(Client client, String index, String id, Object... source) {
+        UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(index, id);
+        try {
+            return updateRequestBuilder.setDoc(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            updateRequestBuilder.request().decRef();
         }
     }
 }

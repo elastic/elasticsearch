@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -44,7 +45,9 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         Client client = client();
         int numDocs = randomIntBetween(5, 30);
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex("foo").setSource(Collections.singletonMap("number", i)).get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex("foo").setSource(Collections.singletonMap("number", i));
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         client.admin().indices().prepareRefresh("foo").get();
         SearchRequest request = client.prepareSearch()

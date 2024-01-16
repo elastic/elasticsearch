@@ -12,9 +12,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
@@ -119,9 +121,9 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
 
         // Trigger index creation by indexing
-        var indexResponse = prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS)).setSource(
-            Map.of("user_profile", Map.of("uid", randomAlphaOfLength(22)))
-        ).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS));
+        var indexResponse = indexRequestBuilder.setSource(Map.of("user_profile", Map.of("uid", randomAlphaOfLength(22)))).get();
+        indexRequestBuilder.request().decRef();
         assertThat(indexResponse.status().getStatus(), equalTo(201));
 
         final GetIndexResponse getIndexResponse = getProfileIndexResponse();
@@ -180,25 +182,27 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(getProfile(profile3.uid(), Set.of()), equalTo(profile3));
 
         // Manually inserting some application data
-        client().prepareUpdate(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS), "profile_" + profile3.uid())
-            .setDoc("""
-                {
-                    "user_profile": {
-                      "labels": {
-                        "my_app": {
-                          "tag": "prod"
-                        }
-                      },
-                      "application_data": {
-                        "my_app": {
-                          "theme": "default"
-                        }
-                      }
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(
+            randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS),
+            "profile_" + profile3.uid()
+        );
+        updateRequestBuilder.setDoc("""
+            {
+                "user_profile": {
+                  "labels": {
+                    "my_app": {
+                      "tag": "prod"
+                    }
+                  },
+                  "application_data": {
+                    "my_app": {
+                      "theme": "default"
                     }
                   }
-                """, XContentType.JSON)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-            .get();
+                }
+              }
+            """, XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
+        updateRequestBuilder.request().decRef();
 
         // Above manual update should be successful
         final Profile profile4 = getProfile(profile3.uid(), Set.of("my_app"));

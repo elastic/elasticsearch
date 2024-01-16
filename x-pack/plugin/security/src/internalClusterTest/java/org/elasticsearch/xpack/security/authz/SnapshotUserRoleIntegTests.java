@@ -11,7 +11,9 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
@@ -155,16 +157,22 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         for (final String indexToTest : Arrays.asList(INTERNAL_SECURITY_MAIN_INDEX_7, SECURITY_MAIN_ALIAS, ordinaryIndex)) {
             assertThrowsAuthorizationException(() -> client.prepareSearch(indexToTest).get(), "indices:data/read/search", "snapshot_user");
             assertThrowsAuthorizationException(() -> client.prepareGet(indexToTest, "1").get(), "indices:data/read/get", "snapshot_user");
-            assertThrowsAuthorizationException(
-                () -> client.prepareIndex(indexToTest).setSource("term", "val").get(),
-                "indices:data/write/index",
-                "snapshot_user"
-            );
-            assertThrowsAuthorizationException(
-                () -> client.prepareUpdate(indexToTest, "1").setDoc("term", "val").get(),
-                "indices:data/write/update",
-                "snapshot_user"
-            );
+            assertThrowsAuthorizationException(() -> {
+                IndexRequestBuilder indexRequestBuilder = client.prepareIndex(indexToTest);
+                try {
+                    indexRequestBuilder.setSource("term", "val").get();
+                } finally {
+                    indexRequestBuilder.request().decRef();
+                }
+            }, "indices:data/write/index", "snapshot_user");
+            assertThrowsAuthorizationException(() -> {
+                UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(indexToTest, "1");
+                try {
+                    updateRequestBuilder.setDoc("term", "val").get();
+                } finally {
+                    updateRequestBuilder.request().decRef();
+                }
+            }, "indices:data/write/update", "snapshot_user");
             assertThrowsAuthorizationException(
                 () -> client.prepareDelete(indexToTest, "1").get(),
                 "indices:data/write/delete",

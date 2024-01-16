@@ -251,10 +251,22 @@ public class ProfileService {
             return;
         }
 
-        doUpdate(
-            buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
-            listener.map(updateResponse -> AcknowledgedResponse.TRUE)
+        UpdateRequest updateRequest = buildUpdateRequest(
+            request.getUid(),
+            builder,
+            request.getRefreshPolicy(),
+            request.getIfPrimaryTerm(),
+            request.getIfSeqNo()
         );
+        try {
+            doUpdate(
+                updateRequest,
+                ActionListener.runAfter(listener.map(updateResponse -> AcknowledgedResponse.TRUE), updateRequest::decRef)
+            );
+        } catch (Exception e) {
+            updateRequest.decRef();
+            throw e;
+        }
     }
 
     public void suggestProfile(SuggestProfilesRequest request, TaskId parentTaskId, ActionListener<SuggestProfilesResponse> listener) {
@@ -314,7 +326,16 @@ public class ProfileService {
             listener.onFailure(e);
             return;
         }
-        doUpdate(buildUpdateRequest(uid, builder, refreshPolicy), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
+        UpdateRequest updateRequest = buildUpdateRequest(uid, builder, refreshPolicy);
+        try {
+            doUpdate(
+                updateRequest,
+                ActionListener.runAfter(listener.map(updateResponse -> AcknowledgedResponse.TRUE), updateRequest::decRef)
+            );
+        } catch (Exception e) {
+            updateRequest.decRef();
+            throw e;
+        }
     }
 
     public void searchProfilesForSubjects(List<Subject> subjects, ActionListener<SubjectSearchResultsAndErrors<Profile>> listener) {

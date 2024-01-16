@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.profile;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -286,6 +287,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .request();
             client().update(updateRequest).actionGet();
+            updateRequest.decRef();
             logger.info("manually creating a collision document: [{}]", existingUid);
         } else {
             existingUid = null;
@@ -369,6 +371,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .request();
             client().update(updateRequest).actionGet();
+            updateRequest.decRef();
             if (newUsername.equals(OTHER_RAC_USER_NAME)) {
                 // The manually updated profile document can still be activated by the other rac user
                 assertThat(doActivateProfile(OTHER_RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING).uid(), equalTo(currentUid));
@@ -452,10 +455,15 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             List.of("role1", "role2"),
             Instant.now().toEpochMilli()
         );
-        prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS)).setId("profile_" + uid)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-            .setSource(source, XContentType.JSON)
-            .get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS));
+        try {
+            indexRequestBuilder.setId("profile_" + uid)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                .setSource(source, XContentType.JSON)
+                .get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
     private Authentication assembleAuthentication(String username, Authentication.RealmRef realmRef) {

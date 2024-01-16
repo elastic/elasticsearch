@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.SecureString;
@@ -52,10 +53,12 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         // update with a new field
+        UpdateRequestBuilder updateRequestBuilder1 = client().prepareUpdate("index1", "1");
         assertEquals(
             DocWriteResponse.Result.UPDATED,
-            client().prepareUpdate("index1", "1").setDoc("{\"not test\": \"not test\"}", XContentType.JSON).get().getResult()
+            updateRequestBuilder1.setDoc("{\"not test\": \"not test\"}", XContentType.JSON).get().getResult()
         );
+        updateRequestBuilder1.request().decRef();
         getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
         assertEquals("not test", getResponse.getSource().get("not test"));
@@ -66,9 +69,11 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
 
         // do it in a bulk
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            UpdateRequestBuilder updateRequestBuilder2 = client().prepareUpdate("index1", "1");
             BulkResponse response = bulkRequestBuilder.add(
-                client().prepareUpdate("index1", "1").setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON)
+                updateRequestBuilder2.setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON)
             ).get();
+            updateRequestBuilder2.request().decRef();
             assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
             getResponse = client().prepareGet("index1", "1").get();
             assertEquals("test", getResponse.getSource().get("test"));

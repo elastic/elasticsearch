@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.SecureString;
@@ -98,10 +100,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
                 .addAlias(new Alias("my_alias"))
                 .addAlias(new Alias("an_alias"))
         );
-        prepareIndex("test").setId("1")
-            .setSource("field1", "value1", "field2", "value2", "field3", "value3")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexDocImmediate("test", "1", "field1", "value1", "field2", "value2", "field3", "value3");
 
         GetResponse getResponse = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
@@ -129,10 +128,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
                 .addAlias(new Alias("my_alias"))
                 .addAlias(new Alias("an_alias"))
         );
-        prepareIndex("test").setId("1")
-            .setSource("field1", "value1", "field2", "value2", "field3", "value3")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexDocImmediate("test", "1", "field1", "value1", "field2", "value2", "field3", "value3");
 
         assertResponse(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -210,11 +206,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
         assertAcked(indicesAdmin().aliases(aliasesRequest).actionGet());
 
         String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-        prepareIndex("test").setCreate(true)
-            .setId("1")
-            .setSource(DEFAULT_TIMESTAMP_FIELD, value, "field1", "value1", "field2", "value2", "field3", "value3")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexDocImmediate("test", "1", DEFAULT_TIMESTAMP_FIELD, value, "field1", "value1", "field2", "value2", "field3", "value3");
 
         assertResponse(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -290,5 +282,14 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+    }
+
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setCreate(true).setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

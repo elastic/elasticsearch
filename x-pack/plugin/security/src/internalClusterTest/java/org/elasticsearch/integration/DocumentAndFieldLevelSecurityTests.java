@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
@@ -162,25 +163,30 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             );
             indexDocImmediate(indexName, "1", "id", "1", "field1", "value1");
 
-            ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, () -> {
-                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                    .prepareUpdate(indexName, "1")
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
-                    .get();
-            });
-            assertThat(
-                exception.getDetailedMessage(),
-                containsString("Can't execute an update request if field or document level " + "security")
-            );
+            UpdateRequestBuilder updateRequestBuilder1 = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+            ).prepareUpdate(indexName, "1");
+            try {
+                ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, () -> {
+                    updateRequestBuilder1.setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get();
+                });
+                assertThat(
+                    exception.getDetailedMessage(),
+                    containsString("Can't execute an update request if field or document level " + "security")
+                );
+            } finally {
+                updateRequestBuilder1.request().decRef();
+            }
 
             try (
                 BulkRequestBuilder bulkRequestBuilder = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                 ).prepareBulk()
             ) {
-                BulkResponse bulkResponse = bulkRequestBuilder.add(
-                    client().prepareUpdate(indexName, "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")
-                ).get();
+                UpdateRequestBuilder updateRequestBuilder2 = client().prepareUpdate(indexName, "1")
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2");
+                BulkResponse bulkResponse = bulkRequestBuilder.add(updateRequestBuilder2).get();
+                updateRequestBuilder2.request().decRef();
                 assertThat(bulkResponse.getItems().length, is(1));
                 assertThat(
                     bulkResponse.getItems()[0].getFailureMessage(),

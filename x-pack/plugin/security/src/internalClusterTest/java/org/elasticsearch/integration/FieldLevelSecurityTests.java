@@ -415,7 +415,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .endObject();
         assertAcked(indicesAdmin().prepareCreate("test").setMapping(builder));
 
-        indexDocImmediate("test", "field1", "value1", "field2", "value2", "vector", new float[] { 0.0f, 0.0f, 0.0f });
+        indexDocImmediate("test", null, "field1", "value1", "field2", "value2", "vector", new float[] { 0.0f, 0.0f, 0.0f });
 
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
@@ -929,7 +929,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         indexDoc("test1", "1", "field1", "value1", "field2", "value2", "field3", "value3");
         indexDoc("test2", "1", "field1", "value1", "field2", "value2", "field3", "value3");
-        indicesAdmin().prepareRefresh("test1", "test2");
+        indicesAdmin().prepareRefresh("test1", "test2").get();
 
         // user1 is granted access to field1 only
         {
@@ -2049,8 +2049,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             UpdateRequestBuilder updateRequestBuilder = client().filterWithHeader(
                 Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
             ).prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2");
-            updateRequestBuilder.get();
-            updateRequestBuilder.request().decRef();
+            try {
+                updateRequestBuilder.get();
+            } finally {
+                updateRequestBuilder.request().decRef();
+            }
             fail("failed, because update request shouldn't be allowed if field level security is enabled");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));

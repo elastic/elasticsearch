@@ -94,7 +94,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
             try {
                 indexImmediate(INDEX, null, geoJson);
-                indexImmediate(IGNORE_MALFORMED_INDEX, null, null);
+                indexImmediate(IGNORE_MALFORMED_INDEX, null, geoJson);
             } catch (Exception e) {
                 // sometimes GeoTestUtil will create invalid geometry; catch and continue:
                 if (queryGeometry == geometry) {
@@ -274,17 +274,18 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
             .endObject()
             .endObject()
             .endObject();
-
         createIndex("test_collections", Settings.builder().put("index.number_of_shards", 1).build(), mapping);
-
         Rectangle rectangle = new Rectangle(-10, 10, 10, -10);
 
-        client().index(
-            new IndexRequest("test_collections").source(
-                jsonBuilder().startObject().field("geometry", WellKnownText.toWKT(rectangle)).endObject()
-            ).setRefreshPolicy(IMMEDIATE)
-        ).actionGet();
-
+        IndexRequest indexRequest = new IndexRequest("test_collections");
+        try {
+            client().index(
+                indexRequest.source(jsonBuilder().startObject().field("geometry", WellKnownText.toWKT(rectangle)).endObject())
+                    .setRefreshPolicy(IMMEDIATE)
+            ).actionGet();
+        } finally {
+            indexRequest.decRef();
+        }
         {
             // A geometry collection that is fully within the indexed shape
             GeometryCollection<Geometry> collection = new GeometryCollection<>(List.of(new Point(1, 2), new Point(-2, -1)));

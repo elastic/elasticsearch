@@ -517,7 +517,7 @@ public class EsExecutorsTests extends ESTestCase {
             new ThreadContext(Settings.EMPTY)
         );
         try {
-            final var countDownLatch = new CountDownLatch(10);
+            final var countDownLatch = new CountDownLatch(between(1, 10));
             class TestTask extends AbstractRunnable {
                 @Override
                 protected void doRun() {

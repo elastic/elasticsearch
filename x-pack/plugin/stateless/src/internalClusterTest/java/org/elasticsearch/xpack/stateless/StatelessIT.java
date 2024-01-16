@@ -29,7 +29,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -37,6 +36,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -648,7 +648,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
         assertThat(active, equalTo(maxUploadTasks));
 
-        ActionFuture<FlushResponse> flushFuture = client().admin().indices().prepareFlush(indexName).execute();
+        ActionFuture<BroadcastResponse> flushFuture = client().admin().indices().prepareFlush(indexName).execute();
 
         var indexShard = findIndexShard(resolveIndex(indexName), 0);
         // we must hold a ref on the store to allow assertThatObjectStoreIsConsistentWithLastCommit

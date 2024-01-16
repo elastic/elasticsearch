@@ -1085,6 +1085,7 @@ class NodeConstruction {
         if (inferenceProviderPlugin.isPresent()) {
             inferenceProvider = inferenceProviderPlugin.get().getInferenceProvider();
         } else {
+            logger.warn("No inference provider found. Inference for semantic_text field types won't be available");
             inferenceProvider = new InferenceProvider.NoopInferenceProvider();
         }
         modules.bindToInstance(InferenceProvider.class, inferenceProvider);

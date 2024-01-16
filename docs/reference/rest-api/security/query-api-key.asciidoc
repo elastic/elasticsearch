@@ -98,9 +98,9 @@ This means that all fields act like `keyword` fields when querying and sorting.
 Also, because of technical limitations related to the <<flattened,flattened>> type,
 it's not possible to refer to a subset of metadata fields using wildcard
 patterns, e.g. `metadata.field*` (in case the query type even supports field name
-patterns in the first place, like <<query-dsl-simple-query-string-query,`simple query string`>>
-does).
-Lastly, all the metadata fields can searched together when simply mentioning
+patterns in the first place, like
+<<query-dsl-simple-query-string-query,`simple query string`>> does).
+Lastly, all the metadata fields can be searched together when simply mentioning
 `metadata` (not followed by any dot and sub-field name).
 
 NOTE: You cannot query the role descriptors of an API key.

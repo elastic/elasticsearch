@@ -115,7 +115,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
     private final PersistentTasksService persistentTasksService;
-    private String downsamplingInterval;
 
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
@@ -285,7 +284,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             // Validate downsampling interval
             validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
-            downsamplingInterval = request.getDownsampleConfig().getInterval().toString();
 
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
@@ -890,7 +888,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             Settings.builder()
                                 .put(downsampleIndex.getSettings())
                                 .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.SUCCESS)
-                                .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsamplingInterval)
                                 .build(),
                             downsampleIndexName
                         );

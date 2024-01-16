@@ -29,7 +29,6 @@ public interface DateHistogramAggregationSupplier {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,

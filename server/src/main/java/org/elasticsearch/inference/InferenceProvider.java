@@ -17,7 +17,7 @@ import java.util.List;
  */
 public interface InferenceProvider {
     /**
-     * Returns nferenceResults for a given model ID and list of texts.
+     * Returns InferenceResults for a given model ID and list of texts.
      *
      * @param modelId model identifier
      * @param texts texts to perform inference on

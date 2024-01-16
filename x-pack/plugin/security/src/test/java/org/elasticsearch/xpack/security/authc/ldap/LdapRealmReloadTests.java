@@ -157,6 +157,72 @@ public class LdapRealmReloadTests extends LdapTestCase {
         }
     }
 
+    public void testLdapRealmReloadWithConnectionPool() throws Exception {
+        final boolean useLegacyBindSetting = randomBoolean();
+        final Settings bindPasswordSettings;
+        if (useLegacyBindSetting) {
+            bindPasswordSettings = Settings.builder()
+                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), BIND_PASSWORD)
+                .build();
+        } else {
+            bindPasswordSettings = Settings.builder()
+                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, BIND_PASSWORD))
+                .build();
+        }
+        final Settings settings = Settings.builder()
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), true)
+            .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrls())
+            .put(localSettings)
+            .put(defaultGlobalSettings)
+            .put(bindPasswordSettings)
+            .build();
+        final RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
+        try (SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.env()), threadPool)) {
+            assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
+
+            LdapRealm ldap = new LdapRealm(config, sessionFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
+            ldap.initialize(Collections.singleton(ldap), licenseState);
+
+            // When a connection is open and already bound, changing the bind password generally
+            // does not affect the existing pooled connection. LDAP connections are stateful,
+            // and once a connection is established and bound, it remains open until explicitly closed
+            // or until a connection timeout occurs. Changing the bind password on the server
+            // does not automatically invalidate existing connections. Hence, we are skipping
+            // here the check that the authentication works before re-loading bind password,
+            // since this check would create and bind a new connection using old password.
+
+            // Generate new password and reload only on ES side
+            final String newBindPassword = randomAlphaOfLengthBetween(5, 10);
+            final Settings updatedBindPasswordSettings;
+            if (useLegacyBindSetting) {
+                updatedBindPasswordSettings = Settings.builder()
+                    .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), newBindPassword)
+                    .build();
+            } else {
+                updatedBindPasswordSettings = Settings.builder()
+                    .setSecureSettings(
+                        secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, newBindPassword)
+                    )
+                    .build();
+            }
+            ldap.reload(updatedBindPasswordSettings);
+            // Using new bind password should fail since we did not update it on LDAP server side.
+            authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.CONTINUE);
+
+            // Change password on LDAP server side and check that authentication works now.
+            changeUserPasswordOnLdapServers(BIND_DN, newBindPassword);
+            authenticateUserAndAssertStatus(ldap, AuthenticationResult.Status.SUCCESS);
+
+            if (useLegacyBindSetting) {
+                assertSettingDeprecationsAndWarnings(
+                    new Setting<?>[] {
+                        PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD.apply(REALM_IDENTIFIER.getType())
+                            .getConcreteSettingForNamespace(REALM_IDENTIFIER.getName()) }
+                );
+            }
+        }
+    }
+
     private void authenticateUserAndAssertStatus(LdapRealm ldap, AuthenticationResult.Status expectedAuthStatus) {
         final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(LDAP_USER_AUTH_TOKEN, future);

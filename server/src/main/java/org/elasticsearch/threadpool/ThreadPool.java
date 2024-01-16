@@ -344,7 +344,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Map<String, Object> at = Map.of();
         ArrayList<Instrument> instruments = new ArrayList<>();
         if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
-            String prefix = THREAD_POOL_METRIC_PREFIX + name.replace("-", "_");
+            String prefix = THREAD_POOL_METRIC_PREFIX + name;
             instruments.add(
                 meterRegistry.registerLongGauge(
                     prefix + THREAD_POOL_METRIC_NAME_CURRENT,

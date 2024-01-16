@@ -160,7 +160,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 (long) stats.queue()
             );
             threadPoolMetrics.forEach((suffix, value) -> {
-                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + stats.name().replace("-", "_") + suffix;
+                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + stats.name() + suffix;
                 List<Measurement> measurements;
                 if (suffix.equals(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)) {
                     measurements = plugin.getLongAsyncCounterMeasurement(metricName);

@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Disable machine learning on macOS x86_64
-  area: Machine Learning
+  area: Packaging
   details: The machine learning plugin is permanently disabled on macOS x86_64.
     For the last three years Apple has been selling hardware based on the arm64
     architecture, and support will increasingly focus on this architecture in

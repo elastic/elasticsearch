@@ -119,8 +119,9 @@ public class ApiKeyFieldNameTranslators {
             // a pattern can generally match a prefix in multiple ways
             // moreover, it's not possible to iterate the concrete fields matching the prefix
             if (Regex.isSimpleMatchPattern(fieldNamePrefix)) {
-                // this means `metadata.*` and `metadata.x*` are expanded to the empty list
+                // this means that e.g. `metadata.*` and `metadata.x*` are expanded to the empty list,
                 // rather than be replaced with `metadata_flattened.*` and `metadata_flattened.x*`
+                // (but, in any case, `metadata_flattened.*` and `metadata.x*` are going to be ignored)
                 return false;
             }
             return fieldNamePrefix.startsWith(prefix);

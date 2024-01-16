@@ -49,10 +49,10 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -532,22 +533,44 @@ public class TasksIT extends ESIntegTestCase {
         );
     }
 
-    @TestLogging(
-        reason = "https://github.com/elastic/elasticsearch/issues/97923",
-        value = "org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction:TRACE"
-    )
     public void testListTasksWaitForCompletion() throws Exception {
-        waitForCompletionTestCase(
-            randomBoolean(),
-            id -> clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).setWaitForCompletion(true).execute(),
-            response -> {
-                assertThat(response.getNodeFailures(), empty());
-                assertThat(response.getTaskFailures(), empty());
-                assertThat(response.getTasks(), hasSize(1));
-                TaskInfo task = response.getTasks().get(0);
-                assertEquals(TEST_TASK_ACTION.name(), task.action());
+        waitForCompletionTestCase(randomBoolean(), id -> {
+            var waitForWaitingToStart = new CountDownLatch(internalCluster().size());
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
+                    @Override
+                    public void onTaskRegistered(Task task) {
+                        if (Objects.equals(task.getAction(), "cluster:monitor/tasks/lists[n]")) {
+                            waitForWaitingToStart.countDown();
+                        }
+                    }
+                });
             }
-        );
+
+            var future = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).setWaitForCompletion(true).execute();
+
+            // This ensures the list task has started on every node and has a chance to see the TEST_TASK_ACTION
+            safeAwait(waitForWaitingToStart);
+
+            // This ensures that a task has progressed to the point of listing all running tasks and subscribing to their updates
+            for (var threadPool : internalCluster().getInstances(ThreadPool.class)) {
+                var max = threadPool.info(ThreadPool.Names.MANAGEMENT).getMax();
+                var executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+                var waitForManagementToCompleteAllTasks = new CyclicBarrier(max + 1);
+                for (int i = 0; i < max; i++) {
+                    executor.submit(() -> safeAwait(waitForManagementToCompleteAllTasks));
+                }
+                safeAwait(waitForManagementToCompleteAllTasks);
+            }
+
+            return future;
+        }, response -> {
+            assertThat(response.getNodeFailures(), empty());
+            assertThat(response.getTaskFailures(), empty());
+            assertThat(response.getTasks(), hasSize(1));
+            TaskInfo task = response.getTasks().get(0);
+            assertEquals(TEST_TASK_ACTION.name(), task.action());
+        });
     }
 
     public void testGetTaskWaitForCompletionWithoutStoringResult() throws Exception {
@@ -593,24 +616,8 @@ public class TasksIT extends ESIntegTestCase {
             // Wait for the task to start
             assertBusy(() -> clusterAdmin().prepareGetTask(taskId).get());
 
-            // Register listeners so we can be sure the waiting started
-            CountDownLatch waitForWaitingToStart = new CountDownLatch(1);
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
-                    @Override
-                    public void onTaskUnregistered(Task task) {
-                        waitForWaitingToStart.countDown();
-                    }
-                });
-            }
-
             // Spin up a request to wait for the test task to finish
             waitResponseFuture = wait.apply(taskId);
-
-            /* Wait for the wait to start. This should count down just *before* we wait for completion but after the list/get has got a
-             * reference to the running task. Because we unblock immediately after this the task may no longer be running for us to wait
-             * on which is fine. */
-            waitForWaitingToStart.await();
         } finally {
             // Unblock the request so the wait for completion request can finish
             client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest()).get();

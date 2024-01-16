@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -188,11 +189,13 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
             if (simpleQueryStringBuilder.fields().isEmpty()) {
                 // A SimpleQueryStringBuilder with empty fields() will eventually produce a SimpleQueryString query
-                // that accesses all the fields, including disallowed ones. This hack prevents that, by instead
-                // putting in a field name pattern that's guaranteed to not match any field name in the .security index.
-                simpleQueryStringBuilder.field("match_nothing_place_holder_field_name_wildcard*");
+                // that accesses all the fields, including disallowed ones.
+                // Instead, the behavior we're after is that a query that accesses only disallowed fields should
+                // not match any docs.
+                return new MatchNoneQueryBuilder();
+            } else {
+                return simpleQueryStringBuilder;
             }
-            return simpleQueryStringBuilder;
         } else {
             throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
         }

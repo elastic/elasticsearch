@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiTermQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -680,14 +681,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             } else {
                 assertThat(queryFields.size(), is(1));
             }
-            assertThat(
-                apiKeyQb.must().get(0),
-                equalTo(
-                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
-                        .field("match_nothing_place_holder_field_name_wildcard*")
-                        .lenient(false)
-                )
-            );
+            assertThat(apiKeyQb.must().get(0), equalTo(new MatchNoneQueryBuilder()));
         }
         // disallowed or unknown field is silently ignored
         {
@@ -706,14 +700,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             } else {
                 assertThat(queryFields.size(), is(1));
             }
-            assertThat(
-                apiKeyQb.must().get(0),
-                equalTo(
-                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
-                        .field("match_nothing_place_holder_field_name_wildcard*")
-                        .lenient(false)
-                )
-            );
+            assertThat(apiKeyQb.must().get(0), equalTo(new MatchNoneQueryBuilder()));
 
             // translated field
             queryFields = new ArrayList<>();
@@ -739,14 +726,8 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             } else {
                 assertThat(queryFields.size(), is(1));
             }
-            assertThat(
-                apiKeyQb.must().get(0),
-                equalTo(
-                    QueryBuilders.simpleQueryStringQuery(queryStringQuery)
-                        .field("match_nothing_place_holder_field_name_wildcard*")
-                        .lenient(false)
-                )
-            );
+
+            assertThat(apiKeyQb.must().get(0), equalTo(new MatchNoneQueryBuilder()));
         }
     }
 

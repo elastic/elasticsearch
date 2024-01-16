@@ -71,6 +71,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
             IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis(), "msg", "Node 1 started", "part", "nodes");
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source(
                 "time",
@@ -81,9 +82,11 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 "shutdowns"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source("time", nowMillis - TimeValue.timeValueHours(1).millis(), "msg", "Node 2 started", "part", "nodes");
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source(
                 "time",
@@ -94,9 +97,11 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 "shutdowns"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(DATA_INDEX);
             indexRequest.source("time", nowMillis, "msg", "Node 3 started", "part", "nodes");
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
 
             BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL).get();
             assertThat(bulkResponse.hasFailures(), is(false));
@@ -458,6 +463,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                     + "Started HttpServer2$SelectChannelConnectorWithSafeStartup@0.0.0.0:62267"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(index);
             indexRequest.source(
                 "time",
@@ -466,6 +472,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 "2015-10-18 18:01:53,400 INFO [main] org.apache.hadoop.yarn.webapp.WebApps: Registered webapp guice modules"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(index);
             indexRequest.source(
                 "time",
@@ -475,6 +482,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                     + "nodeBlacklistingEnabled:true"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(index);
             indexRequest.source(
                 "time",
@@ -483,6 +491,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                 "2015-10-18 18:01:52,728 INFO [main] org.apache.hadoop.yarn.webapp.WebApps: Web app /mapreduce started at 62267"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
             indexRequest = new IndexRequest(index);
             indexRequest.source(
                 "time",
@@ -492,6 +501,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                     + "Connecting to ResourceManager at msra-sa-41/10.190.173.170:8030"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
 
             indexRequest = new IndexRequest(index);
             indexRequest.source(
@@ -502,6 +512,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                     + "maxContainerCapability: <memory:8192, vCores:32>"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
 
             indexRequest = new IndexRequest(index);
             indexRequest.source(
@@ -512,6 +523,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
                     + "yarn.client.max-cached-nodemanagers-proxies : 0"
             );
             bulkRequestBuilder.add(indexRequest);
+            indexRequest.decRef();
 
             BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             assertThat(bulkResponse.hasFailures(), is(false));

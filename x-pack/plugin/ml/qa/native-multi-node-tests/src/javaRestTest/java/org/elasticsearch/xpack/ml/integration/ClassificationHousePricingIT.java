@@ -1625,6 +1625,7 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
                 );
                 IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
@@ -117,9 +118,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         String actualField = "fieldA";
         String predictedField = "fieldB";
         client().admin().indices().prepareCreate(indexName).setMapping(actualField, "type=keyword", predictedField, "type=keyword").get();
-        prepareIndex(indexName).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setSource(actualField, "crocodile", predictedField, "cRoCoDiLe")
-            .get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setSource(actualField, "crocodile", predictedField, "cRoCoDiLe");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
             indexName,
@@ -727,32 +729,37 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                                 put("class_probability", 0.4 - 0.1 * ix);
                             }
                         }).collect(toList());
-                        bulkRequestBuilder.add(
-                            new IndexRequest(indexName).source(
-                                ANIMAL_NAME_KEYWORD_FIELD,
-                                animalNames.get(i),
-                                ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                                animalNames.get((i + j) % animalNames.size()),
-                                ANIMAL_NAME_PREDICTION_PROB_FIELD,
-                                animalNames.get((i + j) % animalNames.size()),
-                                NO_LEGS_KEYWORD_FIELD,
-                                String.valueOf(i + 1),
-                                NO_LEGS_INTEGER_FIELD,
-                                i + 1,
-                                NO_LEGS_PREDICTION_INTEGER_FIELD,
-                                j + 1,
-                                IS_PREDATOR_KEYWORD_FIELD,
-                                String.valueOf(i % 2 == 0),
-                                IS_PREDATOR_BOOLEAN_FIELD,
-                                i % 2 == 0,
-                                IS_PREDATOR_PREDICTION_BOOLEAN_FIELD,
-                                (i + j) % 2 == 0,
-                                IS_PREDATOR_PREDICTION_PROBABILITY_FIELD,
-                                i % 2 == 0 ? 1.0 - 0.1 * i : 0.1 * i,
-                                ML_TOP_CLASSES_FIELD,
-                                topClasses
-                            )
-                        );
+                        IndexRequest indexRequest = new IndexRequest(indexName);
+                        try {
+                            bulkRequestBuilder.add(
+                                indexRequest.source(
+                                    ANIMAL_NAME_KEYWORD_FIELD,
+                                    animalNames.get(i),
+                                    ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                                    animalNames.get((i + j) % animalNames.size()),
+                                    ANIMAL_NAME_PREDICTION_PROB_FIELD,
+                                    animalNames.get((i + j) % animalNames.size()),
+                                    NO_LEGS_KEYWORD_FIELD,
+                                    String.valueOf(i + 1),
+                                    NO_LEGS_INTEGER_FIELD,
+                                    i + 1,
+                                    NO_LEGS_PREDICTION_INTEGER_FIELD,
+                                    j + 1,
+                                    IS_PREDATOR_KEYWORD_FIELD,
+                                    String.valueOf(i % 2 == 0),
+                                    IS_PREDATOR_BOOLEAN_FIELD,
+                                    i % 2 == 0,
+                                    IS_PREDATOR_PREDICTION_BOOLEAN_FIELD,
+                                    (i + j) % 2 == 0,
+                                    IS_PREDATOR_PREDICTION_PROBABILITY_FIELD,
+                                    i % 2 == 0 ? 1.0 - 0.1 * i : 0.1 * i,
+                                    ML_TOP_CLASSES_FIELD,
+                                    topClasses
+                                )
+                            );
+                        } finally {
+                            indexRequest.decRef();
+                        }
                     }
                 }
             }
@@ -766,14 +773,19 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     private static void indexDistinctAnimals(String indexName, int distinctAnimalCount) {
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
             for (int i = 0; i < distinctAnimalCount; i++) {
-                bulkRequestBuilder.add(
-                    new IndexRequest(indexName).source(
-                        ANIMAL_NAME_KEYWORD_FIELD,
-                        "animal_" + i,
-                        ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                        randomAlphaOfLength(5)
-                    )
-                );
+                IndexRequest indexRequest = new IndexRequest(indexName);
+                try {
+                    bulkRequestBuilder.add(
+                        indexRequest.source(
+                            ANIMAL_NAME_KEYWORD_FIELD,
+                            "animal_" + i,
+                            ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                            randomAlphaOfLength(5)
+                        )
+                    );
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {

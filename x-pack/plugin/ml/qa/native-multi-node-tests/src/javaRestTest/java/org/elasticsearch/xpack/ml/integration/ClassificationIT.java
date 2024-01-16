@@ -1147,8 +1147,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                     NESTED_FIELD,
                     KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())
                 );
-                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
-                bulkRequestBuilder.add(indexRequest);
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                try {
+                    indexRequest.source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
                 List<Object> source = new ArrayList<>();

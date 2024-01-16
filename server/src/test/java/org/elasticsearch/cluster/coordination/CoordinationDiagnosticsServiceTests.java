@@ -990,10 +990,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
             new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
             Collections.emptyList(),
-            Collections.emptyList(),
             hasDiscoveredAllNodes
                 ? allMasterEligibleNodes
                 : randomSubsetOf(randomInt(allMasterEligibleNodes.size() - 1), allMasterEligibleNodes),
+            Collections.emptyList(),
             randomLong(),
             hasDiscoveredQuorum,
             new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),

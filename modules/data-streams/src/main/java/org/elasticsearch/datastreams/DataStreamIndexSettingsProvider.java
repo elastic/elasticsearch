@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
@@ -178,7 +177,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 }
 
                 MappingParserContext parserContext = mapperService.parserContext();
-                for (Iterator<String> iterator = template.pathMatch().iterator(); iterator.hasNext(); ) {
+                for (Iterator<String> iterator = template.pathMatch().iterator(); iterator.hasNext();) {
                     var mapper = parserContext.typeParser(mappingSnippetType)
                         .parse(iterator.next(), mappingSnippet, parserContext)
                         .build(MapperBuilderContext.root(false, false));

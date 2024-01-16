@@ -1,5 +1,0 @@
-pr: 102778
-summary: Adding `RefCounted` method implementations to `BulkRequest`
-area: Ingest Node
-type: enhancement
-issues: []

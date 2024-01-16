@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
  * it in a single batch.
  */
 public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse> implements WriteRequestBuilder<BulkRequestBuilder> {
+
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
         super(client, BulkAction.INSTANCE, new BulkRequest(globalIndex));
     }

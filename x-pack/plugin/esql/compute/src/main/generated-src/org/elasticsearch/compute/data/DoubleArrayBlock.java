@@ -67,7 +67,6 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
     @Override
     public DoubleBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newDoubleBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
@@ -24,6 +23,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -567,9 +567,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         RefreshRequest refresh = new RefreshRequest();
         refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
         logger.debug("[{}]: refreshing", task.getId());
-        bulkClient.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
+        bulkClient.admin().indices().refresh(refresh, new ActionListener<>() {
             @Override
-            public void onResponse(RefreshResponse response) {
+            public void onResponse(BroadcastResponse response) {
                 finishHim(null, indexingFailures, searchFailures, timedOut);
             }
 

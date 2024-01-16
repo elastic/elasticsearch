@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -130,7 +131,8 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         );
         allIndices.add(apmTestIndex);
         waitForIndices(allIndices);
-        ensureGreen(allIndices.toArray(new String[0]));
+        // higher timeout since we have more shards than usual
+        ensureGreen(TimeValue.timeValueSeconds(120), allIndices.toArray(new String[0]));
 
         bulkIndex("data/profiling-events-all.ndjson");
         bulkIndex("data/profiling-stacktraces.ndjson");

@@ -152,6 +152,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
     @Override
     protected void doExecute(Task task, TermsEnumRequest request, ActionListener<TermsEnumResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        coordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+    }
+
+    private void doExecuteForked(Task task, TermsEnumRequest request, ActionListener<TermsEnumResponse> listener) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }

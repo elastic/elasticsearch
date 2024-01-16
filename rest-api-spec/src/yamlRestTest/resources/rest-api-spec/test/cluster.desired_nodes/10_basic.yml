@@ -4,7 +4,7 @@ setup:
       version: " - 8.2.99"
       reason: "API added in in 8.1.0 but modified in 8.3"
   - requires:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "request format changed (node_version field removed)"
 ---
 teardown:

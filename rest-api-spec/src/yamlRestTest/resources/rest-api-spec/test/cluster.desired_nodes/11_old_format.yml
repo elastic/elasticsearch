@@ -10,7 +10,7 @@ teardown:
 ---
 "Test update desired nodes":
   - skip:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "contains is a newly added assertion"
       features: contains
   - do:
@@ -62,7 +62,7 @@ teardown:
 ---
 "Test update move to a new history id":
   - skip:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "contains is a newly added assertion"
       features: contains
   - do:
@@ -112,7 +112,7 @@ teardown:
 ---
 "Test delete desired nodes":
   - skip:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "legacy request format with node_version field"
 
   - do:
@@ -239,7 +239,7 @@ teardown:
 ---
 "Test node version must be at least the current master version":
   - skip:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "legacy request format with node_version field"
 
   - do:
@@ -258,7 +258,7 @@ teardown:
 ---
 "Test node version is required":
   - skip:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "legacy request format with node_version field"
 
   - do:
@@ -274,7 +274,7 @@ teardown:
 ---
 "Test node version must have content":
   - skip:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "legacy request format with node_version field"
 
   - do:
@@ -290,7 +290,7 @@ teardown:
 ---
 "Test node version can not be null":
   - skip:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "legacy request format with node_version field"
 
   - do:

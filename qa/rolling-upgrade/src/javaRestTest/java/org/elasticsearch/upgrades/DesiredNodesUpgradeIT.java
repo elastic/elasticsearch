@@ -10,6 +10,7 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.Request;
@@ -84,7 +85,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     1238.49922909,
                     ByteSizeValue.ofGb(32),
                     ByteSizeValue.ofGb(128),
-                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_REMOVED) ? null : Version.CURRENT
+                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
                 )
             )
             .toList();
@@ -155,7 +156,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                         processorsPrecision == ProcessorsPrecision.DOUBLE ? randomDoubleProcessorCount() : 0.5f,
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                         ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                        clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_REMOVED) ? null : Version.CURRENT
+                        clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
                     )
                 )
                 .toList();
@@ -169,7 +170,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     new DesiredNode.ProcessorsRange(minProcessors, minProcessors + randomIntBetween(10, 20)),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                     ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_REMOVED) ? null : Version.CURRENT
+                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
                 );
             }).toList();
         }
@@ -184,7 +185,7 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     randomIntBetween(1, 24),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                     ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_REMOVED) ? null : Version.CURRENT
+                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
                 )
             )
             .toList();

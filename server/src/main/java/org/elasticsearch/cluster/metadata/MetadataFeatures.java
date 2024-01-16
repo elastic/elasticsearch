@@ -28,6 +28,6 @@ public class MetadataFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(DesiredNode.DESIRED_NODE_VERSION_REMOVED);
+        return Set.of(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED);
     }
 }

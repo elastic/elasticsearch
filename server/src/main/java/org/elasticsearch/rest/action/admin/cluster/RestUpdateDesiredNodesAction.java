@@ -55,8 +55,8 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
             updateDesiredNodesRequest = UpdateDesiredNodesRequest.fromXContent(historyId, version, dryRun, parser);
         }
 
-        if (clusterSupportsFeature.test(DesiredNode.DESIRED_NODE_VERSION_REMOVED) &&
-            updateDesiredNodesRequest.getNodes().stream().anyMatch(DesiredNode::hasVersion)) {
+        if (clusterSupportsFeature.test(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED)
+            && updateDesiredNodesRequest.getNodes().stream().anyMatch(DesiredNode::hasVersion)) {
             deprecationLogger.compatibleCritical("desired_nodes_version", VERSION_DEPRECATION_MESSAGE);
         }
 

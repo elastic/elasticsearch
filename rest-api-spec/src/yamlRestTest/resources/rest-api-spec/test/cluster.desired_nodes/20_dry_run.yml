@@ -11,7 +11,7 @@ teardown:
 ---
 "Test dry run doesn't update empty desired nodes":
   - requires:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "version_node removed from version 8.13 onwards"
   - do:
       cluster.state: {}
@@ -41,7 +41,7 @@ teardown:
 ---
 "Test dry run doesn't update existing desired nodes":
   - requires:
-        cluster_features: "desired_node.version_removed"
+        cluster_features: "desired_node.version_deprecated"
         reason: "version_node removed from version 8.13 onwards"
   - do:
       cluster.state: {}
@@ -121,7 +121,7 @@ teardown:
 ---
 "Test misspelled dry run":
   - requires:
-      cluster_features: "desired_node.version_removed"
+      cluster_features: "desired_node.version_deprecated"
       reason: "version_node removed from version 8.13 onwards"
   - do:
       cluster.state: { }

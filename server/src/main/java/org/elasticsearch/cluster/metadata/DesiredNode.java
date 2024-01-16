@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
@@ -37,6 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
@@ -47,7 +47,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     public static final NodeFeature RANGE_FLOAT_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.range_float_processors");
     public static final NodeFeature DOUBLE_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.double_processors");
-    public static final NodeFeature DESIRED_NODE_VERSION_REMOVED = new NodeFeature("desired_node.version_removed");
+    public static final NodeFeature DESIRED_NODE_VERSION_DEPRECATED = new NodeFeature("desired_node.version_deprecated");
 
     public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
 
@@ -68,7 +68,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             (ProcessorsRange) args[2],
             (ByteSizeValue) args[3],
             (ByteSizeValue) args[4],
-            (Version) args[5]
+            (String) args[5]
         )
     );
 
@@ -124,17 +124,17 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final ByteSizeValue storage;
 
     @UpdateForV9 // Remove deprecated version field
-    private final Version version;
+    private final String version;
     private final String externalId;
     private final Set<DiscoveryNodeRole> roles;
 
     @Deprecated
-    public DesiredNode(Settings settings, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage, Version version) {
+    public DesiredNode(Settings settings, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage, String version) {
         this(settings, null, processorsRange, memory, storage, version);
     }
 
     @Deprecated
-    public DesiredNode(Settings settings, double processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
+    public DesiredNode(Settings settings, double processors, ByteSizeValue memory, ByteSizeValue storage, String version) {
         this(settings, Processors.of(processors), null, memory, storage, version);
     }
 
@@ -156,7 +156,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         ProcessorsRange processorsRange,
         ByteSizeValue memory,
         ByteSizeValue storage,
-        @Deprecated Version version
+        @Deprecated String version
     ) {
         assert settings != null;
         assert memory != null;
@@ -209,11 +209,25 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         final var memory = ByteSizeValue.readFrom(in);
         final var storage = ByteSizeValue.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DESIRED_NODE_VERSION_REMOVED)) {
-            return new DesiredNode(settings, processors, processorsRange, memory, storage, null);
+        final String version;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.DESIRED_NODE_VERSION_OPTIONAL_STRING)) {
+            version = in.readOptionalString();
+        } else {
+            version = Version.readVersion(in).toString();
         }
-        final var version = Version.readVersion(in);
         return new DesiredNode(settings, processors, processorsRange, memory, storage, version);
+    }
+
+    private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
+
+    private static Version parseLegacyVersion(String version) {
+        if (version != null) {
+            var semanticVersionMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
+            if (semanticVersionMatcher.matches()) {
+                return Version.fromString(semanticVersionMatcher.group(1));
+            }
+        }
+        return null;
     }
 
     @Override
@@ -229,13 +243,15 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         memory.writeTo(out);
         storage.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.DESIRED_NODE_VERSION_REMOVED)) {
-            // Some node is from before we made the version field not required.
-            // If so, fill in with the current node version.
+        if (out.getTransportVersion().onOrAfter(TransportVersions.DESIRED_NODE_VERSION_OPTIONAL_STRING)) {
+            out.writeOptionalString(version);
+        } else {
+            Version parsedVersion = parseLegacyVersion(version);
             if (version == null) {
+                // Some node is from before we made the version field not required. If so, fill in with the current node version.
                 Version.writeVersion(Version.CURRENT, out);
             } else {
-                Version.writeVersion(version, out);
+                Version.writeVersion(parsedVersion, out);
             }
         }
     }
@@ -269,9 +285,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     @UpdateForV9 // Remove deprecated field from response
     private void addDeprecatedVersionField(XContentBuilder builder) throws IOException {
-        if (version == null) {
-            builder.field(VERSION_FIELD.getPreferredName(), Build.current().version());
-        } else {
+        if (version != null) {
             builder.field(VERSION_FIELD.getPreferredName(), version);
         }
     }

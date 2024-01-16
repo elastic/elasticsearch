@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -137,9 +138,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
-    @Nullable
-    public String getDownsamplingInterval() {
-        return settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY);
+    // TODO: refactor this method after adding more downsampling metadata
+    public boolean isDownsampledIndex() {
+        final String sourceIndex = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+        final String indexDownsamplingStatus = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY);
+        final boolean downsamplingSuccess = DownsampleTaskStatus.SUCCESS.name()
+            .toLowerCase(Locale.ROOT)
+            .equals(indexDownsamplingStatus != null ? indexDownsamplingStatus.toLowerCase(Locale.ROOT) : DownsampleTaskStatus.UNKNOWN);
+        return Strings.isNullOrEmpty(sourceIndex) == false && downsamplingSuccess;
     }
 
     public enum State implements Writeable {
@@ -1229,7 +1235,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String INDEX_DOWNSAMPLE_ORIGIN_UUID_KEY = "index.downsample.origin.uuid";
 
     public static final String INDEX_DOWNSAMPLE_STATUS_KEY = "index.downsample.status";
-    public static final String INDEX_DOWNSAMPLE_INTERVAL_KEY = "index.downsample.interval";
     public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_UUID = Setting.simpleString(
         INDEX_DOWNSAMPLE_SOURCE_UUID_KEY,
         Property.IndexScope,
@@ -1270,14 +1275,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         DownsampleTaskStatus.UNKNOWN,
         Property.IndexScope,
         Property.InternalIndex
-    );
-
-    public static final Setting<String> INDEX_DOWNSAMPLE_INTERVAL = Setting.simpleString(
-        INDEX_DOWNSAMPLE_INTERVAL_KEY,
-        "",
-        Property.IndexScope,
-        Property.InternalIndex,
-        Property.PrivateIndex
     );
 
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and

@@ -76,7 +76,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME,
         IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID,
         IndexMetadata.INDEX_DOWNSAMPLE_STATUS,
-        IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,

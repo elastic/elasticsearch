@@ -59,7 +59,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     private final long minDocCount;
-    private final boolean downsampledResultsOffset;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
 
@@ -72,7 +71,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
@@ -89,7 +87,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
-        this.downsampledResultsOffset = downsampledResultsOffset;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         // TODO: Stop using null here
@@ -200,7 +197,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                     emptyBucketInfo,
                     formatter,
                     keyed,
-                    downsampledResultsOffset,
                     metadata()
                 );
             }
@@ -221,7 +217,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
             emptyBucketInfo,
             formatter,
             keyed,
-            downsampledResultsOffset,
             metadata()
         );
     }

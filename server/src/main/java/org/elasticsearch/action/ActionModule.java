@@ -232,6 +232,7 @@ import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -447,6 +448,7 @@ public class ActionModule extends AbstractModule {
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
@@ -469,6 +471,7 @@ public class ActionModule extends AbstractModule {
     public ActionModule(
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        NamedWriteableRegistry namedWriteableRegistry,
         IndexScopedSettings indexScopedSettings,
         ClusterSettings clusterSettings,
         SettingsFilter settingsFilter,
@@ -487,6 +490,7 @@ public class ActionModule extends AbstractModule {
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
@@ -934,12 +938,12 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestBulkAction(settings));
         registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder()));
+        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry));
         registerHandler.accept(new RestSearchScrollAction(searchResponseTookMetrics));
         registerHandler.accept(new RestClearScrollAction());
         registerHandler.accept(new RestOpenPointInTimeAction());
         registerHandler.accept(new RestClosePointInTimeAction());
-        registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), searchResponseTookMetrics));
+        registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), namedWriteableRegistry, searchResponseTookMetrics));
         registerHandler.accept(new RestKnnSearchAction());
 
         registerHandler.accept(new RestValidateQueryAction());
@@ -1012,6 +1016,7 @@ public class ActionModule extends AbstractModule {
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(
                 settings,
+                namedWriteableRegistry,
                 restController,
                 clusterSettings,
                 indexScopedSettings,

@@ -68,9 +68,16 @@ public class HeapAttackIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .build();
 
+    static volatile boolean SUITE_ABORTED = false;
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Before
+    public void skipOnAborted() {
+        assumeFalse("skip on aborted", SUITE_ABORTED);
     }
 
     /**
@@ -318,6 +325,7 @@ public class HeapAttackIT extends ESRestTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
+                    SUITE_ABORTED = true;
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
@@ -549,6 +557,9 @@ public class HeapAttackIT extends ESRestTestCase {
     @Before
     @After
     public void assertRequestBreakerEmpty() throws Exception {
+        if (SUITE_ABORTED) {
+            return;
+        }
         assertBusy(() -> {
             HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats")).getEntity();
             Map<?, ?> stats = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);

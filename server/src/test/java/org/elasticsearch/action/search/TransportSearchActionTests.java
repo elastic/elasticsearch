@@ -511,8 +511,12 @@ public class TransportSearchActionTests extends ESTestCase {
                 ActionListener.wrap(r -> fail("no response expected"), failure::set),
                 latch
             );
+
+            TaskId parentTaskId = new TaskId("n", 1);
+            SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
             TransportSearchAction.ccsRemoteReduce(
-                new TaskId("n", 1),
+                task,
+                parentTaskId,
                 searchRequest,
                 localIndices,
                 remoteIndicesByCluster,
@@ -569,6 +573,7 @@ public class TransportSearchActionTests extends ESTestCase {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            // using from: 0 and size: 10
             {
                 SearchRequest searchRequest = new SearchRequest();
                 final CountDownLatch latch = new CountDownLatch(1);
@@ -581,8 +586,11 @@ public class TransportSearchActionTests extends ESTestCase {
                     }),
                     latch
                 );
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
@@ -621,6 +629,93 @@ public class TransportSearchActionTests extends ESTestCase {
                     searchResponse.decRef();
                 }
             }
+
+            // using from: 5 and size: 6
+            {
+                SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().from(5).size(6);
+                SearchRequest searchRequest = new SearchRequest(new String[] { "*", "*:*" }, sourceBuilder);
+                final CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
+                final SetOnce<SearchResponse> response = new SetOnce<>();
+                LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
+                    ActionTestUtils.assertNoFailureListener(newValue -> {
+                        newValue.incRef();
+                        response.set(newValue);
+                    }),
+                    latch
+                );
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
+                TransportSearchAction.ccsRemoteReduce(
+                    task,
+                    parentTaskId,
+                    searchRequest,
+                    localIndices,
+                    remoteIndicesByCluster,
+                    new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
+                    timeProvider,
+                    emptyReduceContextBuilder(),
+                    remoteClusterService,
+                    threadPool,
+                    listener,
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                );
+                if (localIndices == null) {
+                    assertNull(setOnce.get());
+                } else {
+                    Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
+                    assertEquals("", tuple.v1().getLocalClusterAlias());
+                    assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
+                    resolveWithEmptySearchResponse(tuple);
+                }
+                awaitLatch(latch, 5, TimeUnit.SECONDS);
+
+                SearchResponse searchResponse = response.get();
+                try {
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                    assertEquals(totalClusters, searchResponse.getClusters().getTotal());
+                    assertEquals(
+                        totalClusters,
+                        searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+                    );
+                    assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
+                } finally {
+                    searchResponse.decRef();
+                }
+            }
+
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    public void testCCSRemoteReduceWhereRemoteClustersFail() throws Exception {
+        int numClusters = randomIntBetween(1, 10);
+        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        Settings settings = builder.build();
+        boolean local = randomBoolean();
+        OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                null
+            )
+        ) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             {
                 SearchRequest searchRequest = new SearchRequest();
                 searchRequest.preference("index_not_found");
@@ -631,8 +726,12 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
+
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
@@ -659,6 +758,37 @@ public class TransportSearchActionTests extends ESTestCase {
                 RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
                 assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
             }
+
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    public void testCCSRemoteReduceWithDisconnectedRemoteClusters() throws Exception {
+        int numClusters = randomIntBetween(1, 10);
+        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        Settings settings = builder.build();
+        boolean local = randomBoolean();
+        OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
+        int totalClusters = numClusters + (local ? 1 : 0);
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                null
+            )
+        ) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterService remoteClusterService = service.getRemoteClusterService();
 
             int numDisconnectedClusters = randomIntBetween(1, numClusters);
             Set<DiscoveryNode> disconnectedNodes = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
@@ -692,8 +822,11 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
@@ -742,8 +875,11 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
@@ -814,8 +950,11 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,

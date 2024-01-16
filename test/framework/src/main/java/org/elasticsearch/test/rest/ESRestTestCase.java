@@ -32,8 +32,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -59,6 +60,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureSpecification;
@@ -71,6 +73,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -84,6 +87,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -333,19 +337,28 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected static TestFeatureService createTestFeatureService(
+    protected TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
-        var providers = hasHistoricalFeaturesInformation
-            ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
-            : List.of(new RestTestLegacyFeatures());
+
+        final List<FeatureSpecification> featureSpecifications;
+        if (hasHistoricalFeaturesInformation) {
+            featureSpecifications = List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures());
+        } else {
+            logger.warn(
+                "This test is running on the legacy test framework; historical features from production code will not be available. "
+                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
+                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
+                RestTestLegacyFeatures.class.getCanonicalName()
+            );
+            featureSpecifications = List.of(new RestTestLegacyFeatures());
+        }
 
         return new ESRestTestFeatureService(
-            hasHistoricalFeaturesInformation,
-            providers,
+            featureSpecifications,
             semanticNodeVersions,
             ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
         );
@@ -1254,15 +1267,33 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(refreshRequest);
     }
 
-    protected static RefreshResponse refresh(String index) throws IOException {
+    protected static BroadcastResponse refresh(String index) throws IOException {
         return refresh(client(), index);
     }
 
-    protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
+    private static final ConstructingObjectParser<BroadcastResponse, Void> BROADCAST_RESPONSE_PARSER = new ConstructingObjectParser<>(
+        "broadcast_response",
+        true,
+        arg -> {
+            BaseBroadcastResponse response = (BaseBroadcastResponse) arg[0];
+            return new BroadcastResponse(
+                response.getTotalShards(),
+                response.getSuccessfulShards(),
+                response.getFailedShards(),
+                Arrays.asList(response.getShardFailures())
+            );
+        }
+    );
+
+    static {
+        BaseBroadcastResponse.declareBroadcastFields(BROADCAST_RESPONSE_PARSER);
+    }
+
+    protected static BroadcastResponse refresh(RestClient client, String index) throws IOException {
         Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
         Response response = client.performRequest(refreshRequest);
         try (var parser = responseAsParser(response)) {
-            return RefreshResponse.fromXContent(parser);
+            return BROADCAST_RESPONSE_PARSER.apply(parser, null);
         }
     }
 
@@ -2343,6 +2374,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         private static Map<NodeFeature, Version> historicalFeatures;
 
         @Override
+        @SuppressForbidden(reason = "File#pathSeparator has not equivalent in java.nio.file")
         public Map<NodeFeature, Version> getHistoricalFeatures() {
             if (historicalFeatures == null) {
                 Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
@@ -2353,7 +2385,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     );
                 }
 
-                String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+                String[] metadataFiles = metadataPath.split(File.pathSeparator);
                 for (String metadataFile : metadataFiles) {
                     try (
                         InputStream in = Files.newInputStream(PathUtils.get(metadataFile));

@@ -66,7 +66,7 @@ import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs
 // TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
 // from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
 // cluster response would have the fetch results.
-final class SearchResponseMerger implements Releasable {
+public final class SearchResponseMerger implements Releasable {
     final int from;
     final int size;
     final int trackTotalHitsUpTo;
@@ -102,7 +102,7 @@ final class SearchResponseMerger implements Releasable {
      * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
-    void add(SearchResponse searchResponse) {
+    public void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
         searchResponse.mustIncRef();
         searchResponses.add(searchResponse);
@@ -113,10 +113,13 @@ final class SearchResponseMerger implements Releasable {
     }
 
     /**
-     * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
-     * so that all responses are merged into a single one.
+     * Returns the merged response of all SearchResponses received so far. Can be called at any point,
+     * including when only some clusters have finished, in order to get "incremental" partial results.
+     * @param clusters The Clusters object for the search to report on the status of each cluster
+     *                 involved in the cross-cluster search
+     * @return merged response
      */
-    SearchResponse getMergedResponse(Clusters clusters) {
+    public SearchResponse getMergedResponse(Clusters clusters) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.isEmpty()) {

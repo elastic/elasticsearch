@@ -564,21 +564,19 @@ public class InternalEngine extends Engine {
 
     @Override
     public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo, ActionListener<Void> listener) {
-        ActionListener.run(listener, l -> {
-            try (var ignored = acquireEnsureOpenRef()) {
-                if (pendingTranslogRecovery.get() == false) {
-                    throw new IllegalStateException("Engine has already been recovered");
-                }
-                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo, l.delegateResponse((ll, e) -> {
-                    try {
-                        pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
-                        failEngine("failed to recover from translog", e);
-                    } catch (Exception inner) {
-                        e.addSuppressed(inner);
-                    }
-                    ll.onFailure(e);
-                }));
+        ActionListener.runWithResource(listener, this::acquireEnsureOpenRef, (l, ignoredRef) -> {
+            if (pendingTranslogRecovery.get() == false) {
+                throw new IllegalStateException("Engine has already been recovered");
             }
+            recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo, l.delegateResponse((ll, e) -> {
+                try {
+                    pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
+                    failEngine("failed to recover from translog", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                ll.onFailure(e);
+            }));
         });
     }
 
@@ -2095,14 +2093,14 @@ public class InternalEngine extends Engine {
 
     @Override
     public void writeIndexingBuffer() throws IOException {
-        final long versionMapBytesUsed = versionMap.ramBytesUsedForRefresh();
+        final long reclaimableVersionMapBytes = versionMap.reclaimableRefreshRamBytes();
         // Only count bytes that are not already being written to disk. Note: this number may be negative at times if these two metrics get
         // updated concurrently. It's fine as it's only being used as a heuristic to decide on a full refresh vs. writing a single segment.
         // TODO: it might be more relevant to use the RAM usage of the largest DWPT as opposed to the overall RAM usage? Can we get this
         // exposed in Lucene?
         final long indexWriterBytesUsed = indexWriter.ramBytesUsed() - indexWriter.getFlushingBytes();
 
-        if (versionMapBytesUsed >= indexWriterBytesUsed) {
+        if (reclaimableVersionMapBytes >= indexWriterBytesUsed) {
             // This method expects to reclaim memory quickly, so if the version map is using more memory than the IndexWriter buffer then we
             // do a refresh, which is the only way to reclaim memory from the version map. IndexWriter#flushNextBuffer has similar logic: if
             // pending deletes occupy more than half of RAMBufferSizeMB then deletes are applied too.
@@ -2113,7 +2111,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void reclaimVersionMapMemory() {
+    protected void reclaimVersionMapMemory() {
         // If we're already halfway through the flush thresholds, then we do a flush. This will save us from writing segments twice
         // independently in a short period of time, once to reclaim version map memory and then to reclaim the translog. For
         // memory-constrained deployments that need to refresh often to reclaim memory, this may require flushing 2x more often than

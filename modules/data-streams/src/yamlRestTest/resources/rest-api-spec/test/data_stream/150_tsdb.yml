@@ -402,14 +402,33 @@ dynamic templates - subobject in passthrough object error:
               properties:
                 attributes:
                   type: passthrough
-                  dynamic: true
-                  time_series_dimension: true
                   properties:
                     subcategory:
                       type: object
                       properties:
                         dim:
                           type: keyword
+
+  - do:
+      catch: /Mapping definition for \[attributes\] has unsupported parameters:\  \[subobjects \:\ true\]/
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  subobjects: true
 
 ---
 dynamic templates - passthrough not under root error:

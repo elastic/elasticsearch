@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -15,8 +17,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
@@ -29,11 +34,28 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfigTests.randomLearningToRankConfig;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWCSerializationTestCase<LearningToRankRescorerBuilder> {
 
     private static LearningToRankService learningToRankService = mock(LearningToRankService.class);
+
+    public void testRequiredWindowSize() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            LearningToRankRescorerBuilder testInstance = createTestInstance();
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.startObject();
+                testInstance.doXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+
+                try (XContentParser parser = JsonXContent.jsonXContent.createParser(parserConfig(), Strings.toString(builder))) {
+                    ParsingException e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser, (r) -> {}));
+                    assertThat(e.getMessage(), equalTo("window_size is required for rescorer of type [learning_to_rank]"));
+                }
+            }
+        }
+    }
 
     @Override
     protected LearningToRankRescorerBuilder doParseInstance(XContentParser parser) throws IOException {
@@ -56,9 +78,7 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
                 learningToRankService
             );
 
-        if (randomBoolean()) {
-            builder.windowSize(randomIntBetween(1, 10000));
-        }
+        builder.windowSize(randomIntBetween(1, 10000));
 
         return builder;
     }
@@ -73,59 +93,34 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
 
         int i = randomInt(4);
         return switch (i) {
-            case 0 -> {
-                LearningToRankRescorerBuilder builder = new LearningToRankRescorerBuilder(
-                    randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(10)),
-                    instance.params(),
-                    learningToRankService
-                );
-                if (instance.windowSize() != null) {
-                    builder.windowSize(instance.windowSize());
-                }
-                yield builder;
-            }
+            case 0 -> new LearningToRankRescorerBuilder(
+                randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(10)),
+                instance.params(),
+                learningToRankService
+            ).windowSize(instance.windowSize());
             case 1 -> new LearningToRankRescorerBuilder(instance.modelId(), instance.params(), learningToRankService).windowSize(
                 randomValueOtherThan(instance.windowSize(), () -> randomIntBetween(1, 10000))
             );
-            case 2 -> {
-                LearningToRankRescorerBuilder builder = new LearningToRankRescorerBuilder(
-                    instance.modelId(),
-                    randomValueOtherThan(instance.params(), () -> (randomBoolean() ? randomParams() : null)),
-                    learningToRankService
-                );
-                if (instance.windowSize() != null) {
-                    builder.windowSize(instance.windowSize() + 1);
-                }
-                yield builder;
-            }
+            case 2 -> new LearningToRankRescorerBuilder(
+                instance.modelId(),
+                randomValueOtherThan(instance.params(), () -> (randomBoolean() ? randomParams() : null)),
+                learningToRankService
+            ).windowSize(instance.windowSize());
             case 3 -> {
                 LearningToRankConfig learningToRankConfig = randomValueOtherThan(
                     instance.learningToRankConfig(),
                     () -> randomLearningToRankConfig()
                 );
-                LearningToRankRescorerBuilder builder = new LearningToRankRescorerBuilder(
-                    instance.modelId(),
-                    learningToRankConfig,
-                    null,
-                    learningToRankService
+                yield new LearningToRankRescorerBuilder(instance.modelId(), learningToRankConfig, null, learningToRankService).windowSize(
+                    instance.windowSize()
                 );
-                if (instance.windowSize() != null) {
-                    builder.windowSize(instance.windowSize());
-                }
-                yield builder;
             }
-            case 4 -> {
-                LearningToRankRescorerBuilder builder = new LearningToRankRescorerBuilder(
-                    mock(LocalModel.class),
-                    instance.learningToRankConfig(),
-                    instance.params(),
-                    learningToRankService
-                );
-                if (instance.windowSize() != null) {
-                    builder.windowSize(instance.windowSize());
-                }
-                yield builder;
-            }
+            case 4 -> new LearningToRankRescorerBuilder(
+                mock(LocalModel.class),
+                instance.learningToRankConfig(),
+                instance.params(),
+                learningToRankService
+            ).windowSize(instance.windowSize());
             default -> throw new AssertionError("Unexpected random test case");
         };
     }
@@ -141,11 +136,13 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
-        namedXContent.add(new NamedXContentRegistry.Entry(
-            RescorerBuilder.class,
-            LearningToRankRescorerBuilder.NAME,
-            (p, c) -> LearningToRankRescorerBuilder.fromXContent(p, learningToRankService)
-        ));
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                RescorerBuilder.class,
+                LearningToRankRescorerBuilder.NAME,
+                (p, c) -> LearningToRankRescorerBuilder.fromXContent(p, learningToRankService)
+            )
+        );
         return new NamedXContentRegistry(namedXContent);
     }
 
@@ -159,11 +156,13 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
-        namedWriteables.add(new NamedWriteableRegistry.Entry(
-            RescorerBuilder.class,
-            LearningToRankRescorerBuilder.NAME.getPreferredName(),
-            in -> new LearningToRankRescorerBuilder(in, learningToRankService)
-        ));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                RescorerBuilder.class,
+                LearningToRankRescorerBuilder.NAME.getPreferredName(),
+                in -> new LearningToRankRescorerBuilder(in, learningToRankService)
+            )
+        );
         return new NamedWriteableRegistry(namedWriteables);
     }
 

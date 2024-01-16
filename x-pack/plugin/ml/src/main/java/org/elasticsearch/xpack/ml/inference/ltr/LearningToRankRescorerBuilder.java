@@ -33,8 +33,8 @@ import java.util.function.Function;
 public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRankRescorerBuilder> {
 
     public static final ParseField NAME = new ParseField("learning_to_rank");
-    private static final ParseField MODEL_FIELD = new ParseField("model_id");
-    private static final ParseField PARAMS_FIELD = new ParseField("params");
+    public static final ParseField MODEL_FIELD = new ParseField("model_id");
+    public static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), false, Builder::new);
 
     static {
@@ -258,6 +258,11 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
     public TransportVersion getMinimalSupportedVersion() {
         // TODO: update transport version when released!
         return TransportVersion.current();
+    }
+
+    @Override
+    protected boolean isWindowSizeRequired() {
+        return true;
     }
 
     @Override

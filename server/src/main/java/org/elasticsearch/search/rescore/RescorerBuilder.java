@@ -73,6 +73,8 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         RescorerBuilder<?> rescorer = null;
         Integer windowSize = null;
         XContentParser.Token token;
+        String rescorerType = null;
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -86,6 +88,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
                 if (fieldName != null) {
                     rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
                     rescorerNameConsumer.accept(fieldName);
+                    rescorerType = fieldName;
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
@@ -94,9 +97,13 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         if (rescorer == null) {
             throw new ParsingException(parser.getTokenLocation(), "missing rescore type");
         }
+
         if (windowSize != null) {
             rescorer.windowSize(windowSize.intValue());
+        } else if (rescorer.isWindowSizeRequired()) {
+            throw new ParsingException(parser.getTokenLocation(), "window_size is required for rescorer of type [" +  rescorerType + "]");
         }
+
         return rescorer;
     }
 
@@ -112,6 +119,13 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     }
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
+
+    /**
+     * Indicate if the window_size is a required parameter for the rescorer.
+     */
+    protected boolean isWindowSizeRequired() {
+        return false;
+    }
 
     /**
      * Build the {@linkplain RescoreContext} that will be used to actually

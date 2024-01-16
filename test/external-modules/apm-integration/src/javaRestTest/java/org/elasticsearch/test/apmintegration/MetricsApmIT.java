@@ -107,8 +107,8 @@ public class MetricsApmIT extends ESRestTestCase {
 
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
-        assertTrue("Timeout when waiting for assertions to complete.", finished.await(30, TimeUnit.SECONDS));
-        assertThat(sampleAssertions, Matchers.equalTo(Collections.emptyMap()));
+        assertTrue("Timeout when waiting for assertions to complete. Remaining assertions to match: " + sampleAssertions,
+            finished.await(30, TimeUnit.SECONDS));
     }
 
     private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(

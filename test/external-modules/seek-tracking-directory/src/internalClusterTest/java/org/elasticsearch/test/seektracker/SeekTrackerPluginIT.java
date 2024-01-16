@@ -41,7 +41,9 @@ public class SeekTrackerPluginIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("index"));
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            docs.add(prepareIndex("index").setSource("field", "term" + i % 5));
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setSource("field", "term" + i % 5);
+            docs.add(indexRequestBuilder);
+            indexRequestBuilder.request().decRef();
         }
         indexRandom(true, docs);
 

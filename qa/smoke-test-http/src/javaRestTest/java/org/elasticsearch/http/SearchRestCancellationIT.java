@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
@@ -186,7 +187,10 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
             // Make sure we have a few segments
             try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
                 for (int j = 0; j < 20; j++) {
-                    bulkRequestBuilder.add(prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i * 5 + j))
+                        .setSource("field", "value");
+                    bulkRequestBuilder.add(indexRequestBuilder);
+                    indexRequestBuilder.request().decRef();
                 }
                 assertNoFailures(bulkRequestBuilder.get());
             }

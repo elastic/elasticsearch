@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -138,7 +139,9 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             if (nbDocs > 0) {
                 try (BulkRequestBuilder bulkRequest = client().prepareBulk()) {
                     for (int i = 0; i < nbDocs; i++) {
-                        bulkRequest.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+                        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz");
+                        bulkRequest.add(indexRequestBuilder);
+                        indexRequestBuilder.request().decRef();
                     }
                     final BulkResponse bulkResponse = bulkRequest.get();
                     assertThat(bulkResponse.hasFailures(), is(false));

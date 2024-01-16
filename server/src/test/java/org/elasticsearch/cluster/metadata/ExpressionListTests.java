@@ -302,7 +302,7 @@ public class ExpressionListTests extends ESTestCase {
 
     private Context getContextWithOptions(IndicesOptions indicesOptions) {
         Context context = mock(Context.class);
-        when(context.getOptions()).thenReturn(indicesOptions);
+        when(context.getIndicesOptions()).thenReturn(indicesOptions);
         return context;
     }
 }

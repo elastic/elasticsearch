@@ -195,7 +195,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         }
         Context context = new Context(
             this.context.getState(),
-            this.context.getOptions(),
+            this.context.getIndicesOptions(),
             now.toInstant().toEpochMilli(),
             SystemIndexAccessLevel.NONE,
             name -> false,

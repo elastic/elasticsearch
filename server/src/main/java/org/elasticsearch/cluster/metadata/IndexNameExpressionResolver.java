@@ -249,7 +249,7 @@ public class IndexNameExpressionResolver {
     }
 
     protected static Collection<String> resolveExpressions(Context context, String... expressions) {
-        if (context.getOptions().expandWildcardExpressions() == false) {
+        if (context.getIndicesOptions().expandWildcardExpressions() == false) {
             if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
                 return List.of();
             } else {
@@ -385,9 +385,7 @@ public class IndexNameExpressionResolver {
                     concreteIndicesResult.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                if (DataStream.isFailureStoreEnabled() == false
-                    || context.dataStreamOptions == null
-                    || context.dataStreamOptions.includeBackingIndices()) {
+                if (DataStream.isFailureStoreEnabled() == false || context.getDataStreamOptions().includeBackingIndices()) {
                     Index writeIndex = indexAbstraction.getWriteIndex();
                     if (addIndex(writeIndex, null, context)) {
                         concreteIndicesResult.add(writeIndex);
@@ -395,9 +393,8 @@ public class IndexNameExpressionResolver {
                 }
                 DataStream dataStream = (DataStream) indexAbstraction;
                 if (DataStream.isFailureStoreEnabled()
-                    && context.dataStreamOptions != null
                     && dataStream.isFailureStore()
-                    && context.dataStreamOptions.includeFailureIndices()) {
+                    && context.getDataStreamOptions().includeFailureIndices()) {
                     Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
                     if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
                         concreteIndicesResult.add(failureStoreWriteIndex);
@@ -405,7 +402,7 @@ public class IndexNameExpressionResolver {
                 }
             } else {
                 if (resolvesToMoreThanOneIndices(indexAbstraction, context)
-                    && context.getOptions().allowAliasesToMultipleIndices() == false) {
+                    && context.getIndicesOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
                     for (Index indexName : indexAbstraction.getIndices()) {
@@ -423,28 +420,25 @@ public class IndexNameExpressionResolver {
 
                 if (indexAbstraction.getType() == Type.DATA_STREAM) {
                     DataStream dataStream = (DataStream) indexAbstraction;
-                    if (DataStream.isFailureStoreEnabled() == false
-                        || context.dataStreamOptions == null
-                        || context.dataStreamOptions.includeBackingIndices()) {
+                    if (DataStream.isFailureStoreEnabled() == false || context.getDataStreamOptions().includeBackingIndices()) {
                         for (Index index : indexAbstraction.getIndices()) {
-                            if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                            if (shouldTrackConcreteIndex(context, context.getIndicesOptions(), index)) {
                                 concreteIndicesResult.add(index);
                             }
                         }
                     }
                     if (DataStream.isFailureStoreEnabled()
                         && dataStream.isFailureStore()
-                        && context.dataStreamOptions != null
-                        && context.dataStreamOptions.includeFailureIndices()) {
+                        && context.getDataStreamOptions().includeFailureIndices()) {
                         for (Index index : dataStream.getFailureIndices()) {
-                            if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                            if (shouldTrackConcreteIndex(context, context.getIndicesOptions(), index)) {
                                 concreteIndicesResult.add(index);
                             }
                         }
                     }
                 } else {
                     for (Index index : indexAbstraction.getIndices()) {
-                        if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                        if (shouldTrackConcreteIndex(context, context.getIndicesOptions(), index)) {
                             concreteIndicesResult.add(index);
                         }
                     }
@@ -452,7 +446,7 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        if (context.getOptions().allowNoIndices() == false && concreteIndicesResult.isEmpty()) {
+        if (context.getIndicesOptions().allowNoIndices() == false && concreteIndicesResult.isEmpty()) {
             throw notFoundException(indexExpressions);
         }
         checkSystemIndexAccess(context, concreteIndicesResult);
@@ -463,10 +457,12 @@ public class IndexNameExpressionResolver {
         if (indexAbstraction.getType() == Type.DATA_STREAM) {
             DataStream dataStream = (DataStream) indexAbstraction;
             int count = 0;
-            if (DataStream.isFailureStoreEnabled() == false || context.dataStreamOptions.includeBackingIndices()) {
+            if (DataStream.isFailureStoreEnabled() == false || context.getDataStreamOptions().includeBackingIndices()) {
                 count += dataStream.getIndices().size();
             }
-            if (DataStream.isFailureStoreEnabled() && dataStream.isFailureStore() && context.dataStreamOptions.includeFailureIndices()) {
+            if (DataStream.isFailureStoreEnabled()
+                && dataStream.isFailureStore()
+                && context.getDataStreamOptions().includeFailureIndices()) {
                 count += dataStream.getFailureIndices().size();
             }
             return count > 1;
@@ -585,7 +581,7 @@ public class IndexNameExpressionResolver {
         // we changed it to look at the `index.frozen` setting instead, since frozen indices were the only
         // type of index to use the `search_throttled` threadpool at that time.
         // NOTE: We can't reference the Setting object, which is only defined and registered in x-pack.
-        if (context.options.ignoreThrottled()) {
+        if (context.indicesOptions.ignoreThrottled()) {
             imd = imd != null ? imd : context.state.metadata().index(index);
             return imd.getSettings().getAsBoolean("index.frozen", false) == false;
         } else {
@@ -1049,7 +1045,7 @@ public class IndexNameExpressionResolver {
     public static class Context {
 
         private final ClusterState state;
-        private final IndicesOptions options;
+        private final IndicesOptions indicesOptions;
         private final DataStreamOptions dataStreamOptions;
         private final long startTime;
         private final boolean preserveAliases;
@@ -1195,7 +1191,7 @@ public class IndexNameExpressionResolver {
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this.state = state;
-            this.options = options;
+            this.indicesOptions = options;
             this.dataStreamOptions = dataStreamOptions;
             this.startTime = startTime;
             this.preserveAliases = preserveAliases;
@@ -1211,8 +1207,12 @@ public class IndexNameExpressionResolver {
             return state;
         }
 
-        public IndicesOptions getOptions() {
-            return options;
+        public IndicesOptions getIndicesOptions() {
+            return indicesOptions;
+        }
+
+        public DataStreamOptions getDataStreamOptions() {
+            return dataStreamOptions;
         }
 
         public long getStartTime() {
@@ -1280,7 +1280,7 @@ public class IndexNameExpressionResolver {
                         indexAbstraction -> indexAbstraction.isSystem() == false
                             || context.systemIndexAccessPredicate.test(indexAbstraction.getName())
                     );
-                if (context.getOptions().expandWildcardsHidden() == false) {
+                if (context.getIndicesOptions().expandWildcardsHidden() == false) {
                     dataStreamsAbstractions = dataStreamsAbstractions.filter(indexAbstraction -> indexAbstraction.isHidden() == false);
                 }
                 // dedup backing indices if expand hidden indices option is true
@@ -1317,7 +1317,7 @@ public class IndexNameExpressionResolver {
                     Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression.get());
                     Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
                     AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
-                    if (context.getOptions().allowNoIndices() == false) {
+                    if (context.getIndicesOptions().allowNoIndices() == false) {
                         emptyWildcardExpansion.set(true);
                         matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
                     }
@@ -1378,7 +1378,7 @@ public class IndexNameExpressionResolver {
                     );
                 }
             }
-            if (context.getOptions().ignoreAliases()) {
+            if (context.getIndicesOptions().ignoreAliases()) {
                 matchesStream = matchesStream.filter(indexAbstraction -> indexAbstraction.getType() != Type.ALIAS);
             }
             if (context.includeDataStreams() == false) {
@@ -1393,7 +1393,7 @@ public class IndexNameExpressionResolver {
                         && context.netNewSystemIndexPredicate.test(indexAbstraction.getName()) == false)
                     || context.systemIndexAccessPredicate.test(indexAbstraction.getName())
             );
-            if (context.getOptions().expandWildcardsHidden() == false) {
+            if (context.getIndicesOptions().expandWildcardsHidden() == false) {
                 if (wildcardExpression.startsWith(".")) {
                     // there is this behavior that hidden indices that start with "." are not hidden if the wildcard expression also
                     // starts with "."
@@ -1425,7 +1425,7 @@ public class IndexNameExpressionResolver {
          * then all index resources are filtered by their open/closed status.
          */
         private static Stream<String> expandToOpenClosed(Context context, Stream<IndexAbstraction> resources) {
-            final IndexMetadata.State excludeState = excludeState(context.getOptions());
+            final IndexMetadata.State excludeState = excludeState(context.getIndicesOptions());
             return resources.flatMap(indexAbstraction -> {
                 if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
                     return Stream.of(indexAbstraction.getName());
@@ -1442,7 +1442,10 @@ public class IndexNameExpressionResolver {
         }
 
         private static List<String> resolveEmptyOrTrivialWildcard(Context context) {
-            final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(context.getOptions(), context.getState().metadata());
+            final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(
+                context.getIndicesOptions(),
+                context.getState().metadata()
+            );
             if (context.systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
                 return List.of(allIndices);
             } else {
@@ -1687,7 +1690,7 @@ public class IndexNameExpressionResolver {
          * Only explicit resource names are considered for filtering. Wildcard and exclusion expressions are kept in.
          */
         public static List<String> filterUnavailable(Context context, List<String> expressions) {
-            ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), expressions);
+            ensureRemoteIndicesRequireIgnoreUnavailable(context.getIndicesOptions(), expressions);
             List<String> result = new ArrayList<>(expressions.size());
             for (ExpressionList.Expression expression : new ExpressionList(context, expressions)) {
                 validateAliasOrIndex(expression);
@@ -1705,7 +1708,7 @@ public class IndexNameExpressionResolver {
          */
         @Nullable
         private static boolean ensureAliasOrIndexExists(Context context, String name) {
-            boolean ignoreUnavailable = context.getOptions().ignoreUnavailable();
+            boolean ignoreUnavailable = context.getIndicesOptions().ignoreUnavailable();
             IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(name);
             if (indexAbstraction == null) {
                 if (ignoreUnavailable) {
@@ -1715,7 +1718,7 @@ public class IndexNameExpressionResolver {
                 }
             }
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
-            if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
+            if (indexAbstraction.getType() == Type.ALIAS && context.getIndicesOptions().ignoreAliases()) {
                 if (ignoreUnavailable) {
                     return false;
                 } else {
@@ -1799,7 +1802,7 @@ public class IndexNameExpressionResolver {
             boolean wildcardSeen = false;
             for (String expressionString : expressionStrings) {
                 boolean isExclusion = expressionString.startsWith("-") && wildcardSeen;
-                if (context.getOptions().expandWildcardExpressions() && isWildcard(expressionString)) {
+                if (context.getIndicesOptions().expandWildcardExpressions() && isWildcard(expressionString)) {
                     wildcardSeen = true;
                     expressionsList.add(new Expression(expressionString, true, isExclusion));
                 } else {
@@ -1824,8 +1827,8 @@ public class IndexNameExpressionResolver {
     }
 
     /**
-     * This is a context for the DateMathExpressionResolver which does not require {@code IndicesOptions} or {@code ClusterState}
-     * since it uses only the start time to resolve expressions.
+     * This is a context for the DateMathExpressionResolver which does not require {@code IndicesOptions} or
+     * {@code DataStreamOptions} or {@code ClusterState} since it uses only the start time to resolve expressions.
      */
     public static final class ResolverContext extends Context {
         public ResolverContext() {
@@ -1842,7 +1845,12 @@ public class IndexNameExpressionResolver {
         }
 
         @Override
-        public IndicesOptions getOptions() {
+        public IndicesOptions getIndicesOptions() {
+            throw new UnsupportedOperationException("should never be called");
+        }
+
+        @Override
+        public DataStreamOptions getDataStreamOptions() {
             throw new UnsupportedOperationException("should never be called");
         }
     }

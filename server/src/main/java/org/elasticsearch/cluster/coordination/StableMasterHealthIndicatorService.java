@@ -239,9 +239,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     /**
-     * This method returns the only user action that is relevant when the master is unstable -- contact support.
-     * @param explain If true, the returned list includes a UserAction to contact support, otherwise an empty list
-     * @return a single UserAction instructing users to contact support.
+     * This method returns the relevant user actions when the master is unstable, linking to some troubleshooting docs and suggesting to
+     * contact support.
+     *
+     * @param explain If true, the returned list includes UserActions linking to troubleshooting docs and another to contact support,
+     *                otherwise an empty list.
+     * @return the relevant user actions when the master is unstable.
      */
     private List<Diagnosis> getUnstableMasterDiagnoses(boolean explain) {
         if (explain) {

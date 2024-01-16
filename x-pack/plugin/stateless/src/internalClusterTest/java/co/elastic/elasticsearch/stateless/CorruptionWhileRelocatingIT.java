@@ -23,8 +23,8 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -170,7 +170,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         safeAwait(pauseHandoff);
 
         logger.info("--> now forcing a new merge on the source shard");
-        ActionFuture<ForceMergeResponse> mergeFuture = client(indexNode).admin()
+        ActionFuture<BroadcastResponse> mergeFuture = client(indexNode).admin()
             .indices()
             .prepareForceMerge(indexName)
             .setMaxNumSegments(1)
@@ -195,7 +195,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
 
         assertTrue(blobContainer.blobExists(operationPurpose, finalCommitBlobName));
 
-        ForceMergeResponse mergeResponse = mergeFuture.actionGet();
+        BroadcastResponse mergeResponse = mergeFuture.actionGet();
         assertEquals("Force-merge failed on indexing shard", 1, mergeResponse.getSuccessfulShards());
         assertEquals(2, mergeResponse.getTotalShards());
 

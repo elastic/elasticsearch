@@ -104,6 +104,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -371,6 +373,8 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Split.class, PlanNamedTypes::writeSplit, PlanNamedTypes::readSplit),
             of(ScalarFunction.class, Tau.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             of(ScalarFunction.class, Replace.class, PlanNamedTypes::writeReplace, PlanNamedTypes::readReplace),
+            of(ScalarFunction.class, ToLower.class, PlanNamedTypes::writeToLower, PlanNamedTypes::readToLower),
+            of(ScalarFunction.class, ToUpper.class, PlanNamedTypes::writeToUpper, PlanNamedTypes::readToUpper),
             // ArithmeticOperations
             of(ArithmeticOperation.class, Add.class, PlanNamedTypes::writeArithmeticOperation, PlanNamedTypes::readArithmeticOperation),
             of(ArithmeticOperation.class, Sub.class, PlanNamedTypes::writeArithmeticOperation, PlanNamedTypes::readArithmeticOperation),
@@ -1454,6 +1458,22 @@ public final class PlanNamedTypes {
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));
         out.writeExpression(fields.get(2));
+    }
+
+    static ToLower readToLower(PlanStreamInput in) throws IOException {
+        return new ToLower(Source.EMPTY, in.readExpression(), in.configuration());
+    }
+
+    static void writeToLower(PlanStreamOutput out, ToLower toLower) throws IOException {
+        out.writeExpression(toLower.field());
+    }
+
+    static ToUpper readToUpper(PlanStreamInput in) throws IOException {
+        return new ToUpper(Source.EMPTY, in.readExpression(), in.configuration());
+    }
+
+    static void writeToUpper(PlanStreamOutput out, ToUpper toUpper) throws IOException {
+        out.writeExpression(toUpper.field());
     }
 
     static Left readLeft(PlanStreamInput in) throws IOException {

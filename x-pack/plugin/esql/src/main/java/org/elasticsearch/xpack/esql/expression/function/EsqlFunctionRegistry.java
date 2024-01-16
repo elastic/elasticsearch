@@ -84,6 +84,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
@@ -156,7 +158,9 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Replace.class, Replace::new, "replace"),
                 def(Right.class, Right::new, "right"),
                 def(StartsWith.class, StartsWith::new, "starts_with"),
-                def(EndsWith.class, EndsWith::new, "ends_with") },
+                def(EndsWith.class, EndsWith::new, "ends_with"),
+                def(ToLower.class, ToLower::new, "to_lower"),
+                def(ToUpper.class, ToUpper::new, "to_upper") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, DateDiff::new, "date_diff"),

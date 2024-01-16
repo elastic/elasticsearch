@@ -56,13 +56,13 @@ import static org.mockito.Mockito.when;
 public class LdapRealmReloadTests extends LdapTestCase {
 
     public static final String BIND_DN = "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas";
-    public static final String BIND_PASSWORD = "pass";
+    public static final String INITIAL_BIND_PASSWORD = "pass";
     public static final UsernamePasswordToken LDAP_USER_AUTH_TOKEN = new UsernamePasswordToken(
         "jsamuel@royalnavy.mod.uk",
         new SecureString("pass".toCharArray())
     );
 
-    private static final Settings localSettings = Settings.builder()
+    private static final Settings defaultRealmSettings = Settings.builder()
         .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "")
         .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN), BIND_DN)
         .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
@@ -97,22 +97,22 @@ public class LdapRealmReloadTests extends LdapTestCase {
         return new RealmConfig(identifier, settings, env, new ThreadContext(settings));
     }
 
-    public void testLdapRealmReloadWithoutConnectionPool() throws Exception {
+    public void testReloadWithoutConnectionPool() throws Exception {
         final boolean useLegacyBindSetting = randomBoolean();
         final Settings bindPasswordSettings;
         if (useLegacyBindSetting) {
             bindPasswordSettings = Settings.builder()
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), BIND_PASSWORD)
+                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), INITIAL_BIND_PASSWORD)
                 .build();
         } else {
             bindPasswordSettings = Settings.builder()
-                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, BIND_PASSWORD))
+                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, INITIAL_BIND_PASSWORD))
                 .build();
         }
         final Settings settings = Settings.builder()
             .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), false)
             .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrls())
-            .put(localSettings)
+            .put(defaultRealmSettings)
             .put(defaultGlobalSettings)
             .put(bindPasswordSettings)
             .build();
@@ -135,9 +135,7 @@ public class LdapRealmReloadTests extends LdapTestCase {
                     .build();
             } else {
                 updatedBindPasswordSettings = Settings.builder()
-                    .setSecureSettings(
-                        secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, newBindPassword)
-                    )
+                    .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, newBindPassword))
                     .build();
             }
             ldap.reload(updatedBindPasswordSettings);
@@ -157,22 +155,22 @@ public class LdapRealmReloadTests extends LdapTestCase {
         }
     }
 
-    public void testLdapRealmReloadWithConnectionPool() throws Exception {
+    public void testReloadWithConnectionPool() throws Exception {
         final boolean useLegacyBindSetting = randomBoolean();
         final Settings bindPasswordSettings;
         if (useLegacyBindSetting) {
             bindPasswordSettings = Settings.builder()
-                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), BIND_PASSWORD)
+                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), INITIAL_BIND_PASSWORD)
                 .build();
         } else {
             bindPasswordSettings = Settings.builder()
-                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, BIND_PASSWORD))
+                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, INITIAL_BIND_PASSWORD))
                 .build();
         }
         final Settings settings = Settings.builder()
             .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), true)
             .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrls())
-            .put(localSettings)
+            .put(defaultRealmSettings)
             .put(defaultGlobalSettings)
             .put(bindPasswordSettings)
             .build();
@@ -191,7 +189,7 @@ public class LdapRealmReloadTests extends LdapTestCase {
             // here the check that the authentication works before re-loading bind password,
             // since this check would create and bind a new connection using old password.
 
-            // Generate new password and reload only on ES side
+            // Generate a new password and reload only on ES side
             final String newBindPassword = randomAlphaOfLengthBetween(5, 10);
             final Settings updatedBindPasswordSettings;
             if (useLegacyBindSetting) {
@@ -200,9 +198,7 @@ public class LdapRealmReloadTests extends LdapTestCase {
                     .build();
             } else {
                 updatedBindPasswordSettings = Settings.builder()
-                    .setSecureSettings(
-                        secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, REALM_IDENTIFIER, newBindPassword)
-                    )
+                    .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, newBindPassword))
                     .build();
             }
             ldap.reload(updatedBindPasswordSettings);
@@ -240,13 +236,9 @@ public class LdapRealmReloadTests extends LdapTestCase {
         });
     }
 
-    private static SecureSettings secureSettings(
-        Function<String, Setting.AffixSetting<SecureString>> settingFactory,
-        RealmConfig.RealmIdentifier identifier,
-        String value
-    ) {
+    private static SecureSettings secureSettings(Function<String, Setting.AffixSetting<SecureString>> settingFactory, String value) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(getFullSettingKey(identifier, settingFactory), value);
+        secureSettings.setString(getFullSettingKey(REALM_IDENTIFIER, settingFactory), value);
         return secureSettings;
     }
 }

@@ -5,7 +5,7 @@ esplugin {
   name 'x-pack-ql'
   description 'Elasticsearch infrastructure plugin for EQL and SQL for Elasticsearch'
   classname 'org.elasticsearch.xpack.ql.plugin.QlPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-autoscaling']
 }
 
 base {

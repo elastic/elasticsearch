@@ -509,7 +509,7 @@ public class EsExecutorsTests extends ESTestCase {
         final var executorService = EsExecutors.newScaling(
             "test",
             0,
-            1,
+            between(1,5),
             60,
             TimeUnit.SECONDS,
             randomBoolean(),

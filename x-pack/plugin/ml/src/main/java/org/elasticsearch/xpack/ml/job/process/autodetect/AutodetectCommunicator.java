@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -66,6 +67,11 @@ public class AutodetectCommunicator implements Closeable {
     private final ExecutorService autodetectWorkerExecutor;
     private final NamedXContentRegistry xContentRegistry;
     private final boolean includeTokensField;
+    /*
+     * This is called in order to release any resources when this object dies, whether closed or killed. It is kept as a RunOnce in order
+     * to deal with race conditions where the object is killed and closed at the same time on different threads.
+     */
+    private final RunOnce resourceReleaser;
     private volatile CategorizationAnalyzer categorizationAnalyzer;
     private volatile boolean processKilled;
 
@@ -77,7 +83,8 @@ public class AutodetectCommunicator implements Closeable {
         AutodetectResultProcessor autodetectResultProcessor,
         BiConsumer<Exception, Boolean> onFinishHandler,
         NamedXContentRegistry xContentRegistry,
-        ExecutorService autodetectWorkerExecutor
+        ExecutorService autodetectWorkerExecutor,
+        Runnable resourceReleaser
     ) {
         this.job = job;
         this.autodetectProcess = process;
@@ -88,6 +95,7 @@ public class AutodetectCommunicator implements Closeable {
         this.xContentRegistry = xContentRegistry;
         this.autodetectWorkerExecutor = autodetectWorkerExecutor;
         this.includeTokensField = job.getAnalysisConfig().getCategorizationFieldName() != null;
+        this.resourceReleaser = new RunOnce(resourceReleaser);
     }
 
     public void restoreState(ModelSnapshot modelSnapshot) {
@@ -191,7 +199,7 @@ public class AutodetectCommunicator implements Closeable {
                 throw FutureUtils.rethrowExecutionException(e);
             }
         } finally {
-            destroyCategorizationAnalyzer();
+            releaseResources();
         }
     }
 
@@ -214,10 +222,13 @@ public class AutodetectCommunicator implements Closeable {
                 }
             }
         } finally {
-            if (finish) {
-                onFinishHandler.accept(null, finalizeJob);
+            try {
+                if (finish) {
+                    onFinishHandler.accept(null, finalizeJob);
+                }
+            } finally {
+                releaseResources();
             }
-            destroyCategorizationAnalyzer();
         }
     }
 
@@ -360,12 +371,18 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     /**
+     * This method runs the resource-releasing runnable passed in to the constructor, as well as closes the categoryAnalyzer.
      * Care must be taken to ensure this method is not called while data is being posted.
      * The methods in this class that call it wait for all processing to complete first.
      * The expectation is that external calls are only made when cleaning up after a fatal
      * error.
      */
-    void destroyCategorizationAnalyzer() {
+    void releaseResources() {
+        resourceReleaser.run();
+        destroyCategorizationAnalyzer();
+    }
+
+    private void destroyCategorizationAnalyzer() {
         if (categorizationAnalyzer != null) {
             categorizationAnalyzer.close();
             categorizationAnalyzer = null;

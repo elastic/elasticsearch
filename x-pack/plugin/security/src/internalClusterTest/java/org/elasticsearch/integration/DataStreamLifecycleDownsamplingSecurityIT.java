@@ -380,30 +380,31 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     }
 
     private void bulkIndex(Client client, String dataStreamName, Supplier<XContentBuilder> docSourceSupplier, int docCount) {
-        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < docCount; i++) {
-            IndexRequest indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-            XContentBuilder source = docSourceSupplier.get();
-            indexRequest.source(source);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        int duplicates = 0;
-        for (BulkItemResponse response : bulkResponse.getItems()) {
-            if (response.isFailed()) {
-                if (response.getFailure().getCause() instanceof VersionConflictEngineException) {
-                    // A duplicate event was created by random generator. We should not fail for this
-                    // reason.
-                    logger.debug("-> failed to insert a duplicate: [{}]", response.getFailureMessage());
-                    duplicates++;
-                } else {
-                    throw new ElasticsearchException("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client.prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < docCount; i++) {
+                IndexRequest indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
+                XContentBuilder source = docSourceSupplier.get();
+                indexRequest.source(source);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            int duplicates = 0;
+            for (BulkItemResponse response : bulkResponse.getItems()) {
+                if (response.isFailed()) {
+                    if (response.getFailure().getCause() instanceof VersionConflictEngineException) {
+                        // A duplicate event was created by random generator. We should not fail for this
+                        // reason.
+                        logger.debug("-> failed to insert a duplicate: [{}]", response.getFailureMessage());
+                        duplicates++;
+                    } else {
+                        throw new ElasticsearchException("Failed to index data: " + bulkResponse.buildFailureMessage());
+                    }
                 }
             }
+            int docsIndexed = docCount - duplicates;
+            logger.info("-> Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
         }
-        int docsIndexed = docCount - duplicates;
-        logger.info("-> Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
     }
 
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {

@@ -1037,22 +1037,23 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexScheduledEvents(List<ScheduledEvent> events) throws IOException {
-        BulkRequestBuilder bulkRequest = client().prepareBulk();
-        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequest = client().prepareBulk()) {
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (ScheduledEvent event : events) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName());
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(
-                    Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
-                );
-                indexRequest.source(event.toXContent(builder, params));
-                bulkRequest.add(indexRequest);
+            for (ScheduledEvent event : events) {
+                IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName());
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    ToXContent.MapParams params = new ToXContent.MapParams(
+                        Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
+                    );
+                    indexRequest.source(event.toXContent(builder, params));
+                    bulkRequest.add(indexRequest);
+                }
             }
-        }
-        BulkResponse response = bulkRequest.get();
-        if (response.hasFailures()) {
-            throw new IllegalStateException(Strings.toString(response));
+            BulkResponse response = bulkRequest.get();
+            if (response.hasFailures()) {
+                throw new IllegalStateException(Strings.toString(response));
+            }
         }
     }
 
@@ -1062,20 +1063,21 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexFilters(List<MlFilter> filters) throws IOException {
-        BulkRequestBuilder bulkRequest = client().prepareBulk();
-        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequest = client().prepareBulk()) {
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (MlFilter filter : filters) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(
-                    Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
-                );
-                indexRequest.source(filter.toXContent(builder, params));
-                bulkRequest.add(indexRequest);
+            for (MlFilter filter : filters) {
+                IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    ToXContent.MapParams params = new ToXContent.MapParams(
+                        Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
+                    );
+                    indexRequest.source(filter.toXContent(builder, params));
+                    bulkRequest.add(indexRequest);
+                }
             }
+            bulkRequest.get();
         }
-        bulkRequest.get();
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
@@ -1112,19 +1114,20 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexCalendars(List<Calendar> calendars) throws IOException {
-        BulkRequestBuilder bulkRequest = client().prepareBulk();
-        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequest = client().prepareBulk()) {
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (Calendar calendar : calendars) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(calendar.documentId());
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(
-                    Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
-                );
-                indexRequest.source(calendar.toXContent(builder, params));
-                bulkRequest.add(indexRequest);
+            for (Calendar calendar : calendars) {
+                IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(calendar.documentId());
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    ToXContent.MapParams params = new ToXContent.MapParams(
+                        Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
+                    );
+                    indexRequest.source(calendar.toXContent(builder, params));
+                    bulkRequest.add(indexRequest);
+                }
             }
+            bulkRequest.get();
         }
-        bulkRequest.get();
     }
 }

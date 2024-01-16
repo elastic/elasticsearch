@@ -23,6 +23,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -214,6 +215,10 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
                 ),
             0
         );
+
+        // We need to close the remaining open job to free up resources (otherwise the test will fail)
+        CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobIdShared);
+        client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
     }
 
     private void createBuckets(String jobId, int from, int count) {

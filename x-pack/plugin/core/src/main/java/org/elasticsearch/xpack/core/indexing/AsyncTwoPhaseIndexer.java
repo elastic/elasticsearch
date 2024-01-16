@@ -522,42 +522,49 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             }
 
             final BulkRequest bulkRequest = new BulkRequest();
-            iterationResult.getToIndex().forEach(bulkRequest::add);
-            stats.markEndProcessing();
+            try {
+                iterationResult.getToIndex().forEach(bulkRequest::add);
+                stats.markEndProcessing();
 
-            // an iteration result might return an empty set of documents to be indexed
-            if (bulkRequest.numberOfActions() > 0) {
-                stats.markStartIndexing();
-                doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
-                    // TODO we should check items in the response and move after accordingly to
-                    // resume the failing buckets ?
-                    if (bulkResponse.hasFailures()) {
-                        logger.warn("Error while attempting to bulk index documents: {}", bulkResponse.buildFailureMessage());
+                // an iteration result might return an empty set of documents to be indexed
+                if (bulkRequest.numberOfActions() > 0) {
+                    stats.markStartIndexing();
+                    doNextBulk(bulkRequest, ActionListener.releaseAfter(ActionListener.wrap(bulkResponse -> {
+                        // TODO we should check items in the response and move after accordingly to
+                        // resume the failing buckets ?
+                        if (bulkResponse.hasFailures()) {
+                            logger.warn("Error while attempting to bulk index documents: {}", bulkResponse.buildFailureMessage());
+                        }
+                        stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
+                        // There is no reason to do a `checkState` here and prevent the indexer from continuing
+                        // As we have already indexed the documents, updated the stats, etc.
+                        // We do an another `checkState` in `onBulkResponse` which will stop the indexer if necessary
+                        // And, we will still be at our new position due to setting it here.
+                        JobPosition newPosition = iterationResult.getPosition();
+                        position.set(newPosition);
+
+                        onBulkResponse(bulkResponse, newPosition);
+                    }, this::finishWithIndexingFailure), bulkRequest));
+                } else {
+                    // no documents need to be indexed, continue with search
+                    try {
+                        JobPosition newPosition = iterationResult.getPosition();
+                        position.set(newPosition);
+
+                        if (triggerSaveState()) {
+                            doSaveState(IndexerState.INDEXING, newPosition, this::nextSearch);
+                        } else {
+                            nextSearch();
+                        }
+                    } catch (Exception e) {
+                        finishWithFailure(e);
+                    } finally {
+                        bulkRequest.close();
                     }
-                    stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
-                    // There is no reason to do a `checkState` here and prevent the indexer from continuing
-                    // As we have already indexed the documents, updated the stats, etc.
-                    // We do an another `checkState` in `onBulkResponse` which will stop the indexer if necessary
-                    // And, we will still be at our new position due to setting it here.
-                    JobPosition newPosition = iterationResult.getPosition();
-                    position.set(newPosition);
-
-                    onBulkResponse(bulkResponse, newPosition);
-                }, this::finishWithIndexingFailure));
-            } else {
-                // no documents need to be indexed, continue with search
-                try {
-                    JobPosition newPosition = iterationResult.getPosition();
-                    position.set(newPosition);
-
-                    if (triggerSaveState()) {
-                        doSaveState(IndexerState.INDEXING, newPosition, this::nextSearch);
-                    } else {
-                        nextSearch();
-                    }
-                } catch (Exception e) {
-                    finishWithFailure(e);
                 }
+            } catch (Exception e) {
+                bulkRequest.close();
+                throw e;
             }
         } catch (Exception e) {
             finishWithSearchFailure(e);

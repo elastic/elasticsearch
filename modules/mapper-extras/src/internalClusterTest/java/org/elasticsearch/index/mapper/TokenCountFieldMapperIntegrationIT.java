@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -157,20 +158,22 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         ensureGreen();
 
         assertEquals(DocWriteResponse.Result.CREATED, prepareIndex("single", "I have four terms").get().getResult());
-        BulkResponse bulk = client().prepareBulk()
-            .add(prepareIndex("bulk1", "bulk three terms"))
-            .add(prepareIndex("bulk2", "this has five bulk terms"))
-            .get();
-        assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
-        assertEquals(
-            DocWriteResponse.Result.CREATED,
-            prepareIndex("multi", "two terms", "wow now I have seven lucky terms").get().getResult()
-        );
-        bulk = client().prepareBulk()
-            .add(prepareIndex("multibulk1", "one", "oh wow now I have eight unlucky terms"))
-            .add(prepareIndex("multibulk2", "six is a bunch of terms", "ten!  ten terms is just crazy!  too many too count!"))
-            .get();
-        assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulk = bulkRequestBuilder.add(prepareIndex("bulk1", "bulk three terms"))
+                .add(prepareIndex("bulk2", "this has five bulk terms"))
+                .get();
+            assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
+            assertEquals(
+                DocWriteResponse.Result.CREATED,
+                prepareIndex("multi", "two terms", "wow now I have seven lucky terms").get().getResult()
+            );
+        }
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulk = bulkRequestBuilder.add(prepareIndex("multibulk1", "one", "oh wow now I have eight unlucky terms"))
+                .add(prepareIndex("multibulk2", "six is a bunch of terms", "ten!  ten terms is just crazy!  too many too count!"))
+                .get();
+            assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
+        }
 
         assertThat(refresh().getFailedShards(), equalTo(0));
     }

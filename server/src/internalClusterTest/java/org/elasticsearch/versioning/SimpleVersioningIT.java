@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -350,11 +351,13 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        BulkResponse bulkResponse = client().prepareBulk().add(prepareIndex("test").setId("1").setSource("field1", "value1_1")).get();
-        assertThat(bulkResponse.hasFailures(), equalTo(false));
-        assertThat(bulkResponse.getItems().length, equalTo(1));
-        IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
-        assertThat(indexResponse.getVersion(), equalTo(1L));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("field1", "value1_1")).get();
+            assertThat(bulkResponse.hasFailures(), equalTo(false));
+            assertThat(bulkResponse.getItems().length, equalTo(1));
+            IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
+            assertThat(indexResponse.getVersion(), equalTo(1L));
+        }
     }
 
     // Poached from Lucene's TestIDVersionPostingsFormat:

@@ -66,21 +66,22 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (int i = 0; i < 5; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
 
-            // We insert one odd value out of 5 for one feature
-            String docId = i == 0 ? "outlier" : "normal" + i;
-            indexRequest.id(docId);
-            indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1, "categorical_1", "foo_" + i);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+                // We insert one odd value out of 5 for one feature
+                String docId = i == 0 ? "outlier" : "normal" + i;
+                indexRequest.id(docId);
+                indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1, "categorical_1", "foo_" + i);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_outlier_detection_with_few_docs";
@@ -162,21 +163,22 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (int i = 0; i < 5; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
 
-            // We insert one odd value out of 5 for one feature
-            String docId = i == 0 ? "outlier" : "normal" + i;
-            indexRequest.id(docId);
-            indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1, "categorical_1", "foo_" + i);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+                // We insert one odd value out of 5 for one feature
+                String docId = i == 0 ? "outlier" : "normal" + i;
+                indexRequest.id(docId);
+                indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1, "categorical_1", "foo_" + i);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_outlier_detection_preview";
@@ -202,62 +204,63 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        int docCount = randomIntBetween(1024, 2048);
-        for (int i = 0; i < docCount; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
-            bulkRequestBuilder.add(indexRequest);
+            int docCount = randomIntBetween(1024, 2048);
+            for (int i = 0; i < docCount; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
+
+            String id = "test_outlier_detection_with_enough_docs_to_scroll";
+            DataFrameAnalyticsConfig config = buildAnalytics(
+                id,
+                sourceIndex,
+                sourceIndex + "-results",
+                "custom_ml",
+                new OutlierDetection.Builder().build()
+            );
+            putAnalytics(config);
+
+            assertIsStopped(id);
+            assertProgressIsZero(id);
+
+            startAnalytics(id);
+            waitUntilAnalyticsIsStopped(id);
+
+            // Check we've got all docs
+            assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), docCount);
+
+            // Check they all have an outlier_score
+            assertHitCount(
+                prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true)
+                    .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")),
+                docCount
+            );
+
+            assertProgressComplete(id);
+            assertStoredProgressHits(id, 1);
+            assertThatAuditMessagesMatch(
+                id,
+                "Created analytics with type [outlier_detection]",
+                "Estimated memory usage [",
+                "Starting analytics on node",
+                "Started analytics",
+                "Creating destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
+                "Started reindexing to destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
+                "Finished reindexing to destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
+                "Started loading data",
+                "Started analyzing",
+                "Started writing results",
+                "Finished analysis"
+            );
         }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
-        }
-
-        String id = "test_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildAnalytics(
-            id,
-            sourceIndex,
-            sourceIndex + "-results",
-            "custom_ml",
-            new OutlierDetection.Builder().build()
-        );
-        putAnalytics(config);
-
-        assertIsStopped(id);
-        assertProgressIsZero(id);
-
-        startAnalytics(id);
-        waitUntilAnalyticsIsStopped(id);
-
-        // Check we've got all docs
-        assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), docCount);
-
-        // Check they all have an outlier_score
-        assertHitCount(
-            prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true)
-                .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")),
-            docCount
-        );
-
-        assertProgressComplete(id);
-        assertStoredProgressHits(id, 1);
-        assertThatAuditMessagesMatch(
-            id,
-            "Created analytics with type [outlier_detection]",
-            "Estimated memory usage [",
-            "Starting analytics on node",
-            "Started analytics",
-            "Creating destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
-            "Started reindexing to destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
-            "Finished reindexing to destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
-            "Started loading data",
-            "Started analyzing",
-            "Started writing results",
-            "Finished analysis"
-        );
     }
 
     public void testOutlierDetectionWithMoreFieldsThanDocValueFieldLimit() throws Exception {
@@ -275,27 +278,28 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             docValueLimitSetting.getIndexToSettings().values().iterator().next()
         );
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 100; i++) {
 
-            StringBuilder source = new StringBuilder("{");
-            for (int fieldCount = 0; fieldCount < docValueLimit + 1; fieldCount++) {
-                source.append("\"field_").append(fieldCount).append("\":").append(randomDouble());
-                if (fieldCount < docValueLimit) {
-                    source.append(",");
+                StringBuilder source = new StringBuilder("{");
+                for (int fieldCount = 0; fieldCount < docValueLimit + 1; fieldCount++) {
+                    source.append("\"field_").append(fieldCount).append("\":").append(randomDouble());
+                    if (fieldCount < docValueLimit) {
+                        source.append(",");
+                    }
                 }
-            }
-            source.append("}");
+                source.append("}");
 
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            indexRequest.source(source.toString(), XContentType.JSON);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                indexRequest.source(source.toString(), XContentType.JSON);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_outlier_detection_with_more_fields_than_docvalue_limit";
@@ -360,18 +364,19 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
         int docCount = randomIntBetween(1024, 2048);
-        for (int i = 0; i < docCount; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+            for (int i = 0; i < docCount; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_stop_outlier_detection_with_enough_docs_to_scroll";
@@ -433,60 +438,61 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (String index : sourceIndex) {
-            for (int i = 0; i < 5; i++) {
-                IndexRequest indexRequest = new IndexRequest(index);
-                indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
-                bulkRequestBuilder.add(indexRequest);
+            for (String index : sourceIndex) {
+                for (int i = 0; i < 5; i++) {
+                    IndexRequest indexRequest = new IndexRequest(index);
+                    indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
+                    bulkRequestBuilder.add(indexRequest);
+                }
             }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
+
+            String id = "test_outlier_detection_with_multiple_source_indices";
+            DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(id)
+                .setSource(new DataFrameAnalyticsSource(sourceIndex, null, null, null))
+                .setDest(new DataFrameAnalyticsDest(destIndex, null))
+                .setAnalysis(new OutlierDetection.Builder().build())
+                .build();
+            putAnalytics(config);
+
+            assertIsStopped(id);
+            assertProgressIsZero(id);
+
+            startAnalytics(id);
+            waitUntilAnalyticsIsStopped(id);
+
+            // Check we've got all docs
+            assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), bulkRequestBuilder.numberOfActions());
+
+            // Check they all have an outlier_score
+            assertHitCount(
+                prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).setQuery(QueryBuilders.existsQuery("ml.outlier_score")),
+                bulkRequestBuilder.numberOfActions()
+            );
+
+            assertProgressComplete(id);
+            assertStoredProgressHits(id, 1);
+            assertThatAuditMessagesMatch(
+                id,
+                "Created analytics with type [outlier_detection]",
+                "Estimated memory usage [",
+                "Starting analytics on node",
+                "Started analytics",
+                "Creating destination index [test-outlier-detection-with-multiple-source-indices-results]",
+                "Started reindexing to destination index [test-outlier-detection-with-multiple-source-indices-results]",
+                "Finished reindexing to destination index [test-outlier-detection-with-multiple-source-indices-results]",
+                "Started loading data",
+                "Started analyzing",
+                "Started writing results",
+                "Finished analysis"
+            );
         }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
-        }
-
-        String id = "test_outlier_detection_with_multiple_source_indices";
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(id)
-            .setSource(new DataFrameAnalyticsSource(sourceIndex, null, null, null))
-            .setDest(new DataFrameAnalyticsDest(destIndex, null))
-            .setAnalysis(new OutlierDetection.Builder().build())
-            .build();
-        putAnalytics(config);
-
-        assertIsStopped(id);
-        assertProgressIsZero(id);
-
-        startAnalytics(id);
-        waitUntilAnalyticsIsStopped(id);
-
-        // Check we've got all docs
-        assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), bulkRequestBuilder.numberOfActions());
-
-        // Check they all have an outlier_score
-        assertHitCount(
-            prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).setQuery(QueryBuilders.existsQuery("ml.outlier_score")),
-            bulkRequestBuilder.numberOfActions()
-        );
-
-        assertProgressComplete(id);
-        assertStoredProgressHits(id, 1);
-        assertThatAuditMessagesMatch(
-            id,
-            "Created analytics with type [outlier_detection]",
-            "Estimated memory usage [",
-            "Starting analytics on node",
-            "Started analytics",
-            "Creating destination index [test-outlier-detection-with-multiple-source-indices-results]",
-            "Started reindexing to destination index [test-outlier-detection-with-multiple-source-indices-results]",
-            "Finished reindexing to destination index [test-outlier-detection-with-multiple-source-indices-results]",
-            "Started loading data",
-            "Started analyzing",
-            "Started writing results",
-            "Finished analysis"
-        );
     }
 
     public void testOutlierDetectionWithPreExistingDestIndex() throws Exception {
@@ -501,53 +507,54 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (int i = 0; i < 5; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
-            bulkRequestBuilder.add(indexRequest);
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
+
+            String id = "test_outlier_detection_with_pre_existing_dest_index";
+            DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, destIndex, null, new OutlierDetection.Builder().build());
+            putAnalytics(config);
+
+            assertIsStopped(id);
+            assertProgressIsZero(id);
+
+            startAnalytics(id);
+            waitUntilAnalyticsIsStopped(id);
+
+            // Check we've got all docs
+            assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), bulkRequestBuilder.numberOfActions());
+            // Check they all have an outlier_score
+            assertHitCount(
+                prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).setQuery(QueryBuilders.existsQuery("ml.outlier_score")),
+                bulkRequestBuilder.numberOfActions()
+            );
+
+            assertProgressComplete(id);
+            assertStoredProgressHits(id, 1);
+            assertThatAuditMessagesMatch(
+                id,
+                "Created analytics with type [outlier_detection]",
+                "Estimated memory usage [",
+                "Starting analytics on node",
+                "Started analytics",
+                "Using existing destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
+                "Started reindexing to destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
+                "Finished reindexing to destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
+                "Started loading data",
+                "Started analyzing",
+                "Started writing results",
+                "Finished analysis"
+            );
         }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
-        }
-
-        String id = "test_outlier_detection_with_pre_existing_dest_index";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, destIndex, null, new OutlierDetection.Builder().build());
-        putAnalytics(config);
-
-        assertIsStopped(id);
-        assertProgressIsZero(id);
-
-        startAnalytics(id);
-        waitUntilAnalyticsIsStopped(id);
-
-        // Check we've got all docs
-        assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), bulkRequestBuilder.numberOfActions());
-        // Check they all have an outlier_score
-        assertHitCount(
-            prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).setQuery(QueryBuilders.existsQuery("ml.outlier_score")),
-            bulkRequestBuilder.numberOfActions()
-        );
-
-        assertProgressComplete(id);
-        assertStoredProgressHits(id, 1);
-        assertThatAuditMessagesMatch(
-            id,
-            "Created analytics with type [outlier_detection]",
-            "Estimated memory usage [",
-            "Starting analytics on node",
-            "Started analytics",
-            "Using existing destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
-            "Started reindexing to destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
-            "Finished reindexing to destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
-            "Started loading data",
-            "Started analyzing",
-            "Started writing results",
-            "Finished analysis"
-        );
     }
 
     public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() throws Exception {
@@ -555,14 +562,15 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         indicesAdmin().prepareCreate(sourceIndex).setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword").get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 10000; i++) {  // This number of rows should make memory usage estimate greater than 1MB
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_" + i).source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < 10000; i++) {  // This number of rows should make memory usage estimate greater than 1MB
+                IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_" + i).source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_model_memory_limit_lower_than_estimated_memory_usage";
@@ -588,12 +596,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         indicesAdmin().prepareCreate(sourceIndex).setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword").get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_1").source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
-        bulkRequestBuilder.add(indexRequest);
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_1").source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
+            bulkRequestBuilder.add(indexRequest);
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_lazy_assign_model_memory_limit_too_high";
@@ -641,18 +650,19 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
         int docCount = randomIntBetween(1024, 2048);
-        for (int i = 0; i < docCount; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+            for (int i = 0; i < docCount; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_outlier_detection_stop_and_restart";
@@ -709,21 +719,22 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (int i = 0; i < 5; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
 
-            // We insert one odd value out of 5 for one feature
-            String docId = i == 0 ? "outlier" : "normal" + i;
-            indexRequest.id(docId);
-            indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1.0, "categorical_1", "foo_" + i);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+                // We insert one odd value out of 5 for one feature
+                String docId = i == 0 ? "outlier" : "normal" + i;
+                indexRequest.id(docId);
+                indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1.0, "categorical_1", "foo_" + i);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_outlier_detection_with_custom_params";
@@ -820,21 +831,22 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mappings).get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (int i = 0; i < 5; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
 
-            // We insert one odd value out of 5 for one feature
-            String docId = i == 0 ? "outlier" : "normal" + i;
-            indexRequest.id(docId);
-            indexRequest.source("numeric", i == 0 ? 100.0 : 1.0);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+                // We insert one odd value out of 5 for one feature
+                String docId = i == 0 ? "outlier" : "normal" + i;
+                indexRequest.id(docId);
+                indexRequest.source("numeric", i == 0 ? 100.0 : 1.0);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_outlier_detection_with_index_with_runtime_mappings";
@@ -921,21 +933,22 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mappings).get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (int i = 0; i < 5; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
 
-            // We insert one odd value out of 5 for one feature
-            String docId = i == 0 ? "outlier" : "normal" + i;
-            indexRequest.id(docId);
-            indexRequest.source("numeric", i == 0 ? 100.0 : 1.0);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+                // We insert one odd value out of 5 for one feature
+                String docId = i == 0 ? "outlier" : "normal" + i;
+                indexRequest.id(docId);
+                indexRequest.source("numeric", i == 0 ? 100.0 : 1.0);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_outlier_detection_index_with_search_runtime_fields";
@@ -1025,18 +1038,19 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         client().admin().indices().prepareCreate(sourceIndex).setMapping("numeric_1", "type=integer", "numeric_2", "type=integer").get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (int i = 0; i < 5; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            indexRequest.id(String.valueOf(i));
-            indexRequest.source("numeric_1", randomInt(), "numeric_2", randomInt());
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                indexRequest.id(String.valueOf(i));
+                indexRequest.source("numeric_1", randomInt(), "numeric_2", randomInt());
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test-timeout-returns-408";

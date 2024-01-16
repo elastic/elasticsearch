@@ -101,6 +101,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -1105,6 +1106,9 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(request.v2()),
             authzInfoRoles(new String[] { ElasticUser.ROLE_NAME })
         );
+        if (request.v2() instanceof Releasable releasable) {
+            releasable.close();
+        }
     }
 
     public void testSearchAgainstEmptyCluster() throws Exception {
@@ -2429,6 +2433,9 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
+        if (request instanceof Releasable releasable) {
+            releasable.close();
+        }
     }
 
     public void testCompositeActionsIndicesAreNotChecked() {
@@ -2455,10 +2462,17 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
+        if (request instanceof Releasable releasable) {
+            releasable.close();
+        }
     }
 
     public void testCompositeActionsMustImplementCompositeIndicesRequest() {
-        String action = randomCompositeRequest().v1();
+        Tuple<String, TransportRequest> compositeRequest = randomCompositeRequest();
+        if (compositeRequest.v2() instanceof Releasable releasable) {
+            releasable.close(); // we're not using it in this test
+        }
+        String action = compositeRequest.v1();
         TransportRequest request = mock(TransportRequest.class);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         User user = new User("test user", "role");

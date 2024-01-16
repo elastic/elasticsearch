@@ -8,6 +8,7 @@ package org.elasticsearch.integration;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Request;
@@ -66,14 +67,16 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         flushAndRefresh();
 
         // do it in a bulk
-        BulkResponse response = client().prepareBulk()
-            .add(client().prepareUpdate("index1", "1").setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON))
-            .get();
-        assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
-        getResponse = client().prepareGet("index1", "1").get();
-        assertEquals("test", getResponse.getSource().get("test"));
-        assertEquals("not test", getResponse.getSource().get("not test"));
-        assertEquals("bulk updated", getResponse.getSource().get("bulk updated"));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse response = bulkRequestBuilder.add(
+                client().prepareUpdate("index1", "1").setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON)
+            ).get();
+            assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
+            getResponse = client().prepareGet("index1", "1").get();
+            assertEquals("test", getResponse.getSource().get("test"));
+            assertEquals("not test", getResponse.getSource().get("not test"));
+            assertEquals("bulk updated", getResponse.getSource().get("bulk updated"));
+        }
     }
 
     public void testThatBulkUpdateDoesNotLoseFieldsHttp() throws IOException {

@@ -201,16 +201,17 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
 
         // create random ip test data
         InetAddress[] randomIps = new InetAddress[numDocs];
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk(indexName);
-        for (int i = 0; i < numDocs; i++) {
-            randomIps[i] = randomIp(randomBoolean());
-            bulkRequestBuilder.add(
-                prepareIndex(indexName).setSource(
-                    jsonBuilder().startObject().field("ip_addr", NetworkAddress.format(randomIps[i])).endObject()
-                )
-            );
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk(indexName)) {
+            for (int i = 0; i < numDocs; i++) {
+                randomIps[i] = randomIp(randomBoolean());
+                bulkRequestBuilder.add(
+                    prepareIndex(indexName).setSource(
+                        jsonBuilder().startObject().field("ip_addr", NetworkAddress.format(randomIps[i])).endObject()
+                    )
+                );
+            }
+            assertNoFailures(bulkRequestBuilder.get());
         }
-        assertNoFailures(bulkRequestBuilder.get());
         assertAllSuccessful(client().admin().indices().prepareRefresh().get());
 
         // test for short random prefixes, max length 7 should at least include some separators but not be too long for short ipv4

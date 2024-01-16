@@ -64,15 +64,16 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         assertTrue(prepareTimeSeriesIndex(mapping, startMillis, endMillis, routingDimensions).isAcknowledged());
         logger.info("Dimensions: " + numberOfDimensions + " docs: " + numberOfDocuments + " start: " + startMillis + " end: " + endMillis);
 
-        final BulkRequestBuilder bulkIndexRequest = client().prepareBulk();
-        for (int docId = 0; docId < numberOfDocuments; docId++) {
-            final XContentBuilder document = timeSeriesDocument(FOO_DIM_VALUE, BAR_DIM_VALUE, BAZ_DIM_VALUE, docId, timestamps::next);
-            bulkIndexRequest.add(prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
-        }
+        try (BulkRequestBuilder bulkIndexRequest = client().prepareBulk()) {
+            for (int docId = 0; docId < numberOfDocuments; docId++) {
+                final XContentBuilder document = timeSeriesDocument(FOO_DIM_VALUE, BAR_DIM_VALUE, BAZ_DIM_VALUE, docId, timestamps::next);
+                bulkIndexRequest.add(prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
+            }
 
-        final BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertFalse(bulkIndexResponse.hasFailures());
-        assertEquals(RestStatus.OK.getStatus(), client().admin().indices().prepareFlush("index").get().getStatus().getStatus());
+            final BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            assertFalse(bulkIndexResponse.hasFailures());
+            assertEquals(RestStatus.OK.getStatus(), client().admin().indices().prepareFlush("index").get().getStatus().getStatus());
+        }
     }
 
     private static XContentBuilder timeSeriesDocument(

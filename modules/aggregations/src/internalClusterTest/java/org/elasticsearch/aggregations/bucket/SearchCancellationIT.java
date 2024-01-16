@@ -77,21 +77,22 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         for (int i = 0; i < numberOfRefreshes; i++) {
             // Make sure we sometimes have a few segments
-            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (int j = 0; j < numberOfDocsPerRefresh; j++) {
-                bulkRequestBuilder.add(
-                    prepareIndex("test").setOpType(DocWriteRequest.OpType.CREATE)
-                        .setSource(
-                            "@timestamp",
-                            now + (long) i * numberOfDocsPerRefresh + j,
-                            "val",
-                            (double) j,
-                            "dim",
-                            String.valueOf(j % 100)
-                        )
-                );
+            try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+                for (int j = 0; j < numberOfDocsPerRefresh; j++) {
+                    bulkRequestBuilder.add(
+                        prepareIndex("test").setOpType(DocWriteRequest.OpType.CREATE)
+                            .setSource(
+                                "@timestamp",
+                                now + (long) i * numberOfDocsPerRefresh + j,
+                                "val",
+                                (double) j,
+                                "dim",
+                                String.valueOf(j % 100)
+                            )
+                    );
+                }
+                assertNoFailures(bulkRequestBuilder.get());
             }
-            assertNoFailures(bulkRequestBuilder.get());
         }
 
         logger.info("Executing search");

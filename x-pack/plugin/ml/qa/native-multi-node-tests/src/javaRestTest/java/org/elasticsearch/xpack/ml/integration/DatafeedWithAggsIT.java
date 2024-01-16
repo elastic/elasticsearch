@@ -117,16 +117,17 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         long aMinuteAgo = now - TimeValue.timeValueMinutes(1).millis();
         long aMinuteLater = now + TimeValue.timeValueMinutes(1).millis();
         long curTime = aMinuteAgo;
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        while (curTime < aMinuteLater) {
-            IndexRequest indexRequest = new IndexRequest(dfId);
-            indexRequest.source("time", curTime, "field", randomFrom("foo", "bar", "baz"));
-            bulkRequestBuilder.add(indexRequest);
-            curTime += TimeValue.timeValueSeconds(1).millis();
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index docs: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            while (curTime < aMinuteLater) {
+                IndexRequest indexRequest = new IndexRequest(dfId);
+                indexRequest.source("time", curTime, "field", randomFrom("foo", "bar", "baz"));
+                bulkRequestBuilder.add(indexRequest);
+                curTime += TimeValue.timeValueSeconds(1).millis();
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index docs: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         // And start datafeed in real-time mode

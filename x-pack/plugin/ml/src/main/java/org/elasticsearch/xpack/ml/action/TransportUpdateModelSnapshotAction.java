@@ -114,16 +114,22 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         bulkRequestBuilder.add(indexRequest);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), new ActionListener<BulkResponse>() {
-            @Override
-            public void onResponse(BulkResponse indexResponse) {
-                handler.accept(true);
-            }
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            BulkAction.INSTANCE,
+            bulkRequestBuilder.request(),
+            ActionListener.releaseAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(BulkResponse indexResponse) {
+                    handler.accept(true);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                errorHandler.accept(e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    errorHandler.accept(e);
+                }
+            }, bulkRequestBuilder)
+        );
     }
 }

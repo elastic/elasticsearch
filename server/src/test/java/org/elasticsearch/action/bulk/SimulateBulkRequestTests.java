@@ -26,13 +26,16 @@ public class SimulateBulkRequestTests extends ESTestCase {
     }
 
     private void testSerialization(Map<String, Map<String, Object>> pipelineSubstitutions) throws IOException {
-        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
         /*
          * Note: SimulateBulkRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a
          * Writable
          */
-        SimulateBulkRequest copy = copyWriteable(simulateBulkRequest, null, SimulateBulkRequest::new);
-        assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
+        try (
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
+            SimulateBulkRequest copy = copyWriteable(simulateBulkRequest, null, SimulateBulkRequest::new)
+        ) {
+            assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
+        }
     }
 
     private Map<String, Map<String, Object>> getTestPipelineSubstitutions() {

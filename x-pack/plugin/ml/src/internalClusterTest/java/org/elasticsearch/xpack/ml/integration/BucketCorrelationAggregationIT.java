@@ -42,29 +42,31 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
         int[] isDog = new int[10000];
 
         client().admin().indices().prepareCreate("data").setMapping("metric", "type=double", "term", "type=keyword").get();
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("data");
-        for (int i = 0; i < 5000; i++) {
-            IndexRequest indexRequest = new IndexRequest("data");
-            double x = randomDoubleBetween(100.0, 1000.0, true);
-            xs[i] = x;
-            isCat[i] = 1;
-            isDog[i] = 0;
-            indexRequest.source("metric", x, "term", "cat").opType(DocWriteRequest.OpType.CREATE);
-            bulkRequestBuilder.add(indexRequest);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("data")) {
+            for (int i = 0; i < 5000; i++) {
+                IndexRequest indexRequest = new IndexRequest("data");
+                double x = randomDoubleBetween(100.0, 1000.0, true);
+                xs[i] = x;
+                isCat[i] = 1;
+                isDog[i] = 0;
+                indexRequest.source("metric", x, "term", "cat").opType(DocWriteRequest.OpType.CREATE);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            sendAndMaybeFail(bulkRequestBuilder);
         }
-        sendAndMaybeFail(bulkRequestBuilder);
-        bulkRequestBuilder = client().prepareBulk("data");
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("data")) {
 
-        for (int i = 5000; i < 10000; i++) {
-            IndexRequest indexRequest = new IndexRequest("data");
-            double x = randomDoubleBetween(0.0, 100.0, true);
-            xs[i] = x;
-            isCat[i] = 0;
-            isDog[i] = 1;
-            indexRequest.source("metric", x, "term", "dog").opType(DocWriteRequest.OpType.CREATE);
-            bulkRequestBuilder.add(indexRequest);
+            for (int i = 5000; i < 10000; i++) {
+                IndexRequest indexRequest = new IndexRequest("data");
+                double x = randomDoubleBetween(0.0, 100.0, true);
+                xs[i] = x;
+                isCat[i] = 0;
+                isDog[i] = 1;
+                indexRequest.source("metric", x, "term", "dog").opType(DocWriteRequest.OpType.CREATE);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            sendAndMaybeFail(bulkRequestBuilder);
         }
-        sendAndMaybeFail(bulkRequestBuilder);
 
         double catCorrelation = pearsonCorrelation(xs, isCat);
         double dogCorrelation = pearsonCorrelation(xs, isDog);

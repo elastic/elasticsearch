@@ -28,11 +28,12 @@ public class RareTermsIT extends ESSingleNodeTestCase {
     private static final String index = "idx";
 
     private void indexDocs(int numDocs) {
-        final BulkRequestBuilder bulk = client().prepareBulk();
-        for (int i = 0; i < numDocs; ++i) {
-            bulk.add(new IndexRequest(index).source("{\"str_value\" : \"s" + i + "\"}", XContentType.JSON));
+        try (BulkRequestBuilder bulk = client().prepareBulk()) {
+            for (int i = 0; i < numDocs; ++i) {
+                bulk.add(new IndexRequest(index).source("{\"str_value\" : \"s" + i + "\"}", XContentType.JSON));
+            }
+            assertNoFailures(bulk.get());
         }
-        assertNoFailures(bulk.get());
     }
 
     public void testSingleValuedString() {

@@ -142,13 +142,14 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
     }
 
     private static void indexHousesData(String indexName) {
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 100; i++) {
-            bulkRequestBuilder.add(new IndexRequest(indexName).source(PRICE_FIELD, 1000, PRICE_PREDICTION_FIELD, 0));
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < 100; i++) {
+                bulkRequestBuilder.add(new IndexRequest(indexName).source(PRICE_FIELD, 1000, PRICE_PREDICTION_FIELD, 0));
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
     }
 

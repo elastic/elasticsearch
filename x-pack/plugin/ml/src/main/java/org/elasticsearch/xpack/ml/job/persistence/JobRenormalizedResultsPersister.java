@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
  * <p>
  * This class is NOT thread safe.
  */
-public class JobRenormalizedResultsPersister {
+public class JobRenormalizedResultsPersister implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(JobRenormalizedResultsPersister.class);
 
@@ -100,9 +101,13 @@ public class JobRenormalizedResultsPersister {
         logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
 
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
-            if (addRecordsResponse.hasFailures()) {
-                logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+            try {
+                BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
+                if (addRecordsResponse.hasFailures()) {
+                    logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+                }
+            } finally {
+                bulkRequest.close();
             }
         }
 
@@ -111,5 +116,10 @@ public class JobRenormalizedResultsPersister {
 
     BulkRequest getBulkRequest() {
         return bulkRequest;
+    }
+
+    @Override
+    public void close() {
+        bulkRequest.close();
     }
 }

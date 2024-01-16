@@ -137,7 +137,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         // without hogging threads or queuing up many large quantiles documents.
         if (semaphore.tryAcquire()) {
             try {
-                latestTask = executorService.submit(this::doRenormalizations);
+                latestTask = executorService.submit(() -> this.doRenormalizations());
             } catch (RejectedExecutionException e) {
                 latestQuantilesHolder.getLatch().countDown();
                 latestQuantilesHolder = null;

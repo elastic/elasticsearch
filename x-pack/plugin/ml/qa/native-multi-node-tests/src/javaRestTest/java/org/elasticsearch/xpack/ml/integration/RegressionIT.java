@@ -571,15 +571,16 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
 
         int totalDocCount = 300;
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < totalDocCount; i++) {
-            List<Object> source = List.of("field_1", i, "field_2", 2 * i);
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < totalDocCount; i++) {
+                List<Object> source = List.of("field_1", i, "field_2", 2 * i);
+                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         // Very infrequently this test may fail as the algorithm underestimates the
@@ -914,36 +915,37 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
         }
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < numTrainingRows; i++) {
-            List<Object> source = List.of(
-                NUMERICAL_FEATURE_FIELD,
-                NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()),
-                DISCRETE_NUMERICAL_FEATURE_FIELD,
-                DISCRETE_NUMERICAL_FEATURE_VALUES.get(i % DISCRETE_NUMERICAL_FEATURE_VALUES.size()),
-                DEPENDENT_VARIABLE_FIELD,
-                DEPENDENT_VARIABLE_VALUES.get(i % DEPENDENT_VARIABLE_VALUES.size()),
-                "@timestamp",
-                Instant.now().toEpochMilli()
-            );
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
-            List<Object> source = List.of(
-                NUMERICAL_FEATURE_FIELD,
-                NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()),
-                DISCRETE_NUMERICAL_FEATURE_FIELD,
-                DISCRETE_NUMERICAL_FEATURE_VALUES.get(i % DISCRETE_NUMERICAL_FEATURE_VALUES.size()),
-                "@timestamp",
-                Instant.now().toEpochMilli()
-            );
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < numTrainingRows; i++) {
+                List<Object> source = List.of(
+                    NUMERICAL_FEATURE_FIELD,
+                    NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()),
+                    DISCRETE_NUMERICAL_FEATURE_FIELD,
+                    DISCRETE_NUMERICAL_FEATURE_VALUES.get(i % DISCRETE_NUMERICAL_FEATURE_VALUES.size()),
+                    DEPENDENT_VARIABLE_FIELD,
+                    DEPENDENT_VARIABLE_VALUES.get(i % DEPENDENT_VARIABLE_VALUES.size()),
+                    "@timestamp",
+                    Instant.now().toEpochMilli()
+                );
+                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
+                List<Object> source = List.of(
+                    NUMERICAL_FEATURE_FIELD,
+                    NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()),
+                    DISCRETE_NUMERICAL_FEATURE_FIELD,
+                    DISCRETE_NUMERICAL_FEATURE_VALUES.get(i % DISCRETE_NUMERICAL_FEATURE_VALUES.size()),
+                    "@timestamp",
+                    Instant.now().toEpochMilli()
+                );
+                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
     }
 

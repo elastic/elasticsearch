@@ -63,14 +63,15 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> adding some documents to test index");
         for (int j = 0; j < randomIntBetween(1, 10); ++j) {
-            final BulkRequest bulkRequest = new BulkRequest();
-            for (int i = 0; i < scaledRandomIntBetween(1, 100); ++i) {
-                bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
-            }
-            final BulkResponse bulkResponse = client().bulk(bulkRequest).get();
-            for (BulkItemResponse item : bulkResponse.getItems()) {
-                if (randomBoolean()) {
-                    toDelete.add(item.getId());
+            try (BulkRequest bulkRequest = new BulkRequest()) {
+                for (int i = 0; i < scaledRandomIntBetween(1, 100); ++i) {
+                    bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+                }
+                final BulkResponse bulkResponse = client().bulk(bulkRequest).get();
+                for (BulkItemResponse item : bulkResponse.getItems()) {
+                    if (randomBoolean()) {
+                        toDelete.add(item.getId());
+                    }
                 }
             }
         }
@@ -141,12 +142,13 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> adding some documents to test index and flush in between to get at least two segments");
         for (int j = 0; j < 2; j++) {
-            final BulkRequest bulkRequest = new BulkRequest();
-            for (int i = 0; i < scaledRandomIntBetween(1, 100); ++i) {
-                bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+            try (BulkRequest bulkRequest = new BulkRequest()) {
+                for (int i = 0; i < scaledRandomIntBetween(1, 100); ++i) {
+                    bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+                }
+                client().bulk(bulkRequest).get();
+                flushAndRefresh(indexName);
             }
-            client().bulk(bulkRequest).get();
-            flushAndRefresh(indexName);
         }
         final IndexStats indexStats = indicesAdmin().prepareStats(indexName).get().getIndex(indexName);
         assertThat(indexStats.getIndexShards().get(0).getPrimary().getSegments().getCount(), greaterThan(1L));
@@ -187,14 +189,15 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         final int rounds = scaledRandomIntBetween(5, 9);
         for (int i = 0; i < rounds; ++i) {
             final int numDocs = scaledRandomIntBetween(100, 1000);
-            BulkRequestBuilder request = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (int j = 0; j < numDocs; ++j) {
-                request.add(
-                    new IndexRequest(indexName).id(Long.toString(id++))
-                        .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
-                );
+            try (BulkRequestBuilder request = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+                for (int j = 0; j < numDocs; ++j) {
+                    request.add(
+                        new IndexRequest(indexName).id(Long.toString(id++))
+                            .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
+                    );
+                }
+                assertNoFailures(request.get());
             }
-            assertNoFailures(request.get());
         }
 
         // snapshot with a bunch of unmerged segments

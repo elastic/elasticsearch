@@ -207,9 +207,10 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     }
 
     public void indexDocuments(final String indexName, final List<String> documentsJson) {
-        final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        documentsJson.forEach(document -> bulkRequestBuilder.add(new IndexRequest(indexName).source(document, XContentType.JSON)));
-        assertFalse(bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().hasFailures());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            documentsJson.forEach(document -> bulkRequestBuilder.add(new IndexRequest(indexName).source(document, XContentType.JSON)));
+            assertFalse(bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().hasFailures());
+        }
     }
 
     public void blockIndexWrites(final String indexName) {

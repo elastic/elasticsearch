@@ -237,44 +237,45 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
     private static void enrich(Map<String, List<String>> keys, String coordinatingNode, int numDocs) {
         final String[] executedPipeline = new String[2 * numDocs];
-        BulkRequest bulkRequest = new BulkRequest("my-index");
-        for (int i = 0; i < numDocs; i++) {
-            final String pipeline = randomFrom(keys.keySet());
-            executedPipeline[i] = pipeline;
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.id(Integer.toString(i));
-            indexRequest.setPipeline(pipeline);
-            indexRequest.source(Map.of(MATCH_FIELD, randomFrom(keys.get(pipeline))));
-            bulkRequest.add(indexRequest);
-        }
-        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
-        assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
-        int expectedId = 0;
-        for (BulkItemResponse itemResponse : bulkResponse) {
-            assertThat(itemResponse.getId(), equalTo(Integer.toString(expectedId++)));
-        }
-
-        for (int i = 0; i < numDocs; i++) {
-            GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
-            Map<String, Object> source = getResponse.getSourceAsMap();
-            Map<?, ?> userEntry = (Map<?, ?>) source.get("user");
-            assertThat(userEntry.size(), equalTo(DECORATE_FIELDS.length + 1));
-            assertThat(keys.get(executedPipeline[i]), containsInRelativeOrder(userEntry.get(MATCH_FIELD)));
-            for (String field : DECORATE_FIELDS) {
-                assertThat(userEntry.get(field), notNullValue());
+        try (BulkRequest bulkRequest = new BulkRequest("my-index")) {
+            for (int i = 0; i < numDocs; i++) {
+                final String pipeline = randomFrom(keys.keySet());
+                executedPipeline[i] = pipeline;
+                IndexRequest indexRequest = new IndexRequest();
+                indexRequest.id(Integer.toString(i));
+                indexRequest.setPipeline(pipeline);
+                indexRequest.source(Map.of(MATCH_FIELD, randomFrom(keys.get(pipeline))));
+                bulkRequest.add(indexRequest);
             }
-        }
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
+            int expectedId = 0;
+            for (BulkItemResponse itemResponse : bulkResponse) {
+                assertThat(itemResponse.getId(), equalTo(Integer.toString(expectedId++)));
+            }
 
-        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
-            .actionGet();
-        assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
-        String nodeId = internalCluster().getInstance(ClusterService.class, coordinatingNode).localNode().getId();
-        CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.getNodeId().equals(nodeId)).findAny().get();
-        assertThat(stats.getNodeId(), equalTo(nodeId));
-        assertThat(stats.getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
-        // 'numDocs' lookups are done, but not 'numDocs' searches, because searches may get cached:
-        // and not all enrichments may happen via the same node.
-        assertThat(stats.getExecutedSearchesTotal(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo((long) numDocs)));
+            for (int i = 0; i < numDocs; i++) {
+                GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
+                Map<String, Object> source = getResponse.getSourceAsMap();
+                Map<?, ?> userEntry = (Map<?, ?>) source.get("user");
+                assertThat(userEntry.size(), equalTo(DECORATE_FIELDS.length + 1));
+                assertThat(keys.get(executedPipeline[i]), containsInRelativeOrder(userEntry.get(MATCH_FIELD)));
+                for (String field : DECORATE_FIELDS) {
+                    assertThat(userEntry.get(field), notNullValue());
+                }
+            }
+
+            EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
+                .actionGet();
+            assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
+            String nodeId = internalCluster().getInstance(ClusterService.class, coordinatingNode).localNode().getId();
+            CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.getNodeId().equals(nodeId)).findAny().get();
+            assertThat(stats.getNodeId(), equalTo(nodeId));
+            assertThat(stats.getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
+            // 'numDocs' lookups are done, but not 'numDocs' searches, because searches may get cached:
+            // and not all enrichments may happen via the same node.
+            assertThat(stats.getExecutedSearchesTotal(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo((long) numDocs)));
+        }
     }
 
     private static List<String> createSourceIndex(int numDocs) {

@@ -263,7 +263,11 @@ public class BulkProcessor2 implements Closeable {
             if (bulkRequestUnderConstruction.numberOfActions() > 0) {
                 execute();
             }
-            return this.retry.awaitClose(timeout, unit);
+            boolean success = this.retry.awaitClose(timeout, unit);
+            if (bulkRequestUnderConstruction.hasReferences()) {
+                bulkRequestUnderConstruction.close();
+            }
+            return success;
         }
     }
 
@@ -453,8 +457,13 @@ public class BulkProcessor2 implements Closeable {
      */
     private void execute(BulkRequest bulkRequest, long executionId) {
         try {
-            listener.beforeBulk(executionId, bulkRequest);
-            retry.consumeRequestWithRetries(consumer, bulkRequest, new ActionListener<>() {
+            try {
+                listener.beforeBulk(executionId, bulkRequest);
+            } catch (Exception e) {
+                bulkRequest.close();
+                throw e;
+            }
+            retry.consumeRequestWithRetries(consumer, bulkRequest, ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
@@ -468,7 +477,7 @@ public class BulkProcessor2 implements Closeable {
                     maybeNoLongerInExcessofMaxBytesInFlight();
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
-            });
+            }, bulkRequest));
         } catch (Exception e) {
             logger.warn(() -> "Failed to execute bulk request " + executionId + ".", e);
             totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());

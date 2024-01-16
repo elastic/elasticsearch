@@ -79,7 +79,8 @@ public class TriggeredWatchStore {
             return;
         }
 
-        client.bulk(createBulkRequest(triggeredWatches), listener);
+        BulkRequest bulkRequest = createBulkRequest(triggeredWatches);
+        client.bulk(bulkRequest, ActionListener.releaseAfter(listener, bulkRequest));
     }
 
     public BulkResponse putAll(final List<TriggeredWatch> triggeredWatches) throws IOException {

@@ -41,7 +41,9 @@ public class BulkProcessorFactoryTests extends ESTestCase {
 
     public void testDefaultConstructor() throws Exception {
         BulkProcessorFactory factory = new BulkProcessorFactory(mock(Client.class), mock(AnalyticsEventIngestConfig.class));
-        assertThat(factory.create(), instanceOf(BulkProcessor2.class));
+        try (BulkProcessor2 bulkProcessor = factory.create()) {
+            assertThat(bulkProcessor, instanceOf(BulkProcessor2.class));
+        }
     }
 
     public void testConfigValueAreUsed() throws Exception {
@@ -58,8 +60,9 @@ public class BulkProcessorFactoryTests extends ESTestCase {
 
         BulkProcessor2.Builder baseBuilder = spy(BulkProcessor2.builder(mock(), new BulkProcessorFactory.BulkProcessorListener(), mock()));
         BulkProcessorFactory factory = new BulkProcessorFactory(config, () -> baseBuilder);
-
-        assertThat(factory.create(), instanceOf(BulkProcessor2.class));
+        try (BulkProcessor2 bulkProcessor = factory.create()) {
+            assertThat(bulkProcessor, instanceOf(BulkProcessor2.class));
+        }
 
         verify(baseBuilder).setFlushInterval(eq(flushDelay));
         verify(baseBuilder).setBulkActions(eq(maxBulkActions));

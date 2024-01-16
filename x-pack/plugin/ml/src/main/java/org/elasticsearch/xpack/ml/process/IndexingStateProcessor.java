@@ -156,7 +156,11 @@ public class IndexingStateProcessor implements StateProcessor {
                 String msg = "failed indexing updated state docs";
                 LOGGER.error(() -> format("[%s] %s", jobId, msg), ex);
                 auditor.error(jobId, msg + " error: " + ex.getMessage());
+            } finally {
+                bulkRequest.close();
             }
+        } else {
+            bulkRequest.close();
         }
     }
 

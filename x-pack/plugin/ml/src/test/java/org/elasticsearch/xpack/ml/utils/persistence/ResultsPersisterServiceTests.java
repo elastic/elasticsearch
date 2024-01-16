@@ -265,22 +265,23 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             new BulkResponse(new BulkItemResponse[0], 0L)
         ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(INDEX_REQUEST_FAILURE);
-        bulkRequest.add(INDEX_REQUEST_SUCCESS);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(INDEX_REQUEST_FAILURE);
+            bulkRequest.add(INDEX_REQUEST_SUCCESS);
 
-        AtomicReference<String> lastMessage = new AtomicReference<>();
+            AtomicReference<String> lastMessage = new AtomicReference<>();
 
-        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set);
+            resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set);
 
-        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(client, times(2)).execute(eq(BulkAction.INSTANCE), captor.capture(), any());
+            ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+            verify(client, times(2)).execute(eq(BulkAction.INSTANCE), captor.capture(), any());
 
-        List<BulkRequest> requests = captor.getAllValues();
+            List<BulkRequest> requests = captor.getAllValues();
 
-        assertThat(requests.get(0).numberOfActions(), equalTo(2));
-        assertThat(requests.get(1).numberOfActions(), equalTo(1));
-        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
+            assertThat(requests.get(0).numberOfActions(), equalTo(2));
+            assertThat(requests.get(1).numberOfActions(), equalTo(1));
+            assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
+        }
     }
 
     public void testBulkRequestChangeOnIrrecoverableFailures() {
@@ -296,17 +297,18 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             new BulkResponse(new BulkItemResponse[0], 0L)
         ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(INDEX_REQUEST_FAILURE);
-        bulkRequest.add(INDEX_REQUEST_SUCCESS);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(INDEX_REQUEST_FAILURE);
+            bulkRequest.add(INDEX_REQUEST_SUCCESS);
 
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {})
-        );
+            ElasticsearchException ex = expectThrows(
+                ElasticsearchException.class,
+                () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {})
+            );
 
-        verify(client).execute(eq(BulkAction.INSTANCE), any(), any());
-        assertThat(ex.getMessage(), containsString("experienced failure that cannot be automatically retried."));
+            verify(client).execute(eq(BulkAction.INSTANCE), any(), any());
+            assertThat(ex.getMessage(), containsString("experienced failure that cannot be automatically retried."));
+        }
     }
 
     public void testBulkRequestDoesNotRetryWhenSupplierIsFalse() {
@@ -315,19 +317,20 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             new BulkResponse(new BulkItemResponse[0], 0L)
         ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(INDEX_REQUEST_FAILURE);
-        bulkRequest.add(INDEX_REQUEST_SUCCESS);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(INDEX_REQUEST_FAILURE);
+            bulkRequest.add(INDEX_REQUEST_SUCCESS);
 
-        AtomicReference<String> lastMessage = new AtomicReference<>();
+            AtomicReference<String> lastMessage = new AtomicReference<>();
 
-        expectThrows(
-            ElasticsearchException.class,
-            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> false, lastMessage::set)
-        );
-        verify(client, times(1)).execute(eq(BulkAction.INSTANCE), any(), any());
+            expectThrows(
+                ElasticsearchException.class,
+                () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> false, lastMessage::set)
+            );
+            verify(client, times(1)).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        assertThat(lastMessage.get(), is(nullValue()));
+            assertThat(lastMessage.get(), is(nullValue()));
+        }
     }
 
     public void testBulkRequestRetriesConfiguredAttemptNumber() {
@@ -337,18 +340,20 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE }, 0L))).when(client)
             .execute(eq(BulkAction.INSTANCE), any(), any());
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(INDEX_REQUEST_FAILURE);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
 
-        AtomicReference<String> lastMessage = new AtomicReference<>();
+            bulkRequest.add(INDEX_REQUEST_FAILURE);
 
-        expectThrows(
-            ElasticsearchException.class,
-            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set)
-        );
-        verify(client, times(maxFailureRetries + 1)).execute(eq(BulkAction.INSTANCE), any(), any());
+            AtomicReference<String> lastMessage = new AtomicReference<>();
 
-        assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again"));
+            expectThrows(
+                ElasticsearchException.class,
+                () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set)
+            );
+            verify(client, times(maxFailureRetries + 1)).execute(eq(BulkAction.INSTANCE), any(), any());
+
+            assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again"));
+        }
     }
 
     public void testBulkRequestRetriesMsgHandlerIsCalled() {
@@ -357,22 +362,23 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             new BulkResponse(new BulkItemResponse[0], 0L)
         ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(INDEX_REQUEST_FAILURE);
-        bulkRequest.add(INDEX_REQUEST_SUCCESS);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(INDEX_REQUEST_FAILURE);
+            bulkRequest.add(INDEX_REQUEST_SUCCESS);
 
-        AtomicReference<String> lastMessage = new AtomicReference<>();
+            AtomicReference<String> lastMessage = new AtomicReference<>();
 
-        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set);
+            resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set);
 
-        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(client, times(2)).execute(eq(BulkAction.INSTANCE), captor.capture(), any());
+            ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+            verify(client, times(2)).execute(eq(BulkAction.INSTANCE), captor.capture(), any());
 
-        List<BulkRequest> requests = captor.getAllValues();
+            List<BulkRequest> requests = captor.getAllValues();
 
-        assertThat(requests.get(0).numberOfActions(), equalTo(2));
-        assertThat(requests.get(1).numberOfActions(), equalTo(1));
-        assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
+            assertThat(requests.get(0).numberOfActions(), equalTo(2));
+            assertThat(requests.get(1).numberOfActions(), equalTo(1));
+            assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
+        }
     }
 
     private static <Response> Stubber doAnswerWithResponses(Response response1, Response response2) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -104,16 +105,17 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
             .get();
         ensureGreen();
 
-        BulkResponse bulk = client().prepareBulk()
-            .add(
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulk = bulkRequestBuilder.add(
                 prepareIndex(INDEX_NAME).setId("all")
                     .setSource(Map.of("all_rank_features", Map.of(LOWER_RANKED_FEATURE, 10, HIGHER_RANKED_FEATURE, 20)))
             )
-            .add(prepareIndex(INDEX_NAME).setId("lower").setSource(Map.of("all_rank_features", Map.of(LOWER_RANKED_FEATURE, 10))))
-            .add(prepareIndex(INDEX_NAME).setId("higher").setSource(Map.of("all_rank_features", Map.of(HIGHER_RANKED_FEATURE, 20))))
-            .get();
-        assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
-        assertThat(refresh().getFailedShards(), equalTo(0));
+                .add(prepareIndex(INDEX_NAME).setId("lower").setSource(Map.of("all_rank_features", Map.of(LOWER_RANKED_FEATURE, 10))))
+                .add(prepareIndex(INDEX_NAME).setId("higher").setSource(Map.of("all_rank_features", Map.of(HIGHER_RANKED_FEATURE, 20))))
+                .get();
+            assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
+            assertThat(refresh().getFailedShards(), equalTo(0));
+        }
     }
 
 }

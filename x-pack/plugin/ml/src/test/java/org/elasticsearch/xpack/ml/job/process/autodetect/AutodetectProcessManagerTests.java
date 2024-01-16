@@ -82,6 +82,7 @@ import java.io.InputStream;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -92,6 +93,7 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -337,14 +339,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             return null;
         }).when(manager).setJobState(any(), eq(JobState.FAILED), any(), any());
 
+        List<JobTask> unclosedTasks = new ArrayList<>();
         JobTask jobTask = mock(JobTask.class);
+        unclosedTasks.add(jobTask);
         when(jobTask.getJobId()).thenReturn("foo");
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         jobTask = mock(JobTask.class);
+        unclosedTasks.add(jobTask);
         when(jobTask.getJobId()).thenReturn("bar");
         when(jobTask.getAllocationId()).thenReturn(1L);
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         jobTask = mock(JobTask.class);
+        unclosedTasks.add(jobTask);
         when(jobTask.getJobId()).thenReturn("baz");
         when(jobTask.getAllocationId()).thenReturn(2L);
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
@@ -352,6 +358,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         Exception[] holder = new Exception[1];
         jobTask = mock(JobTask.class);
+        unclosedTasks.add(jobTask);
         when(jobTask.getJobId()).thenReturn("foobar");
         when(jobTask.getAllocationId()).thenReturn(3L);
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> holder[0] = e);
@@ -364,7 +371,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.closeJob(jobTask, null);
         assertEquals(2, manager.numberOfOpenJobs());
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e1, b) -> {});
+        unclosedTasks.add(jobTask);
         assertEquals(3, manager.numberOfOpenJobs());
+        for (JobTask task : unclosedTasks) {
+            manager.closeJob(task, null);
+        }
     }
 
     public void testProcessData() {
@@ -772,9 +783,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         modelSnapshot = null;
         AutodetectProcessManager manager = createNonSpyManager("foo");
 
+        ExecutorService executorService = Executors.newCachedThreadPool();
+        when(threadPool.executor(anyString())).thenReturn(executorService);
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.create(jobTask, createJobDetails("foo"), buildAutodetectParams(), (e, b) -> {});
+        try (
+            AutodetectCommunicator ignored = manager.create(jobTask, createJobDetails("foo"), buildAutodetectParams(), (e, b) -> {})
+        ) {} catch (ElasticsearchException expected) {
+            // It doesn't matter if we get an exception or not here
+        } finally {
+            executorService.shutdownNow();
+        }
 
         String expectedNotification = "Loading model snapshot [N/A], job latest_record_timestamp [N/A]";
         verify(auditor).info("foo", expectedNotification);
@@ -786,10 +805,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         dataCounts = new DataCounts("foo");
         dataCounts.setLatestRecordTimeStamp(new Date(1L));
         AutodetectProcessManager manager = createNonSpyManager("foo");
-
+        ExecutorService executorService = Executors.newCachedThreadPool();
+        when(threadPool.executor(anyString())).thenReturn(executorService);
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.create(jobTask, createJobDetails("foo"), buildAutodetectParams(), (e, b) -> {});
+        try (
+            AutodetectCommunicator ignored = manager.create(jobTask, createJobDetails("foo"), buildAutodetectParams(), (e, b) -> {})
+        ) {} catch (ElasticsearchException expected) {
+            // It doesn't matter if we get an exception or not here
+        } finally {
+            executorService.shutdownNow();
+        }
 
         String expectedNotification = "Loading model snapshot [snapshot-1] with "
             + "latest_record_timestamp [1970-01-01T00:00:00.000Z], "
@@ -806,9 +832,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         dataCounts.incrementProcessedRecordCount(42L);
         AutodetectProcessManager manager = createNonSpyManager("foo");
 
+        ExecutorService executorService = Executors.newCachedThreadPool();
+        when(threadPool.executor(anyString())).thenReturn(executorService);
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.create(jobTask, createJobDetails("foo"), buildAutodetectParams(), (e, b) -> {});
+        try (
+            AutodetectCommunicator ignored = manager.create(jobTask, createJobDetails("foo"), buildAutodetectParams(), (e, b) -> {})
+        ) {} catch (ElasticsearchException expected) {
+            // It doesn't matter if we get an exception or not here
+        } finally {
+            executorService.shutdownNow();
+        }
 
         String expectedNotification = "Loading model snapshot [N/A], " + "job latest_record_timestamp [1970-01-01T00:00:00.000Z]";
         verify(auditor).info("foo", expectedNotification);

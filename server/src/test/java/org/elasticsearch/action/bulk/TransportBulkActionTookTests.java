@@ -211,11 +211,12 @@ public class TransportBulkActionTookTests extends ESTestCase {
                         greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
                     );
                 }
+                bulkRequest.close();
             }
 
             @Override
             public void onFailure(Exception e) {
-
+                bulkRequest.close();
             }
         });
     }

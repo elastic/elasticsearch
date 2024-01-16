@@ -90,10 +90,14 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
             .get();
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < numberOfDocs(); i++) {
-            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+        try {
+            for (int i = 0; i < numberOfDocs(); i++) {
+                bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+            }
+            bulk.get();
+        } finally {
+            bulk.request().decRef();
         }
-        bulk.get();
         /*
          * forceMerge so we can be sure that we don't bump into tiny
          * segments that finish super quickly and cause us to report strange

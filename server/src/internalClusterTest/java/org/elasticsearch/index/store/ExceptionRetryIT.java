@@ -87,59 +87,60 @@ public class ExceptionRetryIT extends ESIntegTestCase {
                 );
         }
 
-        BulkRequestBuilder bulkBuilder = client.prepareBulk();
-        for (int i = 0; i < numDocs; i++) {
-            XContentBuilder doc = null;
-            doc = jsonBuilder().startObject().field("foo", "bar").endObject();
-            bulkBuilder.add(client.prepareIndex("index").setSource(doc));
-        }
-
-        BulkResponse bulkResponse = bulkBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            for (BulkItemResponse singleIndexRespons : bulkResponse.getItems()) {
-                if (singleIndexRespons.isFailed()) {
-                    fail("None of the bulk items should fail but got " + singleIndexRespons.getFailureMessage());
-                }
+        try (BulkRequestBuilder bulkBuilder = client.prepareBulk()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = null;
+                doc = jsonBuilder().startObject().field("foo", "bar").endObject();
+                bulkBuilder.add(client.prepareIndex("index").setSource(doc));
             }
-        }
 
-        refresh();
-        assertNoFailuresAndResponse(prepareSearch("index").setSize(numDocs * 2).addStoredField("_id"), response -> {
-            Set<String> uniqueIds = new HashSet<>();
-            long dupCounter = 0;
-            boolean found_duplicate_already = false;
-            for (int i = 0; i < response.getHits().getHits().length; i++) {
-                if (uniqueIds.add(response.getHits().getHits()[i].getId()) == false) {
-                    if (found_duplicate_already == false) {
-                        assertResponse(
-                            prepareSearch("index").setQuery(termQuery("_id", response.getHits().getHits()[i].getId())).setExplain(true),
-                            dupIdResponse -> {
-                                assertThat(dupIdResponse.getHits().getTotalHits().value, greaterThan(1L));
-                                logger.info("found a duplicate id:");
-                                for (SearchHit hit : dupIdResponse.getHits()) {
-                                    logger.info("Doc {} was found on shard {}", hit.getId(), hit.getShard().getShardId());
-                                }
-                                logger.info("will not print anymore in case more duplicates are found.");
-                            }
-                        );
-                        found_duplicate_already = true;
+            BulkResponse bulkResponse = bulkBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                for (BulkItemResponse singleIndexRespons : bulkResponse.getItems()) {
+                    if (singleIndexRespons.isFailed()) {
+                        fail("None of the bulk items should fail but got " + singleIndexRespons.getFailureMessage());
                     }
-                    dupCounter++;
                 }
             }
-            assertThat(dupCounter, equalTo(0L));
-            assertHitCount(response, numDocs);
-            IndicesStatsResponse index = indicesAdmin().prepareStats("index").clear().setSegments(true).get();
-            IndexStats indexStats = index.getIndex("index");
-            long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
-            for (IndexShardStats indexShardStats : indexStats) {
-                for (ShardStats shardStats : indexShardStats) {
-                    SegmentsStats segments = shardStats.getStats().getSegments();
-                    maxUnsafeAutoIdTimestamp = Math.max(maxUnsafeAutoIdTimestamp, segments.getMaxUnsafeAutoIdTimestamp());
+
+            refresh();
+            assertNoFailuresAndResponse(prepareSearch("index").setSize(numDocs * 2).addStoredField("_id"), response -> {
+                Set<String> uniqueIds = new HashSet<>();
+                long dupCounter = 0;
+                boolean found_duplicate_already = false;
+                for (int i = 0; i < response.getHits().getHits().length; i++) {
+                    if (uniqueIds.add(response.getHits().getHits()[i].getId()) == false) {
+                        if (found_duplicate_already == false) {
+                            assertResponse(
+                                prepareSearch("index").setQuery(termQuery("_id", response.getHits().getHits()[i].getId())).setExplain(true),
+                                dupIdResponse -> {
+                                    assertThat(dupIdResponse.getHits().getTotalHits().value, greaterThan(1L));
+                                    logger.info("found a duplicate id:");
+                                    for (SearchHit hit : dupIdResponse.getHits()) {
+                                        logger.info("Doc {} was found on shard {}", hit.getId(), hit.getShard().getShardId());
+                                    }
+                                    logger.info("will not print anymore in case more duplicates are found.");
+                                }
+                            );
+                            found_duplicate_already = true;
+                        }
+                        dupCounter++;
+                    }
                 }
-            }
-            assertTrue("exception must have been thrown otherwise setup is broken", exceptionThrown.get());
-            assertTrue("maxUnsafeAutoIdTimestamp must be > than 0 we have at least one retry", maxUnsafeAutoIdTimestamp > -1);
-        });
+                assertThat(dupCounter, equalTo(0L));
+                assertHitCount(response, numDocs);
+                IndicesStatsResponse index = indicesAdmin().prepareStats("index").clear().setSegments(true).get();
+                IndexStats indexStats = index.getIndex("index");
+                long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
+                for (IndexShardStats indexShardStats : indexStats) {
+                    for (ShardStats shardStats : indexShardStats) {
+                        SegmentsStats segments = shardStats.getStats().getSegments();
+                        maxUnsafeAutoIdTimestamp = Math.max(maxUnsafeAutoIdTimestamp, segments.getMaxUnsafeAutoIdTimestamp());
+                    }
+                }
+                assertTrue("exception must have been thrown otherwise setup is broken", exceptionThrown.get());
+                assertTrue("maxUnsafeAutoIdTimestamp must be > than 0 we have at least one retry", maxUnsafeAutoIdTimestamp > -1);
+            });
+        }
     }
 }

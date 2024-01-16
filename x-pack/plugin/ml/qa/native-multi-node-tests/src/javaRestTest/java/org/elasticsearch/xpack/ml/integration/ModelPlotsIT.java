@@ -47,18 +47,19 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
         // We are going to create data for last day
         long nowMillis = System.currentTimeMillis();
         int totalBuckets = 24;
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int bucket = 0; bucket < totalBuckets; bucket++) {
-            long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
-            for (String user : users) {
-                IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
-                indexRequest.source("time", timestamp, "user", user);
-                bulkRequestBuilder.add(indexRequest);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            for (int bucket = 0; bucket < totalBuckets; bucket++) {
+                long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
+                for (String user : users) {
+                    IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
+                    indexRequest.source("time", timestamp, "user", user);
+                    bulkRequestBuilder.add(indexRequest);
+                }
             }
-        }
 
-        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertThat(bulkResponse.hasFailures(), is(false));
+            BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            assertThat(bulkResponse.hasFailures(), is(false));
+        }
     }
 
     @After

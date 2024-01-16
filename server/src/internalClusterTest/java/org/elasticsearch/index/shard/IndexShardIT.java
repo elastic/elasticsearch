@@ -11,6 +11,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -181,21 +182,23 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareDelete("test", "2").get();
         assertTrue(translog.syncNeeded());
         setDurability(shard, Translog.Durability.REQUEST);
-        assertNoFailures(
-            client().prepareBulk()
-                .add(prepareIndex("test").setId("3").setSource("{}", XContentType.JSON))
-                .add(client().prepareDelete("test", "1"))
-                .get()
-        );
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            assertNoFailures(
+                bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{}", XContentType.JSON))
+                    .add(client().prepareDelete("test", "1"))
+                    .get()
+            );
+        }
         assertThat(needsSync, falseWith(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
-        assertNoFailures(
-            client().prepareBulk()
-                .add(prepareIndex("test").setId("4").setSource("{}", XContentType.JSON))
-                .add(client().prepareDelete("test", "3"))
-                .get()
-        );
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            assertNoFailures(
+                bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{}", XContentType.JSON))
+                    .add(client().prepareDelete("test", "3"))
+                    .get()
+            );
+        }
         setDurability(shard, Translog.Durability.REQUEST);
         assertThat(needsSync, trueWith(translog));
     }

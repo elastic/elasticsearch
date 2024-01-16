@@ -248,10 +248,11 @@ public class DataStreamIT extends ESIntegTestCase {
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
-        {
+        try (
             BulkRequest bulkRequest = new BulkRequest().add(
                 new IndexRequest(dataStreamName).source("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON)
-            );
+            )
+        ) {
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(1));
             assertThat(
@@ -259,8 +260,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 containsString("only write ops with an op_type of create are allowed in data streams")
             );
         }
-        {
-            BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest(dataStreamName, "_id"));
+        try (BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest(dataStreamName, "_id"))) {
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(1));
             assertThat(
@@ -268,10 +268,11 @@ public class DataStreamIT extends ESIntegTestCase {
                 containsString("only write ops with an op_type of create are allowed in data streams")
             );
         }
-        {
+        try (
             BulkRequest bulkRequest = new BulkRequest().add(
                 new UpdateRequest(dataStreamName, "_id").doc("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON)
-            );
+            )
+        ) {
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(1));
             assertThat(
@@ -300,16 +301,17 @@ public class DataStreamIT extends ESIntegTestCase {
             DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
             assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStreamName, 1));
         }
-        {
+        try (
             BulkRequest bulkRequest = new BulkRequest().add(
                 new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                     .opType(DocWriteRequest.OpType.CREATE)
-            );
+            )
+        ) {
             BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
             assertThat(bulkItemResponses.getItems()[0].getIndex(), backingIndexEqualTo(dataStreamName, 1));
         }
 
-        {
+        try (BulkRequest bulkRequest = new BulkRequest()) {
             // TODO: remove when fixing the bug when an index matching a backing index name is created before the data stream is created
             createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName + "-baz");
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
@@ -321,7 +323,7 @@ public class DataStreamIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(1));
             String backingIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
             assertThat(backingIndex, backingIndexEqualTo(dataStreamName + "-baz", 1));
-            BulkRequest bulkRequest = new BulkRequest().add(
+            bulkRequest.add(
                 new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON),
                 new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).create(true),
                 new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON),
@@ -1172,26 +1174,27 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Bulk indexing with custom routing targeting the data stream is also prohibited
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < 10; i++) {
-            bulkRequest.add(
-                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .routing("bulk-request-routing")
-                    .source("{}", XContentType.JSON)
-            );
-        }
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            for (int i = 0; i < 10; i++) {
+                bulkRequest.add(
+                    new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                        .routing("bulk-request-routing")
+                        .source("{}", XContentType.JSON)
+                );
+            }
 
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        for (BulkItemResponse responseItem : bulkResponse.getItems()) {
-            assertThat(responseItem.getFailure(), notNullValue());
-            assertThat(
-                responseItem.getFailureMessage(),
-                is(
-                    "java.lang.IllegalArgumentException: index request targeting data stream "
-                        + "[logs-foobar] specifies a custom routing "
-                        + "but the [allow_custom_routing] setting was not enabled in the data stream's template."
-                )
-            );
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            for (BulkItemResponse responseItem : bulkResponse.getItems()) {
+                assertThat(responseItem.getFailure(), notNullValue());
+                assertThat(
+                    responseItem.getFailureMessage(),
+                    is(
+                        "java.lang.IllegalArgumentException: index request targeting data stream "
+                            + "[logs-foobar] specifies a custom routing "
+                            + "but the [allow_custom_routing] setting was not enabled in the data stream's template."
+                    )
+                );
+            }
         }
     }
 
@@ -1218,17 +1221,18 @@ public class DataStreamIT extends ESIntegTestCase {
             .routing("custom");
         client().index(indexRequestWithRouting).actionGet();
         // Bulk indexing with custom routing targeting the data stream
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < 10; i++) {
-            bulkRequest.add(
-                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .source("@timestamp", System.currentTimeMillis())
-                    .routing("bulk-request-routing")
-            );
-        }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        for (BulkItemResponse responseItem : bulkResponse.getItems()) {
-            assertThat(responseItem.getFailure(), nullValue());
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            for (int i = 0; i < 10; i++) {
+                bulkRequest.add(
+                    new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                        .source("@timestamp", System.currentTimeMillis())
+                        .routing("bulk-request-routing")
+                );
+            }
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            for (BulkItemResponse responseItem : bulkResponse.getItems()) {
+                assertThat(responseItem.getFailure(), nullValue());
+            }
         }
     }
 
@@ -1348,31 +1352,34 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, createTemplateRequest).actionGet();
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-foobaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-barfoo").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-foobaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-barfoo").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        }
 
-        bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-foobaz2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-foobaz2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        }
 
-        bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-foobaz2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-foobaz3").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkRequest.add(new IndexRequest("logs-barfoo3").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
-        bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-foobaz2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-foobaz3").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            bulkRequest.add(new IndexRequest("logs-barfoo3").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        }
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
         GetDataStreamAction.Response getDataStreamsResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -1407,10 +1414,11 @@ public class DataStreamIT extends ESIntegTestCase {
         v1Request.order(Integer.MAX_VALUE); // in order to avoid number_of_replicas being overwritten by random_template
         indicesAdmin().putTemplate(v1Request).actionGet();
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        }
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
         GetDataStreamAction.Response getDataStreamsResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -1876,21 +1884,22 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     static void indexDocs(String dataStream, int numDocs) {
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < numDocs; i++) {
-            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-            bulkRequest.add(
-                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
-            );
-        }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
-        String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStream;
-        for (BulkItemResponse itemResponse : bulkResponse) {
-            assertThat(itemResponse.getFailureMessage(), nullValue());
-            assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
-            assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            for (int i = 0; i < numDocs; i++) {
+                String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+                bulkRequest.add(
+                    new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                        .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+                );
+            }
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+            String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStream;
+            for (BulkItemResponse itemResponse : bulkResponse) {
+                assertThat(itemResponse.getFailureMessage(), nullValue());
+                assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
+                assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
+            }
         }
         indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.indexing;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -182,12 +183,13 @@ public class IndexActionIT extends ESIntegTestCase {
     public void testCreateFlagWithBulk() {
         createIndex("test");
         ensureGreen();
-
-        BulkResponse bulkResponse = client().prepareBulk().add(prepareIndex("test").setId("1").setSource("field1", "value1_1")).get();
-        assertThat(bulkResponse.hasFailures(), equalTo(false));
-        assertThat(bulkResponse.getItems().length, equalTo(1));
-        IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
-        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("field1", "value1_1")).get();
+            assertThat(bulkResponse.hasFailures(), equalTo(false));
+            assertThat(bulkResponse.getItems().length, equalTo(1));
+            IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
+            assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        }
     }
 
     public void testCreateIndexWithLongName() {

@@ -48,21 +48,22 @@ public class IngestAsyncProcessorIT extends ESSingleNodeTestCase {
         BytesReference pipelineBody = new BytesArray("{\"processors\": [{\"test-async\": {}, \"test\": {}}]}");
         clusterAdmin().putPipeline(new PutPipelineRequest("_id", pipelineBody, XContentType.JSON)).actionGet();
 
-        BulkRequest bulkRequest = new BulkRequest();
-        int numDocs = randomIntBetween(8, 256);
-        for (int i = 0; i < numDocs; i++) {
-            bulkRequest.add(new IndexRequest("foobar").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("_id"));
-        }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            String id = Integer.toString(i);
-            assertThat(bulkResponse.getItems()[i].getId(), equalTo(id));
-            GetResponse getResponse = client().get(new GetRequest("foobar", id)).actionGet();
-            // The expected result of async test processor:
-            assertThat(getResponse.getSource().get("foo"), equalTo("bar-" + id));
-            // The expected result of sync test processor:
-            assertThat(getResponse.getSource().get("bar"), equalTo("baz-" + id));
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            int numDocs = randomIntBetween(8, 256);
+            for (int i = 0; i < numDocs; i++) {
+                bulkRequest.add(new IndexRequest("foobar").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("_id"));
+            }
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+            for (int i = 0; i < numDocs; i++) {
+                String id = Integer.toString(i);
+                assertThat(bulkResponse.getItems()[i].getId(), equalTo(id));
+                GetResponse getResponse = client().get(new GetRequest("foobar", id)).actionGet();
+                // The expected result of async test processor:
+                assertThat(getResponse.getSource().get("foo"), equalTo("bar-" + id));
+                // The expected result of sync test processor:
+                assertThat(getResponse.getSource().get("bar"), equalTo("baz-" + id));
+            }
         }
     }
 

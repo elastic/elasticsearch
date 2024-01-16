@@ -332,7 +332,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 final IndexResponse response = new IndexResponse(shardId, "id" + i, seqNo, primaryTerm, randomInt(), createdResponse);
                 responses[i] = BulkItemResponse.success(i, opType, response);
             }
-            assertExactlyOnce(onSuccess -> action.onBulkResponse(new BulkResponse(responses, 0), onSuccess));
+            assertExactlyOnce(onSuccess -> action.onBulkResponse(new BulkResponse(responses, 0), onSuccess, () -> {}));
             assertEquals(versionConflicts, testTask.getStatus().getVersionConflicts());
             assertEquals(updated, testTask.getStatus().getUpdated());
             assertEquals(created, testTask.getStatus().getCreated());
@@ -349,7 +349,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         // when receiving bulk response
         var responses = randomArray(0, maxDocs, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
-        new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"));
+        new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"), () -> {});
 
         // then should refresh and finish
         assertThat(listener.isDone(), equalTo(true));
@@ -365,7 +365,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         // when receiving bulk response with max docs
         var responses = randomArray(size, size, BulkItemResponse[]::new, AsyncBulkByScrollActionTests::createBulkResponse);
-        new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"));
+        new DummyAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0), () -> fail("should not be called"), () -> {});
 
         // then should refresh and finish
         assertThat(listener.isDone(), equalTo(true));
@@ -465,7 +465,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new BulkItemResponse[] { BulkItemResponse.failure(0, DocWriteRequest.OpType.CREATE, failure) },
             randomLong()
         );
-        action.onBulkResponse(bulkResponse, Assert::fail);
+        action.onBulkResponse(bulkResponse, Assert::fail, () -> {});
         BulkByScrollResponse response = listener.get();
         assertThat(response.getBulkFailures(), contains(failure));
         assertThat(response.getSearchFailures(), empty());
@@ -635,14 +635,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             request.add(new IndexRequest("index").id("id" + i));
         }
         if (failWithRejection) {
-            action.sendBulkRequest(request, Assert::fail);
+            action.sendBulkRequest(request, Assert::fail, request::close);
             BulkByScrollResponse response = listener.get();
             assertThat(response.getBulkFailures(), hasSize(1));
             assertEquals(response.getBulkFailures().get(0).getStatus(), RestStatus.TOO_MANY_REQUESTS);
             assertThat(response.getSearchFailures(), empty());
             assertNull(response.getReasonCancelled());
         } else {
-            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, onSuccess));
+            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, onSuccess, request::close));
         }
     }
 
@@ -711,18 +711,27 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testCancelBeforeSendBulkRequest() throws Exception {
-        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(new BulkRequest(), Assert::fail));
+        BulkRequest bulkRequest = new BulkRequest();
+        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(bulkRequest, Assert::fail, bulkRequest::close));
     }
 
     public void testCancelBeforeOnBulkResponse() throws Exception {
         cancelTaskCase(
-            (DummyAsyncBulkByScrollAction action) -> action.onBulkResponse(new BulkResponse(new BulkItemResponse[0], 0), Assert::fail)
+            (DummyAsyncBulkByScrollAction action) -> action.onBulkResponse(
+                new BulkResponse(new BulkItemResponse[0], 0),
+                Assert::fail,
+                () -> {}
+            )
         );
     }
 
     public void testCancelBeforeStartNextScroll() throws Exception {
         long now = System.nanoTime();
-        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.notifyDone(now, null, 0));
+        BulkRequest bulkRequest = new BulkRequest();
+        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> {
+            action.notifyDone(now, null, bulkRequest.requests().size());
+            bulkRequest.close();
+        });
     }
 
     public void testCancelBeforeRefreshAndFinish() throws Exception {

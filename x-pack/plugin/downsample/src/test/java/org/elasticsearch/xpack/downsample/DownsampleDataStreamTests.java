@@ -216,31 +216,32 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
     }
 
     private void indexDocs(final String dataStream, int numDocs, long startTime) {
-        final BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < numDocs; i++) {
-            final String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(startTime + i);
-            bulkRequest.add(
-                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .source(
-                        String.format(
-                            Locale.ROOT,
-                            "{\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"}",
-                            DEFAULT_TIMESTAMP_FIELD,
-                            timestamp,
-                            "routing_field",
-                            0,
-                            "counter",
-                            i + 1
-                        ),
-                        XContentType.JSON
-                    )
-            );
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            for (int i = 0; i < numDocs; i++) {
+                final String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(startTime + i);
+                bulkRequest.add(
+                    new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                        .source(
+                            String.format(
+                                Locale.ROOT,
+                                "{\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"}",
+                                DEFAULT_TIMESTAMP_FIELD,
+                                timestamp,
+                                "routing_field",
+                                0,
+                                "counter",
+                                i + 1
+                            ),
+                            XContentType.JSON
+                        )
+                );
+            }
+            final BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            final BulkItemResponse[] items = bulkResponse.getItems();
+            assertThat(items.length, equalTo(numDocs));
+            assertThat(bulkResponse.hasFailures(), equalTo(false));
+            final BroadcastResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
+            assertThat(refreshResponse.getStatus().getStatus(), equalTo(RestStatus.OK.getStatus()));
         }
-        final BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        final BulkItemResponse[] items = bulkResponse.getItems();
-        assertThat(items.length, equalTo(numDocs));
-        assertThat(bulkResponse.hasFailures(), equalTo(false));
-        final BroadcastResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
-        assertThat(refreshResponse.getStatus().getStatus(), equalTo(RestStatus.OK.getStatus()));
     }
 }

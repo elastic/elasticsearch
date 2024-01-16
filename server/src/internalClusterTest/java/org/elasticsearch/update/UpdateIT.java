@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -573,7 +574,9 @@ public class UpdateIT extends ESIntegTestCase {
                                     .setScript(fieldIncScript)
                                     .setRetryOnConflict(Integer.MAX_VALUE)
                                     .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
-                                client().prepareBulk().add(updateRequestBuilder).get();
+                                try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+                                    bulkRequestBuilder.add(updateRequestBuilder).get();
+                                }
                             } else {
                                 client().prepareUpdate(indexOrAlias(), Integer.toString(i))
                                     .setScript(fieldIncScript)
@@ -704,14 +707,16 @@ public class UpdateIT extends ESIntegTestCase {
                                 if (randomBoolean()) {
                                     client().update(ur, new UpdateListener(j));
                                 } else {
-                                    client().prepareBulk().add(ur).execute(new UpdateListener(j).map(br -> {
-                                        final BulkItemResponse ir = br.getItems()[0];
-                                        if (ir.isFailed()) {
-                                            throw ir.getFailure().getCause();
-                                        } else {
-                                            return ir.getResponse();
-                                        }
-                                    }));
+                                    try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+                                        bulkRequestBuilder.add(ur).execute(new UpdateListener(j).map(br -> {
+                                            final BulkItemResponse ir = br.getItems()[0];
+                                            if (ir.isFailed()) {
+                                                throw ir.getFailure().getCause();
+                                            } else {
+                                                return ir.getResponse();
+                                            }
+                                        }));
+                                    }
                                 }
                             } catch (NoNodeAvailableException nne) {
                                 updateRequestsOutstanding.release();

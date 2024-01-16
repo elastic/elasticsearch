@@ -105,13 +105,13 @@ public class LocalBulk extends ExportBulk {
                     client.threadPool().getThreadContext(),
                     MONITORING_ORIGIN,
                     requestBuilder.request(),
-                    ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                    ActionListener.releaseAfter(ActionListener.<BulkResponse>wrap(bulkResponse -> {
                         if (bulkResponse.hasFailures()) {
                             throwExportException(bulkResponse.getItems(), listener);
                         } else {
                             listener.onResponse(null);
                         }
-                    }, e -> listener.onFailure(new ExportException("failed to flush export bulk [{}]", e, name))),
+                    }, e -> listener.onFailure(new ExportException("failed to flush export bulk [{}]", e, name))), requestBuilder),
                     client::bulk
                 );
             } finally {

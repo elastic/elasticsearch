@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -105,109 +106,112 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     public void testBulk() {
         createIndex("test1", "test2", "test3", "index1");
-        BulkResponse bulkResponse = client().prepareBulk()
-            .add(new IndexRequest("test1").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-            .add(new IndexRequest("index1").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-            .add(new IndexRequest("test4").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-            .add(new IndexRequest("missing").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-            .add(new DeleteRequest("test1", "id"))
-            .add(new DeleteRequest("index1", "id"))
-            .add(new DeleteRequest("test4", "id"))
-            .add(new DeleteRequest("missing", "id"))
-            .add(new IndexRequest("test1").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-            .add(new UpdateRequest("test1", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-            .add(new UpdateRequest("index1", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-            .add(new UpdateRequest("test4", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-            .add(new UpdateRequest("missing", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-            .get();
-        assertTrue(bulkResponse.hasFailures());
-        assertThat(bulkResponse.getItems().length, equalTo(13));
-        assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());
-        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[0].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
-        assertThat(bulkResponse.getItems()[0].getIndex(), equalTo("test1"));
-        assertThat(bulkResponse.getItems()[1].getFailure(), notNullValue());
-        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[1].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
-        assertThat(bulkResponse.getItems()[1].getFailure().getIndex(), equalTo("index1"));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[1].getFailure().getCause(), BulkAction.NAME + "[s]");
-        assertThat(
-            bulkResponse.getItems()[1].getFailure().getCause().getMessage(),
-            containsString("[indices:data/write/bulk[s]] is unauthorized")
-        );
-        assertThat(bulkResponse.getItems()[2].getFailure(), nullValue());
-        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
-        assertThat(bulkResponse.getItems()[2].getResponse().getIndex(), equalTo("test4"));
-        assertThat(bulkResponse.getItems()[3].getFailure(), notNullValue());
-        assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[3].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
-        // the missing index gets automatically created (user has permissions for that), but indexing fails due to missing authorization
-        assertThat(bulkResponse.getItems()[3].getFailure().getIndex(), equalTo("missing"));
-        assertThat(bulkResponse.getItems()[3].getFailure().getCause(), instanceOf(ElasticsearchSecurityException.class));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[3].getFailure().getCause(), BulkAction.NAME + "[s]");
-        assertThat(
-            bulkResponse.getItems()[3].getFailure().getCause().getMessage(),
-            containsString("[indices:data/write/bulk[s]] is unauthorized")
-        );
-        assertThat(bulkResponse.getItems()[4].getFailure(), nullValue());
-        assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
-        assertThat(bulkResponse.getItems()[4].getIndex(), equalTo("test1"));
-        assertThat(bulkResponse.getItems()[5].getFailure(), notNullValue());
-        assertThat(bulkResponse.getItems()[5].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[5].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
-        assertThat(bulkResponse.getItems()[5].getFailure().getIndex(), equalTo("index1"));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[5].getFailure().getCause(), BulkAction.NAME + "[s]");
-        assertThat(
-            bulkResponse.getItems()[5].getFailure().getCause().getMessage(),
-            containsString("[indices:data/write/bulk[s]] is unauthorized")
-        );
-        assertThat(bulkResponse.getItems()[6].getFailure(), nullValue());
-        assertThat(bulkResponse.getItems()[6].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[6].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
-        assertThat(bulkResponse.getItems()[6].getIndex(), equalTo("test4"));
-        assertThat(bulkResponse.getItems()[7].getFailure(), notNullValue());
-        assertThat(bulkResponse.getItems()[7].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[7].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
-        assertThat(bulkResponse.getItems()[7].getFailure().getIndex(), equalTo("missing"));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[7].getFailure().getCause(), BulkAction.NAME + "[s]");
-        assertThat(
-            bulkResponse.getItems()[7].getFailure().getCause().getMessage(),
-            containsString("[indices:data/write/bulk[s]] is unauthorized")
-        );
-        assertThat(bulkResponse.getItems()[8].getFailure(), nullValue());
-        assertThat(bulkResponse.getItems()[8].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[8].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
-        assertThat(bulkResponse.getItems()[8].getIndex(), equalTo("test1"));
-        assertThat(bulkResponse.getItems()[9].getFailure(), nullValue());
-        assertThat(bulkResponse.getItems()[9].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[9].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
-        assertThat(bulkResponse.getItems()[9].getIndex(), equalTo("test1"));
-        assertThat(bulkResponse.getItems()[10].getFailure(), notNullValue());
-        assertThat(bulkResponse.getItems()[10].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[10].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
-        assertThat(bulkResponse.getItems()[10].getFailure().getIndex(), equalTo("index1"));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[10].getFailure().getCause(), BulkAction.NAME + "[s]");
-        assertThat(
-            bulkResponse.getItems()[10].getFailure().getCause().getMessage(),
-            containsString("[indices:data/write/bulk[s]] is unauthorized")
-        );
-        assertThat(bulkResponse.getItems()[11].getFailure(), notNullValue());
-        assertThat(bulkResponse.getItems()[11].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[11].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
-        assertThat(bulkResponse.getItems()[11].getIndex(), equalTo("test4"));
-        assertThat(bulkResponse.getItems()[11].getFailure().getCause(), instanceOf(DocumentMissingException.class));
-        assertThat(bulkResponse.getItems()[12].getFailure(), notNullValue());
-        assertThat(bulkResponse.getItems()[12].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[12].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
-        assertThat(bulkResponse.getItems()[12].getFailure().getIndex(), equalTo("missing"));
-        assertThat(bulkResponse.getItems()[12].getFailure().getCause(), instanceOf(ElasticsearchSecurityException.class));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[12].getFailure().getCause(), BulkAction.NAME + "[s]");
-        assertThat(
-            bulkResponse.getItems()[12].getFailure().getCause().getMessage(),
-            containsString("[indices:data/write/bulk[s]] is unauthorized")
-        );
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(
+                new IndexRequest("test1").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+            )
+                .add(new IndexRequest("index1").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest("test4").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest("missing").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new DeleteRequest("test1", "id"))
+                .add(new DeleteRequest("index1", "id"))
+                .add(new DeleteRequest("test4", "id"))
+                .add(new DeleteRequest("missing", "id"))
+                .add(new IndexRequest("test1").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("test1", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("index1", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("test4", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("missing", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .get();
+            assertTrue(bulkResponse.hasFailures());
+            assertThat(bulkResponse.getItems().length, equalTo(13));
+            assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());
+            assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[0].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            assertThat(bulkResponse.getItems()[0].getIndex(), equalTo("test1"));
+            assertThat(bulkResponse.getItems()[1].getFailure(), notNullValue());
+            assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(true));
+            assertThat(bulkResponse.getItems()[1].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            assertThat(bulkResponse.getItems()[1].getFailure().getIndex(), equalTo("index1"));
+            assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[1].getFailure().getCause(), BulkAction.NAME + "[s]");
+            assertThat(
+                bulkResponse.getItems()[1].getFailure().getCause().getMessage(),
+                containsString("[indices:data/write/bulk[s]] is unauthorized")
+            );
+            assertThat(bulkResponse.getItems()[2].getFailure(), nullValue());
+            assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[2].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            assertThat(bulkResponse.getItems()[2].getResponse().getIndex(), equalTo("test4"));
+            assertThat(bulkResponse.getItems()[3].getFailure(), notNullValue());
+            assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(true));
+            assertThat(bulkResponse.getItems()[3].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            // the missing index gets automatically created (user has permissions for that), but indexing fails due to missing authorization
+            assertThat(bulkResponse.getItems()[3].getFailure().getIndex(), equalTo("missing"));
+            assertThat(bulkResponse.getItems()[3].getFailure().getCause(), instanceOf(ElasticsearchSecurityException.class));
+            assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[3].getFailure().getCause(), BulkAction.NAME + "[s]");
+            assertThat(
+                bulkResponse.getItems()[3].getFailure().getCause().getMessage(),
+                containsString("[indices:data/write/bulk[s]] is unauthorized")
+            );
+            assertThat(bulkResponse.getItems()[4].getFailure(), nullValue());
+            assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[4].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
+            assertThat(bulkResponse.getItems()[4].getIndex(), equalTo("test1"));
+            assertThat(bulkResponse.getItems()[5].getFailure(), notNullValue());
+            assertThat(bulkResponse.getItems()[5].isFailed(), equalTo(true));
+            assertThat(bulkResponse.getItems()[5].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
+            assertThat(bulkResponse.getItems()[5].getFailure().getIndex(), equalTo("index1"));
+            assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[5].getFailure().getCause(), BulkAction.NAME + "[s]");
+            assertThat(
+                bulkResponse.getItems()[5].getFailure().getCause().getMessage(),
+                containsString("[indices:data/write/bulk[s]] is unauthorized")
+            );
+            assertThat(bulkResponse.getItems()[6].getFailure(), nullValue());
+            assertThat(bulkResponse.getItems()[6].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[6].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
+            assertThat(bulkResponse.getItems()[6].getIndex(), equalTo("test4"));
+            assertThat(bulkResponse.getItems()[7].getFailure(), notNullValue());
+            assertThat(bulkResponse.getItems()[7].isFailed(), equalTo(true));
+            assertThat(bulkResponse.getItems()[7].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
+            assertThat(bulkResponse.getItems()[7].getFailure().getIndex(), equalTo("missing"));
+            assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[7].getFailure().getCause(), BulkAction.NAME + "[s]");
+            assertThat(
+                bulkResponse.getItems()[7].getFailure().getCause().getMessage(),
+                containsString("[indices:data/write/bulk[s]] is unauthorized")
+            );
+            assertThat(bulkResponse.getItems()[8].getFailure(), nullValue());
+            assertThat(bulkResponse.getItems()[8].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[8].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            assertThat(bulkResponse.getItems()[8].getIndex(), equalTo("test1"));
+            assertThat(bulkResponse.getItems()[9].getFailure(), nullValue());
+            assertThat(bulkResponse.getItems()[9].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[9].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
+            assertThat(bulkResponse.getItems()[9].getIndex(), equalTo("test1"));
+            assertThat(bulkResponse.getItems()[10].getFailure(), notNullValue());
+            assertThat(bulkResponse.getItems()[10].isFailed(), equalTo(true));
+            assertThat(bulkResponse.getItems()[10].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
+            assertThat(bulkResponse.getItems()[10].getFailure().getIndex(), equalTo("index1"));
+            assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[10].getFailure().getCause(), BulkAction.NAME + "[s]");
+            assertThat(
+                bulkResponse.getItems()[10].getFailure().getCause().getMessage(),
+                containsString("[indices:data/write/bulk[s]] is unauthorized")
+            );
+            assertThat(bulkResponse.getItems()[11].getFailure(), notNullValue());
+            assertThat(bulkResponse.getItems()[11].isFailed(), equalTo(true));
+            assertThat(bulkResponse.getItems()[11].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
+            assertThat(bulkResponse.getItems()[11].getIndex(), equalTo("test4"));
+            assertThat(bulkResponse.getItems()[11].getFailure().getCause(), instanceOf(DocumentMissingException.class));
+            assertThat(bulkResponse.getItems()[12].getFailure(), notNullValue());
+            assertThat(bulkResponse.getItems()[12].isFailed(), equalTo(true));
+            assertThat(bulkResponse.getItems()[12].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
+            assertThat(bulkResponse.getItems()[12].getFailure().getIndex(), equalTo("missing"));
+            assertThat(bulkResponse.getItems()[12].getFailure().getCause(), instanceOf(ElasticsearchSecurityException.class));
+            assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[12].getFailure().getCause(), BulkAction.NAME + "[s]");
+            assertThat(
+                bulkResponse.getItems()[12].getFailure().getCause().getMessage(),
+                containsString("[indices:data/write/bulk[s]] is unauthorized")
+            );
+        }
         ensureGreen();
     }
 }

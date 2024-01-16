@@ -440,7 +440,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
         // Capture the Update request so that we can verify it is configured as expected
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
         final var updateRequestBuilder = Mockito.spy(new UpdateRequestBuilder(client));
         when(client.prepareUpdate(eq(SECURITY_MAIN_ALIAS), eq(apiKeyId))).thenReturn(updateRequestBuilder);
 
@@ -498,7 +498,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();

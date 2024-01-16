@@ -54,12 +54,13 @@ public class SimulateIngestServiceTests extends ESTestCase {
         ingestService.innerUpdatePipelines(ingestMetadata);
         {
             // First we make sure that if there are no substitutions that we get our original pipeline back:
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
-            SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
-            Pipeline pipeline = simulateIngestService.getPipeline("pipeline1");
-            assertThat(pipeline.getProcessors().size(), equalTo(1));
-            assertThat(pipeline.getProcessors().get(0).getType(), equalTo("processor1"));
-            assertNull(simulateIngestService.getPipeline("pipeline2"));
+            try (SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null)) {
+                SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
+                Pipeline pipeline = simulateIngestService.getPipeline("pipeline1");
+                assertThat(pipeline.getProcessors().size(), equalTo(1));
+                assertThat(pipeline.getProcessors().get(0).getType(), equalTo("processor1"));
+                assertNull(simulateIngestService.getPipeline("pipeline2"));
+            }
         }
         {
             // Here we make sure that if we have a substitution with the same name as the original pipeline that we get the new one back
@@ -89,15 +90,16 @@ public class SimulateIngestServiceTests extends ESTestCase {
                     });
                 }
             };
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
-            SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
-            Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
-            assertThat(pipeline1.getProcessors().size(), equalTo(2));
-            assertThat(pipeline1.getProcessors().get(0).getType(), equalTo("processor2"));
-            assertThat(pipeline1.getProcessors().get(1).getType(), equalTo("processor3"));
-            Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
-            assertThat(pipeline2.getProcessors().size(), equalTo(1));
-            assertThat(pipeline2.getProcessors().get(0).getType(), equalTo("processor3"));
+            try (SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions)) {
+                SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
+                Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
+                assertThat(pipeline1.getProcessors().size(), equalTo(2));
+                assertThat(pipeline1.getProcessors().get(0).getType(), equalTo("processor2"));
+                assertThat(pipeline1.getProcessors().get(1).getType(), equalTo("processor3"));
+                Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
+                assertThat(pipeline2.getProcessors().size(), equalTo(1));
+                assertThat(pipeline2.getProcessors().get(0).getType(), equalTo("processor3"));
+            }
         }
         {
             /*
@@ -117,14 +119,15 @@ public class SimulateIngestServiceTests extends ESTestCase {
                     });
                 }
             };
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
-            SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
-            Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
-            assertThat(pipeline1.getProcessors().size(), equalTo(1));
-            assertThat(pipeline1.getProcessors().get(0).getType(), equalTo("processor1"));
-            Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
-            assertThat(pipeline2.getProcessors().size(), equalTo(1));
-            assertThat(pipeline2.getProcessors().get(0).getType(), equalTo("processor3"));
+            try (SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions)) {
+                SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
+                Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
+                assertThat(pipeline1.getProcessors().size(), equalTo(1));
+                assertThat(pipeline1.getProcessors().get(0).getType(), equalTo("processor1"));
+                Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
+                assertThat(pipeline2.getProcessors().size(), equalTo(1));
+                assertThat(pipeline2.getProcessors().get(0).getType(), equalTo("processor3"));
+            }
         }
     }
 

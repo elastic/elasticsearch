@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -309,11 +310,11 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             )
             .get();
         ensureGreen();
-        {
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             String index = indexOrAlias();
-            BulkResponse bulkResponse = client().prepareBulk()
-                .add(new IndexRequest(index).id("1").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .get();
+            BulkResponse bulkResponse = bulkRequestBuilder.add(
+                new IndexRequest(index).id("1").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+            ).get();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -326,18 +327,18 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             }
         }
 
-        {
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             String index = indexOrAlias();
-            BulkResponse bulkResponse = client().prepareBulk()
-                .add(new IndexRequest(index).id("1").routing("0").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .get();
+            BulkResponse bulkResponse = bulkRequestBuilder.add(
+                new IndexRequest(index).id("1").routing("0").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+            ).get();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
 
-        {
-            BulkResponse bulkResponse = client().prepareBulk()
-                .add(new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2"))
-                .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(
+                new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
+            ).get();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -350,16 +351,16 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             }
         }
 
-        {
-            BulkResponse bulkResponse = client().prepareBulk()
-                .add(new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2").routing("0"))
-                .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(
+                new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2").routing("0")
+            ).get();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
 
-        {
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             String index = indexOrAlias();
-            BulkResponse bulkResponse = client().prepareBulk().add(new DeleteRequest(index).id("1")).get();
+            BulkResponse bulkResponse = bulkRequestBuilder.add(new DeleteRequest(index).id("1")).get();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -372,9 +373,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             }
         }
 
-        {
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             String index = indexOrAlias();
-            BulkResponse bulkResponse = client().prepareBulk().add(new DeleteRequest(index).id("1").routing("0")).get();
+            BulkResponse bulkResponse = bulkRequestBuilder.add(new DeleteRequest(index).id("1").routing("0")).get();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }

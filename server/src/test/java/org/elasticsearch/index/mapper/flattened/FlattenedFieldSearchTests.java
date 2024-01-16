@@ -178,61 +178,62 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(2, 100);
         int precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
 
-        BulkRequestBuilder bulkRequest = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequest = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE)) {
 
-        // Add a random number of documents containing a flattened field, plus
-        // a small number of dummy documents.
-        for (int i = 0; i < numDocs; ++i) {
-            bulkRequest.add(
-                client().prepareIndex()
-                    .setSource(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .startObject("flattened")
-                            .field("first", i)
-                            .field("second", i / 2)
-                            .endObject()
-                            .endObject()
-                    )
+            // Add a random number of documents containing a flattened field, plus
+            // a small number of dummy documents.
+            for (int i = 0; i < numDocs; ++i) {
+                bulkRequest.add(
+                    client().prepareIndex()
+                        .setSource(
+                            XContentFactory.jsonBuilder()
+                                .startObject()
+                                .startObject("flattened")
+                                .field("first", i)
+                                .field("second", i / 2)
+                                .endObject()
+                                .endObject()
+                        )
+                );
+            }
+
+            for (int i = 0; i < 10; i++) {
+                bulkRequest.add(prepareIndex("test").setSource("other_field", "1"));
+            }
+
+            BulkResponse bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+
+            // Test the root flattened field.
+            assertNoFailuresAndResponse(
+                client().prepareSearch("test")
+                    .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("flattened")),
+                response -> {
+                    Cardinality count = response.getAggregations().get("cardinality");
+                    assertCardinality(count, numDocs, precisionThreshold);
+                }
+            );
+
+            // Test two keyed flattened fields.
+            assertNoFailuresAndResponse(
+                client().prepareSearch("test")
+                    .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("flattened.first")),
+                firstResponse -> {
+
+                    Cardinality firstCount = firstResponse.getAggregations().get("cardinality");
+                    assertCardinality(firstCount, numDocs, precisionThreshold);
+                }
+            );
+
+            assertNoFailuresAndResponse(
+                client().prepareSearch("test")
+                    .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("flattened.second")),
+                secondResponse -> {
+                    Cardinality secondCount = secondResponse.getAggregations().get("cardinality");
+                    assertCardinality(secondCount, (numDocs + 1) / 2, precisionThreshold);
+                }
             );
         }
-
-        for (int i = 0; i < 10; i++) {
-            bulkRequest.add(prepareIndex("test").setSource("other_field", "1"));
-        }
-
-        BulkResponse bulkResponse = bulkRequest.get();
-        assertNoFailures(bulkResponse);
-
-        // Test the root flattened field.
-        assertNoFailuresAndResponse(
-            client().prepareSearch("test")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("flattened")),
-            response -> {
-                Cardinality count = response.getAggregations().get("cardinality");
-                assertCardinality(count, numDocs, precisionThreshold);
-            }
-        );
-
-        // Test two keyed flattened fields.
-        assertNoFailuresAndResponse(
-            client().prepareSearch("test")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("flattened.first")),
-            firstResponse -> {
-
-                Cardinality firstCount = firstResponse.getAggregations().get("cardinality");
-                assertCardinality(firstCount, numDocs, precisionThreshold);
-            }
-        );
-
-        assertNoFailuresAndResponse(
-            client().prepareSearch("test")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("flattened.second")),
-            secondResponse -> {
-                Cardinality secondCount = secondResponse.getAggregations().get("cardinality");
-                assertCardinality(secondCount, (numDocs + 1) / 2, precisionThreshold);
-            }
-        );
     }
 
     private void assertCardinality(Cardinality count, long value, int precisionThreshold) {
@@ -246,77 +247,78 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testTermsAggregation() throws IOException {
-        BulkRequestBuilder bulkRequest = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 5; i++) {
-            bulkRequest.add(
-                client().prepareIndex()
-                    .setSource(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .startObject("labels")
-                            .field("priority", "urgent")
-                            .field("release", "v1.2." + i)
-                            .endObject()
-                            .endObject()
-                    )
-            );
-        }
-
-        BulkResponse bulkResponse = bulkRequest.get();
-        assertNoFailures(bulkResponse);
-
-        // Aggregate on the root 'labels' field.
-        TermsAggregationBuilder builder = createTermsAgg("labels");
-        assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(builder), response -> {
-            Terms terms = response.getAggregations().get("terms");
-            assertThat(terms, notNullValue());
-            assertThat(terms.getName(), equalTo("terms"));
-            assertThat(terms.getBuckets().size(), equalTo(6));
-
-            Terms.Bucket bucket1 = terms.getBuckets().get(0);
-            assertEquals("urgent", bucket1.getKey());
-            assertEquals(5, bucket1.getDocCount());
-
-            Terms.Bucket bucket2 = terms.getBuckets().get(1);
-            assertThat(bucket2.getKeyAsString(), startsWith("v1.2."));
-            assertEquals(1, bucket2.getDocCount());
-        });
-
-        // Aggregate on the 'priority' subfield.
-        TermsAggregationBuilder priorityAgg = createTermsAgg("labels.priority");
-        assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(priorityAgg), priorityResponse -> {
-            Terms priorityTerms = priorityResponse.getAggregations().get("terms");
-            assertThat(priorityTerms, notNullValue());
-            assertThat(priorityTerms.getName(), equalTo("terms"));
-            assertThat(priorityTerms.getBuckets().size(), equalTo(1));
-
-            Terms.Bucket priorityBucket = priorityTerms.getBuckets().get(0);
-            assertEquals("urgent", priorityBucket.getKey());
-            assertEquals(5, priorityBucket.getDocCount());
-        });
-
-        // Aggregate on the 'release' subfield.
-        TermsAggregationBuilder releaseAgg = createTermsAgg("labels.release");
-        assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(releaseAgg), releaseResponse -> {
-            Terms releaseTerms = releaseResponse.getAggregations().get("terms");
-            assertThat(releaseTerms, notNullValue());
-            assertThat(releaseTerms.getName(), equalTo("terms"));
-            assertThat(releaseTerms.getBuckets().size(), equalTo(5));
-
-            for (Terms.Bucket bucket : releaseTerms.getBuckets()) {
-                assertThat(bucket.getKeyAsString(), startsWith("v1.2."));
-                assertEquals(1, bucket.getDocCount());
+        try (BulkRequestBuilder bulkRequest = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < 5; i++) {
+                bulkRequest.add(
+                    client().prepareIndex()
+                        .setSource(
+                            XContentFactory.jsonBuilder()
+                                .startObject()
+                                .startObject("labels")
+                                .field("priority", "urgent")
+                                .field("release", "v1.2." + i)
+                                .endObject()
+                                .endObject()
+                        )
+                );
             }
-        });
 
-        // Aggregate on the 'priority' subfield with a min_doc_count of 0.
-        TermsAggregationBuilder minDocCountAgg = createTermsAgg("labels.priority").minDocCount(0);
-        assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(minDocCountAgg), minDocCountResponse -> {
-            Terms minDocCountTerms = minDocCountResponse.getAggregations().get("terms");
-            assertThat(minDocCountTerms, notNullValue());
-            assertThat(minDocCountTerms.getName(), equalTo("terms"));
-            assertThat(minDocCountTerms.getBuckets().size(), equalTo(1));
-        });
+            BulkResponse bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+
+            // Aggregate on the root 'labels' field.
+            TermsAggregationBuilder builder = createTermsAgg("labels");
+            assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(builder), response -> {
+                Terms terms = response.getAggregations().get("terms");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo("terms"));
+                assertThat(terms.getBuckets().size(), equalTo(6));
+
+                Terms.Bucket bucket1 = terms.getBuckets().get(0);
+                assertEquals("urgent", bucket1.getKey());
+                assertEquals(5, bucket1.getDocCount());
+
+                Terms.Bucket bucket2 = terms.getBuckets().get(1);
+                assertThat(bucket2.getKeyAsString(), startsWith("v1.2."));
+                assertEquals(1, bucket2.getDocCount());
+            });
+
+            // Aggregate on the 'priority' subfield.
+            TermsAggregationBuilder priorityAgg = createTermsAgg("labels.priority");
+            assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(priorityAgg), priorityResponse -> {
+                Terms priorityTerms = priorityResponse.getAggregations().get("terms");
+                assertThat(priorityTerms, notNullValue());
+                assertThat(priorityTerms.getName(), equalTo("terms"));
+                assertThat(priorityTerms.getBuckets().size(), equalTo(1));
+
+                Terms.Bucket priorityBucket = priorityTerms.getBuckets().get(0);
+                assertEquals("urgent", priorityBucket.getKey());
+                assertEquals(5, priorityBucket.getDocCount());
+            });
+
+            // Aggregate on the 'release' subfield.
+            TermsAggregationBuilder releaseAgg = createTermsAgg("labels.release");
+            assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(releaseAgg), releaseResponse -> {
+                Terms releaseTerms = releaseResponse.getAggregations().get("terms");
+                assertThat(releaseTerms, notNullValue());
+                assertThat(releaseTerms.getName(), equalTo("terms"));
+                assertThat(releaseTerms.getBuckets().size(), equalTo(5));
+
+                for (Terms.Bucket bucket : releaseTerms.getBuckets()) {
+                    assertThat(bucket.getKeyAsString(), startsWith("v1.2."));
+                    assertEquals(1, bucket.getDocCount());
+                }
+            });
+
+            // Aggregate on the 'priority' subfield with a min_doc_count of 0.
+            TermsAggregationBuilder minDocCountAgg = createTermsAgg("labels.priority").minDocCount(0);
+            assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(minDocCountAgg), minDocCountResponse -> {
+                Terms minDocCountTerms = minDocCountResponse.getAggregations().get("terms");
+                assertThat(minDocCountTerms, notNullValue());
+                assertThat(minDocCountTerms.getName(), equalTo("terms"));
+                assertThat(minDocCountTerms.getBuckets().size(), equalTo(1));
+            });
+        }
     }
 
     private TermsAggregationBuilder createTermsAgg(String field) {

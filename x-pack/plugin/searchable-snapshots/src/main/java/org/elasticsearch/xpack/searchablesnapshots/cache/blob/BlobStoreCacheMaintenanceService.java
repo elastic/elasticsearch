@@ -589,48 +589,52 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     return;
                 }
 
-                final BulkRequest bulkRequest = new BulkRequest();
-
                 Object[] lastSortValues = null;
-                for (SearchHit searchHit : searchHits) {
-                    lastSortValues = searchHit.getSortValues();
-                    assert searchHit.getId() != null;
-                    try {
-                        boolean delete = false;
+                final BulkRequest bulkRequest = new BulkRequest();
+                try {
+                    for (SearchHit searchHit : searchHits) {
+                        lastSortValues = searchHit.getSortValues();
+                        assert searchHit.getId() != null;
+                        try {
+                            boolean delete = false;
 
-                        // See {@link BlobStoreCacheService#generateId}
-                        // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
-                        final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
-                        assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
+                            // See {@link BlobStoreCacheService#generateId}
+                            // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
+                            final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
+                            assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
 
-                        final String repositoryName = parts[0];
-                        if (existingRepositories.contains(repositoryName) == false) {
-                            logger.trace("deleting blob store cache entry with id [{}]: repository does not exist", searchHit.getId());
-                            delete = true;
-                        } else {
-                            final Set<String> knownIndexIds = existingSnapshots.get(parts[1]);
-                            if (knownIndexIds == null || knownIndexIds.contains(parts[2]) == false) {
-                                logger.trace("deleting blob store cache entry with id [{}]: not used", searchHit.getId());
+                            final String repositoryName = parts[0];
+                            if (existingRepositories.contains(repositoryName) == false) {
+                                logger.trace("deleting blob store cache entry with id [{}]: repository does not exist", searchHit.getId());
                                 delete = true;
+                            } else {
+                                final Set<String> knownIndexIds = existingSnapshots.get(parts[1]);
+                                if (knownIndexIds == null || knownIndexIds.contains(parts[2]) == false) {
+                                    logger.trace("deleting blob store cache entry with id [{}]: not used", searchHit.getId());
+                                    delete = true;
+                                }
                             }
-                        }
-                        if (delete) {
-                            final Instant creationTime = getCreationTime(searchHit);
-                            if (creationTime.isAfter(expirationTime)) {
-                                logger.trace(
-                                    "blob store cache entry with id [{}] was created recently, skipping deletion",
-                                    searchHit.getId()
-                                );
-                                continue;
+                            if (delete) {
+                                final Instant creationTime = getCreationTime(searchHit);
+                                if (creationTime.isAfter(expirationTime)) {
+                                    logger.trace(
+                                        "blob store cache entry with id [{}] was created recently, skipping deletion",
+                                        searchHit.getId()
+                                    );
+                                    continue;
+                                }
+                                bulkRequest.add(new DeleteRequest().index(searchHit.getIndex()).id(searchHit.getId()));
                             }
-                            bulkRequest.add(new DeleteRequest().index(searchHit.getIndex()).id(searchHit.getId()));
+                        } catch (Exception e) {
+                            logger.warn(
+                                () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
+                                e
+                            );
                         }
-                    } catch (Exception e) {
-                        logger.warn(
-                            () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
-                            e
-                        );
                     }
+                } catch (Exception e) {
+                    bulkRequest.close();
+                    throw e;
                 }
 
                 if (bulkRequest.numberOfActions() > 0) {
@@ -638,15 +642,17 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     clientWithOrigin.execute(
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        ActionListener.releaseAfter(listeners.acquire(bulkResponse -> {
+                        ActionListener.releaseAfter(ActionListener.releaseAfter(listeners.acquire(bulkResponse -> {
                             for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
                                 if (itemResponse.isFailed() == false) {
                                     assert itemResponse.getResponse() instanceof DeleteResponse;
                                     deletes.incrementAndGet();
                                 }
                             }
-                        }), refs::decRef)
+                        }), refs::decRef), bulkRequest)
                     );
+                } else {
+                    bulkRequest.close();
                 }
 
                 assert lastSortValues != null;

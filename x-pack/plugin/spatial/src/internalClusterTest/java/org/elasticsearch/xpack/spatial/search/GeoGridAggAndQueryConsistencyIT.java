@@ -100,15 +100,16 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             .endObject();
         indicesAdmin().prepareCreate("test").setMapping(xcb).get();
 
-        BulkRequestBuilder builder = client().prepareBulk();
-        builder.add(
-            new IndexRequest("test").source("{\"geometry\" : \"BBOX (179.99999, 180.0, -11.29550, -11.29552)\"}", XContentType.JSON)
-        );
-        builder.add(
-            new IndexRequest("test").source("{\"geometry\" : \"BBOX (-180.0, -179.99999, -11.29550, -11.29552)\"}", XContentType.JSON)
-        );
+        try (BulkRequestBuilder builder = client().prepareBulk()) {
+            builder.add(
+                new IndexRequest("test").source("{\"geometry\" : \"BBOX (179.99999, 180.0, -11.29550, -11.29552)\"}", XContentType.JSON)
+            );
+            builder.add(
+                new IndexRequest("test").source("{\"geometry\" : \"BBOX (-180.0, -179.99999, -11.29550, -11.29552)\"}", XContentType.JSON)
+            );
 
-        assertFalse(builder.get().hasFailures());
+            assertFalse(builder.get().hasFailures());
+        }
         indicesAdmin().prepareRefresh("test").get();
 
         GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(-11.29550, 179.999992), new GeoPoint(-11.29552, -179.999992));
@@ -148,17 +149,18 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             .endObject();
         indicesAdmin().prepareCreate("test").setMapping(xcb).get();
 
-        BulkRequestBuilder builder = client().prepareBulk();
-        builder.add(
-            new IndexRequest("test").source("{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}", XContentType.JSON)
-        );
-        builder.add(
-            new IndexRequest("test").source("{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}", XContentType.JSON)
-        );
-        String mp = "POLYGON ((150.0 70.0, 150.0 85.91811374669217, 168.77544806565834 85.91811374669217, 150.0 70.0))";
-        builder.add(new IndexRequest("test").source("{\"geometry\" : \"" + mp + "\"}", XContentType.JSON));
+        try (BulkRequestBuilder builder = client().prepareBulk()) {
+            builder.add(
+                new IndexRequest("test").source("{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}", XContentType.JSON)
+            );
+            builder.add(
+                new IndexRequest("test").source("{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}", XContentType.JSON)
+            );
+            String mp = "POLYGON ((150.0 70.0, 150.0 85.91811374669217, 168.77544806565834 85.91811374669217, 150.0 70.0))";
+            builder.add(new IndexRequest("test").source("{\"geometry\" : \"" + mp + "\"}", XContentType.JSON));
 
-        assertFalse(builder.get().hasFailures());
+            assertFalse(builder.get().hasFailures());
+        }
         indicesAdmin().prepareRefresh("test").get();
 
         // BBOX (172.21916569181505, -173.17785081207947, 86.17678739494652, 83.01600086049713)
@@ -255,21 +257,22 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             tiles[zoom] = pointEncoder.apply(zoom, queryPoint);
         }
 
-        BulkRequestBuilder builder = client().prepareBulk();
-        for (int zoom = minPrecision; zoom < tiles.length; zoom++) {
-            List<Point> edgePoints = toPoints.apply(tiles[zoom]);
-            String[] multiPoint = new String[edgePoints.size()];
-            for (int i = 0; i < edgePoints.size(); i++) {
-                String wkt = WellKnownText.toWKT(edgePoints.get(i));
-                String doc = "{\"geometry\" : \"" + wkt + "\"}";
+        try (BulkRequestBuilder builder = client().prepareBulk()) {
+            for (int zoom = minPrecision; zoom < tiles.length; zoom++) {
+                List<Point> edgePoints = toPoints.apply(tiles[zoom]);
+                String[] multiPoint = new String[edgePoints.size()];
+                for (int i = 0; i < edgePoints.size(); i++) {
+                    String wkt = WellKnownText.toWKT(edgePoints.get(i));
+                    String doc = "{\"geometry\" : \"" + wkt + "\"}";
+                    builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
+                    multiPoint[i] = "\"" + wkt + "\"";
+                }
+                String doc = "{\"geometry\" : " + Arrays.toString(multiPoint) + "}";
                 builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
-                multiPoint[i] = "\"" + wkt + "\"";
-            }
-            String doc = "{\"geometry\" : " + Arrays.toString(multiPoint) + "}";
-            builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
 
+            }
+            assertFalse(builder.get().hasFailures());
         }
-        assertFalse(builder.get().hasFailures());
         indicesAdmin().prepareRefresh("test").get();
 
         for (int i = minPrecision; i <= maxPrecision; i++) {
@@ -281,14 +284,15 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             });
         }
 
-        builder = client().prepareBulk();
-        final int numDocs = randomIntBetween(10, 20);
-        for (int id = 0; id < numDocs; id++) {
-            String wkt = WellKnownText.toWKT(randomGeometriesSupplier.get());
-            String doc = "{\"geometry\" : \"" + wkt + "\"}";
-            builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
+        try (BulkRequestBuilder builder = client().prepareBulk()) {
+            final int numDocs = randomIntBetween(10, 20);
+            for (int id = 0; id < numDocs; id++) {
+                String wkt = WellKnownText.toWKT(randomGeometriesSupplier.get());
+                String doc = "{\"geometry\" : \"" + wkt + "\"}";
+                builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
+            }
+            assertFalse(builder.get().hasFailures());
         }
-        assertFalse(builder.get().hasFailures());
         indicesAdmin().prepareRefresh("test").get();
 
         int zoom = randomIntBetween(minPrecision, maxPrecision);

@@ -79,6 +79,7 @@ public class BulkProcessorTests extends ESTestCase {
             ThreadContext threadContext = threadPool.getThreadContext();
             assertEquals(headerValue, threadContext.getHeader(headerKey));
             assertSame(transientValue, threadContext.getTransient(transientKey));
+            listener.onResponse(new BulkResponse(new BulkItemResponse[0], 1L));
             latch.countDown();
         };
 

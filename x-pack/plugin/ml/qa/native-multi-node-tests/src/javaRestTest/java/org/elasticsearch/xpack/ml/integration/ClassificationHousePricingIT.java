@@ -1602,33 +1602,34 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
     }
 
     static void indexData(String sourceIndex) {
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (String row : DATA) {
-            String[] values = row.split(",");
-            List<Object> source = List.of(
-                "1stFlrSF",
-                Integer.valueOf(values[0]),
-                "CentralAir",
-                values[1],
-                "Electrical",
-                values[2],
-                "GarageArea",
-                Integer.valueOf(values[3]),
-                "GarageCars",
-                Integer.valueOf(values[4]),
-                "Heating",
-                values[5],
-                "Neighborhood",
-                values[6],
-                "YearBuilt",
-                Integer.valueOf(values[7])
-            );
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (String row : DATA) {
+                String[] values = row.split(",");
+                List<Object> source = List.of(
+                    "1stFlrSF",
+                    Integer.valueOf(values[0]),
+                    "CentralAir",
+                    values[1],
+                    "Electrical",
+                    values[2],
+                    "GarageArea",
+                    Integer.valueOf(values[3]),
+                    "GarageCars",
+                    Integer.valueOf(values[4]),
+                    "Heating",
+                    values[5],
+                    "Neighborhood",
+                    values[6],
+                    "YearBuilt",
+                    Integer.valueOf(values[7])
+                );
+                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
     }
 

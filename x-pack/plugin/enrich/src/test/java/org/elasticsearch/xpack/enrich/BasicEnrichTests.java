@@ -114,19 +114,20 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         clusterAdmin().putPipeline(putPipelineRequest).actionGet();
 
-        BulkRequest bulkRequest = new BulkRequest("my-index");
-        for (int i = 0; i < numDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.id(Integer.toString(i));
-            indexRequest.setPipeline(pipelineName);
-            indexRequest.source(Map.of(MATCH_FIELD, keys.get(i)));
-            bulkRequest.add(indexRequest);
-        }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
-        int expectedId = 0;
-        for (BulkItemResponse itemResponse : bulkResponse) {
-            assertThat(itemResponse.getId(), equalTo(Integer.toString(expectedId++)));
+        try (BulkRequest bulkRequest = new BulkRequest("my-index")) {
+            for (int i = 0; i < numDocs; i++) {
+                IndexRequest indexRequest = new IndexRequest();
+                indexRequest.id(Integer.toString(i));
+                indexRequest.setPipeline(pipelineName);
+                indexRequest.source(Map.of(MATCH_FIELD, keys.get(i)));
+                bulkRequest.add(indexRequest);
+            }
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
+            int expectedId = 0;
+            for (BulkItemResponse itemResponse : bulkResponse) {
+                assertThat(itemResponse.getId(), equalTo(Integer.toString(expectedId++)));
+            }
         }
 
         for (int doc = 0; doc < numDocs; doc++) {
@@ -207,16 +208,17 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         clusterAdmin().putPipeline(putPipelineRequest).actionGet();
 
-        BulkRequest bulkRequest = new BulkRequest("my-index");
-        IndexRequest indexRequest = new IndexRequest();
-        indexRequest.id("_id");
-        indexRequest.setPipeline(pipelineName);
-        indexRequest.source(Map.of(matchField, "37.386444, -122.083863")); // point within match boundary
-        bulkRequest.add(indexRequest);
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
-        assertThat(bulkResponse.getItems().length, equalTo(1));
-        assertThat(bulkResponse.getItems()[0].getId(), equalTo("_id"));
+        try (BulkRequest bulkRequest = new BulkRequest("my-index")) {
+            IndexRequest indexRequest = new IndexRequest();
+            indexRequest.id("_id");
+            indexRequest.setPipeline(pipelineName);
+            indexRequest.source(Map.of(matchField, "37.386444, -122.083863")); // point within match boundary
+            bulkRequest.add(indexRequest);
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
+            assertThat(bulkResponse.getItems().length, equalTo(1));
+            assertThat(bulkResponse.getItems()[0].getId(), equalTo("_id"));
+        }
 
         GetResponse getResponse = client().get(new GetRequest("my-index", "_id")).actionGet();
         Map<String, Object> source = getResponse.getSourceAsMap();
@@ -259,16 +261,17 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             clusterAdmin().putPipeline(putPipelineRequest).actionGet();
         }
 
-        BulkRequest bulkRequest = new BulkRequest("my-index");
-        for (int i = 0; i < numPolicies; i++) {
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.id(Integer.toString(i));
-            indexRequest.setPipeline("pipeline" + i);
-            indexRequest.source(Map.of("key", "key"));
-            bulkRequest.add(indexRequest);
+        try (BulkRequest bulkRequest = new BulkRequest("my-index")) {
+            for (int i = 0; i < numPolicies; i++) {
+                IndexRequest indexRequest = new IndexRequest();
+                indexRequest.id(Integer.toString(i));
+                indexRequest.setPipeline("pipeline" + i);
+                indexRequest.source(Map.of("key", "key"));
+                bulkRequest.add(indexRequest);
+            }
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
         }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
 
         for (int i = 0; i < numPolicies; i++) {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
@@ -316,23 +319,24 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         clusterAdmin().putPipeline(putPipelineRequest).actionGet();
 
-        BulkRequest bulkRequest = new BulkRequest("my-index");
-        int numTestDocs = randomIntBetween(3, 10);
-        for (int i = 0; i < numTestDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest("my-index");
-            indexRequest.id(Integer.toString(i));
-            indexRequest.setPipeline(pipelineName);
-            indexRequest.source(Map.of("key", "key"));
-            bulkRequest.add(indexRequest);
-        }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
+        try (BulkRequest bulkRequest = new BulkRequest("my-index")) {
+            int numTestDocs = randomIntBetween(3, 10);
+            for (int i = 0; i < numTestDocs; i++) {
+                IndexRequest indexRequest = new IndexRequest("my-index");
+                indexRequest.id(Integer.toString(i));
+                indexRequest.setPipeline(pipelineName);
+                indexRequest.source(Map.of("key", "key"));
+                bulkRequest.add(indexRequest);
+            }
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
 
-        for (int i = 0; i < numTestDocs; i++) {
-            GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
-            Map<String, Object> source = getResponse.getSourceAsMap();
-            assertThat(source.size(), equalTo(2));
-            assertThat(source.get("target"), equalTo(Map.of("key", "key", "value", "val1")));
+            for (int i = 0; i < numTestDocs; i++) {
+                GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
+                Map<String, Object> source = getResponse.getSourceAsMap();
+                assertThat(source.size(), equalTo(2));
+                assertThat(source.get("target"), equalTo(Map.of("key", "key", "value", "val1")));
+            }
         }
     }
 

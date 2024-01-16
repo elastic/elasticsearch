@@ -164,7 +164,7 @@ public class TokenServiceTests extends ESTestCase {
             return builder;
         }).when(client).prepareGet(anyString(), anyString());
         when(client.prepareIndex(any(String.class))).thenReturn(new IndexRequestBuilder(client));
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
         when(client.prepareUpdate(any(String.class), any(String.class))).thenAnswer(inv -> {
             final String index = (String) inv.getArguments()[0];
             final String id = (String) inv.getArguments()[1];
@@ -442,7 +442,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
-            .realmRef(new RealmRef("native_realm", "native", "node1"))
+            .realmRef(new RealmRef("native_realm", "na7tive", "node1"))
             .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());

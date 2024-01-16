@@ -246,18 +246,19 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
     private void persistModelStateDocs(String jobId, String snapshotId, int numDocs) {
         assertThat(numDocs, greaterThan(0));
 
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 1; i <= numDocs; ++i) {
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id(
-                ModelState.documentId(jobId, snapshotId, i)
-            )
-                // The exact contents of the model state doesn't matter - we are not going to try and restore it
-                .source(Collections.singletonMap("compressed", Collections.singletonList("foo")))
-                .setRequireAlias(true);
-            bulkRequest.add(indexRequest);
-        }
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            for (int i = 1; i <= numDocs; ++i) {
+                IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id(
+                    ModelState.documentId(jobId, snapshotId, i)
+                )
+                    // The exact contents of the model state doesn't matter - we are not going to try and restore it
+                    .source(Collections.singletonMap("compressed", Collections.singletonList("foo")))
+                    .setRequireAlias(true);
+                bulkRequest.add(indexRequest);
+            }
 
-        BulkResponse bulkResponse = client().execute(BulkAction.INSTANCE, bulkRequest).actionGet();
-        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+            BulkResponse bulkResponse = client().execute(BulkAction.INSTANCE, bulkRequest).actionGet();
+            assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+        }
     }
 }

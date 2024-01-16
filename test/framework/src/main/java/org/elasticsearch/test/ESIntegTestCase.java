@@ -1693,12 +1693,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
             );
             logger.info("Index [{}] docs async: [{}] bulk: [{}] partitions [{}]", builders.size(), false, true, partition.size());
             for (List<IndexRequestBuilder> segmented : partition) {
-                BulkRequestBuilder bulkBuilder = client().prepareBulk();
-                for (IndexRequestBuilder indexRequestBuilder : segmented) {
-                    bulkBuilder.add(indexRequestBuilder);
+                try (BulkRequestBuilder bulkBuilder = client().prepareBulk()) {
+                    for (IndexRequestBuilder indexRequestBuilder : segmented) {
+                        bulkBuilder.add(indexRequestBuilder);
+                    }
+                    BulkResponse actionGet = bulkBuilder.get();
+                    assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
                 }
-                BulkResponse actionGet = bulkBuilder.get();
-                assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
             }
         }
         for (CountDownLatch operation : inFlightAsyncOperations) {

@@ -79,19 +79,20 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         int normalRate = 10;
         int anomalousRate = 100;
         int anomalousBucket = 30;
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int bucket = 0; bucket < totalBuckets; bucket++) {
-            long timestamp = latestBucketTime - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
-            int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
-            for (int point = 0; point < bucketRate; point++) {
-                IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
-                indexRequest.source("time", timestamp);
-                bulkRequestBuilder.add(indexRequest);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            for (int bucket = 0; bucket < totalBuckets; bucket++) {
+                long timestamp = latestBucketTime - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
+                int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
+                for (int point = 0; point < bucketRate; point++) {
+                    IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
+                    indexRequest.source("time", timestamp);
+                    bulkRequestBuilder.add(indexRequest);
+                }
             }
-        }
 
-        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertThat(bulkResponse.hasFailures(), is(false));
+            BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            assertThat(bulkResponse.hasFailures(), is(false));
+        }
     }
 
     @After
@@ -160,210 +161,217 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
     private void testExpiredDeletion(Float customThrottle, int numUnusedState) throws Exception {
         // Index some unused state documents (more than 10K to test scrolling works)
         String mlStateIndexName = AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001";
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < numUnusedState; i++) {
-            String docId = "non_existing_job_" + randomFrom("model_state_1234567#" + i, "quantiles", "categorizer_state#" + i);
-            IndexRequest indexRequest = new IndexRequest(mlStateIndexName).id(docId).source(Collections.emptyMap());
-            bulkRequestBuilder.add(indexRequest);
-        }
-        ActionFuture<BulkResponse> indexUnusedStateDocsResponse = bulkRequestBuilder.execute();
-        List<Job.Builder> jobs = new ArrayList<>();
-
-        // These jobs don't thin out model state; ModelSnapshotRetentionIT tests that
-        jobs.add(
-            newJobBuilder("no-retention").setResultsRetentionDays(null)
-                .setModelSnapshotRetentionDays(1000L)
-                .setDailyModelSnapshotRetentionAfterDays(1000L)
-        );
-        jobs.add(
-            newJobBuilder("results-retention").setResultsRetentionDays(1L)
-                .setModelSnapshotRetentionDays(1000L)
-                .setDailyModelSnapshotRetentionAfterDays(1000L)
-        );
-        jobs.add(
-            newJobBuilder("snapshots-retention").setResultsRetentionDays(null)
-                .setModelSnapshotRetentionDays(2L)
-                .setDailyModelSnapshotRetentionAfterDays(2L)
-        );
-        jobs.add(
-            newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null)
-                .setModelSnapshotRetentionDays(2L)
-                .setDailyModelSnapshotRetentionAfterDays(2L)
-        );
-        jobs.add(
-            newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L)
-                .setModelSnapshotRetentionDays(2L)
-                .setDailyModelSnapshotRetentionAfterDays(2L)
-        );
-
-        List<String> shortExpiryForecastIds = new ArrayList<>();
-
-        long now = System.currentTimeMillis();
-        long oneDayAgo = now - TimeValue.timeValueHours(48).getMillis() - 1;
-
-        // Start all jobs
-        for (Job.Builder job : jobs) {
-            putJob(job);
-
-            String datafeedId = job.getId() + "-feed";
-            DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
-            datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
-            DatafeedConfig datafeed = datafeedConfig.build();
-
-            putDatafeed(datafeed);
-
-            // Run up to a day ago
-            openJob(job.getId());
-            startDatafeed(datafeedId, 0, now - TimeValue.timeValueHours(24).getMillis());
-        }
-
-        // Now let's wait for all jobs to be closed
-        for (Job.Builder job : jobs) {
-            waitUntilJobIsClosed(job.getId());
-        }
-
-        for (Job.Builder job : jobs) {
-            assertThat(getBuckets(job.getId()).size(), is(greaterThanOrEqualTo(47)));
-            assertThat(getRecords(job.getId()).size(), equalTo(2));
-            List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
-            assertThat(modelSnapshots.size(), equalTo(1));
-            String snapshotDocId = ModelSnapshot.documentId(modelSnapshots.get(0));
-
-            // Update snapshot timestamp to force it out of snapshot retention window
-            String snapshotUpdate = "{ \"timestamp\": " + oneDayAgo + "}";
-            UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + job.getId(), snapshotDocId);
-            updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
-            client().execute(TransportUpdateAction.TYPE, updateSnapshotRequest).get();
-
-            // Now let's create some forecasts
-            openJob(job.getId());
-
-            // We must set a very small value for expires_in to keep this testable as the deletion cutoff point is the moment
-            // the DeleteExpiredDataAction is called.
-            String forecastShortExpiryId = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.timeValueSeconds(1));
-            shortExpiryForecastIds.add(forecastShortExpiryId);
-            String forecastDefaultExpiryId = forecast(job.getId(), TimeValue.timeValueHours(1), null);
-            String forecastNoExpiryId = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
-            waitForecastToFinish(job.getId(), forecastShortExpiryId);
-            waitForecastToFinish(job.getId(), forecastDefaultExpiryId);
-            waitForecastToFinish(job.getId(), forecastNoExpiryId);
-        }
-
-        // Refresh to ensure the snapshot timestamp updates are visible
-        refresh("*");
-
-        // We need to wait for the clock to tick to a new second to ensure the second time
-        // around model snapshots will have a different ID (it depends on epoch seconds)
-        long before = System.currentTimeMillis() / 1000;
-        assertBusy(() -> assertNotEquals(before, System.currentTimeMillis() / 1000), 1, TimeUnit.SECONDS);
-
-        for (Job.Builder job : jobs) {
-            // Run up to now
-            startDatafeed(job.getId() + "-feed", 0, now);
-            waitUntilJobIsClosed(job.getId());
-            assertThat(getBuckets(job.getId()).size(), is(greaterThanOrEqualTo(70)));
-            assertThat(getRecords(job.getId()).size(), equalTo(2));
-            List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
-            assertThat(modelSnapshots.size(), equalTo(2));
-        }
-
-        retainAllSnapshots("snapshots-retention-with-retain");
-
-        long totalModelSizeStatsBeforeDelete = SearchResponseUtils.getTotalHitsValue(
-            prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-        );
-        long totalNotificationsCountBeforeDelete = SearchResponseUtils.getTotalHitsValue(
-            prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-        );
-        assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
-        assertThat(totalNotificationsCountBeforeDelete, greaterThan(0L));
-
-        // Verify forecasts were created
-        List<ForecastRequestStats> forecastStats = getForecastStats();
-        assertThat(forecastStats.size(), equalTo(jobs.size() * 3));
-        for (ForecastRequestStats forecastStat : forecastStats) {
-            assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()), equalTo(forecastStat.getRecordCount()));
-        }
-
-        // Before we call the delete-expired-data action we need to make sure the unused state docs were indexed
-        assertFalse(indexUnusedStateDocsResponse.get().hasFailures());
-
-        // Now call the action under test
-        assertThat(deleteExpiredData(customThrottle).isDeleted(), is(true));
-
-        // no-retention job should have kept all data
-        assertThat(getBuckets("no-retention").size(), is(greaterThanOrEqualTo(70)));
-        assertThat(getRecords("no-retention").size(), equalTo(2));
-        assertThat(getModelSnapshots("no-retention").size(), equalTo(2));
-
-        List<Bucket> buckets = getBuckets("results-retention");
-        assertThat(buckets.size(), is(lessThanOrEqualTo(25)));
-        assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
-        assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
-        assertThat(getRecords("results-retention").size(), equalTo(0));
-        assertThat(getModelSnapshots("results-retention").size(), equalTo(2));
-
-        assertThat(getBuckets("snapshots-retention").size(), is(greaterThanOrEqualTo(70)));
-        assertThat(getRecords("snapshots-retention").size(), equalTo(2));
-        assertThat(getModelSnapshots("snapshots-retention").size(), equalTo(1));
-
-        assertThat(getBuckets("snapshots-retention-with-retain").size(), is(greaterThanOrEqualTo(70)));
-        assertThat(getRecords("snapshots-retention-with-retain").size(), equalTo(2));
-        assertThat(getModelSnapshots("snapshots-retention-with-retain").size(), equalTo(2));
-
-        buckets = getBuckets("results-and-snapshots-retention");
-        assertThat(buckets.size(), is(lessThanOrEqualTo(25)));
-        assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
-        assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
-        assertThat(getRecords("results-and-snapshots-retention").size(), equalTo(0));
-        assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
-
-        long totalModelSizeStatsAfterDelete = SearchResponseUtils.getTotalHitsValue(
-            prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-        );
-        long totalNotificationsCountAfterDelete = SearchResponseUtils.getTotalHitsValue(
-            prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-        );
-        assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
-        assertThat(totalNotificationsCountAfterDelete, greaterThanOrEqualTo(totalNotificationsCountBeforeDelete));
-
-        // Verify short expiry forecasts were deleted only
-        forecastStats = getForecastStats();
-        assertThat(forecastStats.size(), equalTo(jobs.size() * 2));
-        for (ForecastRequestStats forecastStat : forecastStats) {
-            assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()), equalTo(forecastStat.getRecordCount()));
-        }
-        for (Job.Builder job : jobs) {
-            for (String forecastId : shortExpiryForecastIds) {
-                assertThat(countForecastDocs(job.getId(), forecastId), equalTo(0L));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < numUnusedState; i++) {
+                String docId = "non_existing_job_" + randomFrom("model_state_1234567#" + i, "quantiles", "categorizer_state#" + i);
+                IndexRequest indexRequest = new IndexRequest(mlStateIndexName).id(docId).source(Collections.emptyMap());
+                bulkRequestBuilder.add(indexRequest);
             }
-        }
+            ActionFuture<BulkResponse> indexUnusedStateDocsResponse = bulkRequestBuilder.execute();
+            List<Job.Builder> jobs = new ArrayList<>();
 
-        // Verify .ml-state doesn't contain unused state documents
-        assertResponse(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
-            stateDocsResponse -> {
-                assertThat(stateDocsResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(5L));
+            // These jobs don't thin out model state; ModelSnapshotRetentionIT tests that
+            jobs.add(
+                newJobBuilder("no-retention").setResultsRetentionDays(null)
+                    .setModelSnapshotRetentionDays(1000L)
+                    .setDailyModelSnapshotRetentionAfterDays(1000L)
+            );
+            jobs.add(
+                newJobBuilder("results-retention").setResultsRetentionDays(1L)
+                    .setModelSnapshotRetentionDays(1000L)
+                    .setDailyModelSnapshotRetentionAfterDays(1000L)
+            );
+            jobs.add(
+                newJobBuilder("snapshots-retention").setResultsRetentionDays(null)
+                    .setModelSnapshotRetentionDays(2L)
+                    .setDailyModelSnapshotRetentionAfterDays(2L)
+            );
+            jobs.add(
+                newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null)
+                    .setModelSnapshotRetentionDays(2L)
+                    .setDailyModelSnapshotRetentionAfterDays(2L)
+            );
+            jobs.add(
+                newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L)
+                    .setModelSnapshotRetentionDays(2L)
+                    .setDailyModelSnapshotRetentionAfterDays(2L)
+            );
 
-                int nonExistingJobDocsCount = 0;
-                List<String> nonExistingJobExampleIds = new ArrayList<>();
-                for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
-                    if (hit.getId().startsWith("non_existing_job")) {
-                        nonExistingJobDocsCount++;
-                        if (nonExistingJobExampleIds.size() < 10) {
-                            nonExistingJobExampleIds.add(hit.getId());
-                        }
-                    }
-                }
+            List<String> shortExpiryForecastIds = new ArrayList<>();
+
+            long now = System.currentTimeMillis();
+            long oneDayAgo = now - TimeValue.timeValueHours(48).getMillis() - 1;
+
+            // Start all jobs
+            for (Job.Builder job : jobs) {
+                putJob(job);
+
+                String datafeedId = job.getId() + "-feed";
+                DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
+                datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
+                DatafeedConfig datafeed = datafeedConfig.build();
+
+                putDatafeed(datafeed);
+
+                // Run up to a day ago
+                openJob(job.getId());
+                startDatafeed(datafeedId, 0, now - TimeValue.timeValueHours(24).getMillis());
+            }
+
+            // Now let's wait for all jobs to be closed
+            for (Job.Builder job : jobs) {
+                waitUntilJobIsClosed(job.getId());
+            }
+
+            for (Job.Builder job : jobs) {
+                assertThat(getBuckets(job.getId()).size(), is(greaterThanOrEqualTo(47)));
+                assertThat(getRecords(job.getId()).size(), equalTo(2));
+                List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
+                assertThat(modelSnapshots.size(), equalTo(1));
+                String snapshotDocId = ModelSnapshot.documentId(modelSnapshots.get(0));
+
+                // Update snapshot timestamp to force it out of snapshot retention window
+                String snapshotUpdate = "{ \"timestamp\": " + oneDayAgo + "}";
+                UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + job.getId(), snapshotDocId);
+                updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
+                client().execute(TransportUpdateAction.TYPE, updateSnapshotRequest).get();
+
+                // Now let's create some forecasts
+                openJob(job.getId());
+
+                // We must set a very small value for expires_in to keep this testable as the deletion cutoff point is the moment
+                // the DeleteExpiredDataAction is called.
+                String forecastShortExpiryId = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.timeValueSeconds(1));
+                shortExpiryForecastIds.add(forecastShortExpiryId);
+                String forecastDefaultExpiryId = forecast(job.getId(), TimeValue.timeValueHours(1), null);
+                String forecastNoExpiryId = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
+                waitForecastToFinish(job.getId(), forecastShortExpiryId);
+                waitForecastToFinish(job.getId(), forecastDefaultExpiryId);
+                waitForecastToFinish(job.getId(), forecastNoExpiryId);
+            }
+
+            // Refresh to ensure the snapshot timestamp updates are visible
+            refresh("*");
+
+            // We need to wait for the clock to tick to a new second to ensure the second time
+            // around model snapshots will have a different ID (it depends on epoch seconds)
+            long before = System.currentTimeMillis() / 1000;
+            assertBusy(() -> assertNotEquals(before, System.currentTimeMillis() / 1000), 1, TimeUnit.SECONDS);
+
+            for (Job.Builder job : jobs) {
+                // Run up to now
+                startDatafeed(job.getId() + "-feed", 0, now);
+                waitUntilJobIsClosed(job.getId());
+                assertThat(getBuckets(job.getId()).size(), is(greaterThanOrEqualTo(70)));
+                assertThat(getRecords(job.getId()).size(), equalTo(2));
+                List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
+                assertThat(modelSnapshots.size(), equalTo(2));
+            }
+
+            retainAllSnapshots("snapshots-retention-with-retain");
+
+            long totalModelSizeStatsBeforeDelete = SearchResponseUtils.getTotalHitsValue(
+                prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                    .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
+            );
+            long totalNotificationsCountBeforeDelete = SearchResponseUtils.getTotalHitsValue(
+                prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+            );
+            assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
+            assertThat(totalNotificationsCountBeforeDelete, greaterThan(0L));
+
+            // Verify forecasts were created
+            List<ForecastRequestStats> forecastStats = getForecastStats();
+            assertThat(forecastStats.size(), equalTo(jobs.size() * 3));
+            for (ForecastRequestStats forecastStat : forecastStats) {
                 assertThat(
-                    "Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
-                    nonExistingJobDocsCount,
-                    equalTo(0)
+                    countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()),
+                    equalTo(forecastStat.getRecordCount())
                 );
             }
-        );
+
+            // Before we call the delete-expired-data action we need to make sure the unused state docs were indexed
+            assertFalse(indexUnusedStateDocsResponse.get().hasFailures());
+
+            // Now call the action under test
+            assertThat(deleteExpiredData(customThrottle).isDeleted(), is(true));
+
+            // no-retention job should have kept all data
+            assertThat(getBuckets("no-retention").size(), is(greaterThanOrEqualTo(70)));
+            assertThat(getRecords("no-retention").size(), equalTo(2));
+            assertThat(getModelSnapshots("no-retention").size(), equalTo(2));
+
+            List<Bucket> buckets = getBuckets("results-retention");
+            assertThat(buckets.size(), is(lessThanOrEqualTo(25)));
+            assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
+            assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
+            assertThat(getRecords("results-retention").size(), equalTo(0));
+            assertThat(getModelSnapshots("results-retention").size(), equalTo(2));
+
+            assertThat(getBuckets("snapshots-retention").size(), is(greaterThanOrEqualTo(70)));
+            assertThat(getRecords("snapshots-retention").size(), equalTo(2));
+            assertThat(getModelSnapshots("snapshots-retention").size(), equalTo(1));
+
+            assertThat(getBuckets("snapshots-retention-with-retain").size(), is(greaterThanOrEqualTo(70)));
+            assertThat(getRecords("snapshots-retention-with-retain").size(), equalTo(2));
+            assertThat(getModelSnapshots("snapshots-retention-with-retain").size(), equalTo(2));
+
+            buckets = getBuckets("results-and-snapshots-retention");
+            assertThat(buckets.size(), is(lessThanOrEqualTo(25)));
+            assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
+            assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
+            assertThat(getRecords("results-and-snapshots-retention").size(), equalTo(0));
+            assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
+
+            long totalModelSizeStatsAfterDelete = SearchResponseUtils.getTotalHitsValue(
+                prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                    .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
+            );
+            long totalNotificationsCountAfterDelete = SearchResponseUtils.getTotalHitsValue(
+                prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+            );
+            assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
+            assertThat(totalNotificationsCountAfterDelete, greaterThanOrEqualTo(totalNotificationsCountBeforeDelete));
+
+            // Verify short expiry forecasts were deleted only
+            forecastStats = getForecastStats();
+            assertThat(forecastStats.size(), equalTo(jobs.size() * 2));
+            for (ForecastRequestStats forecastStat : forecastStats) {
+                assertThat(
+                    countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()),
+                    equalTo(forecastStat.getRecordCount())
+                );
+            }
+            for (Job.Builder job : jobs) {
+                for (String forecastId : shortExpiryForecastIds) {
+                    assertThat(countForecastDocs(job.getId(), forecastId), equalTo(0L));
+                }
+            }
+
+            // Verify .ml-state doesn't contain unused state documents
+            assertResponse(
+                prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
+                stateDocsResponse -> {
+                    assertThat(stateDocsResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(5L));
+
+                    int nonExistingJobDocsCount = 0;
+                    List<String> nonExistingJobExampleIds = new ArrayList<>();
+                    for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
+                        if (hit.getId().startsWith("non_existing_job")) {
+                            nonExistingJobDocsCount++;
+                            if (nonExistingJobExampleIds.size() < 10) {
+                                nonExistingJobExampleIds.add(hit.getId());
+                            }
+                        }
+                    }
+                    assertThat(
+                        "Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
+                        nonExistingJobDocsCount,
+                        equalTo(0)
+                    );
+                }
+            );
+        }
     }
 
     public void testDeleteExpiresDataDeletesAnnotations() throws Exception {

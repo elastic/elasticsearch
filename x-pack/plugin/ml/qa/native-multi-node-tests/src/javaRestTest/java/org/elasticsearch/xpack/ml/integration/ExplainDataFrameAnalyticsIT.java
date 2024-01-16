@@ -71,26 +71,27 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             )
             .get();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (int i = 0; i < 30; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            indexRequest.source(
-                "numeric_1",
-                1.0,
-                "numeric_2",
-                2,
-                "categorical",
-                i % 2 == 0 ? "class_1" : "class_2",
-                "filtered_field",
-                i < 2 ? "bingo" : "rest"
-            ); // We tag bingo on the first two docs to ensure we have 2 classes
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            for (int i = 0; i < 30; i++) {
+                IndexRequest indexRequest = new IndexRequest(sourceIndex);
+                indexRequest.source(
+                    "numeric_1",
+                    1.0,
+                    "numeric_2",
+                    2,
+                    "categorical",
+                    i % 2 == 0 ? "class_1" : "class_2",
+                    "filtered_field",
+                    i < 2 ? "bingo" : "rest"
+                ); // We tag bingo on the first two docs to ensure we have 2 classes
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         String id = "test_source_query_is_applied";
@@ -243,15 +244,16 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
                   }
                 }""";
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 10; i++) {
-            Object[] source = new Object[] { "mapped_field", i };
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source).opType(DocWriteRequest.OpType.CREATE);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < 10; i++) {
+                Object[] source = new Object[] { "mapped_field", i };
+                IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source).opType(DocWriteRequest.OpType.CREATE);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+            }
         }
 
         Map<String, Object> configRuntimeField = new HashMap<>();

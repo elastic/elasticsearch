@@ -164,6 +164,11 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
+            ((Runnable) inv.getArguments()[2]).run();
+            return null;
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class), any(Runnable.class));
+        doAnswer(inv -> {
+            ((Runnable) inv.getArguments()[1]).run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(inv -> {
@@ -223,16 +228,15 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         tokenMetadata.put("id_token_hint", signedIdToken.serialize());
         tokenMetadata.put("oidc_realm", REALM_NAME);
         final Authentication authentication = Authentication.newRealmAuthentication(user, realmRef);
-
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
         tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().getAccessToken();
+
         mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, tokenMetadata, false, null, client);
 
         final OpenIdConnectLogoutRequest request = new OpenIdConnectLogoutRequest();
         request.setToken(accessToken);
-
         final PlainActionFuture<OpenIdConnectLogoutResponse> listener = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, listener);
         final OpenIdConnectLogoutResponse response = listener.get();

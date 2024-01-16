@@ -50,18 +50,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
     private final SearchUsageHolder searchUsageHolder;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
 
-    public RestMultiSearchAction(
-        Settings settings,
-        SearchUsageHolder searchUsageHolder,
-        NamedWriteableRegistry namedWriteableRegistry,
-        SearchResponseTookMetrics searchResponseTookMetrics
-    ) {
+    public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder, NamedWriteableRegistry namedWriteableRegistry) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.searchUsageHolder = searchUsageHolder;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
     }
 
     @Override

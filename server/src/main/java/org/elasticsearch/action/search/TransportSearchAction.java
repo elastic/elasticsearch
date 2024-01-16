@@ -589,7 +589,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchResponseTookMetrics
             );
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder)
+                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder, searchResponseTookMetrics)
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);

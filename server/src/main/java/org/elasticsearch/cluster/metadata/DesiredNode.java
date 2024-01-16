@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -104,17 +105,10 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         );
         parser.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> parseVersion(p.text()),
+            (p, c) -> p.text(),
             VERSION_FIELD,
             ObjectParser.ValueType.STRING
         );
-    }
-
-    private static Version parseVersion(String version) {
-        if (version == null || version.isBlank()) {
-            return null;
-        }
-        return Version.fromString(version);
     }
 
     private final Settings settings;
@@ -414,7 +408,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     }
 
     public boolean hasVersion() {
-        return version != null;
+        return Strings.isNullOrBlank(version) == false;
     }
 
     public record ProcessorsRange(Processors min, @Nullable Processors max) implements Writeable, ToXContentObject {

@@ -1251,7 +1251,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 emptyReduceContextBuilder(
                     new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                         .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
-                )
+                ),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             searchResponseMerger.add(searchResponsePartialAggs);
@@ -1371,7 +1372,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 emptyReduceContextBuilder(
                     new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                         .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
-                )
+                ),
+                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             searchResponseMerger.add(searchResponseRemote2);

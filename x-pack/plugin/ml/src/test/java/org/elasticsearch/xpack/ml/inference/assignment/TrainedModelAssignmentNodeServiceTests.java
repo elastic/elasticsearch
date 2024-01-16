@@ -94,7 +94,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(invocationOnMock.getArguments()[0]);
             return null;
-        }).when(deploymentManager).startDeployment(any(), any());
+        }).when(deploymentManager).startDeployment(any(), any(), any());
 
         doAnswer(invocationOnMock -> {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
@@ -119,7 +119,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         // When there are no queued models
         trainedModelAssignmentNodeService.loadQueuedModels();
-        verify(deploymentManager, never()).startDeployment(any(), any());
+        verify(deploymentManager, never()).startDeployment(any(), any(), any());
     }
 
     public void testLoadQueuedModels() {
@@ -142,7 +142,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
             UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
-        verify(deploymentManager, times(2)).startDeployment(taskCapture.capture(), any());
+        verify(deploymentManager, times(2)).startDeployment(taskCapture.capture(), any(), any());
         verify(trainedModelAssignmentService, times(2)).updateModelAssignmentState(requestCapture.capture(), any());
 
         assertThat(taskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
@@ -182,7 +182,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
             UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
-        verify(deploymentManager, times(3)).startDeployment(startTaskCapture.capture(), any());
+        verify(deploymentManager, times(3)).startDeployment(startTaskCapture.capture(), any(), any());
         // Only the successful one is notifying, the failed one keeps retrying but not notifying as it is never successful
         verify(trainedModelAssignmentService, times(1)).updateModelAssignmentState(requestCapture.capture(), any());
 
@@ -243,7 +243,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
             UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
-        verify(deploymentManager, times(1)).startDeployment(startTaskCapture.capture(), any());
+        verify(deploymentManager, times(1)).startDeployment(startTaskCapture.capture(), any(), any());
         assertBusy(() -> verify(trainedModelAssignmentService, times(3)).updateModelAssignmentState(requestCapture.capture(), any()));
 
         boolean seenStopping = false;
@@ -297,7 +297,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
             UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
-        verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any());
+        verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any(), any());
         verify(trainedModelAssignmentService, times(2)).updateModelAssignmentState(requestCapture.capture(), any());
 
         ArgumentCaptor<TrainedModelDeploymentTask> stopTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
@@ -594,7 +594,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.clusterChanged(event);
         trainedModelAssignmentNodeService.loadQueuedModels();
 
-        verify(deploymentManager, never()).startDeployment(any(), any());
+        verify(deploymentManager, never()).startDeployment(any(), any(), any());
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
@@ -717,7 +717,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
             UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
-        verify(deploymentManager, times(1)).startDeployment(startTaskCapture.capture(), any());
+        verify(deploymentManager, times(1)).startDeployment(startTaskCapture.capture(), any(), any());
         verify(trainedModelAssignmentService, times(1)).updateModelAssignmentState(requestCapture.capture(), any());
 
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelOne));
@@ -809,7 +809,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> updateCapture = ArgumentCaptor.forClass(
             UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
-        verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any());
+        verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any(), any());
         verify(trainedModelAssignmentService, times(2)).updateModelAssignmentState(updateCapture.capture(), any());
 
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelOne));
@@ -853,7 +853,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 listener.onResponse(task);
             }
             return null;
-        }).when(deploymentManager).startDeployment(any(), any());
+        }).when(deploymentManager).startDeployment(any(), any(), any());
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -867,7 +867,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 listener.onResponse(task);
             }
             return null;
-        }).when(deploymentManager).startDeployment(any(), any());
+        }).when(deploymentManager).startDeployment(any(), any(), any());
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String deploymentId, String modelId) {

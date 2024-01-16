@@ -16,14 +16,19 @@ coming::[8.12.0]
 [[breaking-changes-8.12]]
 === Breaking changes
 
-The following changes in {es} 8.12 might affect your applications
-and prevent them from operating normally.
-Before upgrading to 8.12, review these changes and take the described steps
-to mitigate the impact.
+There are no breaking changes in 8.12
 
+[discrete]
+[[notable-changes-8.12]]
+=== Notable changes
 
-There are no notable breaking changes in {es} 8.12.
-But there are some less critical breaking changes.
+There are notable changes in 8.12 that you need to be aware of, items that we may consider as notable changes are
+
+* Changes to features that are in Technical Preview.
+* Changes to log formats.
+* Changes to non public APIs.
+* Behaviour changes that repair critical bugs.
+
 
 [discrete]
 [[breaking_812_authorization_changes]]

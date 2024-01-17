@@ -189,7 +189,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_MULTI_CLUSTERS_ENRICH = def(8_576_00_0);
     public static final TransportVersion RESOLVE_CLUSTER_ENDPOINT_ADDED = def(8_577_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

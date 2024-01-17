@@ -85,8 +85,12 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
                 int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
                 for (int point = 0; point < bucketRate; point++) {
                     IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
-                    indexRequest.source("time", timestamp);
-                    bulkRequestBuilder.add(indexRequest);
+                    try {
+                        indexRequest.source("time", timestamp);
+                        bulkRequestBuilder.add(indexRequest);
+                    } finally {
+                        indexRequest.decRef();
+                    }
                 }
             }
 
@@ -164,8 +168,13 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
             for (int i = 0; i < numUnusedState; i++) {
                 String docId = "non_existing_job_" + randomFrom("model_state_1234567#" + i, "quantiles", "categorizer_state#" + i);
-                IndexRequest indexRequest = new IndexRequest(mlStateIndexName).id(docId).source(Collections.emptyMap());
-                bulkRequestBuilder.add(indexRequest);
+                IndexRequest indexRequest = new IndexRequest(mlStateIndexName);
+                try {
+                    indexRequest.id(docId).source(Collections.emptyMap());
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             ActionFuture<BulkResponse> indexUnusedStateDocsResponse = bulkRequestBuilder.execute();
             List<Job.Builder> jobs = new ArrayList<>();
@@ -233,8 +242,12 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
                 // Update snapshot timestamp to force it out of snapshot retention window
                 String snapshotUpdate = "{ \"timestamp\": " + oneDayAgo + "}";
                 UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + job.getId(), snapshotDocId);
-                updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
-                client().execute(TransportUpdateAction.TYPE, updateSnapshotRequest).get();
+                try {
+                    updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
+                    client().execute(TransportUpdateAction.TYPE, updateSnapshotRequest).get();
+                } finally {
+                    updateSnapshotRequest.decRef();
+                }
 
                 // Now let's create some forecasts
                 openJob(job.getId());
@@ -404,19 +417,15 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThatNumberOfAnnotationsIsEqualTo(1);
 
         // The following 4 annotations are created by the system and the 2 oldest ones *will* be deleted
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(1)), InternalUsers.XPACK_USER.principal()))
-            .actionGet();
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(2)), InternalUsers.XPACK_USER.principal()))
-            .actionGet();
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(3)), InternalUsers.XPACK_USER.principal()))
-            .actionGet();
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(4)), InternalUsers.XPACK_USER.principal()))
-            .actionGet();
+        indexRandomAnnotation(jobId, now.minus(Duration.ofDays(1)), InternalUsers.XPACK_USER.principal());
+        indexRandomAnnotation(jobId, now.minus(Duration.ofDays(2)), InternalUsers.XPACK_USER.principal());
+        indexRandomAnnotation(jobId, now.minus(Duration.ofDays(3)), InternalUsers.XPACK_USER.principal());
+        indexRandomAnnotation(jobId, now.minus(Duration.ofDays(4)), InternalUsers.XPACK_USER.principal());
         // The following 4 annotations are created by the user and *will not* be deleted
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(1)), USER_NAME)).actionGet();
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(2)), USER_NAME)).actionGet();
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(3)), USER_NAME)).actionGet();
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(4)), USER_NAME)).actionGet();
+        indexRandomAnnotation(jobId, now.minus(Duration.ofDays(1)), USER_NAME);
+        indexRandomAnnotation(jobId, now.minus(Duration.ofDays(2)), USER_NAME);
+        indexRandomAnnotation(jobId, now.minus(Duration.ofDays(3)), USER_NAME);
+        indexRandomAnnotation(jobId, now.minus(Duration.ofDays(4)), USER_NAME);
 
         assertThatNumberOfAnnotationsIsEqualTo(9);
 
@@ -426,14 +435,18 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThatNumberOfAnnotationsIsEqualTo(7);
     }
 
-    private static IndexRequest randomAnnotationIndexRequest(String jobId, Instant timestamp, String createUsername) throws IOException {
+    private static void indexRandomAnnotation(String jobId, Instant timestamp, String createUsername) throws IOException {
         Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setTimestamp(Date.from(timestamp))
             .setCreateUsername(createUsername)
             .build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME).source(xContentBuilder)
-                .setRequireAlias(true)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            try {
+                indexRequest.source(xContentBuilder).setRequireAlias(true).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                client().index(indexRequest).actionGet();
+            } finally {
+                indexRequest.decRef();
+            }
         }
     }
 

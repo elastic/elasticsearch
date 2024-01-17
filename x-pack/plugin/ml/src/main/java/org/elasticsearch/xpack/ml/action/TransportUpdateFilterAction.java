@@ -119,43 +119,59 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         UpdateFilterAction.Request request,
         ActionListener<PutFilterAction.Response> listener
     ) {
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
-        indexRequest.setIfSeqNo(seqNo);
-        indexRequest.setIfPrimaryTerm(primaryTerm);
-        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName());
+        try {
+            indexRequest.id(filter.documentId());
+            indexRequest.setIfSeqNo(seqNo);
+            indexRequest.setIfPrimaryTerm(primaryTerm);
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
-            indexRequest.source(filter.toXContent(builder, params));
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
-        }
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(DocWriteResponse indexResponse) {
-                jobManager.notifyFilterChanged(
-                    filter,
-                    request.getAddItems(),
-                    request.getRemoveItems(),
-                    listener.delegateFailureAndWrap((l, response) -> l.onResponse(new PutFilterAction.Response(filter)))
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                ToXContent.MapParams params = new ToXContent.MapParams(
+                    Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")
                 );
+                indexRequest.source(filter.toXContent(builder, params));
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
             }
 
-            @Override
-            public void onFailure(Exception e) {
-                Exception reportedException;
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    reportedException = ExceptionsHelper.conflictStatusException(
-                        "Error updating filter with id [" + filter.getId() + "] because it was modified while the update was in progress",
-                        e
-                    );
-                } else {
-                    reportedException = ExceptionsHelper.serverError("Error updating filter with id [" + filter.getId() + "]", e);
-                }
-                listener.onFailure(reportedException);
-            }
-        });
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(DocWriteResponse indexResponse) {
+                        jobManager.notifyFilterChanged(
+                            filter,
+                            request.getAddItems(),
+                            request.getRemoveItems(),
+                            listener.delegateFailureAndWrap((l, response) -> l.onResponse(new PutFilterAction.Response(filter)))
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Exception reportedException;
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            reportedException = ExceptionsHelper.conflictStatusException(
+                                "Error updating filter with id ["
+                                    + filter.getId()
+                                    + "] because it was modified while the update was in progress",
+                                e
+                            );
+                        } else {
+                            reportedException = ExceptionsHelper.serverError("Error updating filter with id [" + filter.getId() + "]", e);
+                        }
+                        listener.onFailure(reportedException);
+                    }
+                }, indexRequest::decRef)
+            );
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 
     private void getFilterWithVersion(String filterId, ActionListener<FilterWithSeqNo> listener) {

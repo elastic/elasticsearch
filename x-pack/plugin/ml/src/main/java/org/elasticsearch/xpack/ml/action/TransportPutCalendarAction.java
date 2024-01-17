@@ -49,40 +49,54 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     protected void doExecute(Task task, PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         Calendar calendar = request.getCalendar();
 
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(calendar.documentId());
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            indexRequest.source(
-                calendar.toXContent(
-                    builder,
-                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
-                )
+        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName());
+        try {
+            indexRequest.id(calendar.documentId());
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                indexRequest.source(
+                    calendar.toXContent(
+                        builder,
+                        new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
+                    )
+                );
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to serialise calendar with id [" + calendar.getId() + "]", e);
+            }
+
+            // Make it an error to overwrite an existing calendar
+            indexRequest.opType(DocWriteRequest.OpType.CREATE);
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(DocWriteResponse indexResponse) {
+                        listener.onResponse(new PutCalendarAction.Response(calendar));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            listener.onFailure(
+                                ExceptionsHelper.badRequestException(
+                                    "Cannot create calendar with id [" + calendar.getId() + "] as it already exists"
+                                )
+                            );
+                        } else {
+                            listener.onFailure(
+                                ExceptionsHelper.serverError("Error putting calendar with id [" + calendar.getId() + "]", e)
+                            );
+                        }
+                    }
+                }, indexRequest::decRef)
             );
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to serialise calendar with id [" + calendar.getId() + "]", e);
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
         }
-
-        // Make it an error to overwrite an existing calendar
-        indexRequest.opType(DocWriteRequest.OpType.CREATE);
-        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(DocWriteResponse indexResponse) {
-                listener.onResponse(new PutCalendarAction.Response(calendar));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    listener.onFailure(
-                        ExceptionsHelper.badRequestException(
-                            "Cannot create calendar with id [" + calendar.getId() + "] as it already exists"
-                        )
-                    );
-                } else {
-                    listener.onFailure(ExceptionsHelper.serverError("Error putting calendar with id [" + calendar.getId() + "]", e));
-                }
-            }
-        });
     }
 }

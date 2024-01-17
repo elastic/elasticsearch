@@ -223,10 +223,14 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             for (int i = 0; i < numDocs; i++) {
                 IndexRequest indexRequest = new IndexRequest(index);
-                long timestamp = start + randomIntBetween(0, maxDelta);
-                assert timestamp >= start && timestamp < end;
-                indexRequest.source("time", timestamp, "value", i);
-                bulkRequestBuilder.add(indexRequest);
+                try {
+                    long timestamp = start + randomIntBetween(0, maxDelta);
+                    assert timestamp >= start && timestamp < end;
+                    indexRequest.source("time", timestamp, "value", i);
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             if (bulkResponse.hasFailures()) {

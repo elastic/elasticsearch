@@ -14,7 +14,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
@@ -29,21 +29,14 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
 
 public class CohereEmbeddingsRequest implements Request {
 
-    private final Truncator truncator;
     private final CohereAccount account;
-    private final Truncator.TruncationResult truncationResult;
+    private final List<String> input;
     private final URI uri;
     private final CohereEmbeddingsTaskSettings taskSettings;
 
-    public CohereEmbeddingsRequest(
-        Truncator truncator,
-        CohereAccount account,
-        Truncator.TruncationResult input,
-        CohereEmbeddingsTaskSettings taskSettings
-    ) {
-        this.truncator = Objects.requireNonNull(truncator);
+    public CohereEmbeddingsRequest(CohereAccount account, List<String> input, CohereEmbeddingsTaskSettings taskSettings) {
         this.account = Objects.requireNonNull(account);
-        this.truncationResult = Objects.requireNonNull(input);
+        this.input = Objects.requireNonNull(input);
         this.uri = buildUri(this.account.url(), "Cohere", CohereEmbeddingsRequest::buildDefaultUri);
         this.taskSettings = Objects.requireNonNull(taskSettings);
     }
@@ -53,7 +46,7 @@ public class CohereEmbeddingsRequest implements Request {
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new CohereEmbeddingsRequestEntity(truncationResult.input(), taskSettings)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new CohereEmbeddingsRequestEntity(input, taskSettings)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -70,15 +63,21 @@ public class CohereEmbeddingsRequest implements Request {
 
     @Override
     public Request truncate() {
-        // TODO only do this is the truncate setting is NONE?
-        var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new CohereEmbeddingsRequest(truncator, account, truncatedInput, taskSettings);
+        return this;
+        // TODO only do this is the truncate setting is NONE?
+        // var truncatedInput = truncator.truncate(truncationResult.input());
+        //
+        // return new CohereEmbeddingsRequest(truncator, account, truncatedInput, taskSettings);
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        return truncationResult.truncated().clone();
+        return null;
+    }
+
+    public CohereEmbeddingsTaskSettings getTaskSettings() {
+        return taskSettings;
     }
 
     // default for testing

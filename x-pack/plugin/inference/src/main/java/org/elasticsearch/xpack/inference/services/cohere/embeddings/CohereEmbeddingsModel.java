@@ -76,4 +76,13 @@ public class CohereEmbeddingsModel extends CohereModel {
     public ExecutableAction accept() {
         return null;
     }
+
+    public CohereEmbeddingsModel overrideWith(Map<String, Object> taskSettings) {
+        if (taskSettings == null || taskSettings.isEmpty()) {
+            return this;
+        }
+
+        var requestTaskSettings = CohereEmbeddingsTaskSettings.fromMap(taskSettings);
+        return new CohereEmbeddingsModel(this, getTaskSettings().overrideWith(requestTaskSettings));
+    }
 }

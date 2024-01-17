@@ -109,6 +109,10 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
+    public static String mustBeNonEmptyList(String settingName, String scope) {
+        return Strings.format("[%s] Invalid value empty list. [%s] must be a non-empty list", scope, settingName);
+    }
+
     public static String invalidType(String settingName, String scope, String invalidType, String invalidValue, String requiredType) {
         return Strings.format(
             "[%s] Invalid type [%s] received for value [%s]. [%s] must be type [%s]",
@@ -191,6 +195,54 @@ public class ServiceUtils {
         return null;
     }
 
+    public static <T> List<T> extractOptionalListOfEnums(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        CheckedFunction<String, T, IllegalArgumentException> converter,
+        T[] validTypes,
+        ValidationException validationException
+    ) {
+        List<?> listField = ServiceUtils.removeAsType(map, settingName, List.class);
+        if (listField == null) {
+            return null;
+        }
+
+        if (listField.isEmpty()) {
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyList(settingName, scope));
+            return null;
+        }
+
+        var validTypesAsStrings = Arrays.stream(validTypes).map(type -> type.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+
+        List<T> castedList = new ArrayList<>(listField.size());
+
+        for (Object listEntry : listField) {
+            if (listEntry instanceof String == false) {
+                validationException.addValidationError(
+                    invalidType(
+                        settingName,
+                        scope,
+                        listEntry.getClass().getSimpleName(),
+                        listEntry.toString(),
+                        String.class.getSimpleName()
+                    )
+                );
+                return null;
+            }
+
+            var stringEntry = (String) listEntry;
+            try {
+                castedList.add(converter.apply(stringEntry));
+            } catch (IllegalArgumentException e) {
+                validationException.addValidationError(invalidValue(settingName, scope, stringEntry, validTypesAsStrings));
+                return null;
+            }
+        }
+
+        return castedList;
+    }
+
     @SuppressWarnings("unchecked")
     public static <T> List<T> extractOptionalListOfType(
         Map<String, Object> map,
@@ -206,7 +258,7 @@ public class ServiceUtils {
         }
 
         if (listField.isEmpty()) {
-            validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyList(settingName, scope));
             return null;
         }
 

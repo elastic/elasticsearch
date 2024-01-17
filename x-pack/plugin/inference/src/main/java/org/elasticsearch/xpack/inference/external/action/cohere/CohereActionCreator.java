@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.action.cohere;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 
 import java.util.Map;
 import java.util.Objects;
@@ -18,17 +18,17 @@ import java.util.Objects;
 /**
  * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the openai model type.
  */
-public class OpenAiActionCreator implements OpenAiActionVisitor {
+public class CohereActionCreator implements CohereActionVisitor {
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
-    public OpenAiActionCreator(Sender sender, ServiceComponents serviceComponents) {
+    public CohereActionCreator(Sender sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
     @Override
-    public ExecutableAction create(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
+    public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
         var overriddenModel = model.overrideWith(taskSettings);
 
         return new CohereEmbeddingsAction(sender, overriddenModel, serviceComponents);

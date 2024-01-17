@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfType;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfEnums;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.MODEL;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.TRUNCATE;
@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFie
 public record CohereEmbeddingsTaskSettings(
     @Nullable String model,
     @Nullable InputType inputType,
-    @Nullable List<String> embeddingTypes,
+    @Nullable List<CohereEmbeddingType> embeddingTypes,
     @Nullable CohereTruncation truncation
 ) implements TaskSettings {
 
@@ -69,11 +69,12 @@ public record CohereEmbeddingsTaskSettings(
             InputType.values(),
             validationException
         );
-        List<String> embeddingTypes = extractOptionalListOfType(
+        List<CohereEmbeddingType> embeddingTypes = extractOptionalListOfEnums(
             map,
             EMBEDDING_TYPES,
             ModelConfigurations.TASK_SETTINGS,
-            String.class,
+            CohereEmbeddingType::fromString,
+            CohereEmbeddingType.values(),
             validationException
         );
         CohereTruncation truncation = extractOptionalEnum(
@@ -93,7 +94,12 @@ public record CohereEmbeddingsTaskSettings(
     }
 
     public CohereEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalString(), InputType.fromStream(in), in.readOptionalStringCollectionAsList(), CohereTruncation.fromStream(in));
+        this(
+            in.readOptionalString(),
+            InputType.fromStream(in),
+            in.readOptionalCollectionAsList(CohereEmbeddingType::fromStream),
+            CohereTruncation.fromStream(in)
+        );
     }
 
     @Override
@@ -132,7 +138,16 @@ public record CohereEmbeddingsTaskSettings(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(model);
         inputType.writeTo(out);
-        out.writeOptionalStringCollection(embeddingTypes);
+        out.writeOptionalCollection(embeddingTypes);
         truncation.writeTo(out);
+    }
+
+    public CohereEmbeddingsTaskSettings overrideWith(CohereEmbeddingsTaskSettings requestTaskSettings) {
+        var modelToUse = requestTaskSettings.model() == null ? model : requestTaskSettings.model();
+        var inputTypeToUse = requestTaskSettings.inputType() == null ? inputType : requestTaskSettings.inputType();
+        var embeddingTypesToUse = requestTaskSettings.embeddingTypes() == null ? embeddingTypes : requestTaskSettings.embeddingTypes();
+        var truncationToUse = requestTaskSettings.truncation() == null ? truncation : requestTaskSettings.truncation();
+
+        return new CohereEmbeddingsTaskSettings(modelToUse, inputTypeToUse, embeddingTypesToUse, truncationToUse);
     }
 }

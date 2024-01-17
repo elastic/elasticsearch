@@ -45,7 +45,7 @@ public record CohereEmbeddingsRequestEntity(List<String> input, CohereEmbeddings
         }
 
         if (taskSettings.truncation() != null) {
-            builder.field(EMBEDDING_TYPES_FIELD, taskSettings.truncation());
+            builder.field(CohereServiceFields.TRUNCATE, taskSettings.truncation());
         }
 
         builder.endObject();

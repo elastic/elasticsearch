@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -29,7 +29,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public static CohereEmbeddingsTaskSettings createRandom() {
         var model = randomBoolean() ? randomAlphaOfLength(15) : null;
         var inputType = randomBoolean() ? randomFrom(InputType.values()) : null;
-        var embeddingTypes = randomBoolean() ? List.of(randomAlphaOfLength(6)) : null;
+        var embeddingTypes = randomBoolean() ? List.of(randomFrom(CohereEmbeddingType.values())) : null;
         var truncation = randomBoolean() ? randomFrom(CohereTruncation.values()) : null;
 
         return new CohereEmbeddingsTaskSettings(model, inputType, embeddingTypes, truncation);
@@ -52,13 +52,20 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
                         CohereEmbeddingsTaskSettings.INPUT_TYPE,
                         InputType.INGEST.toString().toLowerCase(Locale.ROOT),
                         CohereEmbeddingsTaskSettings.EMBEDDING_TYPES,
-                        List.of("abc", "123"),
+                        List.of(CohereEmbeddingType.FLOAT, CohereEmbeddingType.INT8),
                         CohereServiceFields.TRUNCATE,
                         CohereTruncation.END.toString().toLowerCase(Locale.ROOT)
                     )
                 )
             ),
-            is(new CohereEmbeddingsTaskSettings("abc", InputType.INGEST, List.of("abc", "123"), CohereTruncation.END))
+            is(
+                new CohereEmbeddingsTaskSettings(
+                    "abc",
+                    InputType.INGEST,
+                    List.of(CohereEmbeddingType.FLOAT, CohereEmbeddingType.INT8),
+                    CohereTruncation.END
+                )
+            )
         );
     }
 
@@ -77,9 +84,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
         var exception = expectThrows(
             ValidationException.class,
-            () -> CohereEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.EMBEDDING_TYPES, List.of("abc", 123)))
-            )
+            () -> CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.EMBEDDING_TYPES, List.of("abc"))))
         );
 
         MatcherAssert.assertThat(
@@ -89,6 +94,28 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
                     + " received for value [123]. [embedding_types] must be type [String];"
             )
         );
+    }
+
+    public void testOverrideWith_KeepsOriginalValuesWhenOverridesAreNull() {
+        var taskSettings = CohereEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(CohereServiceFields.MODEL, "model", CohereServiceFields.TRUNCATE, CohereTruncation.END.toString()))
+        );
+
+        var overriddenTaskSettings = taskSettings.overrideWith(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS);
+        MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
+    }
+
+    public void testOverrideWith_UsesOverriddenSettings() {
+        var taskSettings = CohereEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(CohereServiceFields.MODEL, "model", CohereServiceFields.TRUNCATE, CohereTruncation.END.toString()))
+        );
+
+        var requestTaskSettings = CohereEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(CohereServiceFields.TRUNCATE, CohereTruncation.START.toString()))
+        );
+
+        var overriddenTaskSettings = taskSettings.overrideWith(requestTaskSettings);
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings("model", null, null, CohereTruncation.START)));
     }
 
     @Override
@@ -106,7 +133,30 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         return null;
     }
 
-    public static Map<String, Object> getTaskSettingsMap() {
-        return new HashMap<>(Collections.emptyMap());
+    public static Map<String, Object> getTaskSettingsMap(
+        @Nullable String model,
+        @Nullable InputType inputType,
+        @Nullable List<String> embeddingTypes,
+        @Nullable CohereTruncation truncation
+    ) {
+        var map = new HashMap<String, Object>();
+
+        if (model != null) {
+            map.put(CohereServiceFields.MODEL, model);
+        }
+
+        if (inputType != null) {
+            map.put(CohereEmbeddingsTaskSettings.INPUT_TYPE, inputType);
+        }
+
+        if (embeddingTypes != null) {
+            map.put(CohereEmbeddingsTaskSettings.EMBEDDING_TYPES, embeddingTypes);
+        }
+
+        if (truncation != null) {
+            map.put(CohereServiceFields.TRUNCATE, truncation);
+        }
+
+        return map;
     }
 }

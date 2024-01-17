@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.inference.external.action.cohere;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 
 import java.util.Map;
 
-public interface OpenAiActionVisitor {
-    ExecutableAction create(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings);
+public interface CohereActionVisitor {
+    ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings);
 }

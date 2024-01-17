@@ -149,7 +149,7 @@ public class HuggingFaceEmbeddingsResponseEntity {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
 
         List<Float> embeddingValues = XContentParserUtils.parseList(parser, HuggingFaceEmbeddingsResponseEntity::parseEmbeddingList);
-        return new TextEmbeddingResults.Embedding(embeddingValues);
+        return TextEmbeddingResults.Embedding.of(embeddingValues);
     }
 
     private static float parseEmbeddingList(XContentParser parser) throws IOException {

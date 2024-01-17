@@ -14,6 +14,9 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xpack.core.inference.results.ByteValue;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingValue;
+import org.elasticsearch.xpack.core.inference.results.FloatValue;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
@@ -49,6 +52,8 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new)
         );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EmbeddingValue.class, FloatValue.NAME, FloatValue::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EmbeddingValue.class, ByteValue.NAME, ByteValue::new));
 
         // Empty default task settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));

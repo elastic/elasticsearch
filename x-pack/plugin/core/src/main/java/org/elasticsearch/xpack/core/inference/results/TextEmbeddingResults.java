@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -51,10 +53,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     @SuppressWarnings("deprecation")
     TextEmbeddingResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
         this(
-            legacyTextEmbeddingResults.embeddings()
-                .stream()
-                .map(embedding -> new Embedding(embedding.values()))
-                .collect(Collectors.toList())
+            legacyTextEmbeddingResults.embeddings().stream().map(embedding -> Embedding.of(embedding.values())).collect(Collectors.toList())
         );
     }
 
@@ -81,7 +80,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(embedding -> embedding.values.stream().mapToDouble(value -> value).toArray())
+            .map(embedding -> embedding.values.stream().mapToDouble(value -> value.getValue().doubleValue()).toArray())
             .map(values -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING, values, false))
             .toList();
     }
@@ -90,7 +89,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     @SuppressWarnings("deprecation")
     public List<? extends InferenceResults> transformToLegacyFormat() {
         var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.values)).toList()
+            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.toFloats())).toList()
         );
 
         return List.of(legacyEmbedding);
@@ -103,16 +102,43 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         return map;
     }
 
-    public record Embedding(List<Float> values) implements Writeable, ToXContentObject {
+    public static class Embedding implements Writeable, ToXContentObject {
         public static final String EMBEDDING = "embedding";
 
+        public static Embedding of(List<Float> values) {
+            return new Embedding(convertFloatsToEmbeddingValues(values));
+        }
+
+        private final List<EmbeddingValue> values;
+
+        public Embedding(List<EmbeddingValue> values) {
+            this.values = values;
+        }
+
         public Embedding(StreamInput in) throws IOException {
-            this(in.readCollectionAsImmutableList(StreamInput::readFloat));
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED)) {
+                values = in.readNamedWriteableCollectionAsList(EmbeddingValue.class);
+            } else {
+                values = convertFloatsToEmbeddingValues(in.readCollectionAsImmutableList(StreamInput::readFloat));
+            }
+        }
+
+        private static List<EmbeddingValue> convertFloatsToEmbeddingValues(List<Float> floats) {
+            return floats.stream().map(FloatValue::new).collect(Collectors.toList());
+        }
+
+        public List<Float> toFloats() {
+            return values.stream().map(value -> value.getValue().floatValue()).toList();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(values, StreamOutput::writeFloat);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED)) {
+                out.writeNamedWriteableCollection(values);
+            } else {
+                // TODO do we need to check that the values are floats here?
+                out.writeCollection(toFloats(), StreamOutput::writeFloat);
+            }
         }
 
         @Override
@@ -120,7 +146,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
             builder.startObject();
 
             builder.startArray(EMBEDDING);
-            for (Float value : values) {
+            for (EmbeddingValue value : values) {
                 builder.value(value);
             }
             builder.endArray();
@@ -132,6 +158,19 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Embedding embedding = (Embedding) o;
+            return Objects.equals(values, embedding.values);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(values);
         }
 
         public Map<String, Object> asMap() {

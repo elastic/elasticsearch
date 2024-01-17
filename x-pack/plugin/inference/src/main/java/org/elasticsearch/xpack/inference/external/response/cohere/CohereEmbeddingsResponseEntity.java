@@ -9,22 +9,37 @@ package org.elasticsearch.xpack.inference.external.response.cohere;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.ByteValue;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingValue;
+import org.elasticsearch.xpack.core.inference.results.FloatValue;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType.toLowerCase;
 
 public class CohereEmbeddingsResponseEntity {
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Cohere embeddings response";
+
+    private static final Map<String, CheckedFunction<XContentParser, EmbeddingValue, IOException>> EMBEDDING_PARSERS = Map.of(
+        toLowerCase(CohereEmbeddingType.FLOAT),
+        CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry,
+        toLowerCase(CohereEmbeddingType.INT8),
+        CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry
+    );
 
     /**
      * Parses the OpenAI json response.
@@ -81,23 +96,77 @@ public class CohereEmbeddingsResponseEntity {
             XContentParser.Token token = jsonParser.currentToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
-            positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
+            // TODO can't really rely on the texts field being before embeddings, this will need to be a loop
+            // we don't return the is_truncated result for text embeddings so we don't really need this yet
+            positionParserAtTokenAfterField(jsonParser, "texts", FAILED_TO_FIND_FIELD_TEMPLATE);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, jsonParser.currentToken(), jsonParser);
 
-            List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
+            List<String> inputAfterTruncation = XContentParserUtils.parseList(
                 jsonParser,
-                CohereEmbeddingsResponseEntity::parseEmbeddingObject
+                CohereEmbeddingsResponseEntity::parseTruncatedTextsField
             );
 
-            return new TextEmbeddingResults(embeddingList);
+            positionParserAtTokenAfterField(jsonParser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
+            // TODO we don't need this yet, just require that the embedding type be a single string so that
+            // this is always the second style
+            token = jsonParser.currentToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                return parseEmbeddingsObject(jsonParser);
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
+                    jsonParser,
+                    parser -> CohereEmbeddingsResponseEntity.parseEmbeddingsArray(
+                        parser,
+                        CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry
+                    )
+                );
+
+                return new TextEmbeddingResults(embeddingList);
+            } else {
+                throwUnknownToken(token, jsonParser);
+            }
+
+            // This should never be reached. The above code should either return successfully or hit the throwUnknownToken
+            // or throw a parsing exception
+            throw new IllegalStateException("Reached an invalid state while parsing the Cohere response");
         }
     }
 
-    private static TextEmbeddingResults.Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+    private static String parseTruncatedTextsField(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+        return parser.text();
+    }
 
-        positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
+    private static TextEmbeddingResults parseEmbeddingsObject(XContentParser parser) throws IOException {
+        XContentParser.Token token;
 
-        List<Float> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingList);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                var embeddingValueParser = EMBEDDING_PARSERS.get(parser.currentName());
+                if (embeddingValueParser == null) {
+                    continue;
+                }
+
+                parser.nextToken();
+                var embeddingList = XContentParserUtils.parseList(
+                    parser,
+                    listParser -> CohereEmbeddingsResponseEntity.parseEmbeddingsArray(listParser, embeddingValueParser)
+                );
+
+                return new TextEmbeddingResults(embeddingList);
+            }
+        }
+
+        throw new IllegalStateException("Failed to find a supported embedding type");
+    }
+
+    private static TextEmbeddingResults.Embedding parseEmbeddingsArray(
+        XContentParser parser,
+        CheckedFunction<XContentParser, EmbeddingValue, IOException> parseEntry
+    ) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+
+        List<EmbeddingValue> embeddingValues = XContentParserUtils.parseList(parser, parseEntry);
 
         // the parser is currently sitting at an ARRAY_END so go to the next token
         parser.nextToken();
@@ -107,10 +176,25 @@ public class CohereEmbeddingsResponseEntity {
         return new TextEmbeddingResults.Embedding(embeddingValues);
     }
 
-    private static float parseEmbeddingList(XContentParser parser) throws IOException {
+    private static FloatValue parseEmbeddingFloatEntry(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-        return parser.floatValue();
+        return new FloatValue(parser.floatValue());
+    }
+
+    private static ByteValue parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+        var parsedByte = parser.shortValue();
+        checkByteBounds(parsedByte);
+
+        return new ByteValue((byte) parsedByte);
+    }
+
+    private static void checkByteBounds(short value) {
+        if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+        }
     }
 
     private CohereEmbeddingsResponseEntity() {}

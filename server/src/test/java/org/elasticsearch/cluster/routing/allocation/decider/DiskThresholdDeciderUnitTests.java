@@ -52,7 +52,6 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.hamcrest.Matchers.containsString;
@@ -541,13 +540,12 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         for (int i = 0; i < searchableSnapshotIndex.getNumberOfShards(); i++) {
             var shardSize = randomLongBetween(10, 50);
             // a shard relocating to this node
-            ShardRouting initializingShard = newShardRouting(
+            ShardRouting initializingShard = aShardRouting(
                 new ShardId(regularIndex.getIndex(), i),
                 nodeId,
                 true,
-                ShardRoutingState.INITIALIZING,
-                PeerRecoverySource.INSTANCE
-            );
+                ShardRoutingState.INITIALIZING
+            ).withRecoverySource(PeerRecoverySource.INSTANCE).build();
             regularIndexRoutingTableBuilder.addShard(initializingShard);
             knownShardSizes.put(shardIdentifierFromRouting(initializingShard), shardSize);
             relocatingShardsSizes += shardSize;

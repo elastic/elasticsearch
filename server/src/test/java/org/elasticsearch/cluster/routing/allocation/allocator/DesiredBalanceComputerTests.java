@@ -895,7 +895,10 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 ShardId index2ShardId = shardIdFrom(indexMetadata2, 0);
                 routingTableBuilder.add(
                     IndexRoutingTable.builder(indexMetadata2.getIndex())
-                        .addShard(newShardRouting(index2ShardId, "node-1", true, INITIALIZING, index2SnapshotRecoverySource))
+                        .addShard(
+                            aShardRouting(index2ShardId, "node-1", true, INITIALIZING).withRecoverySource(index2SnapshotRecoverySource)
+                                .build()
+                        )
                 );
                 if (randomBoolean()) {
                     // Shard is 75% downloaded
@@ -909,7 +912,10 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 ShardId index2ShardId = shardIdFrom(indexMetadata2, 0);
                 routingTableBuilder.add(
                     IndexRoutingTable.builder(indexMetadata2.getIndex())
-                        .addShard(newShardRouting(index2ShardId, "node-2", true, INITIALIZING, index2SnapshotRecoverySource))
+                        .addShard(
+                            aShardRouting(index2ShardId, "node-2", true, INITIALIZING).withRecoverySource(index2SnapshotRecoverySource)
+                                .build()
+                        )
                 );
                 if (randomBoolean()) {
                     // Shard is 75% downloaded

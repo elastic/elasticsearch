@@ -64,7 +64,7 @@ ROW a=null, b="b"
 ;
 
 // tag::coalesce-result[]
-a:null | b:keyword | COALESCE(a,b):keyword
+a:null | b:keyword | COALESCE(a, b):keyword
   null |         b | b
 // end::coalesce-result[]
 ;

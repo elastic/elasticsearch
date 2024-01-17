@@ -95,7 +95,7 @@ FROM hosts
 ;
 
 // tag::count-distinct-precision-result[]
-COUNT_DISTINCT(ip0,80000):long | COUNT_DISTINCT(ip1,5):long
+COUNT_DISTINCT(ip0, 80000):long | COUNT_DISTINCT(ip1, 5):long
 7                              | 9
 // end::count-distinct-precision-result[]
 ;

@@ -74,10 +74,6 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
-            "1:19: aggregate function's field must be an attribute or literal; found [length(first_name)] of type [Length]",
-            error("from test | stats count(length(first_name)) by first_name")
-        );
-        assertEquals(
             "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",
             error("from test | stats x = emp_no + avg(emp_no) by emp_no")
         );

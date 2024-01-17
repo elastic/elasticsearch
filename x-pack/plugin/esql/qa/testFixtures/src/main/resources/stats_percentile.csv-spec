@@ -85,7 +85,7 @@ FROM employees
 ;
 
 // tag::median-result[]
-MEDIAN(salary):double | PERCENTILE(salary,50):double
+MEDIAN(salary):double | PERCENTILE(salary, 50):double
 47003                 | 47003    
 // end::median-result[]
 ;

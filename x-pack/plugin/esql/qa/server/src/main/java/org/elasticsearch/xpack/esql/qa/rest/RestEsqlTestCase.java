@@ -372,7 +372,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     // Regression test for issue
     // https://github.com/elastic/elasticsearch/issues/99960
     public void testFilterWithImplicitConversion() throws IOException {
-        // TODO also add (csv?) tests with MVs
         bulkLoadTestData(1);
 
         String sign = randomBoolean() ? "" : "-";
@@ -406,8 +405,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // Long
             new ImplicitCastCase("long", toIntLongOrDouble + "(" + sign + "1)"),
             new ImplicitCastCase("long", toIntLongOrDouble + "(" + sign + "1)"),
-            // TODO: add long/double out of range cases also to optimizer unit tests
-            // TODO: add infty/NaN cases also to optimizer unit tests
             new ImplicitCastCase("long", sign + "(to_double(9223372036854775807) + 2.0)"),
             // Unsigned Long
             new ImplicitCastCase("unsigned_long", "to_ul(9223372036854775808)"),
@@ -419,12 +416,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             new ImplicitCastCase("half_float", toLongOrDouble + "(" + sign + "1000000000000)"),
             new ImplicitCastCase("float", toIntLongOrDouble + "(" + sign + "1.0)"),
             new ImplicitCastCase("float", "to_double(" + sign + "3.4028235) * pow(10.0, 38)"),
-            // TODO: https://github.com/elastic/elasticsearch/issues/100130
             new ImplicitCastCase("float", "to_double(" + sign + "1.797693134862315) * pow(10.0, 307)"),
             new ImplicitCastCase("double", toIntLongOrDouble + "(" + sign + "1)"),
-            // TODO: check +-infty and NaN for all data types
             new ImplicitCastCase("double", "(" + sign + "0.0)/0.0"),
             new ImplicitCastCase("double", "(" + sign + "1.0)/0.0"),
+            // Multi-valued literals
+            new ImplicitCastCase("double", "[1.0, 2.1]"),
             // Other types
             new ImplicitCastCase("text", "\"foo\""),
             new ImplicitCastCase("wildcard", "\"foo\"")

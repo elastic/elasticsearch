@@ -330,7 +330,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         );
     }
 
-    protected SearchResponse(
+    public SearchResponse(
         SearchHits hits,
         Aggregations aggregations,
         Suggest suggest,

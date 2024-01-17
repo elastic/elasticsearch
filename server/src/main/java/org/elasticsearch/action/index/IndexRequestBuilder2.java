@@ -27,7 +27,6 @@ public class IndexRequestBuilder2 implements RequestBuilder<IndexRequest> {
     private String routing;
     private WriteRequest.RefreshPolicy refreshPolicy;
 
-
     public IndexRequestBuilder2(String index) {
         this.index = index;
     }

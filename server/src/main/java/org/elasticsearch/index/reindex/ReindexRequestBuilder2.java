@@ -20,8 +20,7 @@ public class ReindexRequestBuilder2 implements RequestBuilder<ReindexRequest> {
     private IndexRequest destination;
     private RemoteInfo remoteInfo;
 
-    public ReindexRequestBuilder2() {
-    }
+    public ReindexRequestBuilder2() {}
 
     public ReindexRequestBuilder2 search(SearchRequest search) {
         this.searchRequest = search;

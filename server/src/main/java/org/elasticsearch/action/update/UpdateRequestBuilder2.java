@@ -15,6 +15,7 @@ public class UpdateRequestBuilder2 implements RequestBuilder<UpdateRequest> {
     private final String id;
     private String routing;
     private String script;
+
     public UpdateRequestBuilder2(String index, String id) {
         this.index = index;
         this.id = id;

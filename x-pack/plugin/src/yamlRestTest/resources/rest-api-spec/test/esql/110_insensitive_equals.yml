@@ -35,6 +35,8 @@ setup:
           - { "id": 0, "keyword": "Foo", "keywordUpper": "FOO", "text": "foo", "textCamel": "FoO", "wildcard": "Foo*", "wildcardText": "FOo*" }
           - { "index": { } }
           - { "id": 1, "keyword": "Foo", "keywordUpper": "BAR", "text": "baz", "textCamel": "BaR", "wildcard": "Bar?", "wildcardText": "bar?" }
+          - { "index": { } }
+          - { "id": 2, "keyword": "abc", "keywordUpper": "XYZ", "text": "def", "textCamel": "GhI", "wildcard": "jkl?", "wildcardText": "MNO?" }
 
 ---
 "insensitive equals field vs field keywords":
@@ -291,3 +293,21 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [ 0, "Foo*", "FOo*"] }
   - match: { values.1: [ 1, "Bar?", "bar?"] }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | where NOT wildcard =~ wildcardText | keep id, wildcard, wildcardText | sort id'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "wildcard" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "wildcardText" }
+  - match: { columns.2.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 2, "jkl?", "MNO?"] }

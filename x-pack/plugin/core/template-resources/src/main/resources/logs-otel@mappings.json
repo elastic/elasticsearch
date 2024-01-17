@@ -4,19 +4,6 @@
       "date_detection": false,
       "dynamic": "strict",
       "properties": {
-        "data_stream.type": {
-          "type": "constant_keyword",
-          "value": "logs"
-        },
-        "data_stream.dataset": {
-          "type": "constant_keyword"
-        },
-        "data_stream.namespace": {
-          "type": "constant_keyword"
-        },
-        "@timestamp": {
-          "type": "date_nanos"
-        },
         "observed_timestamp": {
           "type": "date_nanos"
         },
@@ -32,14 +19,6 @@
         "body.structured": {
           "type": "flattened"
         },
-        "attributes": {
-          "type": "object",
-          "dynamic": true,
-          "subobjects": false
-        },
-        "dropped_attributes_count": {
-          "type": "long"
-        },
         "trace_flags": {
           "type": "byte"
         },
@@ -48,42 +27,6 @@
         },
         "span_id": {
           "type": "keyword"
-        },
-        "resource": {
-          "properties": {
-            "schema_url": {
-              "type": "keyword"
-            },
-            "dropped_attributes_count": {
-              "type": "long"
-            },
-            "attributes": {
-              "type": "object",
-              "dynamic": true,
-              "subobjects": false
-            }
-          }
-        },
-        "scope": {
-          "properties": {
-            "name": {
-              "type": "keyword"
-            },
-            "version": {
-              "type": "version"
-            },
-            "schema_url": {
-              "type": "keyword"
-            },
-            "dropped_attributes_count": {
-              "type": "long"
-            },
-            "attributes": {
-              "type": "object",
-              "dynamic": true,
-              "subobjects": false
-            }
-          }
         }
       }
     }

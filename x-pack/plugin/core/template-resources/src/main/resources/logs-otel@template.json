@@ -7,6 +7,7 @@
     "logs@settings",
     "logs@custom",
     "logs-otel@custom",
+    "otel@mappings",
     "logs-otel@mappings",
     "ecs@mappings"
   ],

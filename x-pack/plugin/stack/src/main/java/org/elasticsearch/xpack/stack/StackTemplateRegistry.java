@@ -85,6 +85,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     // Logs components (for matching logs-*.otel-* indices)
     //////////////////////////////////////////////////////////
+    public static final String OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME = "otel@mappings";
     public static final String LOGS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-otel@mappings";
     public static final String LOGS_OTEL_INDEX_TEMPLATE_NAME = "logs-otel@template";
 
@@ -179,6 +180,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/logs@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/otel@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES

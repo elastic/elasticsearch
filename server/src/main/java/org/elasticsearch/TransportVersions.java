@@ -93,7 +93,7 @@ public class TransportVersions {
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_9_X = def(8_500_020);
-    public static final TransportVersion V_8_500_061 = def(8_500_061);
+    public static final TransportVersion V_8_10_X = def(8_500_061);
     public static final TransportVersion V_8_500_062 = def(8_500_062);
     public static final TransportVersion V_8_500_063 = def(8_500_063);
     public static final TransportVersion V_8_500_064 = def(8_500_064);

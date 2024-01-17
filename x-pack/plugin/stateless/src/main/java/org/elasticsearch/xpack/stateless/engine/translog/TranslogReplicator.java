@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -647,12 +648,27 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     // Submit the cluster state validate under lock so that the validate generations increase in order.
                     triggerClusterStateValidate(completedSyncs);
                 } else {
-                    assert ongoingSyncs.stream()
-                        .filter(t -> t.translog.metadata().generation == nodeTranslogGeneration)
-                        .findAny()
-                        .get().isUploaded;
+                    assert checkUploadTranslogTask(nodeTranslogGeneration)
+                        : "Unable to find upload translog task with generation: "
+                            + nodeTranslogGeneration
+                            + " in ongoing sync generations: "
+                            + ongoingSyncGenerations();
                 }
             }
+        }
+
+        private boolean checkUploadTranslogTask(long nodeTranslogGeneration) {
+            return ongoingSyncs.stream()
+                .filter(t -> t.translog.metadata().generation == nodeTranslogGeneration)
+                .findAny()
+                .map(t -> t.isUploaded)
+                .orElse(false);
+        }
+
+        record GenerationUploaded(long generation, boolean uploaded) {}
+
+        private List<GenerationUploaded> ongoingSyncGenerations() {
+            return ongoingSyncs.stream().map(t -> new GenerationUploaded(t.translog.metadata.generation, t.isUploaded)).toList();
         }
 
         private void triggerClusterStateValidate(ArrayList<CompoundTranslogMetadata> completedSyncs) {

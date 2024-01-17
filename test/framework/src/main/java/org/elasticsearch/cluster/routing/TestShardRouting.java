@@ -208,7 +208,7 @@ public class TestShardRouting {
 
     public static UnassignedInfo buildUnassignedInfo(ShardRoutingState state) {
         return switch (state) {
-            case UNASSIGNED, INITIALIZING -> randomUnassignedInfo("auto generated for test");
+            case UNASSIGNED, INITIALIZING -> buildUnassignedInfo("auto generated for test");
             case STARTED, RELOCATING -> null;
         };
     }
@@ -220,7 +220,7 @@ public class TestShardRouting {
         };
     }
 
-    public static UnassignedInfo randomUnassignedInfo(String message) {
+    public static UnassignedInfo buildUnassignedInfo(String message) {
         UnassignedInfo.Reason reason = randomFrom(UnassignedInfo.Reason.values());
         String lastAllocatedNodeId = null;
         boolean delayed = false;
@@ -245,7 +245,7 @@ public class TestShardRouting {
         );
     }
 
-    public static RecoverySource randomRecoverySource() {
+    public static RecoverySource buildRecoverySource() {
         return randomFrom(
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,

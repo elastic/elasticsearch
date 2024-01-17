@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 /**
@@ -48,7 +48,8 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
 
     @Override
     protected Expression.TypeResolution resolveType() {
-        return isSpatial(field(), sourceText(), DEFAULT);
+        // TODO: Support geo_shape and cartesian_shape
+        return isSpatialPoint(field(), sourceText(), DEFAULT);
     }
 
     @Override

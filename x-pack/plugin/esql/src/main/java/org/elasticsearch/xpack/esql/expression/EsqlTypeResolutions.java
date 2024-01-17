@@ -45,7 +45,7 @@ public class EsqlTypeResolutions {
         return Expression.TypeResolution.TYPE_RESOLVED;
     }
 
-    public static Expression.TypeResolution isSpatial(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, EsqlDataTypes::isSpatial, operationName, paramOrd, "spatial");
+    public static Expression.TypeResolution isSpatialPoint(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(e, EsqlDataTypes::isSpatialPoint, operationName, paramOrd, "geo_point or cartesian_point");
     }
 }

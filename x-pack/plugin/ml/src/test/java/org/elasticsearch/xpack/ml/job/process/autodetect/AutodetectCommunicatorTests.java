@@ -254,8 +254,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             autodetectResultProcessor,
             finishHandler,
             new NamedXContentRegistry(Collections.emptyList()),
-            executorService,
-            () -> {}
+            executorService
         );
     }
 

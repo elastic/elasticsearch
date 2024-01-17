@@ -28,6 +28,10 @@ dependencies {
   testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+
+  testImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
+  testImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
+  testImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
 }
 
 // we don't have additional tests for the tests themselves
@@ -35,4 +39,13 @@ tasks.named("test").configure { enabled = false }
 
 tasks.register('destructivePackagingTest') {
   dependsOn 'destructiveDistroTest'
+
+    useJUnitPlatform {
+      includeEngines 'junit-vintage'
+    }
+
+    distribution {
+      enabled = true
+      maxLocalExecutors = 0
+    }
 }

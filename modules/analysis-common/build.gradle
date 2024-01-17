@@ -28,6 +28,10 @@ dependencies {
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:mapper-extras')
 
+  testImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
+  testImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
+  testImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
+
   yamlRestTestImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
   yamlRestTestImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
   yamlRestTestImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
@@ -41,17 +45,26 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 }
 
 test {
-    useJUnitPlatform {
-      includeEngines 'junit-vintage'
-    }
+    useJUnitPlatform()
+
+    // useJUnitPlatform {
+    //   includeEngines 'junit-vintage'
+    // }
 
     distribution {
       enabled = true
       maxLocalExecutors = 0
     }
+    // javaLauncher = javaToolchains.launcherFor {
+    //   languageVersion = JavaLanguageVersion.of(18)
+    // }
 }
 
 tasks.named('yamlRestTest').configure {
+    testLogging {
+        outputs.upToDateWhen {false}
+        showStandardStreams = true
+    }
     useJUnitPlatform()
     distribution {
       enabled = true

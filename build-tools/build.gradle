@@ -144,6 +144,10 @@ dependencies {
         because 'required as we rely on junit4 rules'
     }
 
+    testImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
+    testImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
+    testImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
+
     testImplementation(platform(buildLibs.junit5.platform))
     testImplementation(buildLibs.junit5.jupiter) {
         because 'allows to write and run Jupiter tests'
@@ -162,24 +166,26 @@ tasks.withType(JavaCompile).configureEach {
   options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
-tasks.named('test').configure {
-    useJUnitPlatform()
-
-    distribution {
-      enabled = true
-      maxLocalExecutors = 0
+test {
+        useJUnitPlatform {
+      includeEngines 'junit-vintage'
     }
+
+    // distribution {
+    //   enabled = true
+    //   maxLocalExecutors = 0
+    // }
 }
 
-tasks.register("integTest", Test) {
-    testClassesDirs = sourceSets.integTest.output.classesDirs
-    classpath = sourceSets.integTest.runtimeClasspath
-    useJUnitPlatform()
-    distribution {
-      enabled = true
-      maxLocalExecutors = 0
-    }
-}
+// tasks.register("integTest", Test) {
+//     testClassesDirs = sourceSets.integTest.output.classesDirs
+//     classpath = sourceSets.integTest.runtimeClasspath
+//     useJUnitPlatform()
+//     distribution {
+//       enabled = true
+//       maxLocalExecutors = 0
+//     }
+// }
 
 normalization {
     runtimeClasspath {

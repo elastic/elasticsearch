@@ -21,9 +21,9 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -64,7 +64,7 @@ public class MatchAssertion extends Assertion {
                 assertThat(
                     "field [" + getField() + "] was expected to match the provided regex but didn't",
                     stringValue,
-                    matches(regex, Pattern.COMMENTS)
+                    matchesRegex(Pattern.compile(regex, Pattern.COMMENTS))
                 );
                 return;
             }

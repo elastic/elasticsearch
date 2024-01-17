@@ -26,7 +26,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -49,6 +48,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
@@ -328,8 +328,8 @@ public class EvilLoggerTests extends ESTestCase {
         final Matcher matcher = Pattern.compile("\\[(.*)\\]\\[(.*)\\(.*\\)\\] (.*)").matcher(logLine);
         assertTrue(logLine, matcher.matches());
         assertThat(matcher.group(1), equalTo(level.toString()));
-        assertThat(matcher.group(2), RegexMatcher.matches(location));
-        assertThat(matcher.group(3), RegexMatcher.matches(message));
+        assertThat(matcher.group(2), matchesRegex(location));
+        assertThat(matcher.group(3), matchesRegex(message));
     }
 
 }

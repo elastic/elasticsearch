@@ -14,7 +14,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -25,6 +24,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.matchesRegex;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SimpleThreadPoolIT extends ESIntegTestCase {
@@ -91,7 +91,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 + "|"
                 + Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX)
                 + ")";
-            assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
+            assertThat(threadName, matchesRegex("\\[" + nodePrefix + "\\d+\\]"));
         }
     }
 

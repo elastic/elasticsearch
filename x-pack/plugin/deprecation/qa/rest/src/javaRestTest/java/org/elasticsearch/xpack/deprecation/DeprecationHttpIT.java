@@ -46,7 +46,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -56,6 +55,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * Tests that deprecation message are returned via response headers, and can be indexed into a data stream.
@@ -152,7 +152,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             final Response response = client().performRequest(request);
 
             final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
-            assertThat(deprecatedWarnings, everyItem(matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())));
+            assertThat(deprecatedWarnings, everyItem(matchesRegex(HeaderWarning.WARNING_HEADER_PATTERN)));
 
             final List<String> actualWarningValues = deprecatedWarnings.stream()
                 .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
@@ -295,7 +295,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             headerMatchers.add(equalTo(TestDeprecationHeaderRestAction.DEPRECATED_USAGE));
         }
 
-        assertThat(deprecatedWarnings, everyItem(matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())));
+        assertThat(deprecatedWarnings, everyItem(matchesRegex(HeaderWarning.WARNING_HEADER_PATTERN)));
         final List<String> actualWarningValues = deprecatedWarnings.stream()
             .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
             .collect(Collectors.toList());

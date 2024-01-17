@@ -24,10 +24,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class Netty4BadRequestIT extends ESRestTestCase {
 
@@ -63,7 +63,7 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(BAD_REQUEST.getStatus()));
         assertThat(e, hasToString(containsString("too_long_http_line_exception")));
-        assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));
+        assertThat(e, hasToString(matchesRegex("An HTTP line is larger than \\d+ bytes")));
     }
 
     public void testInvalidParameterValue() throws IOException {

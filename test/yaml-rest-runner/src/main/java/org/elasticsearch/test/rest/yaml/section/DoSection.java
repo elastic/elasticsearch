@@ -50,10 +50,10 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -540,7 +540,7 @@ public class DoSection implements ExecutableSection {
             assertThat("error was expected in the response", error, notNullValue());
             // remove delimiters from regex
             String regex = catchParam.substring(1, catchParam.length() - 1);
-            assertThat("the error message was expected to match the provided regex but didn't", error.toString(), matches(regex));
+            assertThat("the error message was expected to match the provided regex but didn't", error.toString(), matchesRegex(regex));
         } else {
             throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
         }

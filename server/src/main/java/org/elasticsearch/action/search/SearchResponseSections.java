@@ -64,6 +64,7 @@ public class SearchResponseSections implements RefCounted {
         int numReducePhases
     ) {
         this.hits = hits;
+        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
@@ -73,7 +74,7 @@ public class SearchResponseSections implements RefCounted {
         refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(new AbstractRefCounted() {
             @Override
             protected void closeInternal() {
-                // TODO: noop until hits are ref counted
+                hits.decRef();
             }
         }) : ALWAYS_REFERENCED;
     }

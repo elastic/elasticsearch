@@ -54,6 +54,7 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -676,7 +677,16 @@ public class StatementParserTests extends ESTestCase {
 
     public void testEnrich() {
         assertEquals(
-            new Enrich(EMPTY, PROCESSING_CMD_INPUT, new Literal(EMPTY, "countries", KEYWORD), new EmptyAttribute(EMPTY), null, List.of()),
+            new Enrich(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                null,
+                new Literal(EMPTY, "countries", KEYWORD),
+                new EmptyAttribute(EMPTY),
+                null,
+                Map.of(),
+                List.of()
+            ),
             processingCommand("enrich countries")
         );
 
@@ -684,12 +694,29 @@ public class StatementParserTests extends ESTestCase {
             new Enrich(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
+                null,
+                new Literal(EMPTY, "index-policy", KEYWORD),
+                new UnresolvedAttribute(EMPTY, "field_underscore"),
+                null,
+                Map.of(),
+                List.of()
+            ),
+            processingCommand("enrich index-policy ON field_underscore")
+        );
+
+        Enrich.Mode mode = randomFrom(Enrich.Mode.values());
+        assertEquals(
+            new Enrich(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                mode,
                 new Literal(EMPTY, "countries", KEYWORD),
                 new UnresolvedAttribute(EMPTY, "country_code"),
                 null,
+                Map.of(),
                 List.of()
             ),
-            processingCommand("enrich countries ON country_code")
+            processingCommand("enrich [ccq.mode :" + mode.name() + "] countries ON country_code")
         );
 
         expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
@@ -701,6 +728,10 @@ public class StatementParserTests extends ESTestCase {
         expectError(
             "from a | enrich countries on foo with x* = bar ",
             "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
+        );
+        expectError(
+            "from a | enrich [ccq.mode : typo] countries on foo",
+            "line 1:30: Unrecognized value [typo], ENRICH [ccq.mode] needs to be one of [ANY, COORDINATOR, REMOTE]"
         );
     }
 

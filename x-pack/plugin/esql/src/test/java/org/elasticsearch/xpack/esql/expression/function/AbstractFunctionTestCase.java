@@ -130,6 +130,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "version" -> randomVersion().toBytesRef();
             case "geo_point" -> GEO.asWkb(GeometryTestUtils.randomPoint());
             case "cartesian_point" -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
+            case "geo_shape" -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
+            case "cartesian_shape" -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
             case "null" -> null;
             case "_source" -> {
                 try {
@@ -596,6 +598,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
+        assertTrue("expect description to be defined", description.description() != null && description.description().length() > 0);
+
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new HashSet<>();
         for (int i = 0; i < args.size(); i++) {
@@ -611,21 +615,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         for (int i = 0; i < args.size(); i++) {
             Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toCollection(() -> new TreeSet<>()));
-            if (annotationTypes.equals(Set.of("?"))) {
-                continue; // TODO remove this eventually, so that all the functions will have to provide signature info
-            }
             Set<String> signatureTypes = typesFromSignature.get(i);
             if (signatureTypes.isEmpty()) {
                 continue;
             }
-            assertEquals(annotationTypes, signatureTypes);
+            assertEquals(signatureTypes, annotationTypes);
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(() -> new TreeSet<>()));
-        if (returnTypes.equals(Set.of("?")) == false) {
-            // TODO remove this eventually, so that all the functions will have to provide signature info
-            assertEquals(returnTypes, returnFromSignature);
-        }
+        assertEquals(returnFromSignature, returnTypes);
+
     }
 
     /**
@@ -912,7 +911,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
         Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
-        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string")
+        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
+        Map.entry(Set.of(EsqlDataTypes.GEO_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_shape or string"),
+        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_shape or string")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?

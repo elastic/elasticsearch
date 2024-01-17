@@ -132,6 +132,10 @@ public class DeploymentManager {
         return processContextByAllocation.putIfAbsent(id, processContext);
     }
 
+    public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
+        startDeployment(task, null, finalListener);
+    }
+
     public void startDeployment(
         TrainedModelDeploymentTask task,
         Integer startsCount,
@@ -150,7 +154,7 @@ public class DeploymentManager {
             return;
         }
 
-        ProcessContext processContext = new ProcessContext(task, startsCount, finalListener);
+        ProcessContext processContext = new ProcessContext(task, startsCount);
         if (addProcessContext(task.getId(), processContext) != null) {
             finalListener.onFailure(
                 ExceptionsHelper.serverError("[{}] Could not create inference process as one already exists", task.getDeploymentId())
@@ -470,14 +474,12 @@ public class DeploymentManager {
         private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
         private final AtomicInteger timeoutCount = new AtomicInteger();
         private final AtomicInteger startsCount = new AtomicInteger();
-        private final ActionListener<TrainedModelDeploymentTask> finalListener;
-
         private volatile Instant startTime;
         private volatile Integer numThreadsPerAllocation;
         private volatile Integer numAllocations;
         private volatile boolean isStopped;
 
-        ProcessContext(TrainedModelDeploymentTask task, Integer startsCount, ActionListener<TrainedModelDeploymentTask> finalListener) {
+        ProcessContext(TrainedModelDeploymentTask task, Integer startsCount) {
             this.task = Objects.requireNonNull(task);
             resultProcessor = new PyTorchResultProcessor(task.getDeploymentId(), threadSettings -> {
                 this.numThreadsPerAllocation = threadSettings.numThreadsPerAllocation();
@@ -495,7 +497,6 @@ public class DeploymentManager {
                 task.getParams().getQueueCapacity()
             );
             this.startsCount.set(startsCount == null ? 1 : startsCount);
-            this.finalListener = finalListener;
         }
 
         PyTorchResultProcessor getResultProcessor() {
@@ -541,7 +542,7 @@ public class DeploymentManager {
             }
         }
 
-        private synchronized Consumer<String> onProcessCrashHandleRestarts(AtomicInteger startsCount) {
+        private Consumer<String> onProcessCrashHandleRestarts(AtomicInteger startsCount) {
             return (reason) -> {
                 logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
                 processContextByAllocation.remove(task.getId());
@@ -552,21 +553,31 @@ public class DeploymentManager {
                 if (startsCount.get() < 4) {
                     logger.info("[{}] restarting inference process after [{}] starts", task.getDeploymentId(), startsCount.get());
                     priorityProcessWorker.shutdownNow(); // TODO what to do with these tasks?
-
-                    startDeployment(task, startsCount.incrementAndGet(), finalListener);
-                } else {
-                    logger.warn(
-                        "[{}] inference process failed after [{}] starts, not restarting again",
-                        task.getDeploymentId(),
-                        startsCount.get()
+                    ActionListener<TrainedModelDeploymentTask> errorListener = ActionListener.wrap((trainedModelDeploymentTask -> {
+                        logger.debug("Completed restart of inference process, the [{}] start", startsCount);
+                    }),
+                        (e) -> {
+                            finishClosingProcess(
+                                startsCount,
+                                "Failed to restart inference process because of error [" + e.getMessage() + "]"
+                            );
+                        }
                     );
-                    priorityProcessWorker.shutdownNowWithError(new IllegalStateException(reason));
-                    if (nlpTaskProcessor.get() != null) {
-                        nlpTaskProcessor.get().close();
-                    }
-                    task.setFailed("inference process crashed due to reason [" + reason + "]");
+
+                    startDeployment(task, startsCount.incrementAndGet(), errorListener);
+                } else {
+                    finishClosingProcess(startsCount, reason);
                 }
             };
+        }
+
+        private void finishClosingProcess(AtomicInteger startsCount, String reason) {
+            logger.warn("[{}] inference process failed after [{}] starts, not restarting again", task.getDeploymentId(), startsCount.get());
+            priorityProcessWorker.shutdownNowWithError(new IllegalStateException(reason));
+            if (nlpTaskProcessor.get() != null) {
+                nlpTaskProcessor.get().close();
+            }
+            task.setFailed("inference process crashed due to reason [" + reason + "]");
         }
 
         void startPriorityProcessWorker() {

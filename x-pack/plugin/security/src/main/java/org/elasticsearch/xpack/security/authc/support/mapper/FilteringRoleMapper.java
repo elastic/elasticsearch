@@ -41,14 +41,14 @@ public class FilteringRoleMapper implements UserRoleMapper {
                 return;
             }
 
-            final var filtered = roles.stream().filter(roleName -> {
+            final var withoutReserved = roles.stream().filter(roleName -> {
                 if (ReservedRolesStore.isReserved(roleName)) {
                     logger.info("Filtered out reserved role [{}]", roleName);
                     return false;
                 }
                 return true;
             }).collect(Collectors.toSet());
-            fileRolesStore.accept(filtered, new ActionListener<>() {
+            fileRolesStore.accept(withoutReserved, new ActionListener<>() {
                 @Override
                 public void onResponse(RoleRetrievalResult roleRetrievalResult) {
                     final Set<String> toRemove = new HashSet<>();
@@ -59,13 +59,13 @@ public class FilteringRoleMapper implements UserRoleMapper {
                         }
                     }
                     // We want to keep not-found roles
-                    listener.onResponse(Sets.difference(filtered, toRemove));
+                    listener.onResponse(Sets.difference(withoutReserved, toRemove));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("Failed to look-up roles from file", e);
-                    listener.onResponse(filtered);
+                    logger.error("Failed to look up roles from file", e);
+                    listener.onResponse(withoutReserved);
                 }
             });
         }), listener::onFailure));

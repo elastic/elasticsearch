@@ -147,9 +147,14 @@ public class Verifier {
 
     private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Aggregate agg) {
+            // check aggregates
             agg.aggregates().forEach(e -> {
                 var exp = e instanceof Alias a ? a.child() : e;
-                if (exp instanceof AggregateFunction == false) {
+                if (exp instanceof AggregateFunction af) {
+                    af.field().forEachDown(AggregateFunction.class, f -> {
+                        failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
+                    });
+                } else {
                     if (Expressions.match(agg.groupings(), g -> {
                         Expression to = g instanceof Alias al ? al.child() : g;
                         return to.semanticEquals(exp);
@@ -167,6 +172,14 @@ public class Verifier {
                     }
                 }
             });
+
+            // check grouping
+            // The grouping can not be an aggregate function
+            agg.groupings().forEach(e -> e.forEachUp(g -> {
+                if (g instanceof AggregateFunction af) {
+                    failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
+                }
+            }));
         }
     }
 
@@ -201,12 +214,17 @@ public class Verifier {
     private static void checkEvalFields(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Eval eval) {
             eval.fields().forEach(field -> {
+                // check supported types
                 DataType dataType = field.dataType();
                 if (EsqlDataTypes.isRepresentable(dataType) == false) {
                     failures.add(
                         fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
                     );
                 }
+                // check no aggregate functions are used
+                field.forEachDown(AggregateFunction.class, af -> {
+                    failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
+                });
             });
         }
     }

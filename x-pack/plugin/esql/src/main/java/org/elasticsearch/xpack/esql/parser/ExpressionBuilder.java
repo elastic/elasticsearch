@@ -428,7 +428,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         List<NamedExpression> list;
         if (ctx != null) {
             var fields = ctx.field();
-            var source = source(ctx);
             list = new ArrayList<>(fields.size());
             for (EsqlBaseParser.FieldContext field : fields) {
                 NamedExpression ne = null;
@@ -440,14 +439,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     if (value instanceof Attribute a) {
                         ne = a;
                     } else {
-                        name = source.text();
+                        name = source(field).text();
                     }
                 } else {
                     name = id.qualifiedName();
                 }
                 // wrap when necessary - no alias and no underlying attribute
                 if (ne == null) {
-                    ne = new Alias(source, name, value);
+                    ne = new Alias(source(ctx), name, value);
                 }
                 list.add(ne);
             }

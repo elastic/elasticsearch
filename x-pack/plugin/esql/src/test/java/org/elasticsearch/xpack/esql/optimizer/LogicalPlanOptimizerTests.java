@@ -2847,6 +2847,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(refs), containsInAnyOrder("languages", "salary"));
     }
 
+    public void testNestedMultiExpressionsInGroupingAndAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats count(salary + 1), max(salary   +  23) by languages   + 1, emp_no %  3
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.output()), contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3"));
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }

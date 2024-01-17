@@ -139,6 +139,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
                 Settings indexSettings = getSettingsResponse.getIndexToSettings().get(targetIndex);
                 assertThat(indexSettings, is(notNullValue()));
                 assertThat(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexSettings), is(IndexMetadata.DownsampleTaskStatus.SUCCESS));
+                assertEquals("5m", IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.get(indexSettings));
             } catch (Exception e) {
                 throw new AssertionError(e);
             }

@@ -92,8 +92,8 @@ public class TransportVersions {
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
-    public static final TransportVersion V_8_500_020 = def(8_500_020);
-    public static final TransportVersion V_8_500_061 = def(8_500_061);
+    public static final TransportVersion V_8_9_X = def(8_500_020);
+    public static final TransportVersion V_8_10_X = def(8_500_061);
     public static final TransportVersion V_8_500_062 = def(8_500_062);
     public static final TransportVersion V_8_500_063 = def(8_500_063);
     public static final TransportVersion V_8_500_064 = def(8_500_064);
@@ -170,6 +170,7 @@ public class TransportVersions {
     public static final TransportVersion MISSED_INDICES_UPDATE_EXCEPTION_ADDED = def(8_558_00_0);
     public static final TransportVersion INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED = def(8_559_00_0);
     public static final TransportVersion ENRICH_ELASTICSEARCH_VERSION_REMOVED = def(8_560_00_0);
+    public static final TransportVersion DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ_8_12_PATCH = def(8_560_00_1);
     public static final TransportVersion NODE_STATS_REQUEST_SIMPLIFIED = def(8_561_00_0);
     public static final TransportVersion TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED = def(8_562_00_0);
     public static final TransportVersion ESQL_ASYNC_QUERY = def(8_563_00_0);
@@ -181,7 +182,13 @@ public class TransportVersions {
     public static final TransportVersion LAZY_ROLLOVER_ADDED = def(8_569_00_0);
     public static final TransportVersion ESQL_PLAN_POINT_LITERAL_WKB = def(8_570_00_0);
     public static final TransportVersion HOT_THREADS_AS_BYTES = def(8_571_00_0);
-    public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_572_00_0);
+    public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED = def(8_572_00_0);
+    public static final TransportVersion ESQL_ENRICH_POLICY_CCQ_MODE = def(8_573_00_0);
+    public static final TransportVersion DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ = def(8_574_00_0);
+    public static final TransportVersion PEERFINDER_REPORTS_PEERS_MASTERS = def(8_575_00_0);
+    public static final TransportVersion ESQL_MULTI_CLUSTERS_ENRICH = def(8_576_00_0);
+    public static final TransportVersion NESTED_KNN_MORE_INNER_HITS = def(8_577_00_0);
+    public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_578_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

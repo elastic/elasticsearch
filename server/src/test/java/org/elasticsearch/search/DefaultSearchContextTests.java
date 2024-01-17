@@ -610,6 +610,11 @@ public class DefaultSearchContextTests extends ESTestCase {
 
     public void testIsParallelCollectionSupportedForResults() {
         SearchSourceBuilder searchSourceBuilderOrNull = randomBoolean() ? null : new SearchSourceBuilder();
+        if (searchSourceBuilderOrNull != null) {
+            searchSourceBuilderOrNull.profile(false);
+        }
+        SearchSourceBuilder profiledSearchSourceBuilder = new SearchSourceBuilder();
+        profiledSearchSourceBuilder.profile(true);
         ToLongFunction<String> fieldCardinality = name -> -1;
         for (var resultsType : SearchService.ResultsType.values()) {
             switch (resultsType) {
@@ -617,20 +622,31 @@ public class DefaultSearchContextTests extends ESTestCase {
                     "NONE and FETCH phases do not support parallel collection.",
                     DefaultSearchContext.isParallelCollectionSupportedForResults(
                         resultsType,
-                        searchSourceBuilderOrNull,
+                        randomFrom(searchSourceBuilderOrNull, profiledSearchSourceBuilder),
                         fieldCardinality,
                         randomBoolean()
                     )
                 );
-                case DFS -> assertTrue(
-                    "DFS phase always supports parallel collection.",
-                    DefaultSearchContext.isParallelCollectionSupportedForResults(
-                        resultsType,
-                        searchSourceBuilderOrNull,
-                        fieldCardinality,
-                        randomBoolean()
-                    )
-                );
+                case DFS -> {
+                    assertTrue(
+                        "DFS phase supports parallel collection with profiling off.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceBuilderOrNull,
+                            fieldCardinality,
+                            randomBoolean()
+                        )
+                    );
+                    assertFalse(
+                        "DFS phase does not supports parallel collection with profiling on.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            profiledSearchSourceBuilder,
+                            fieldCardinality,
+                            randomBoolean()
+                        )
+                    );
+                }
                 case QUERY -> {
                     SearchSourceBuilder searchSourceBuilderNoAgg = new SearchSourceBuilder();
                     assertTrue(
@@ -696,6 +712,15 @@ public class DefaultSearchContextTests extends ESTestCase {
                             searchSourceMultiAggDoesNotSupportParallelCollection,
                             fieldCardinality,
                             true
+                        )
+                    );
+                    assertFalse(
+                        "Parallel collection is false if profiling is on.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            profiledSearchSourceBuilder,
+                            fieldCardinality,
+                            randomBoolean()
                         )
                     );
                 }

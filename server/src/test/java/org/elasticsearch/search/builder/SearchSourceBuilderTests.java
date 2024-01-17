@@ -958,11 +958,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             searchSourceBuilder.sort(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
-        {
-            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.profile(true);
-            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
-        }
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

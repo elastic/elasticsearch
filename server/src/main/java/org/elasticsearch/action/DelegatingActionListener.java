@@ -11,8 +11,8 @@ package org.elasticsearch.action;
 import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailure;
 
 /**
- * A wrapper around an {@link ActionListener} {@code L} that delegates failures to {@code L}'s {@link ActionListener#onFailure} method.
- * The wrapper also provides a {@link #toString()} implementation which describes this class and the delegate.
+ * A wrapper around an {@link ActionListener} {@code L} that by default delegates failures to {@code L}'s {@link ActionListener#onFailure}
+ * method. The wrapper also provides a {@link #toString()} implementation that describes this class and the delegate.
  * <p>
  * This is a useful base class for creating ActionListener wrappers that override the {@link #onResponse} handling, with access to
  * {@code L}, while retaining all of {@code L}'s other handling. It can also be useful to override other methods to do new work with access

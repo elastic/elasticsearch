@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -88,28 +88,17 @@ public final class AnalyzerTestUtils {
     }
 
     public static EnrichResolution defaultEnrichResolution() {
-        EnrichPolicyResolution policyRes = loadEnrichPolicyResolution(
-            "languages",
-            "language_code",
-            "languages_idx",
-            "mapping-languages.json"
-        );
-        return new EnrichResolution(Set.of(policyRes), Set.of("languages"));
+        return loadEnrichPolicyResolution("languages", "language_code", "languages_idx", "mapping-languages.json");
     }
 
-    public static EnrichPolicyResolution loadEnrichPolicyResolution(
-        String policyName,
-        String matchField,
-        String idxName,
-        String mappingFile
-    ) {
+    public static EnrichResolution loadEnrichPolicyResolution(String policyName, String matchField, String idxName, String mappingFile) {
         IndexResolution mapping = loadMapping(mappingFile, idxName);
         List<String> enrichFields = new ArrayList<>(mapping.get().mapping().keySet());
         enrichFields.remove(matchField);
-        return new EnrichPolicyResolution(
-            policyName,
-            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(idxName), matchField, enrichFields),
-            mapping
-        );
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(idxName), matchField, enrichFields);
+        EnrichResolution enrichResolution = new EnrichResolution();
+        enrichResolution.addResolvedPolicy(policyName, policy, Map.of("", idxName), mapping.get().mapping());
+        enrichResolution.addExistingPolicies(Set.of(policyName));
+        return enrichResolution;
     }
 }

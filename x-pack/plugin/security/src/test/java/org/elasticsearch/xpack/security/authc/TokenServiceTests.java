@@ -62,6 +62,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -254,7 +255,7 @@ public class TokenServiceTests extends ESTestCase {
             transportVersion = TransportVersions.V_8_8_1;
         } else {
             version = Version.V_8_9_0;
-            transportVersion = TransportVersions.V_8_500_020;
+            transportVersion = TransportVersions.V_8_9_X;
         }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
@@ -269,6 +270,7 @@ public class TokenServiceTests extends ESTestCase {
     public static void startThreadPool() throws IOException {
         threadPool = new ThreadPool(
             settings,
+            MeterRegistry.NOOP,
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,

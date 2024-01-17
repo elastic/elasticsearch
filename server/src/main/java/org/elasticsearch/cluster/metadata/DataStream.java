@@ -907,7 +907,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
             in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of(),
             in.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED) ? in.readBoolean() : false
@@ -944,7 +944,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(lifecycle);
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {

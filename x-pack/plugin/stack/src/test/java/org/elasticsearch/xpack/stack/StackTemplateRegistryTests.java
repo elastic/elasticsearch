@@ -186,6 +186,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                     anyOf(
                         equalTo(StackTemplateRegistry.LOGS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.METRICS_ILM_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.TRACES_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.SYNTHETICS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.ILM_7_DAYS_POLICY_NAME),
                         equalTo(StackTemplateRegistry.ILM_30_DAYS_POLICY_NAME),

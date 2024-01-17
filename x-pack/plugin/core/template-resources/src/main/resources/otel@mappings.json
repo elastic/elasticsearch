@@ -4,16 +4,6 @@
       "date_detection": false,
       "dynamic": "strict",
       "properties": {
-        "data_stream.type": {
-          "type": "constant_keyword",
-          "value": "logs"
-        },
-        "data_stream.dataset": {
-          "type": "constant_keyword"
-        },
-        "data_stream.namespace": {
-          "type": "constant_keyword"
-        },
         "@timestamp": {
           "type": "date_nanos"
         },

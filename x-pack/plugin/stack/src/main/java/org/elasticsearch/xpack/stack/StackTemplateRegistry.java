@@ -90,6 +90,19 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String LOGS_OTEL_INDEX_TEMPLATE_NAME = "logs-otel@template";
 
     //////////////////////////////////////////////////////////
+    // Base traces components
+    //////////////////////////////////////////////////////////
+    public static final String TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME = "traces@mappings";
+    public static final String TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME = "traces@settings";
+    public static final String TRACES_ILM_POLICY_NAME = "traces@lifecycle";
+
+    //////////////////////////////////////////////////////////
+    // Traces components (for matching traces-*.otel-* indices)
+    //////////////////////////////////////////////////////////
+    public static final String TRACES_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME = "traces-otel@mappings";
+    public static final String TRACES_OTEL_INDEX_TEMPLATE_NAME = "traces-otel@template";
+
+    //////////////////////////////////////////////////////////
     // Metrics components (for matching metric-*-* indices)
     //////////////////////////////////////////////////////////
     public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics@mappings";
@@ -147,6 +160,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
         new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(TRACES_ILM_POLICY_NAME, "/traces@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
@@ -246,6 +260,27 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces-otel@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
             )
         )) {
             try {
@@ -297,6 +332,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
             "/kibana-reporting@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
+            TRACES_OTEL_INDEX_TEMPLATE_NAME,
+            "/traces-otel@template.json",
             REGISTRY_VERSION,
             TEMPLATE_VERSION_VARIABLE,
             ADDITIONAL_TEMPLATE_VARIABLES

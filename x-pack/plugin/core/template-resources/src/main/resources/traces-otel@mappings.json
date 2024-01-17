@@ -1,0 +1,85 @@
+{
+  "template": {
+    "mappings": {
+      "date_detection": false,
+      "dynamic": "strict",
+      "properties": {
+        "trace_id": {
+          "type": "keyword"
+        },
+        "span_id": {
+          "type": "keyword"
+        },
+        "trace_state": {
+          "type": "keyword"
+        },
+        "parent_span_id": {
+          "type": "keyword"
+        },
+        "trace_flags": {
+          "type": "byte"
+        },
+        "parent_is_remote": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "keyword"
+        },
+        "kind": {
+          "type": "keyword"
+        },
+        "duration": {
+          "type": "long",
+          "meta": {
+            "unit": "nanos"
+          }
+        },
+        "dropped_events_count": {
+          "type": "long"
+        },
+        "links": {
+          "properties": {
+            "trace_id": {
+              "type": "keyword"
+            },
+            "span_id": {
+              "type": "keyword"
+            },
+            "trace_state": {
+              "type": "keyword"
+            },
+            "attributes": {
+              "subobjects": false,
+              "dynamic": true
+            },
+            "dropped_attributes_count": {
+              "type": "long"
+            },
+            "trace_flags": {
+              "type": "byte"
+            }
+          }
+        },
+        "dropped_links_count": {
+          "type": "long"
+        },
+        "status": {
+          "properties": {
+            "message": {
+              "type": "keyword"
+            },
+            "status_code": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default mappings for the logs index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

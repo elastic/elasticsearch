@@ -413,7 +413,7 @@ class S3Service implements Closeable {
                 try {
                     resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
                 } catch (IOException e) {
-                    throw new ElasticsearchException("failed to start watching service_tokens file [{}]", e, webIdentityTokenFileSymlink);
+                    throw new ElasticsearchException("failed to start watching AWS web identity token file [{}]", e, webIdentityTokenFileSymlink);
                 }
             } catch (Exception e) {
                 stsClient.shutdown();

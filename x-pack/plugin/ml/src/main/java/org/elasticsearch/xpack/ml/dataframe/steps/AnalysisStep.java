@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
@@ -63,7 +63,7 @@ public class AnalysisStep extends AbstractDataFrameAnalyticsStep {
             listener::onFailure
         );
 
-        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
+        ActionListener<BroadcastResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
             // TODO This could fail with errors. In that case we get stuck with the copied index.
             // We could delete the index in case of failure or we could try building the factory before reindexing
             // to catch the error early on.

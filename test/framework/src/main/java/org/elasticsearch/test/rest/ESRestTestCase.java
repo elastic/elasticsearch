@@ -32,8 +32,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -72,6 +73,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1265,15 +1267,33 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(refreshRequest);
     }
 
-    protected static RefreshResponse refresh(String index) throws IOException {
+    protected static BroadcastResponse refresh(String index) throws IOException {
         return refresh(client(), index);
     }
 
-    protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
+    private static final ConstructingObjectParser<BroadcastResponse, Void> BROADCAST_RESPONSE_PARSER = new ConstructingObjectParser<>(
+        "broadcast_response",
+        true,
+        arg -> {
+            BaseBroadcastResponse response = (BaseBroadcastResponse) arg[0];
+            return new BroadcastResponse(
+                response.getTotalShards(),
+                response.getSuccessfulShards(),
+                response.getFailedShards(),
+                Arrays.asList(response.getShardFailures())
+            );
+        }
+    );
+
+    static {
+        BaseBroadcastResponse.declareBroadcastFields(BROADCAST_RESPONSE_PARSER);
+    }
+
+    protected static BroadcastResponse refresh(RestClient client, String index) throws IOException {
         Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
         Response response = client.performRequest(refreshRequest);
         try (var parser = responseAsParser(response)) {
-            return RefreshResponse.fromXContent(parser);
+            return BROADCAST_RESPONSE_PARSER.apply(parser, null);
         }
     }
 

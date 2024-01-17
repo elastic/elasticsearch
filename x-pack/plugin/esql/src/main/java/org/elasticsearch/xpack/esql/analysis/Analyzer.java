@@ -12,7 +12,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -43,7 +42,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -209,52 +207,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            String policyName = (String) plan.policyName().fold();
-            EnrichPolicyResolution policyRes = context.enrichResolution()
-                .resolvedPolicies()
-                .stream()
-                .filter(x -> x.policyName().equals(policyName))
-                .findFirst()
-                .orElse(new EnrichPolicyResolution(policyName, null, null));
-
-            IndexResolution idx = policyRes.index();
-            EnrichPolicy policy = policyRes.policy();
-
-            var policyNameExp = policy == null || idx == null
-                ? new UnresolvedAttribute(
-                    plan.policyName().source(),
-                    policyName,
-                    null,
-                    unresolvedPolicyError(policyName, context.enrichResolution())
-                )
-                : plan.policyName();
-
-            var matchField = policy != null && (plan.matchField() == null || plan.matchField() instanceof EmptyAttribute)
-                ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
-                : plan.matchField();
-
-            List<NamedExpression> enrichFields = policy == null || idx == null
-                ? (plan.enrichFields() == null ? List.of() : plan.enrichFields())
-                : calculateEnrichFields(
+            final String policyName = (String) plan.policyName().fold();
+            final EnrichResolution.ResolvedPolicy resolvedPolicy = context.enrichResolution().getResolvedPolicy(policyName);
+            if (resolvedPolicy != null) {
+                EnrichPolicy policy = resolvedPolicy.policy();
+                var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
+                    ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
+                    : plan.matchField();
+                List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), idx.get().mapping()),
+                    mappingAsAttributes(plan.source(), resolvedPolicy.mapping()),
                     plan.enrichFields(),
                     policy
                 );
-
-            return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, matchField, policyRes, enrichFields);
-        }
-
-        private String unresolvedPolicyError(String policyName, EnrichResolution enrichResolution) {
-            List<String> potentialMatches = StringUtils.findSimilar(policyName, enrichResolution.existingPolicies());
-            String msg = "unresolved enrich policy [" + policyName + "]";
-            if (CollectionUtils.isEmpty(potentialMatches) == false) {
-                msg += ", did you mean "
-                    + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches)
-                    + "?";
+                return new Enrich(
+                    plan.source(),
+                    plan.child(),
+                    plan.mode(),
+                    plan.policyName(),
+                    matchField,
+                    policy,
+                    resolvedPolicy.concreteIndices(),
+                    enrichFields
+                );
+            } else {
+                String error = context.enrichResolution().getError(policyName);
+                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, null, error);
+                return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
-            return msg;
         }
 
         public static List<NamedExpression> calculateEnrichFields(
@@ -589,6 +570,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     enrich.policyName(),
                     resolved,
                     enrich.policy(),
+                    enrich.concreteIndices(),
                     enrich.enrichFields()
                 );
             }

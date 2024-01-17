@@ -1116,7 +1116,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             ),
                             BooleanClause.Occur.SHOULD
                         )
-                        .setMinimumNumberShouldMatch(1)
                         .build();
                 }
                 case FLOAT -> new BooleanQuery.Builder().add(new FieldExistsQuery(name()), BooleanClause.Occur.FILTER)

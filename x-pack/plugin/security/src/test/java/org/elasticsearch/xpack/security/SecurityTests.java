@@ -806,6 +806,7 @@ public class SecurityTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 settingsModule.getSettings(),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                null,
                 settingsModule.getIndexScopedSettings(),
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),

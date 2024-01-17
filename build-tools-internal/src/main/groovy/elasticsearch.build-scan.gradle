@@ -98,7 +98,8 @@ buildScan {
       def branch = System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH') ?: System.getenv('BUILDKITE_BRANCH')
       def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
       def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
-      def jobName = (System.getenv('BUILDKITE_LABEL') ?: '').replaceAll(/[^a-zA-Z0-9_\-]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
+      def jobLabel = System.getenv('BUILDKITE_LABEL') ?: ''
+      def jobName = safeName(jobLabel)
 
       tag 'CI'
       link 'CI Build', "${buildKiteUrl}#${System.getenv('BUILDKITE_JOB_ID')}"
@@ -111,6 +112,11 @@ buildScan {
 
       value 'Job Name', jobName
       tag jobName
+      if (jobLabel.contains("/")) {
+        jobLabel.split("/").collect {safeName(it) }.each {matrix ->
+          tag matrix
+        }
+      }
 
       if (branch) {
         tag branch
@@ -160,4 +166,8 @@ buildScan {
       tag 'LOCAL'
     }
   }
+}
+
+static def safeName(String string) {
+  return string.replaceAll(/[^a-zA-Z0-9_\-\.]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 }

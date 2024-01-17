@@ -4,6 +4,8 @@
 <titleabbrev>Create connector</titleabbrev>
 ++++
 
+preview::[]
+
 Creates a connector.
 
 

@@ -255,8 +255,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 : "expected channels size to be == " + connectionProfile.getNumConnections() + " but was: [" + channels.size() + "]";
             typeMapping = new EnumMap<>(TransportRequestOptions.Type.class);
             for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
-                for (TransportRequestOptions.Type type : handle.getTypes())
+                for (TransportRequestOptions.Type type : handle.getTypes()) {
                     typeMapping.put(type, handle);
+                }
             }
             version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();

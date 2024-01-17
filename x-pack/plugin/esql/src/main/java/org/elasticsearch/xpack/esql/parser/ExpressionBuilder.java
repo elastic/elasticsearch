@@ -410,8 +410,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Alias visitField(EsqlBaseParser.FieldContext ctx) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
-        String name = id == null ? ctx.getText() : id.qualifiedName();
-        return new Alias(source(ctx), name, value);
+        var source = source(ctx);
+        String name = id == null ? source.text() : id.qualifiedName();
+        return new Alias(source, name, value);
     }
 
     @Override
@@ -427,6 +428,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         List<NamedExpression> list;
         if (ctx != null) {
             var fields = ctx.field();
+            var source = source(ctx);
             list = new ArrayList<>(fields.size());
             for (EsqlBaseParser.FieldContext field : fields) {
                 NamedExpression ne = null;
@@ -438,14 +440,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     if (value instanceof Attribute a) {
                         ne = a;
                     } else {
-                        name = ctx.getText();
+                        name = source.text();
                     }
                 } else {
                     name = id.qualifiedName();
                 }
                 // wrap when necessary - no alias and no underlying attribute
                 if (ne == null) {
-                    ne = new Alias(source(ctx), name, value);
+                    ne = new Alias(source, name, value);
                 }
                 list.add(ne);
             }

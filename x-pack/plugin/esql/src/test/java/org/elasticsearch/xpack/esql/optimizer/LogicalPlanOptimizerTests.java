@@ -96,6 +96,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -2783,6 +2784,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(agg.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         assertThat(eval.fields().get(0).toAttribute(), is(ref));
+        assertThat(eval.fields().get(0).name(), is("emp_no % 2"));
     }
 
     /**
@@ -2841,7 +2843,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var mod = aliased(fields.get(0), Mod.class);
         assertThat(Expressions.name(mod.left()), is("emp_no"));
-        assertThat(Expressions.names(Expressions.references(singletonList(fields.get(1)))), contains("salary", "languages"));
+        var refs = Expressions.references(singletonList(fields.get(1)));
+        assertThat(Expressions.names(refs), containsInAnyOrder("languages", "salary"));
     }
 
     private LogicalPlan optimizedPlan(String query) {

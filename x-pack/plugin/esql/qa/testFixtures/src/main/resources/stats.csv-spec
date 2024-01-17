@@ -880,7 +880,7 @@ AVG(salary):double | avg_salary_rounded:double
 // end::statsUnnamedColumnEval-result[]
 ;
 
-nestedExpressionNoGrouping
+nestedExpressionNoGrouping#[skip:-8.12.99,reason:StatsNestedExp breaks bwc]
 FROM employees
 | STATS s = SUM(emp_no + 3), c = COUNT(emp_no)
 ;
@@ -889,7 +889,7 @@ s: long | c: long
 1005350 | 100
 ;
 
-nestedExpressionInSurrogateAgg
+nestedExpressionInSurrogateAgg#[skip:-8.12.99,reason:StatsNestedExp breaks bwc]
 FROM employees
 | STATS a = AVG(emp_no % 5), s = SUM(emp_no % 5), c = COUNT(emp_no % 5)
 ;
@@ -898,7 +898,7 @@ a:double | s:long | c:long
 2.0      | 200    | 100
 ;
 
-nestedExpressionInGroupingWithAlias
+nestedExpressionInGroupingWithAlias#[skip:-8.12.99,reason:StatsNestedExp breaks bwc]
 FROM employees
 | STATS s = SUM(emp_no % 5), c = COUNT(emp_no % 5) BY l = languages + 20
 | SORT l

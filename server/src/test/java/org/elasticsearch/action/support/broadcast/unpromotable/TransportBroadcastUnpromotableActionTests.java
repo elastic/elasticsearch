@@ -308,14 +308,12 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         IndexShardRoutingTable.Builder wrongRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardId);
         for (int i = 0; i < routingTable.size(); i++) {
             ShardRouting shardRouting = routingTable.shard(i);
-            ShardRouting wrongShardRouting = aShardRouting(
-                shardId,
-                shardRouting.currentNodeId() + randomIntBetween(10, 100),
-                shardRouting.relocatingNodeId(),
-                shardRouting.primary(),
-                shardRouting.state(),
-                shardRouting.unassignedInfo()
-            ).withRole(shardRouting.role()).build();
+            String currentNodeId = shardRouting.currentNodeId() + randomIntBetween(10, 100);
+            ShardRouting wrongShardRouting = aShardRouting(shardId, currentNodeId, shardRouting.primary(), shardRouting.state())
+                .withRelocatingNodeId(shardRouting.relocatingNodeId())
+                .withUnassignedInfo(shardRouting.unassignedInfo())
+                .withRole(shardRouting.role())
+                .build();
             wrongRoutingTableBuilder.addShard(wrongShardRouting);
         }
         IndexShardRoutingTable wrongRoutingTable = wrongRoutingTableBuilder.build();

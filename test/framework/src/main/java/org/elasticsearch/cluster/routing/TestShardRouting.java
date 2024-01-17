@@ -41,32 +41,6 @@ public class TestShardRouting {
         return new Builder(shardId, currentNodeId, primary, state);
     }
 
-    public static Builder aShardRouting(
-        String index,
-        int shardId,
-        String currentNodeId,
-        String relocatingNodeId,
-        boolean primary,
-        ShardRoutingState state,
-        UnassignedInfo unassignedInfo
-    ) {
-        return new Builder(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state)
-            .withRelocatingNodeId(relocatingNodeId)
-            .withUnassignedInfo(unassignedInfo);
-    }
-
-    public static Builder aShardRouting(
-        ShardId shardId,
-        String currentNodeId,
-        String relocatingNodeId,
-        boolean primary,
-        ShardRoutingState state,
-        UnassignedInfo unassignedInfo
-    ) {
-        return new Builder(shardId, currentNodeId, primary, state).withRelocatingNodeId(relocatingNodeId)
-            .withUnassignedInfo(unassignedInfo);
-    }
-
     public static class Builder {
 
         private final ShardId shardId;

@@ -175,7 +175,10 @@ public class ClusterStateCreationUtils {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         }
         indexShardRoutingBuilder.addShard(
-            aShardRouting(index, 0, primaryNode, relocatingNode, true, primaryState, unassignedInfo).withRole(primaryRole).build()
+            aShardRouting(index, 0, primaryNode, true, primaryState).withRelocatingNodeId(relocatingNode)
+                .withUnassignedInfo(unassignedInfo)
+                .withRole(primaryRole)
+                .build()
         );
 
         for (var replicaState : replicaStates) {
@@ -192,9 +195,10 @@ public class ClusterStateCreationUtils {
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
             indexShardRoutingBuilder.addShard(
-                aShardRouting(index, shardId.id(), replicaNode, relocatingNode, false, replicaState.v1(), unassignedInfo).withRole(
-                    replicaState.v2()
-                ).build()
+                aShardRouting(index, shardId.id(), replicaNode, false, replicaState.v1()).withRelocatingNodeId(relocatingNode)
+                    .withUnassignedInfo(unassignedInfo)
+                    .withRole(replicaState.v2())
+                    .build()
             );
         }
         final IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();

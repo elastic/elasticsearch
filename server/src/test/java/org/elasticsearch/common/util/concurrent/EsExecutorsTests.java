@@ -465,7 +465,7 @@ public class EsExecutorsTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    fail(e);
+                    fail(e.getMessage());
                 }
             }
 

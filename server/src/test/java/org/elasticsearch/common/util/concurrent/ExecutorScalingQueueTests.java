@@ -10,24 +10,25 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.TimeUnit;
 
 public class ExecutorScalingQueueTests extends ESTestCase {
 
     public void testPut() {
-        LinkedTransferQueue queue = new EsExecutors.ExecutorScalingQueue<>();
+        LinkedTransferQueue<Object> queue = new EsExecutors.ExecutorScalingQueue<>();
         queue.put(new Object());
         assertEquals(queue.size(), 1);
     }
 
     public void testAdd() {
-        LinkedTransferQueue queue = new EsExecutors.ExecutorScalingQueue<>();
+        LinkedTransferQueue<Object> queue = new EsExecutors.ExecutorScalingQueue<>();
         assertTrue(queue.add(new Object()));
         assertEquals(queue.size(), 1);
     }
 
     public void testTimedOffer() {
-        LinkedTransferQueue queue = new EsExecutors.ExecutorScalingQueue<>();
+        LinkedTransferQueue<Object> queue = new EsExecutors.ExecutorScalingQueue<>();
         assertTrue(queue.offer(new Object(), 60, TimeUnit.SECONDS));
         assertEquals(queue.size(), 1);
     }

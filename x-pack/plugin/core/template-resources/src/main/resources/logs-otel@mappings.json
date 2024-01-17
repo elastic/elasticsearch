@@ -40,7 +40,7 @@
         "dropped_attributes_count": {
           "type": "long"
         },
-        "flags": {
+        "trace_flags": {
           "type": "byte"
         },
         "trace_id": {

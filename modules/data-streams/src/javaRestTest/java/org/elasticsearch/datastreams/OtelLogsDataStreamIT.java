@@ -73,7 +73,7 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                "attributes": {
                  "foo": "bar"
                },
-               "flags": "AQ==",
+               "trace_flags": 1,
                "span_id": "0102040800000000",
                "trace_id": "08040201000000000000000000000000"
              }

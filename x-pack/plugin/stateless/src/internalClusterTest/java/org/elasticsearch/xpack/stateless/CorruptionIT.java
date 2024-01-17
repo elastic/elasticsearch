@@ -236,7 +236,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         Runnable searcher = () -> {
             try {
                 while (indexersRunning.getCount() > 0 && stop.get() == false) {
-                    assertNoFailures(client().prepareSearch(indexName).setTimeout(timeValueSeconds(60)).get());
+                    assertNoFailures(prepareSearch(indexName).setTimeout(timeValueSeconds(60)));
                     safeSleep(randomLongBetween(100, 1_000));
                 }
             } catch (Throwable e) {

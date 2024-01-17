@@ -57,6 +57,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -495,10 +496,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         });
         refresh(indexName);
         final PrimaryTermAndGeneration genB = getPrimaryTermAndGeneration(indexName);
-        assertEquals(
-            initialDocs,
-            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value
-        );
+        assertEquals(initialDocs, SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())));
 
         int docsToDelete = randomIntBetween(1, initialDocs);
         executeBulk(bulkRequest -> {
@@ -510,7 +508,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         final PrimaryTermAndGeneration genD = getPrimaryTermAndGeneration(indexName);
         assertEquals(
             initialDocs - docsToDelete,
-            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value
+            SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()))
         );
         assertThat(indexingGenerationalFilesClosed, containsInAnyOrder(genA, genB));
 

@@ -50,6 +50,7 @@ import java.util.concurrent.locks.LockSupport;
 
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -288,8 +289,9 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
 
         refresh(indexName);
 
-        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(2000, searchResponse.getHits().getTotalHits().value);
+        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertEquals(2000, searchResponse.getHits().getTotalHits().value);
+        });
     }
 }

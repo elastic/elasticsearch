@@ -542,7 +542,7 @@ public class DoSection implements ExecutableSection {
             // replace delimiters with .* to match a subsection of the error message
             StringBuilder regex = new StringBuilder(catchParam);
             regex.replace(0, 1, ".*");
-            regex.replace(catchParam.length() - 1, catchParam.length(), ".*");
+            regex.replace(regex.length() - 1, regex.length(), ".*");
             assertThat(
                 "the error message was expected to match the provided regex but didn't",
                 error,

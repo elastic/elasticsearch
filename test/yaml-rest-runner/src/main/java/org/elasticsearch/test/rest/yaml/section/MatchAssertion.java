@@ -62,7 +62,7 @@ public class MatchAssertion extends Assertion {
                 // remove /, replace with .* to match a subsection of the string
                 StringBuilder regex = new StringBuilder(expValue);
                 regex.replace(0, 1, ".*");
-                regex.replace(expValue.length() - 1, expValue.length(), ".*");
+                regex.replace(regex.length() - 1, regex.length(), ".*");
                 logger.trace("assert that [{}] matches [{}]", stringValue, regex);
                 assertThat(
                     "field [" + getField() + "] was expected to match the provided regex but didn't",

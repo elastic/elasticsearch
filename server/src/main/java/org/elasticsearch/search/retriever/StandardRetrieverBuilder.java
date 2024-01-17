@@ -55,31 +55,44 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRet
             c.trackSectionUsage(NAME + ":" + QUERY_FIELD.getPreferredName());
             return queryBuilder;
         }, QUERY_FIELD);
+
         PARSER.declareField(StandardRetrieverBuilder::searchAfterBuilder, (p, c) -> {
             SearchAfterBuilder searchAfterBuilder = SearchAfterBuilder.fromXContent(p);
             c.trackSectionUsage(NAME + ":" + SEARCH_AFTER_FIELD.getPreferredName());
             return searchAfterBuilder;
         }, SEARCH_AFTER_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
-        PARSER.declareObject(StandardRetrieverBuilder::terminateAfter, (p, c) -> {
+
+        PARSER.declareField(StandardRetrieverBuilder::terminateAfter, (p, c) -> {
             int terminateAfter = p.intValue();
             c.trackSectionUsage(NAME + ":" + TERMINATE_AFTER_FIELD.getPreferredName());
             return terminateAfter;
-        }, TERMINATE_AFTER_FIELD);
+        }, TERMINATE_AFTER_FIELD, ObjectParser.ValueType.INT);
+
         PARSER.declareField(StandardRetrieverBuilder::sortBuilders, (p, c) -> {
             List<SortBuilder<?>> sortBuilders = SortBuilder.fromXContent(p);
             c.trackSectionUsage(NAME + ":" + SORT_FIELD.getPreferredName());
             return sortBuilders;
         }, SORT_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
-        PARSER.declareObject(StandardRetrieverBuilder::minScore, (p, c) -> {
+
+        PARSER.declareField(StandardRetrieverBuilder::minScore, (p, c) -> {
             float minScore = p.floatValue();
             c.trackSectionUsage(NAME + ":" + MIN_SCORE_FIELD.getPreferredName());
             return minScore;
-        }, MIN_SCORE_FIELD);
-        PARSER.declareObject(StandardRetrieverBuilder::queryBuilder, (p, c) -> {
+        }, MIN_SCORE_FIELD, ObjectParser.ValueType.FLOAT);
+
+        PARSER.declareObject(StandardRetrieverBuilder::postFilterQueryBuilder, (p, c) -> {
             QueryBuilder postFilterQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
             c.trackSectionUsage(NAME + ":" + POST_FILTER_FIELD.getPreferredName());
             return postFilterQueryBuilder;
         }, POST_FILTER_FIELD);
+
+        PARSER.declareField(StandardRetrieverBuilder::collapseBuilder, (p, c) -> {
+            CollapseBuilder collapseBuilder = CollapseBuilder.fromXContent(p);
+            if (collapseBuilder.getField() != null) {
+                c.trackSectionUsage(COLLAPSE_FIELD.getPreferredName());
+            }
+            return collapseBuilder;
+        }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
 
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
@@ -189,7 +202,6 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder<StandardRet
     }
 
     @Override
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public StandardRetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         StandardRetrieverBuilder crb = super.rewrite(ctx);
 

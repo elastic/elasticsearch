@@ -415,13 +415,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // Half Float - in range
             // TODO: add scaled floats
             new ImplicitCastCase("half_float", toIntLongOrDouble + "(" + sign + "65505)"),
-            // TODO: We treat float and half_float as double, so we cannot properly decide if we can push down or not.
             // https://github.com/elastic/elasticsearch/issues/100130
-            // new ImplicitCastCase("half_float", toLongOrDouble + "(" + sign + "1000000000000)"),
+            new ImplicitCastCase("half_float", toLongOrDouble + "(" + sign + "1000000000000)"),
             new ImplicitCastCase("float", toIntLongOrDouble + "(" + sign + "1.0)"),
             new ImplicitCastCase("float", "to_double(" + sign + "3.4028235) * pow(10.0, 38)"),
             // TODO: https://github.com/elastic/elasticsearch/issues/100130
-            // new ImplicitCastCase("float", "to_double(" + sign + "1.797693134862315) * pow(10.0, 307)"),
+            new ImplicitCastCase("float", "to_double(" + sign + "1.797693134862315) * pow(10.0, 307)"),
             new ImplicitCastCase("double", toIntLongOrDouble + "(" + sign + "1)"),
             // TODO: check +-infty and NaN for all data types
             new ImplicitCastCase("double", "(" + sign + "0.0)/0.0"),
@@ -431,8 +430,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             new ImplicitCastCase("wildcard", "\"foo\"")
         );
 
+        // TODO: use random sign
         for (ImplicitCastCase c : casts) {
-            var query = builder().query(fromIndex() + " | where " + c.datatype + " == " + c.expression + " | keep " + c.datatype);
+            var query = builder().query(fromIndex() + " | where " + c.datatype + " < " + c.expression + " | keep " + c.datatype);
             runEsql(query);
         }
     }

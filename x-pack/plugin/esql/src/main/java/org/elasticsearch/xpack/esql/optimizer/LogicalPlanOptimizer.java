@@ -41,13 +41,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
@@ -69,13 +62,11 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -124,7 +115,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
             new BinaryComparisonSimplification(),
-            new OutOfRangeBinaryComparison(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),
             new PropagateNullable(),
@@ -620,97 +610,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return null;
         }
 
-    }
-
-    /**
-     * Look for numerical literals on the right hand side of a {@link BinaryComparison}s that are out of range for the left hand side data
-     * type and replace the comparison by a literal TRUE or FALSE. This rule should be placed after {@link LiteralsOnTheRight}.
-     */
-    private static class OutOfRangeBinaryComparison extends OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
-        private static final int HALF_FLOAT_MAX = 65504;
-
-        OutOfRangeBinaryComparison() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        protected Expression rule(BinaryComparison bc) {
-            if (bc.right() instanceof Literal r && r.dataType().isNumeric()) {
-                if (isInRange(bc.left().dataType(), r)) {
-                    return bc;
-                }
-
-                boolean result = false;
-                if (bc instanceof Equals || bc instanceof NullEquals) {
-                    result = false;
-                }
-                if (bc instanceof NotEquals) {
-                    result = true;
-                }
-                if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                    result = isPositive(r);
-                }
-                if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
-                    result = isPositive(r) == false;
-                }
-                return Literal.of(bc, result);
-            }
-
-            return bc;
-        }
-
-        private static boolean isInRange(DataType dataType, Literal num) {
-            Number value = (Number) num.value();
-
-            double doubleValue = value.doubleValue();
-            if (Double.isNaN(doubleValue) || Double.isInfinite(doubleValue)) {
-                return false;
-            }
-
-            BigDecimal decimalValue = num.dataType().isRational() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
-            // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.
-            // Initialize min and max with whatever.
-            BigDecimal minValue = BigDecimal.valueOf(1);
-            BigDecimal maxValue = BigDecimal.valueOf(0);
-            if (dataType == DataTypes.BYTE) {
-                minValue = BigDecimal.valueOf(Byte.MIN_VALUE);
-                maxValue = BigDecimal.valueOf(Byte.MAX_VALUE);
-            }
-            if (dataType == DataTypes.SHORT) {
-                minValue = BigDecimal.valueOf(Short.MIN_VALUE);
-                maxValue = BigDecimal.valueOf(Short.MAX_VALUE);
-            }
-            if (dataType == DataTypes.INTEGER) {
-                minValue = BigDecimal.valueOf(Integer.MIN_VALUE);
-                maxValue = BigDecimal.valueOf(Integer.MAX_VALUE);
-            }
-            if (dataType == DataTypes.LONG || dataType == DataTypes.UNSIGNED_LONG) {
-                // Unsigned longs are represented as longs in ESQL.
-                minValue = BigDecimal.valueOf(Long.MIN_VALUE);
-                maxValue = BigDecimal.valueOf(Long.MAX_VALUE);
-            }
-            if (dataType == DataTypes.HALF_FLOAT) {
-                minValue = BigDecimal.valueOf(-HALF_FLOAT_MAX);
-                maxValue = BigDecimal.valueOf(HALF_FLOAT_MAX);
-            }
-            if (dataType == DataTypes.FLOAT) {
-                minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
-                maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
-            }
-            if (dataType == DataTypes.DOUBLE) {
-                // Covers scaled floats as well (represented as doubles in ESQL).
-                minValue = BigDecimal.valueOf(-Double.MAX_VALUE);
-                maxValue = BigDecimal.valueOf(Double.MAX_VALUE);
-            }
-
-            return minValue.compareTo(decimalValue) <= 0 && maxValue.compareTo(decimalValue) >= 0;
-        }
-
-        private static boolean isPositive(Literal num) {
-            Number value = (Number) num.value();
-
-            return value.doubleValue() > 0;
-        }
     }
 
     static class PruneFilters extends OptimizerRules.PruneFilters {

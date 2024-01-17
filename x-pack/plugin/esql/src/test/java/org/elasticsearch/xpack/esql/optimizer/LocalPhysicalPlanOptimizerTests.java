@@ -392,6 +392,12 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
+    public void testOutOfRangeFilter() {
+        var plan = plan("from test | where emp_no < 1E300");
+
+        var limit = as(plan, LimitExec.class);
+    }
+
     private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {
         return FilterTests.singleValueQuery(inner, fieldName, source);
     }

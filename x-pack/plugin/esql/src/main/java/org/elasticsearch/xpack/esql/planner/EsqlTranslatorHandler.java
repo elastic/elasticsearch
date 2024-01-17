@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 public final class EsqlTranslatorHandler extends QlTranslatorHandler {
     @Override
     public Query asQuery(Expression e) {
-        return ExpressionTranslators.toQuery(e, this);
+        return ExpressionTranslators.toQuery(e, this, EsqlQueryTranslators.QUERY_TRANSLATORS);
     }
 
     @Override

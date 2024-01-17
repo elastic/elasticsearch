@@ -1,5 +1,0 @@
-pr: 104218
-summary: "Support reading spatial points from doc-values for STATS"
-area: "ES|QL"
-type: enhancement
-issues: []

@@ -381,6 +381,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final AtomicLong uploadedFileCount = new AtomicLong();
         private final AtomicLong uploadedFileBytes = new AtomicLong();
         private final AtomicReference<Map<String, Long>> commitFilesToLength = new AtomicReference<>();
+        private int uploadTryNumber = 0;
 
         public CommitUpload(
             ShardCommitState shardCommitState,
@@ -406,6 +407,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         @Override
         public void tryAction(ActionListener<StatelessCompoundCommit> listener) {
+            ++uploadTryNumber;
             try {
                 // Only do this once across multiple retries since file lengths should not change
                 if (this.commitFilesToLength.get() == null) {
@@ -451,7 +453,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     e
                 );
             } else {
-                logger.info(() -> format("%s failed attempt to upload commit [%s] to object store, will retry", shardId, generation), e);
+                org.apache.logging.log4j.util.Supplier<Object> messageSupplier = () -> format(
+                    "%s failed attempt [%s] to upload commit [%s] to object store, will retry",
+                    shardId,
+                    uploadTryNumber,
+                    generation
+                );
+                if (uploadTryNumber == 5) {
+                    logger.warn(messageSupplier, e);
+                } else {
+                    logger.info(messageSupplier, e);
+                }
             }
         }
 

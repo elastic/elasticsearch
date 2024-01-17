@@ -619,7 +619,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         public void onFailure(Exception e) {
-            logFailure(e);
             listener.onFailure(e);
         }
 
@@ -639,10 +638,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 )
             );
             listener.onResponse(null);
-        }
-
-        private void logFailure(Exception e) {
-            logger.error(() -> format("failed to translog file [%s] to object store", fileName), e);
         }
 
         @Override

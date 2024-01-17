@@ -13,6 +13,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -781,8 +782,7 @@ public final class PlanNamedTypes {
         out.writeExpression(enrich.policyName());
         out.writeNamedExpression(enrich.matchField());
         if (out.getTransportVersion().before(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
-            Object policyName = enrich.policyName().fold(); // old policy name
-            out.writeString(policyName instanceof BytesRef bytes ? bytes.utf8ToString() : policyName.toString());
+            out.writeString(BytesRefs.toString(enrich.policyName().fold())); // old policy name
         }
         enrich.policy().writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {

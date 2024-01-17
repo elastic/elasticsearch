@@ -1359,6 +1359,10 @@ public class AnalyzerTests extends ESTestCase {
             "row duration = 1 hour | eval to_string(duration)",
             "line 1:30: argument of [to_string(duration)] must be [" + supportedTypes + "], found value [duration] type [time_duration]"
         );
+        verifyUnsupported(
+            "from test | eval to_string(unsupported)",
+            "line 1:28: Cannot use field [unsupported] with unsupported type [ip_range]"
+        );
     }
 
     public void testNonExistingEnrichPolicy() {

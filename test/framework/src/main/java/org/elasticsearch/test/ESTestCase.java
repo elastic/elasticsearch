@@ -41,8 +41,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.bulk.BulkRequestBuilder2;
+import org.elasticsearch.action.index.IndexRequestBuilder2;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.update.UpdateRequestBuilder2;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
@@ -96,6 +99,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.reindex.ReindexRequestBuilder2;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -2137,5 +2141,21 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
+    }
+
+    public BulkRequestBuilder2 bulkRequestBuilder() {
+        return new BulkRequestBuilder2();
+    }
+
+    public IndexRequestBuilder2 indexRequestBuilder(String index) {
+        return new IndexRequestBuilder2(index);
+    }
+
+    public UpdateRequestBuilder2 updateRequestBuilder(String index, String id) {
+        return new UpdateRequestBuilder2(index, id);
+    }
+
+    public ReindexRequestBuilder2 reindexRequestBuilder(String index) {
+        return new ReindexRequestBuilder2();
     }
 }

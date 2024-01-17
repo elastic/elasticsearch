@@ -11,6 +11,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.core.CheckedConsumer;
@@ -63,6 +64,21 @@ public class ActionTestUtils {
         ActionListener<Response> listener
     ) {
         action.execute(task, request, listener);
+    }
+
+    public static <Request extends ActionRequest, Response extends ActionResponse> void execute(
+        TransportAction<Request, Response> action,
+        Task task,
+        RequestBuilder<Request> requestBuilder,
+        ActionListener<Response> listener
+    ) {
+        Request request = requestBuilder.buildRequest();
+        try {
+            ActionTestUtils.execute(action, task, request, listener);
+        } catch (Exception e) {
+            request.decRef();
+            throw e;
+        }
     }
 
     public static <Request extends ActionRequest, Response extends ActionResponse> void execute(

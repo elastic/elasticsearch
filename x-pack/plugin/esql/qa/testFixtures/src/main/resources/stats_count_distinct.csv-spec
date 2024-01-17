@@ -87,7 +87,7 @@ COUNT_DISTINCT(ip0):long | COUNT_DISTINCT(ip1):long
 // end::count-distinct-result[]
 ;
 
-countDistinctOfIpPrecision
+countDistinctOfIpPrecision#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
 // tag::count-distinct-precision[]
 FROM hosts
 | STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)

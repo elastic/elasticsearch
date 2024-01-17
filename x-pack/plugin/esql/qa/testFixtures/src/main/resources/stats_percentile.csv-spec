@@ -77,7 +77,7 @@ m:double   | p50:double
 0          | 0 
 ;
 
-medianOfInteger#[skip:-8.11.99,reason:ReplaceDuplicateAggWithEval breaks bwc gh-103765]
+medianOfInteger#[skip:-8.12.99,reason:ReplaceDuplicateAggWithEval breaks bwc gh-103765/Expression spaces are maintained since 8.13]
 // tag::median[]
 FROM employees
 | STATS MEDIAN(salary), PERCENTILE(salary, 50)

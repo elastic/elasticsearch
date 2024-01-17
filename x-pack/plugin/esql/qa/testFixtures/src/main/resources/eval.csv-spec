@@ -319,7 +319,7 @@ Parto          |Bamford        |6.004230000000001
 // end::evalReplace-result[]
 ;
 
-docsEvalUnnamedColumn
+docsEvalUnnamedColumn#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
 // tag::evalUnnamedColumn[]
 FROM employees
 | SORT emp_no

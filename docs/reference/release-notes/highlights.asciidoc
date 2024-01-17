@@ -1,8 +1,6 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-coming::[{minor-version}]
-
 Here are the highlights of what's new and improved in {es} {minor-version}!
 ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the <<es-release-notes>> and
@@ -41,7 +39,7 @@ enable parallelizing search execution across segments that a single shard is mad
 === Add new `int8_hsnw` index type for int8 quantization for HNSW
 This commit adds a new index type called `int8_hnsw`. This index will
 automatically quantized float32 values into int8 byte values. While
-this increases disk usage by 25%, it reduces memory required for 
+this increases disk usage by 25%, it reduces memory required for
 fast HNSW search by 75%. Dramatically reducing the resource overhead
 required for dense vector search.
 

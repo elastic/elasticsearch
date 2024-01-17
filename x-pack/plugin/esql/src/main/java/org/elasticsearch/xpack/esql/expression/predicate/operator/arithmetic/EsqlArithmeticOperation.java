@@ -121,7 +121,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             return typeResolution;
         }
 
-       return checkCompatibility();
+        return checkCompatibility();
     }
 
     /**
@@ -131,25 +131,30 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
      */
     protected TypeResolution checkCompatibility() {
         // This checks that unsigned longs should only be compatible with other unsigned longs
-        Failure failure = Verifier.validateUnsignedLongOperator(this);
-        if (failure != null) {
-            return new TypeResolution(failure.message());
+        DataType leftType = left().dataType();
+        DataType rightType = right().dataType();
+        if ((rightType == DataTypes.UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
+            || (leftType == DataTypes.UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
+            return new TypeResolution(formatIncombatibleTypesMessage(sourceText(), leftType.typeName(), rightType.typeName()));
         }
-
         // If the LHS is numeric, the RHS should be numeric or null
-        if (left().dataType().isNumeric()) {
-            if (false == (right().dataType().isNumeric() || DataTypes.isNull(right().dataType()))) {
-                return new TypeResolution(
-                    format("first argument of [{}] is [numeric] so second argument must also be [numeric] but was [{}]",
-                    sourceText(),
-                    right().dataType().typeName()
-                ));
+        if (leftType.isNumeric()) {
+            if (false == (rightType.isNumeric() || DataTypes.isNull(rightType))) {
+                return new TypeResolution(formatIncombatibleTypesMessage(sourceText(), leftType.typeName(), rightType.typeName()));
             }
         }
-
         // at this point, left should be null, and right should be null or numeric.
-
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    static String formatIncombatibleTypesMessage(String symbol, String leftType, String rightType) {
+        return format(
+            null,
+            "[{}] has arguments with incompatible types [{}] and [{}]",
+            symbol,
+            leftType.toUpperCase(),
+            rightType.toUpperCase()
+        );
     }
 
     @Override

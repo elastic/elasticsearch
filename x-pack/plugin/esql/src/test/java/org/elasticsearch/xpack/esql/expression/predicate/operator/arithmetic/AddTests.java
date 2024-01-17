@@ -116,7 +116,6 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
             )
         );
 
-
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
@@ -221,14 +220,16 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
         try {
             return typeErrorMessage(includeOrdinal, validPerPosition, types);
         } catch (IllegalStateException e) {
-           // This means all the positional args were okay, so the expected error is from the combination
-            return String.format(
-                "[+] has arguments with incompatible types [DATETIME] and [INTEGER]",
-                types.get(0).typeName(),
-                types.get(1).typeName()
-            );
+            // This means all the positional args were okay, so the expected error is from the combination
+            return "[] has arguments with incompatible types ["
+                + types.get(0).typeName().toUpperCase()
+                + "] and ["
+                + types.get(1).typeName().toUpperCase()
+                + "]";
+
         }
     }
+
     @Override
     protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
         if (isDateTimeOrTemporal(lhsType) || isDateTimeOrTemporal(rhsType)) {

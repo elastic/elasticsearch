@@ -80,11 +80,14 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         ensureGreen();
 
         int max = between(3, 10);
-        try (BulkRequestBuilder bulk = client().prepareBulk()) {
+        BulkRequestBuilder bulk = client().prepareBulk();
+        try {
             for (int i = 0; i < max; i++) {
                 bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog"));
             }
             bulk.get();
+        } finally {
+            bulk.request().decRef();
         }
 
         TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
@@ -120,11 +123,14 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         ensureGreen();
 
         int max = between(3, 10);
-        try (BulkRequestBuilder bulk = client().prepareBulk()) {
+        BulkRequestBuilder bulk = client().prepareBulk();
+        try {
             for (int i = 0; i < max; i++) {
                 bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog"));
             }
             bulk.get();
+        } finally {
+            bulk.request().decRef();
         }
 
         TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);

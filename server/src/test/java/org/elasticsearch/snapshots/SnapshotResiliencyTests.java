@@ -303,7 +303,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (documents == 0) {
                 afterIndexing.run();
             } else {
-                try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+                BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                try {
                     for (int i = 0; i < documents; ++i) {
                         bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
                     }
@@ -314,6 +315,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         assertEquals(documents, bulkResponse.getItems().length);
                         afterIndexing.run();
                     });
+                } finally {
+                    bulkRequest.decRef();
                 }
             }
         });
@@ -800,7 +803,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             afterIndexing.run();
             return;
         }
-        try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try {
             for (int i = 0; i < documents; ++i) {
                 bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
             }
@@ -811,6 +815,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 assertEquals(documents, bulkResponse.getItems().length);
                 afterIndexing.run();
             });
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -1085,10 +1091,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final AtomicBoolean initiatedSnapshot = new AtomicBoolean(false);
             for (int i = 0; i < documents; ++i) {
                 // Index a few documents with different field names so we trigger a dynamic mapping update for each of them
-                try (
-                    BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar")))
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                ) {
+                BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar")))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                try {
                     client().bulk(bulkRequest, assertNoFailureListener(bulkResponse -> {
                         assertFalse("Failures in bulkresponse: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
                         if (initiatedSnapshot.compareAndSet(false, true)) {
@@ -1099,6 +1104,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                 .execute(createSnapshotResponseStepListener);
                         }
                     }));
+                } finally {
+                    bulkRequest.decRef();
                 }
             }
         });
@@ -1193,7 +1200,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         .execute(snapshotListener)
                 );
             }
-            try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            try {
                 for (int i = 0; i < documents; ++i) {
                     bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
                 }
@@ -1204,6 +1212,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     assertEquals(documents, bulkResponse.getItems().length);
                     doneIndexing.set(true);
                 });
+            } finally {
+                bulkRequest.decRef();
             }
         });
 

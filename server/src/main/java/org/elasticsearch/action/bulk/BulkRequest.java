@@ -26,7 +26,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -55,8 +54,7 @@ public class BulkRequest extends ActionRequest
         CompositeIndicesRequest,
         WriteRequest<BulkRequest>,
         Accountable,
-        RawIndexingDataTransportRequest,
-        Releasable {
+        RawIndexingDataTransportRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
@@ -459,7 +457,4 @@ public class BulkRequest extends ActionRequest
     public Set<String> getIndices() {
         return Collections.unmodifiableSet(indices);
     }
-
-    @Override
-    public void close() {}
 }

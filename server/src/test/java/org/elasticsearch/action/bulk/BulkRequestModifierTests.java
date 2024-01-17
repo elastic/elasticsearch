@@ -32,7 +32,8 @@ public class BulkRequestModifierTests extends ESTestCase {
 
     public void testBulkRequestModifier() {
         int numRequests = scaledRandomIntBetween(8, 64);
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             for (int i = 0; i < numRequests; i++) {
                 bulkRequest.add(new IndexRequest("_index").id(String.valueOf(i)).source("{}", XContentType.JSON));
             }
@@ -53,7 +54,7 @@ public class BulkRequestModifierTests extends ESTestCase {
             BulkRequest modifiedBulkRequest = bulkRequestModifier.getBulkRequest();
             assertThat(modifiedBulkRequest.requests().size(), equalTo(numRequests - failedSlots.size()));
             if (modifiedBulkRequest != bulkRequest) { // The modifier can return a new object or the original one
-                modifiedBulkRequest.close();
+                modifiedBulkRequest.decRef();
             }
             // simulate that we actually executed the modified bulk request:
             long ingestTook = randomLong();
@@ -73,11 +74,14 @@ public class BulkRequestModifierTests extends ESTestCase {
                     assertThat(bulkResponse.getItems()[j], nullValue());
                 }
             }
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testPipelineFailures() {
-        try (BulkRequest originalBulkRequest = new BulkRequest()) {
+        BulkRequest originalBulkRequest = new BulkRequest();
+        try {
             for (int i = 0; i < 32; i++) {
                 originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
             }
@@ -118,13 +122,16 @@ public class BulkRequestModifierTests extends ESTestCase {
                 assertThat(responses.get(i).getId(), Matchers.equalTo(String.valueOf(i)));
             }
             if (bulkRequest != originalBulkRequest) { // The modifier can return a new object or the original one
-                bulkRequest.close();
+                bulkRequest.decRef();
             }
+        } finally {
+            originalBulkRequest.decRef();
         }
     }
 
     public void testNoFailures() {
-        try (BulkRequest originalBulkRequest = new BulkRequest()) {
+        BulkRequest originalBulkRequest = new BulkRequest();
+        try {
             for (int i = 0; i < 32; i++) {
                 originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
             }
@@ -138,8 +145,10 @@ public class BulkRequestModifierTests extends ESTestCase {
             assertThat(bulkRequest, Matchers.sameInstance(originalBulkRequest));
             assertThat(modifier.wrapActionListenerIfNeeded(1L, ActionListener.noop()), ActionListenerTests.isMappedActionListener());
             if (bulkRequest != originalBulkRequest) { // The modifier can return a new object or the original one
-                bulkRequest.close();
+                bulkRequest.decRef();
             }
+        } finally {
+            originalBulkRequest.decRef();
         }
     }
 

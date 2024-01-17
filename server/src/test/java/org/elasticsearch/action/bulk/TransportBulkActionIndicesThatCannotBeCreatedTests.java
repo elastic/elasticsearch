@@ -48,7 +48,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
     private static final Consumer<String> noop = index -> {};
 
     public void testNonExceptional() {
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
             bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
             bulkRequest.add(new DeleteRequest(randomAlphaOfLength(5)));
@@ -59,11 +60,14 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> false, noop);
             // Test emulating auto_create_index=true with some indices already created.
             indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> randomBoolean(), noop);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testAllFail() {
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             bulkRequest.add(new IndexRequest("no"));
             bulkRequest.add(new IndexRequest("can't"));
             bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
@@ -71,11 +75,14 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             indicesThatCannotBeCreatedTestCase(Set.of("no", "can't", "do", "nothin"), bulkRequest, index -> true, index -> {
                 throw new IndexNotFoundException("Can't make it because I say so");
             });
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testSomeFail() {
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             bulkRequest.add(new IndexRequest("ok"));
             bulkRequest.add(new IndexRequest("bad"));
             // Emulate auto_create_index=-bad,+*
@@ -84,6 +91,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                     throw new IndexNotFoundException("Can't make it because I say so");
                 }
             });
+        } finally {
+            bulkRequest.decRef();
         }
     }
 

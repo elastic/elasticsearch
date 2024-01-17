@@ -78,18 +78,22 @@ public class RetryTests extends ESTestCase {
     public void testRetryBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
 
-        try (BulkRequest bulkRequest = createBulkRequest()) {
+        BulkRequest bulkRequest = createBulkRequest();
+        try {
             BulkResponse response = new Retry(backoff, bulkClient.threadPool()).withBackoff(bulkClient::bulk, bulkRequest).actionGet();
 
             assertFalse(response.hasFailures());
             assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testRetryFailsAfterBackoff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
 
-        try (BulkRequest bulkRequest = createBulkRequest()) {
+        BulkRequest bulkRequest = createBulkRequest();
+        try {
             BulkResponse response = new Retry(backoff, bulkClient.threadPool()).withBackoff(bulkClient::bulk, bulkRequest).actionGet();
             /*
              * If the last failure was an item failure we'll end up here
@@ -101,6 +105,8 @@ public class RetryTests extends ESTestCase {
              * If the last failure was a rejection we'll end up here.
              */
             assertThat(e.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -108,7 +114,8 @@ public class RetryTests extends ESTestCase {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
         AssertingListener listener = new AssertingListener();
 
-        try (BulkRequest bulkRequest = createBulkRequest()) {
+        BulkRequest bulkRequest = createBulkRequest();
+        try {
             Retry retry = new Retry(backoff, bulkClient.threadPool());
             retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
@@ -117,6 +124,8 @@ public class RetryTests extends ESTestCase {
             listener.assertResponseWithoutFailures();
             listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
             listener.assertOnFailureNeverCalled();
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -124,7 +133,8 @@ public class RetryTests extends ESTestCase {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
         AssertingListener listener = new AssertingListener();
 
-        try (BulkRequest bulkRequest = createBulkRequest()) {
+        BulkRequest bulkRequest = createBulkRequest();
+        try {
             Retry retry = new Retry(backoff, bulkClient.threadPool());
             retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
@@ -144,6 +154,8 @@ public class RetryTests extends ESTestCase {
                 assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
                 assertThat(listener.lastFailure.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
             }
+        } finally {
+            bulkRequest.decRef();
         }
     }
 

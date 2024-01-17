@@ -30,11 +30,16 @@ public class SimulateBulkRequestTests extends ESTestCase {
          * Note: SimulateBulkRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a
          * Writable
          */
-        try (
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
-            SimulateBulkRequest copy = copyWriteable(simulateBulkRequest, null, SimulateBulkRequest::new)
-        ) {
-            assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
+        try {
+            SimulateBulkRequest copy = copyWriteable(simulateBulkRequest, null, SimulateBulkRequest::new);
+            try {
+                assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
+            } finally {
+                copy.decRef();
+            }
+        } finally {
+            simulateBulkRequest.decRef();
         }
     }
 

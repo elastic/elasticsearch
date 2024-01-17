@@ -178,8 +178,8 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(2, 100);
         int precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
 
-        try (BulkRequestBuilder bulkRequest = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE)) {
-
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        try {
             // Add a random number of documents containing a flattened field, plus
             // a small number of dummy documents.
             for (int i = 0; i < numDocs; ++i) {
@@ -233,6 +233,8 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                     assertCardinality(secondCount, (numDocs + 1) / 2, precisionThreshold);
                 }
             );
+        } finally {
+            bulkRequest.request().decRef();
         }
     }
 
@@ -247,7 +249,8 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testTermsAggregation() throws IOException {
-        try (BulkRequestBuilder bulkRequest = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE)) {
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        try {
             for (int i = 0; i < 5; i++) {
                 bulkRequest.add(
                     client().prepareIndex()
@@ -318,6 +321,8 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                 assertThat(minDocCountTerms.getName(), equalTo("terms"));
                 assertThat(minDocCountTerms.getBuckets().size(), equalTo(1));
             });
+        } finally {
+            bulkRequest.request().decRef();
         }
     }
 

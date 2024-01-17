@@ -241,13 +241,16 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     }
 
     public void testIngestSkipped() throws Exception {
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             IndexRequest indexRequest = new IndexRequest("index").id("id");
             indexRequest.source(Collections.emptyMap());
             bulkRequest.add(indexRequest);
             ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
             assertTrue(action.isExecuted);
             verifyNoMoreInteractions(ingestService);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -261,7 +264,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
     public void testIngestLocal() throws Exception {
         Exception exception = new Exception("fake exception");
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             IndexRequest indexRequest1 = new IndexRequest("index").id("id");
             indexRequest1.source(Collections.emptyMap());
             indexRequest1.setPipeline("testpipeline");
@@ -323,6 +327,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             assertTrue(action.isExecuted);
             assertTrue(responseCalled.get());
             verifyNoMoreInteractions(transportService);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -386,7 +392,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
     public void testIngestSystemLocal() throws Exception {
         Exception exception = new Exception("fake exception");
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             IndexRequest indexRequest1 = new IndexRequest(".system").id("id");
             indexRequest1.source(Collections.emptyMap());
             indexRequest1.setPipeline("testpipeline");
@@ -448,12 +455,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             assertTrue(action.isExecuted);
             assertTrue(responseCalled.get()); // listener would only be called by real index action, not our mocked one
             verifyNoMoreInteractions(transportService);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testIngestForward() throws Exception {
         localIngest = false;
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             IndexRequest indexRequest = new IndexRequest("index").id("id");
             indexRequest.source(Collections.emptyMap());
             indexRequest.setPipeline("testpipeline");
@@ -491,6 +501,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             } else {
                 assertSame(remoteNode1, node.getValue());
             }
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -566,7 +578,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
     private void validatePipelineWithBulkUpsert(@Nullable String indexRequestIndexName, String updateRequestIndexName) throws Exception {
         Exception exception = new Exception("fake exception");
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             IndexRequest indexRequest1 = new IndexRequest(indexRequestIndexName).id("id1").source(Collections.emptyMap());
             IndexRequest indexRequest2 = new IndexRequest(indexRequestIndexName).id("id2").source(Collections.emptyMap());
             IndexRequest indexRequest3 = new IndexRequest(indexRequestIndexName).id("id3").source(Collections.emptyMap());
@@ -639,6 +652,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             assertTrue(action.isExecuted);
             assertTrue(responseCalled.get());
             verifyNoMoreInteractions(transportService);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -834,7 +849,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     }
 
     public void testIngestCallbackExceptionHandled() throws Exception {
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             IndexRequest indexRequest1 = new IndexRequest("index");
             indexRequest1.source(Collections.emptyMap());
             indexRequest1.setPipeline("testpipeline");
@@ -865,6 +881,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             assertFalse(action.isExecuted);
             assertFalse(responseCalled.get());
             assertTrue(failureCalled.get());
+        } finally {
+            bulkRequest.decRef();
         }
     }
 

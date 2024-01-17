@@ -1088,7 +1088,8 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final SetOnce<Boolean> failure = new SetOnce<>();
 
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             final IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
                 .source(Map.of())
                 .setPipeline("_none")
@@ -1118,6 +1119,8 @@ public class IngestServiceTests extends ESTestCase {
 
             assertTrue(failure.get());
             verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -1136,7 +1139,8 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
                 .source(Map.of())
                 .setPipeline("_none")
@@ -1169,6 +1173,8 @@ public class IngestServiceTests extends ESTestCase {
                 argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
             );
             verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -1211,7 +1217,8 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             UpdateRequest updateRequest = new UpdateRequest("_index", "_id1").upsert("{}", "{}");
             updateRequest.upsertRequest().setPipeline("_id");
             bulkRequest.add(updateRequest);
@@ -1231,6 +1238,8 @@ public class IngestServiceTests extends ESTestCase {
             );
             assertThat(setNameCalledCount.get(), equalTo(2));
             assertThat(closeCalled.get(), equalTo(2));
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -1511,7 +1520,8 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testBulkRequestExecutionWithFailures() throws Exception {
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             String pipelineId = "_id";
 
             int numRequest = scaledRandomIntBetween(8, 64);
@@ -1569,11 +1579,14 @@ public class IngestServiceTests extends ESTestCase {
 
             verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(e -> e.getCause().equals(error)));
             verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testBulkRequestExecution() throws Exception {
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             String pipelineId = "_id";
 
             // Test to make sure that ingest respects content types other than the default index content type
@@ -1641,6 +1654,8 @@ public class IngestServiceTests extends ESTestCase {
                     assertThat(indexRequest.getExecutedPipelines(), nullValue());
                 }
             }
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -1936,7 +1951,8 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             final IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
                 .source(Map.of())
                 .setPipeline("_none")
@@ -1966,6 +1982,8 @@ public class IngestServiceTests extends ESTestCase {
             verify(failureHandler, never()).accept(any(), any());
             verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
             verify(dropHandler, times(1)).accept(1);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -2106,7 +2124,8 @@ public class IngestServiceTests extends ESTestCase {
         // both a request and a final pipeline
         IndexRequest indexRequest8 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_id2").source(doc2);
 
-        try (BulkRequest bulkRequest = new BulkRequest()) {
+        BulkRequest bulkRequest = new BulkRequest();
+        try {
             bulkRequest.add(indexRequest1);
             bulkRequest.add(indexRequest2);
             bulkRequest.add(indexRequest3);
@@ -2125,6 +2144,8 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(indexRequest6.getRawTimestamp(), equalTo(10));
             assertThat(indexRequest7.getRawTimestamp(), equalTo(100));
             assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
+        } finally {
+            bulkRequest.decRef();
         }
     }
 

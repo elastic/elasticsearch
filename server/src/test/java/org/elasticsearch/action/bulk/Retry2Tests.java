@@ -79,7 +79,8 @@ public class Retry2Tests extends ESTestCase {
     }
 
     public void testRetryBacksOff() throws Exception {
-        try (BulkRequest bulkRequest = createBulkRequest()) {
+        BulkRequest bulkRequest = createBulkRequest();
+        try {
             Retry2 retry2 = new Retry2(CALLS_TO_FAIL);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             retry2.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, future);
@@ -87,11 +88,14 @@ public class Retry2Tests extends ESTestCase {
 
             assertFalse(response.hasFailures());
             assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testRetryFailsAfterRetry() throws Exception {
-        try (BulkRequest bulkRequest = createBulkRequest()) {
+        BulkRequest bulkRequest = createBulkRequest();
+        try {
             Retry2 retry2 = new Retry2(CALLS_TO_FAIL - 1);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             retry2.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, future);
@@ -106,13 +110,16 @@ public class Retry2Tests extends ESTestCase {
              * If the last failure was a rejection we'll end up here.
              */
             assertThat(e.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
+        } finally {
+            bulkRequest.decRef();
         }
 
     }
 
     public void testRetryWithListener() throws Exception {
         AssertingListener listener = new AssertingListener();
-        try (BulkRequest bulkRequest = createBulkRequest()) {
+        BulkRequest bulkRequest = createBulkRequest();
+        try {
             Retry2 retry = new Retry2(CALLS_TO_FAIL);
             retry.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, listener);
 
@@ -121,12 +128,15 @@ public class Retry2Tests extends ESTestCase {
             listener.assertResponseWithoutFailures();
             listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
             listener.assertOnFailureNeverCalled();
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testRetryWithListenerFailsAfterBacksOff() throws Exception {
         AssertingListener listener = new AssertingListener();
-        try (BulkRequest bulkRequest = createBulkRequest()) {
+        BulkRequest bulkRequest = createBulkRequest();
+        try {
             Retry2 retry = new Retry2(CALLS_TO_FAIL - 1);
             retry.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, listener);
 
@@ -146,6 +156,8 @@ public class Retry2Tests extends ESTestCase {
                 assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
                 assertThat(listener.lastFailure.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
             }
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -157,11 +169,14 @@ public class Retry2Tests extends ESTestCase {
             Retry2 retry = new Retry2(CALLS_TO_FAIL);
             retry.awaitClose(200, TimeUnit.MILLISECONDS);
             AssertingListener listener = new AssertingListener();
-            try (BulkRequest bulkRequest = createBulkRequest()) {
+            BulkRequest bulkRequest = createBulkRequest();
+            try {
                 retry.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, listener);
                 listener.awaitCallbacksCalled();
                 assertNotNull(listener.lastFailure);
                 assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
+            } finally {
+                bulkRequest.decRef();
             }
         }
         /*
@@ -170,7 +185,8 @@ public class Retry2Tests extends ESTestCase {
         {
             Retry2 retry = new Retry2(CALLS_TO_FAIL);
             List<AssertingListener> listeners = new ArrayList<>();
-            try (BulkRequest bulkRequest = createBulkRequest()) {
+            BulkRequest bulkRequest = createBulkRequest();
+            try {
                 for (int i = 0; i < randomIntBetween(1, 100); i++) {
                     AssertingListener listener = new AssertingListener();
                     listeners.add(listener);
@@ -183,6 +199,8 @@ public class Retry2Tests extends ESTestCase {
                     }, bulkRequest, listener);
                 }
                 retry.awaitClose(1, TimeUnit.SECONDS);
+            } finally {
+                bulkRequest.decRef();
             }
         }
         /*
@@ -191,7 +209,8 @@ public class Retry2Tests extends ESTestCase {
         {
             Retry2 retry = new Retry2(CALLS_TO_FAIL);
             List<AssertingListener> listeners = new ArrayList<>();
-            try (BulkRequest bulkRequest = createBulkRequest()) {
+            BulkRequest bulkRequest = createBulkRequest();
+            try {
                 for (int i = 0; i < randomIntBetween(0, 100); i++) {
                     AssertingListener listener = new AssertingListener();
                     listeners.add(listener);
@@ -219,6 +238,8 @@ public class Retry2Tests extends ESTestCase {
                 assertThat(runtimeMillis, greaterThanOrEqualTo(waitTimeMillis));
                 // A sanity check that it didn't take an extremely long time to complete:
                 assertThat(runtimeMillis, lessThanOrEqualTo(TimeValue.timeValueSeconds(1).millis()));
+            } finally {
+                bulkRequest.decRef();
             }
         }
     }

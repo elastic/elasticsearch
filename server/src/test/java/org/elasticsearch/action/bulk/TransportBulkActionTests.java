@@ -140,7 +140,8 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {
-        try (BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id"))) {
+        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id"));
+        try {
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
 
@@ -151,32 +152,34 @@ public class TransportBulkActionTests extends ESTestCase {
             assertTrue(bulkResponses[0].isFailed());
             assertTrue(bulkResponses[0].getFailure().getCause() instanceof IndexNotFoundException);
             assertEquals("index", bulkResponses[0].getFailure().getIndex());
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testDeleteNonExistingDocExternalVersionCreatesIndex() throws Exception {
-        try (
-            BulkRequest bulkRequest = new BulkRequest().add(
-                new DeleteRequest("index").id("id").versionType(VersionType.EXTERNAL).version(0)
-            )
-        ) {
+        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id").versionType(VersionType.EXTERNAL).version(0));
+        try {
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             future.actionGet();
             assertTrue(bulkAction.indexCreated);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
     public void testDeleteNonExistingDocExternalGteVersionCreatesIndex() throws Exception {
-        try (
-            BulkRequest bulkRequest = new BulkRequest().add(
-                new DeleteRequest("index2").id("id").versionType(VersionType.EXTERNAL_GTE).version(0)
-            )
-        ) {
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new DeleteRequest("index2").id("id").versionType(VersionType.EXTERNAL_GTE).version(0)
+        );
+        try {
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             future.actionGet();
             assertTrue(bulkAction.indexCreated);
+        } finally {
+            bulkRequest.decRef();
         }
     }
 
@@ -315,31 +318,36 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testRejectCoordination() throws Exception {
-        try (BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()))) {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+        try {
             threadPool.startForcingRejections();
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
         } finally {
+            bulkRequest.decRef();
             threadPool.stopForcingRejections();
         }
     }
 
     public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
         bulkAction.failIndexCreation = randomBoolean();
-        try (BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()))) {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+        try {
             bulkAction.beforeIndexCreation = threadPool::startForcingRejections;
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
             assertTrue(bulkAction.indexCreated);
         } finally {
+            bulkRequest.decRef();
             threadPool.stopForcingRejections();
         }
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {
-        try (BulkRequest request = new BulkRequest()) {
+        BulkRequest request = new BulkRequest();
+        try {
             for (String index : indices) {
                 final DocWriteRequest<?> subRequest = switch (randomIntBetween(1, 3)) {
                     case 1 -> new IndexRequest(index);
@@ -350,6 +358,8 @@ public class TransportBulkActionTests extends ESTestCase {
                 request.add(subRequest);
             }
             return request;
+        } finally {
+            request.decRef();
         }
     }
 }

@@ -129,7 +129,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
 
     public void testIndexData() {
         Task task = mock(Task.class); // unused
-        try (BulkRequest bulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null)) {
+        BulkRequest bulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
+        try {
             int bulkItemCount = randomIntBetween(0, 200);
             for (int i = 0; i < bulkItemCount; i++) {
                 Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
@@ -204,6 +205,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 startTime
             );
             assertThat(onResponseCalled.get(), equalTo(true));
+        } finally {
+            bulkRequest.decRef();
         }
     }
 }

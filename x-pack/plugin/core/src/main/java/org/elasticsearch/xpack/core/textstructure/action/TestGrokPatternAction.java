@@ -31,7 +31,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Response> {
 
     public static final TestGrokPatternAction INSTANCE = new TestGrokPatternAction();
-    public static final String NAME = "cluster:monitor/text_structure/testgrokpattern";
+    public static final String NAME = "cluster:monitor/text_structure/test_grok_pattern";
 
     private TestGrokPatternAction() {
         super(NAME, Response::new);
@@ -47,7 +47,7 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
         private static ObjectParser<Request.Builder, Void> createParser() {
             ObjectParser<Request.Builder, Void> parser = new ObjectParser<>("textstructure/testgrokpattern", false, Request.Builder::new);
             parser.declareString(Request.Builder::grokPattern, GROK_PATTERN);
-            parser.declareStringArray(Request.Builder::texts, TEXT);
+            parser.declareStringArray(Request.Builder::text, TEXT);
             return parser;
         }
 
@@ -55,12 +55,14 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
             private String grokPattern;
             private List<String> text;
 
-            public void grokPattern(String grokPattern) {
+            public Builder grokPattern(String grokPattern) {
                 this.grokPattern = grokPattern;
+                return this;
             }
 
-            public void texts(List<String> text) {
+            public Builder text(List<String> text) {
                 this.text = text;
+                return this;
             }
 
             public Request build() {

@@ -45,7 +45,7 @@ public class TransportTestGrokPatternAction extends HandledTransportAction<TestG
 
     @Override
     protected void doExecute(Task task, TestGrokPatternAction.Request request, ActionListener<TestGrokPatternAction.Response> listener) {
-        // As determining the text structure might take a while, we run
+        // As matching a regular expression might take a while, we run
         // in a different thread to avoid blocking the network thread.
         threadPool.generic().execute(() -> {
             try {

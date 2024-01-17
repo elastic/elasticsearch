@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;

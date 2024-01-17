@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -98,9 +97,9 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     public void setup() throws IOException {
         shardId = new ShardId("index0", UUIDs.randomBase64UUID(), 0);
         final String nodeId = randomAlphaOfLength(10);
-        routing = aShardRouting(shardId, nodeId, true, ShardRoutingState.INITIALIZING)
-            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
-            .build();
+        routing = aShardRouting(shardId, nodeId, true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        ).build();
 
         dataPaths = new Path[] { createTempDir(), createTempDir(), createTempDir() };
         final String[] tmpPaths = Arrays.stream(dataPaths).map(s -> s.toAbsolutePath().toString()).toArray(String[]::new);

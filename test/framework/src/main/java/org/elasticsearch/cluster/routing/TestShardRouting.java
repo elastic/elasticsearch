@@ -212,17 +212,6 @@ public class TestShardRouting {
         );
     }
 
-    public static ShardRouting newShardRouting(
-        ShardId shardId,
-        String currentNodeId,
-        String relocatingNodeId,
-        boolean primary,
-        ShardRoutingState state,
-        UnassignedInfo unassignedInfo
-    ) {
-        return aShardRouting(shardId, currentNodeId, primary, state).withRelocatingNodeId(relocatingNodeId).withUnassignedInfo(unassignedInfo).build();
-    }
-
     public static RecoverySource buildRecoverySource(boolean primary, ShardRoutingState state) {
         return switch (state) {
             case UNASSIGNED, INITIALIZING -> primary

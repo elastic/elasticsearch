@@ -506,7 +506,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * The unassigned meta is kept when a shard goes to INITIALIZING, but cleared when it moves to STARTED.
      */
     public void testStateTransitionMetaHandling() {
-        ShardRouting shard = aShardRouting("test", 1, null, true, ShardRoutingState.UNASSIGNED).withRelocatingNodeId(null).withUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)).build();
+        ShardRouting shard = aShardRouting("test", 1, null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        ).build();
         assertThat(shard.unassignedInfo(), notNullValue());
         shard = shard.initialize("test_node", null, -1);
         assertThat(shard.state(), equalTo(ShardRoutingState.INITIALIZING));

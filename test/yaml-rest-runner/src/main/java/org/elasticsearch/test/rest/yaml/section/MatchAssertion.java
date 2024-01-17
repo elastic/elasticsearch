@@ -59,12 +59,15 @@ public class MatchAssertion extends Assertion {
                     instanceOf(String.class)
                 );
                 String stringValue = (String) actualValue;
-                String regex = expValue.substring(1, expValue.length() - 1);
+                // remove /, replace with .* to match a subsection of the string
+                StringBuilder regex = new StringBuilder(expValue);
+                regex.replace(0, 1, ".*");
+                regex.replace(expValue.length() - 1, expValue.length(), ".*");
                 logger.trace("assert that [{}] matches [{}]", stringValue, regex);
                 assertThat(
                     "field [" + getField() + "] was expected to match the provided regex but didn't",
                     stringValue,
-                    matchesRegex(Pattern.compile(regex, Pattern.COMMENTS))
+                    matchesRegex(Pattern.compile(regex.toString(), Pattern.COMMENTS))
                 );
                 return;
             }

@@ -1593,6 +1593,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (retrieverBuilder != null) {
+            if (subSearchSourceBuilders.isEmpty() == false) {
+                throw new IllegalArgumentException("cannot specify both elements [query] and [retriever]");
+            }
+            if (knnSearch.isEmpty() == false) {
+                throw new IllegalArgumentException("cannot specify both elements [knn] and [retriever]");
+            }
             retrieverBuilder.extractToSearchSourceBuilder(this);
         }
         searchUsageConsumer.accept(searchUsage);

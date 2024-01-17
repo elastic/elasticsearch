@@ -1,0 +1,372 @@
+setup:
+  - skip:
+      version: ' - 8.12.99'
+      reason: 'standard retriever added in 8.13'
+  - do:
+      indices.create:
+        index: animals
+        body:
+          mappings:
+            properties:
+              type:
+                type: keyword
+              name:
+                type: keyword
+              color:
+                type: keyword
+              count:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        index: animals
+        body:
+          - '{"index": {"_id": 1 }}'
+          - '{"type": "domestic", "name": "cow", "color": "brown", "count": 1}'
+          - '{"index": {"_id": 2 }}'
+          - '{"type": "domestic", "name": "cow", "color": "spotted", "count": 2}'
+          - '{"index": {"_id": 3 }}'
+          - '{"type": "domestic", "name": "cow", "color": "spotted", "count": 3}'
+          - '{"index": {"_id": 4 }}'
+          - '{"type": "domestic", "name": "pig", "color": "pink", "count": 4}'
+          - '{"index": {"_id": 5 }}'
+          - '{"type": "domestic", "name": "pig", "color": "pink", "count": 5}'
+          - '{"index": {"_id": 6 }}'
+          - '{"type": "domestic", "name": "pig", "color": "spotted", "count": 6}'
+          - '{"index": {"_id": 7 }}'
+          - '{"type": "domestic", "name": "chicken", "color": "white", "count": 7}'
+          - '{"index": {"_id": 8 }}'
+          - '{"type": "domestic", "name": "chicken", "color": "brown", "count": 8}'
+          - '{"index": {"_id": 9 }}'
+          - '{"type": "domestic", "name": "chicken", "color": "spotted", "count": 9}'
+          - '{"index": {"_id": 10 }}'
+          - '{"type": "wild", "name": "coyote", "color": "gray", "count": 1}'
+          - '{"index": {"_id": 11 }}'
+          - '{"type": "wild", "name": "coyote", "color": "gray", "count": 2}'
+          - '{"index": {"_id": 12 }}'
+          - '{"type": "wild", "name": "coyote", "color": "white", "count": 3}'
+          - '{"index": {"_id": 13 }}'
+          - '{"type": "wild", "name": "rabbit", "color": "brown", "count": 4}'
+          - '{"index": {"_id": 14 }}'
+          - '{"type": "wild", "name": "rabbit", "color": "spotted", "count": 5}'
+          - '{"index": {"_id": 15 }}'
+          - '{"type": "wild", "name": "rabbit", "color": "white", "count": 6}'
+
+---
+"standard retriever basic":
+  - do:
+      search:
+        index: animals
+        body:
+          fields: [ "name", "count" ]
+          retriever:
+            standard:
+              query:
+                term:
+                  color: "spotted"
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "cow"}
+  - match: {hits.hits.0.fields.count.0: 2}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1.fields.name.0: "cow"}
+  - match: {hits.hits.1.fields.count.0: 3}
+
+  - match: {hits.hits.2._id: "6"}
+  - match: {hits.hits.2.fields.name.0: "pig"}
+  - match: {hits.hits.2.fields.count.0: 6}
+
+  - match: {hits.hits.3._id: "9"}
+  - match: {hits.hits.3.fields.name.0: "chicken"}
+  - match: {hits.hits.3.fields.count.0: 9}
+
+  - match: {hits.hits.4._id: "14"}
+  - match: {hits.hits.4.fields.name.0: "rabbit"}
+  - match: {hits.hits.4.fields.count.0: 5}
+
+---
+"standard retriever single sort":
+  - do:
+      search:
+        index: animals
+        body:
+          fields: [ "name", "count" ]
+          retriever:
+            standard:
+              query:
+                term:
+                  color: "spotted"
+              sort: [
+                {
+                  name: "asc"
+                }
+              ]
+
+  - match: {hits.hits.0._id: "9"}
+  - match: {hits.hits.0.fields.name.0: "chicken"}
+  - match: {hits.hits.0.fields.count.0: 9}
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "cow"}
+  - match: {hits.hits.1.fields.count.0: 2}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2.fields.name.0: "cow"}
+  - match: {hits.hits.2.fields.count.0: 3}
+
+  - match: {hits.hits.3._id: "6"}
+  - match: {hits.hits.3.fields.name.0: "pig"}
+  - match: {hits.hits.3.fields.count.0: 6}
+
+  - match: {hits.hits.4._id: "14"}
+  - match: {hits.hits.4.fields.name.0: "rabbit"}
+  - match: {hits.hits.4.fields.count.0: 5}
+
+---
+"standard retriever multi sort":
+  - do:
+      search:
+        index: animals
+        body:
+          fields: [ "name", "count" ]
+          retriever:
+            standard:
+              query:
+                bool:
+                  should: [
+                    {
+                      term: {
+                        color: "spotted"
+                      }
+                    },
+                    {
+                      term: {
+                        color: "pink"
+                      }
+                    }
+                  ]
+              sort: [
+                {
+                  name: "asc"
+                },
+                {
+                  count: "desc"
+                }
+              ]
+
+  - match: {hits.hits.0._id: "9"}
+  - match: {hits.hits.0.fields.name.0: "chicken"}
+  - match: {hits.hits.0.fields.count.0: 9}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1.fields.name.0: "cow"}
+  - match: {hits.hits.1.fields.count.0: 3}
+
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2.fields.name.0: "cow"}
+  - match: {hits.hits.2.fields.count.0: 2}
+
+  - match: {hits.hits.3._id: "6"}
+  - match: {hits.hits.3.fields.name.0: "pig"}
+  - match: {hits.hits.3.fields.count.0: 6}
+
+  - match: {hits.hits.4._id: "5"}
+  - match: {hits.hits.4.fields.name.0: "pig"}
+  - match: {hits.hits.4.fields.count.0: 5}
+
+  - match: {hits.hits.5._id: "4"}
+  - match: {hits.hits.5.fields.name.0: "pig"}
+  - match: {hits.hits.5.fields.count.0: 4}
+
+  - match: {hits.hits.6._id: "14"}
+  - match: {hits.hits.6.fields.name.0: "rabbit"}
+  - match: {hits.hits.6.fields.count.0: 5}
+
+---
+"standard retriever filter":
+  - do:
+      search:
+        index: animals
+        body:
+          fields: [ "name", "count" ]
+          retriever:
+            standard:
+              filter:
+                bool:
+                  must_not:
+                    term:
+                      name: "cow"
+              query:
+                term:
+                  color: "spotted"
+
+  - match: {hits.hits.0._id: "6"}
+  - match: {hits.hits.0.fields.name.0: "pig"}
+  - match: {hits.hits.0.fields.count.0: 6}
+
+  - match: {hits.hits.1._id: "9"}
+  - match: {hits.hits.1.fields.name.0: "chicken"}
+  - match: {hits.hits.1.fields.count.0: 9}
+
+  - match: {hits.hits.2._id: "14"}
+  - match: {hits.hits.2.fields.name.0: "rabbit"}
+  - match: {hits.hits.2.fields.count.0: 5}
+
+---
+"standard retriever multi filter":
+  - do:
+      search:
+        index: animals
+        body:
+          fields: [ "name", "count" ]
+          retriever:
+            standard:
+              filter: [
+                {
+                  term: {
+                    name: "cow"
+                  }
+                },
+                {
+                  range: {
+                    count: {
+                      gt: 1,
+                      lt: 3
+                    }
+                  }
+                }
+              ]
+              query:
+                term:
+                  color: "spotted"
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "cow"}
+  - match: {hits.hits.0.fields.count.0: 2}
+
+---
+"standard retriever search after":
+  - do:
+      search:
+        index: animals
+        body:
+          size: 3
+          fields: [ "name", "count" ]
+          retriever:
+            standard:
+              query:
+                bool:
+                  should: [
+                    {
+                      term: {
+                        color: "spotted"
+                      }
+                    },
+                    {
+                      term: {
+                        color: "pink"
+                      }
+                    }
+                  ]
+              sort: [
+                {
+                  name: "asc"
+                },
+                {
+                  count: "desc"
+                }
+              ]
+
+  - match: {hits.hits.0._id: "9"}
+  - match: {hits.hits.0.fields.name.0: "chicken"}
+  - match: {hits.hits.0.fields.count.0: 9}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1.fields.name.0: "cow"}
+  - match: {hits.hits.1.fields.count.0: 3}
+
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2.fields.name.0: "cow"}
+  - match: {hits.hits.2.fields.count.0: 2}
+
+  - do:
+      search:
+        index: animals
+        body:
+          size: 3
+          fields: [ "name", "count" ]
+          retriever:
+            standard:
+              search_after: [ "cow", 2 ]
+              query:
+                bool:
+                  should: [
+                    {
+                      term: {
+                        color: "spotted"
+                      }
+                    },
+                    {
+                      term: {
+                        color: "pink"
+                      }
+                    }
+                  ]
+              sort: [
+                {
+                  name: "asc"
+                },
+                {
+                  count: "desc"
+                }
+              ]
+
+  - match: {hits.hits.0._id: "6"}
+  - match: {hits.hits.0.fields.name.0: "pig"}
+  - match: {hits.hits.0.fields.count.0: 6}
+
+  - match: {hits.hits.1._id: "5"}
+  - match: {hits.hits.1.fields.name.0: "pig"}
+  - match: {hits.hits.1.fields.count.0: 5}
+
+  - match: {hits.hits.2._id: "4"}
+  - match: {hits.hits.2.fields.name.0: "pig"}
+  - match: {hits.hits.2.fields.count.0: 4}
+
+  - do:
+      search:
+        index: animals
+        body:
+          size: 3
+          fields: [ "name", "count" ]
+          retriever:
+            standard:
+              search_after: [ "pig", 4 ]
+              query:
+                bool:
+                  should: [
+                    {
+                      term: {
+                        color: "spotted"
+                      }
+                    },
+                    {
+                      term: {
+                        color: "pink"
+                      }
+                    }
+                  ]
+              sort: [
+                {
+                  name: "asc"
+                },
+                {
+                  count: "desc"
+                }
+              ]
+
+  - match: {hits.hits.0._id: "14"}
+  - match: {hits.hits.0.fields.name.0: "rabbit"}
+  - match: {hits.hits.0.fields.count.0: 5}

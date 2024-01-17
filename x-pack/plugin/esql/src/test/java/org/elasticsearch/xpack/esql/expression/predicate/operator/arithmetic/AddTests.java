@@ -23,6 +23,7 @@ import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
@@ -193,7 +194,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
 
         // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
         // Datetime + Period/Duration, since the expression will take the non-null arg's type.
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers));
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AddTests::addErrorMessageString);
 
         // Cases that should generate warnings
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {
@@ -216,6 +217,18 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
         return parameterSuppliersFromTypedData(suppliers);
     }
 
+    private static String addErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+        try {
+            return typeErrorMessage(includeOrdinal, validPerPosition, types);
+        } catch (IllegalStateException e) {
+           // This means all the positional args were okay, so the expected error is from the combination
+            return String.format(
+                "[+] has arguments with incompatible types [DATETIME] and [INTEGER]",
+                types.get(0).typeName(),
+                types.get(1).typeName()
+            );
+        }
+    }
     @Override
     protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
         if (isDateTimeOrTemporal(lhsType) || isDateTimeOrTemporal(rhsType)) {

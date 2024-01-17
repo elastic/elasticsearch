@@ -78,6 +78,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -183,7 +184,6 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -242,8 +242,8 @@ class NodeConstruction {
             NodeConstruction constructor = new NodeConstruction(closeables);
 
             Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider);
-            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
-            ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
+
+            ThreadPool threadPool = constructor.createThreadPool(settings);
             SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool);
@@ -258,8 +258,7 @@ class NodeConstruction {
                 scriptService,
                 constructor.createAnalysisRegistry(),
                 serviceProvider,
-                forbidPrivateIndexSettings,
-                telemetryProvider
+                forbidPrivateIndexSettings
             );
 
             return constructor;
@@ -450,14 +449,9 @@ class NodeConstruction {
         return settings;
     }
 
-    private TelemetryProvider createTelemetryProvider(Settings settings) {
-        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings)).orElse(TelemetryProvider.NOOP);
-    }
-
-    private ThreadPool createThreadPool(Settings settings, MeterRegistry meterRegistry) throws IOException {
+    private ThreadPool createThreadPool(Settings settings) throws IOException {
         ThreadPool threadPool = new ThreadPool(
             settings,
-            meterRegistry,
             pluginsService.flatMap(p -> p.getExecutorBuilders(settings)).toArray(ExecutorBuilder<?>[]::new)
         );
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
@@ -587,12 +581,13 @@ class NodeConstruction {
         ScriptService scriptService,
         AnalysisRegistry analysisRegistry,
         NodeServiceProvider serviceProvider,
-        boolean forbidPrivateIndexSettings,
-        TelemetryProvider telemetryProvider
+        boolean forbidPrivateIndexSettings
     ) throws IOException {
 
         Settings settings = settingsModule.getSettings();
 
+        TelemetryProvider telemetryProvider = getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings))
+            .orElse(TelemetryProvider.NOOP);
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
         TaskManager taskManager = new TaskManager(
@@ -604,7 +599,6 @@ class NodeConstruction {
             ).collect(Collectors.toSet()),
             telemetryProvider.getTracer()
         );
-        final Tracer tracer = telemetryProvider.getTracer();
 
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
@@ -973,7 +967,8 @@ class NodeConstruction {
             repositoryService
         );
 
-        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
+        final TimeValue metricsInterval = settings.getAsTime("tracing.apm.agent.metrics_interval", TimeValue.timeValueSeconds(10));
+        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
 
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,

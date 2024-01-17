@@ -214,6 +214,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext ctx) throws IOException {
+        if (ctx.convertToInnerHitsRewriteContext() != null) {
+            return new ExactKnnQueryBuilder(queryVector, fieldName).boost(boost).queryName(queryName);
+        }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
         for (QueryBuilder query : filterQueries) {
@@ -260,6 +263,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
+
         if (parentPath != null) {
             NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
             if (originalObjectMapper != null) {

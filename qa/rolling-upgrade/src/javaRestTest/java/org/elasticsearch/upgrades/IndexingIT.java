@@ -19,6 +19,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -229,7 +230,7 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     public void testTsdb() throws IOException {
-        assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterVersion().onOrAfter(Version.V_8_2_0));
+        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_NEW_INDEX_FORMAT));
 
         StringBuilder bulk = new StringBuilder();
         if (isOldCluster()) {
@@ -337,7 +338,7 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     public void testSyntheticSource() throws IOException {
-        assumeTrue("added in 8.4.0", getOldClusterVersion().onOrAfter(Version.V_8_4_0));
+        assumeTrue("added in 8.4.0", oldClusterHasFeature(RestTestLegacyFeatures.SYNTHETIC_SOURCE_SUPPORTED));
 
         if (isOldCluster()) {
             Request createIndex = new Request("PUT", "/synthetic");

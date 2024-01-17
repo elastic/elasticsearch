@@ -197,11 +197,10 @@ public class PlannerUtils {
 
     /**
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
-     * This specifically excludes GEO_POINT and CARTESIAN_POINT, which are backed by DataType.LONG
-     * but are not themselves sortable (the long can be sorted, but the sort order is not usually useful).
+     * This specifically excludes spatial data types, which are not themselves sortable.
      */
     public static ElementType toSortableElementType(DataType dataType) {
-        if (dataType == EsqlDataTypes.GEO_POINT || dataType == EsqlDataTypes.CARTESIAN_POINT) {
+        if (EsqlDataTypes.isSpatial(dataType)) {
             return ElementType.UNKNOWN;
         }
         return toElementType(dataType);
@@ -251,6 +250,9 @@ public class PlannerUtils {
         }
         if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
             return forStats ? ElementType.LONG : ElementType.BYTES_REF;
+        }
+        if (EsqlDataTypes.isSpatial(dataType)) {
+            return ElementType.BYTES_REF;
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }

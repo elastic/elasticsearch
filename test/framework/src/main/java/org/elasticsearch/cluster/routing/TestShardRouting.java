@@ -28,8 +28,106 @@ import static org.junit.Assert.assertNotEquals;
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
  * different simplified constructors on the ShardRouting itself.
+ *
+ * Please do not add more `newShardRouting`, consider using a aSharRouting builder instead
  */
 public class TestShardRouting {
+
+    public static Builder aSharRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+        return new Builder(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
+    }
+
+    public static Builder aSharRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+        return new Builder(shardId, currentNodeId, primary, state);
+    }
+
+    public static class Builder {
+
+        private final ShardId shardId;
+        private String currentNodeId;
+        private String relocatingNodeId;
+        private boolean primary;
+        private ShardRoutingState state;
+        private RecoverySource recoverySource;
+        private UnassignedInfo unassignedInfo;
+        private RelocationFailureInfo relocationFailureInfo;
+        private AllocationId allocationId;
+        private Long expectedShardSize;
+        private ShardRouting.Role role;
+
+        public Builder(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+            this.shardId = shardId;
+            this.currentNodeId = currentNodeId;
+            this.primary = primary;
+            this.state = state;
+        }
+
+        public Builder withCurrentNodeId(String currentNodeId) {
+            this.currentNodeId = currentNodeId;
+            return this;
+        }
+
+        public Builder withRelocatingNodeId(String relocatingNodeId) {
+            this.relocatingNodeId = relocatingNodeId;
+            return this;
+        }
+
+        public Builder withPrimary(boolean primary) {
+            this.primary = primary;
+            return this;
+        }
+
+        public Builder withState(ShardRoutingState state) {
+            this.state = state;
+            return this;
+        }
+
+        public Builder withRecoverySource(RecoverySource recoverySource) {
+            this.recoverySource = recoverySource;
+            return this;
+        }
+
+        public Builder withUnassignedInfo(UnassignedInfo unassignedInfo) {
+            this.unassignedInfo = unassignedInfo;
+            return this;
+        }
+
+        public Builder withRelocationFailureInfo(RelocationFailureInfo relocationFailureInfo) {
+            this.relocationFailureInfo = relocationFailureInfo;
+            return this;
+        }
+
+        public Builder withAllocationId(AllocationId allocationId) {
+            this.allocationId = allocationId;
+            return this;
+        }
+
+        public Builder withExpectedShardSize(Long expectedShardSize) {
+            this.expectedShardSize = expectedShardSize;
+            return this;
+        }
+
+        public Builder withRole(ShardRouting.Role role) {
+            this.role = role;
+            return this;
+        }
+
+        public ShardRouting build() {
+            return new ShardRouting(
+                shardId,
+                currentNodeId,
+                relocatingNodeId,
+                primary,
+                state,
+                recoverySource != null ? recoverySource : buildRecoveryTarget(primary, state),
+                unassignedInfo != null ? unassignedInfo : buildUnassignedInfo(state),
+                relocationFailureInfo != null ? relocationFailureInfo : buildRelocationFailureInfo(state),
+                allocationId != null ? allocationId : buildAllocationId(state),
+                expectedShardSize != null ? expectedShardSize : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                role != null ? role : ShardRouting.Role.DEFAULT
+            );
+        }
+    }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
         return newShardRouting(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);

@@ -8,8 +8,7 @@
         "codec": "best_compression",
         "mapping": {
           "ignore_malformed": true
-        },
-        "default_pipeline": "traces@default-pipeline"
+        }
       }
     }
   },

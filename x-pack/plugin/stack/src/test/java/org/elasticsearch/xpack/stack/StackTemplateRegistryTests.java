@@ -211,7 +211,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(8)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(9)));
     }
 
     public void testPolicyAlreadyExists() {
@@ -220,7 +220,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
-        assertThat(policies, hasSize(8));
+        assertThat(policies, hasSize(9));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
@@ -291,7 +291,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
         List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
-        assertThat(policies, hasSize(8));
+        assertThat(policies, hasSize(9));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
@@ -428,10 +428,15 @@ public class StackTemplateRegistryTests extends ESTestCase {
         versions.put(StackTemplateRegistry.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.LOGS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.TRACES_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(versions, nodes);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComponentTemplateAction) {
-                fail("template should not have been re-installed");
+            if (request instanceof PutComponentTemplateAction.Request put) {
+                fail("template should not have been re-installed: " + put.name());
                 return null;
             } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
@@ -481,6 +486,26 @@ public class StackTemplateRegistryTests extends ESTestCase {
         );
         versions.put(
             StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.LOGS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.TRACES_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(versions, nodes);

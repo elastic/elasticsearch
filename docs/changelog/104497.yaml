@@ -1,0 +1,5 @@
+pr: 104497
+summary: Adding a new `RequestBuilder` framework
+area: Ingest Node
+type: enhancement
+issues: []

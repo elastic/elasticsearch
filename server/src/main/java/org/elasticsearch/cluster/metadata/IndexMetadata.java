@@ -639,7 +639,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     private final Long shardSizeInBytesForecast;
     // Key: model ID, Value: Fields that use model
-    private final Map<String, Set<String>> fieldsForModels;
+    private final ImmutableOpenMap<String, Set<String>> fieldsForModels;
 
     private IndexMetadata(
         final Index index,
@@ -686,7 +686,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final IndexMetadataStats stats,
         @Nullable final Double writeLoadForecast,
         @Nullable Long shardSizeInBytesForecast,
-        final Map<String, Set<String>> fieldsForModels
+        final ImmutableOpenMap<String, Set<String>> fieldsForModels
     ) {
         this.index = index;
         this.version = version;
@@ -742,8 +742,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.writeLoadForecast = writeLoadForecast;
         this.shardSizeInBytesForecast = shardSizeInBytesForecast;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
-        this.fieldsForModels = fieldsForModels;
-        assert fieldsForModels != null;
+        this.fieldsForModels = Objects.requireNonNull(fieldsForModels);
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {

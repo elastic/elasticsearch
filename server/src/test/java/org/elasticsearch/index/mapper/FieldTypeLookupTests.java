@@ -440,10 +440,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(f2.fieldType(), lookup.get("foo2"));
         assertEquals(f3.fieldType(), lookup.get("foo3"));
 
-        assertEquals(Collections.emptySet(), lookup.getFieldsForModel("baz"));
-        assertEquals(Set.of("foo1", "foo2"), lookup.getFieldsForModel("bar1"));
-        assertEquals(Set.of("foo3"), lookup.getFieldsForModel("bar2"));
-
         Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
         assertNotNull(fieldsForModels);
         assertEquals(2, fieldsForModels.size());

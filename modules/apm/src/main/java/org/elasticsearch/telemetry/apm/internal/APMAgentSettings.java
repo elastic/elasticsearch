@@ -34,7 +34,6 @@ import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic
  * This class is responsible for APM settings, both for Elasticsearch and the APM Java agent.
  * The methods could all be static, however they are not in order to make unit testing easier.
  */
-// FIXME Rename to APMSettings
 public class APMAgentSettings {
 
     private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
@@ -221,7 +220,6 @@ public class APMAgentSettings {
         "span_stack_trace_min_duration"
     );
 
-    // TODO APM_AGENT_SETTINGS
     private static final String APM_SETTING_PREFIX = "tracing.apm.";
 
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(

@@ -635,14 +635,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             request.add(new IndexRequest("index").id("id" + i));
         }
         if (failWithRejection) {
-            action.sendBulkRequest(request, Assert::fail, request::close);
+            action.sendBulkRequest(request, Assert::fail);
             BulkByScrollResponse response = listener.get();
             assertThat(response.getBulkFailures(), hasSize(1));
             assertEquals(response.getBulkFailures().get(0).getStatus(), RestStatus.TOO_MANY_REQUESTS);
             assertThat(response.getSearchFailures(), empty());
             assertNull(response.getReasonCancelled());
         } else {
-            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, onSuccess, request::close));
+            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, onSuccess));
         }
     }
 

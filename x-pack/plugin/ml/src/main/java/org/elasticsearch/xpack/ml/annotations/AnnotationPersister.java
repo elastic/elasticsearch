@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,7 +74,7 @@ public class AnnotationPersister {
         return new Builder(jobId, shouldRetry);
     }
 
-    public class Builder {
+    public class Builder implements Releasable {
 
         private final String jobId;
         private BulkRequest bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
@@ -118,6 +119,11 @@ public class AnnotationPersister {
             );
             bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             return bulkResponse;
+        }
+
+        @Override
+        public void close() {
+
         }
     }
 }

@@ -52,7 +52,7 @@ import java.util.Objects;
  */
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
-    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_500_020;
+    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_9_X;
 
     public static final String ROLE_TYPE = "role";
 

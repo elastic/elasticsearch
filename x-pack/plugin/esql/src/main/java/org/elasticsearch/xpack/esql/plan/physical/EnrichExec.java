@@ -6,23 +6,25 @@
  */
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
+    private final Enrich.Mode mode;
     private final NamedExpression matchField;
     private final String policyName;
     private final String policyMatchField;
-    private final EsIndex enrichIndex;
+    private final Map<String, String> concreteIndices; // cluster -> enrich index
     private final List<NamedExpression> enrichFields;
 
     /**
@@ -32,42 +34,58 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
      * @param matchField the match field in the source data
      * @param policyName the enrich policy name
      * @param policyMatchField the match field name in the policy
-     * @param enrichIndex the enricy policy index (the system index created by the policy execution, not the source index)
+     * @param concreteIndices a map from cluster to concrete enrich indices
      * @param enrichFields the enrich fields
      */
     public EnrichExec(
         Source source,
         PhysicalPlan child,
+        Enrich.Mode mode,
         NamedExpression matchField,
         String policyName,
         String policyMatchField,
-        EsIndex enrichIndex,
+        Map<String, String> concreteIndices,
         List<NamedExpression> enrichFields
     ) {
         super(source, child);
+        this.mode = mode;
         this.matchField = matchField;
         this.policyName = policyName;
         this.policyMatchField = policyMatchField;
-        this.enrichIndex = enrichIndex;
+        this.concreteIndices = concreteIndices;
         this.enrichFields = enrichFields;
     }
 
     @Override
     protected NodeInfo<EnrichExec> info() {
-        return NodeInfo.create(this, EnrichExec::new, child(), matchField, policyName, policyMatchField, enrichIndex, enrichFields);
+        return NodeInfo.create(
+            this,
+            EnrichExec::new,
+            child(),
+            mode,
+            matchField,
+            policyName,
+            policyMatchField,
+            concreteIndices,
+            enrichFields
+        );
     }
 
     @Override
     public EnrichExec replaceChild(PhysicalPlan newChild) {
-        return new EnrichExec(source(), newChild, matchField, policyName, policyMatchField, enrichIndex, enrichFields);
+        return new EnrichExec(source(), newChild, mode, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
+    }
+
+    public Enrich.Mode mode() {
+        return mode;
     }
 
     public NamedExpression matchField() {
         return matchField;
     }
 
-    public EsIndex enrichIndex() {
-        return enrichIndex;
+    public Map<String, String> concreteIndices() {
+        return concreteIndices;
     }
 
     public List<NamedExpression> enrichFields() {
@@ -99,15 +117,16 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         EnrichExec that = (EnrichExec) o;
-        return Objects.equals(matchField, that.matchField)
+        return mode.equals(that.mode)
+            && Objects.equals(matchField, that.matchField)
             && Objects.equals(policyName, that.policyName)
             && Objects.equals(policyMatchField, that.policyMatchField)
-            && Objects.equals(enrichIndex, that.enrichIndex)
+            && Objects.equals(concreteIndices, that.concreteIndices)
             && Objects.equals(enrichFields, that.enrichFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), matchField, policyName, policyMatchField, enrichIndex, enrichFields);
+        return Objects.hash(super.hashCode(), mode, matchField, policyName, policyMatchField, concreteIndices, enrichFields);
     }
 }

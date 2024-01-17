@@ -330,6 +330,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD),
                 matchField,
                 null,
+                Map.of(),
                 keepClauses.isEmpty() ? List.of() : keepClauses
             );
         };

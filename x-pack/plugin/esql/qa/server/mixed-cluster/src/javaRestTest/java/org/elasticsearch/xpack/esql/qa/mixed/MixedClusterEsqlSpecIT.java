@@ -34,7 +34,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
 
     private static final Set<String> oldClusterFeatures = new HashSet<>();
-    private static boolean oldClusterFeaturesInitialized  = false;
+    private static boolean oldClusterFeaturesInitialized = false;
 
     @Before
     public void extractOldClusterFeatures() {
@@ -58,7 +58,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         oldClusterFeaturesInitialized = false;
         oldClusterFeatures.clear();
     }
-
 
     public MixedClusterEsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         super(fileName, groupName, testName, lineNumber, testCase, mode);

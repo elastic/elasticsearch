@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,6 +23,7 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class ReplicationTrackerTestCase extends ESTestCase {
@@ -54,14 +54,9 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase {
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        final ShardRouting primaryShard = TestShardRouting.newShardRouting(
-            shardId,
-            nodeIdFromAllocationId(primaryId),
-            null,
-            true,
-            ShardRoutingState.STARTED,
-            primaryId
-        );
+        String currentNodeId = nodeIdFromAllocationId(primaryId);
+        final ShardRouting primaryShard = aShardRouting(shardId, currentNodeId, true, ShardRoutingState.STARTED).withAllocationId(primaryId)
+            .build();
         return routingTable(initializingIds, primaryShard);
     }
 
@@ -70,15 +65,9 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
         for (final AllocationId initializingId : initializingIds) {
+            String currentNodeId = nodeIdFromAllocationId(initializingId);
             builder.addShard(
-                TestShardRouting.newShardRouting(
-                    shardId,
-                    nodeIdFromAllocationId(initializingId),
-                    null,
-                    false,
-                    ShardRoutingState.INITIALIZING,
-                    initializingId
-                )
+                aShardRouting(shardId, currentNodeId, false, ShardRoutingState.INITIALIZING).withAllocationId(initializingId).build()
             );
         }
 

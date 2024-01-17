@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,6 +47,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -931,14 +931,11 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         activeAllocationIds.remove(primaryId);
         activeAllocationIds.add(relocatingId);
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        final ShardRouting primaryShard = TestShardRouting.newShardRouting(
-            shardId,
-            nodeIdFromAllocationId(relocatingId),
-            nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId())),
-            true,
-            ShardRoutingState.RELOCATING,
-            relocatingId
-        );
+        String currentNodeId = nodeIdFromAllocationId(relocatingId);
+        String relocatingNodeId = nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId()));
+        final ShardRouting primaryShard = aShardRouting(shardId, currentNodeId, true, ShardRoutingState.RELOCATING).withRelocatingNodeId(
+            relocatingNodeId
+        ).withAllocationId(relocatingId).build();
 
         return new FakeClusterState(initialClusterStateVersion, activeAllocationIds, routingTable(initializingAllocationIds, primaryShard));
     }

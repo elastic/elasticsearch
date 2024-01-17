@@ -172,6 +172,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
@@ -631,14 +632,12 @@ public class IndexShardTests extends IndexShardTestCase {
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
         final long newPrimaryTerm = indexShard.getPendingPrimaryTerm() + between(1, 10000);
-        final ShardRouting primaryRouting = newShardRouting(
+        final ShardRouting primaryRouting = aShardRouting(
             replicaRouting.shardId(),
             replicaRouting.currentNodeId(),
-            null,
             true,
-            ShardRoutingState.STARTED,
-            replicaRouting.allocationId()
-        );
+            ShardRoutingState.STARTED
+        ).withAllocationId(replicaRouting.allocationId()).build();
         indexShard.updateShardState(
             primaryRouting,
             newPrimaryTerm,
@@ -681,14 +680,9 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             // relocation target
             indexShard = newShard(
-                newShardRouting(
-                    shardId,
-                    "local_node",
-                    "other node",
-                    true,
-                    ShardRoutingState.INITIALIZING,
-                    AllocationId.newRelocation(AllocationId.newInitializing())
-                )
+                aShardRouting(shardId, "local_node", true, ShardRoutingState.INITIALIZING).withRelocatingNodeId("other node")
+                    .withAllocationId(AllocationId.newRelocation(AllocationId.newInitializing()))
+                    .build()
             );
             assertEquals(0, indexShard.getActiveOperationsCount());
             isPrimaryMode = false;
@@ -696,14 +690,12 @@ public class IndexShardTests extends IndexShardTestCase {
             // simulate promotion
             indexShard = newStartedShard(false);
             ShardRouting replicaRouting = indexShard.routingEntry();
-            ShardRouting primaryRouting = newShardRouting(
+            ShardRouting primaryRouting = aShardRouting(
                 replicaRouting.shardId(),
                 replicaRouting.currentNodeId(),
-                null,
                 true,
-                ShardRoutingState.STARTED,
-                replicaRouting.allocationId()
-            );
+                ShardRoutingState.STARTED
+            ).withRelocatingNodeId(null).withAllocationId(replicaRouting.allocationId()).build();
             final long newPrimaryTerm = indexShard.getPendingPrimaryTerm() + between(1, 1000);
             CountDownLatch latch = new CountDownLatch(1);
             indexShard.updateShardState(primaryRouting, newPrimaryTerm, (shard, listener) -> {
@@ -926,14 +918,15 @@ public class IndexShardTests extends IndexShardTestCase {
             case 1 -> {
                 // initializing replica / primary
                 final boolean relocating = randomBoolean();
-                ShardRouting routing = newShardRouting(
-                    shardId,
-                    "local_node",
-                    relocating ? "sourceNode" : null,
-                    relocating ? randomBoolean() : false,
-                    ShardRoutingState.INITIALIZING,
-                    relocating ? AllocationId.newRelocation(AllocationId.newInitializing()) : AllocationId.newInitializing()
-                );
+                String relocatingNodeId = relocating ? "sourceNode" : null;
+                boolean primary = relocating ? randomBoolean() : false;
+                ShardRouting routing = aShardRouting(shardId, "local_node", primary, ShardRoutingState.INITIALIZING).withRelocatingNodeId(
+                    relocatingNodeId
+                )
+                    .withAllocationId(
+                        relocating ? AllocationId.newRelocation(AllocationId.newInitializing()) : AllocationId.newInitializing()
+                    )
+                    .build();
                 indexShard = newShard(routing);
                 engineClosed = true;
             }
@@ -941,14 +934,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 // relocation source
                 indexShard = newStartedShard(true);
                 ShardRouting routing = indexShard.routingEntry();
-                final ShardRouting newRouting = newShardRouting(
+                final ShardRouting newRouting = aShardRouting(
                     routing.shardId(),
                     routing.currentNodeId(),
-                    "otherNode",
                     true,
-                    ShardRoutingState.RELOCATING,
-                    AllocationId.newRelocation(routing.allocationId())
-                );
+                    ShardRoutingState.RELOCATING
+                ).withRelocatingNodeId("otherNode").withAllocationId(AllocationId.newRelocation(routing.allocationId())).build();
                 IndexShardTestCase.updateRoutingEntry(indexShard, newRouting);
                 blockingCallRelocated(indexShard, newRouting, (primaryContext, listener) -> listener.onResponse(null));
                 engineClosed = false;

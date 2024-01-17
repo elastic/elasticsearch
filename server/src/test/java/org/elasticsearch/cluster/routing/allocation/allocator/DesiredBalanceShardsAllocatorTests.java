@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
@@ -248,7 +249,11 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             .build();
         var shardId = new ShardId(index.getIndex(), 0);
         var indexRoutingTable = IndexRoutingTable.builder(index.getIndex())
-            .addShard(newShardRouting(shardId, LOCAL_NODE_ID, null, true, ShardRoutingState.STARTED, newInitializing(inSyncAllocationId)))
+            .addShard(
+                TestShardRouting.aShardRouting(shardId, LOCAL_NODE_ID, true, ShardRoutingState.STARTED)
+                    .withAllocationId(newInitializing(inSyncAllocationId))
+                    .build()
+            )
             .addShard(newShardRouting(shardId, null, null, false, ShardRoutingState.UNASSIGNED, delayedUnasssignedInfo))
             .build();
 

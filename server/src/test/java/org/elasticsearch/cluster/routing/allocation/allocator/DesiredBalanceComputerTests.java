@@ -73,6 +73,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
@@ -641,15 +642,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     usedDiskSpace.compute(primaryNodeId, (k, v) -> v + thisShardSize);
                 }
 
+                ShardRoutingState state1 = primaryNodeId == null ? UNASSIGNED : STARTED;
                 indexRoutingTableBuilder.addShard(
-                    newShardRouting(
-                        shardId,
-                        primaryNodeId,
-                        null,
-                        true,
-                        primaryNodeId == null ? UNASSIGNED : STARTED,
+                    aShardRouting(shardId, primaryNodeId, true, state1).withAllocationId(
                         AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
-                    )
+                    ).build()
                 );
                 for (int replica = 0; replica < replicas; replica++) {
                     var replicaNodeId = primaryNodeId == null ? null : pickAndRemoveRandomValueFrom(remainingNodeIds);
@@ -660,15 +657,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         usedDiskSpace.compute(replicaNodeId, (k, v) -> v + thisShardSize);
                     }
 
+                    ShardRoutingState state = replicaNodeId == null ? UNASSIGNED : STARTED;
                     indexRoutingTableBuilder.addShard(
-                        newShardRouting(
-                            shardId,
-                            replicaNodeId,
-                            null,
-                            false,
-                            replicaNodeId == null ? UNASSIGNED : STARTED,
+                        aShardRouting(shardId, replicaNodeId, false, state).withAllocationId(
                             AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1) + 1 + replica))
-                        )
+                        ).build()
                     );
                 }
 

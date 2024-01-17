@@ -101,6 +101,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -891,14 +892,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected void promoteReplica(IndexShard replica, Set<String> inSyncIds, IndexShardRoutingTable routingTable) throws IOException {
         assertThat(inSyncIds, contains(replica.routingEntry().allocationId().getId()));
-        final ShardRouting routingEntry = newShardRouting(
+        final ShardRouting routingEntry = aShardRouting(
             replica.routingEntry().shardId(),
             replica.routingEntry().currentNodeId(),
-            null,
             true,
-            ShardRoutingState.STARTED,
-            replica.routingEntry().allocationId()
-        );
+            ShardRoutingState.STARTED
+        ).withAllocationId(replica.routingEntry().allocationId()).build();
 
         final IndexShardRoutingTable newRoutingTable = new IndexShardRoutingTable.Builder(routingTable).removeShard(
             routingTable.primaryShard()

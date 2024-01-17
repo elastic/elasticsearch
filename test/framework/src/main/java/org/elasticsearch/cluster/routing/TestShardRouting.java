@@ -267,48 +267,6 @@ public class TestShardRouting {
         String relocatingNodeId,
         boolean primary,
         ShardRoutingState state,
-        AllocationId allocationId
-    ) {
-        return newShardRouting(
-            new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId),
-            currentNodeId,
-            relocatingNodeId,
-            primary,
-            state,
-            allocationId
-        );
-    }
-
-    public static ShardRouting newShardRouting(
-        ShardId shardId,
-        String currentNodeId,
-        String relocatingNodeId,
-        boolean primary,
-        ShardRoutingState state,
-        AllocationId allocationId
-    ) {
-        return new ShardRouting(
-            shardId,
-            currentNodeId,
-            relocatingNodeId,
-            primary,
-            state,
-            buildRecoverySource(primary, state),
-            buildUnassignedInfo(state),
-            buildRelocationFailureInfo(state),
-            allocationId,
-            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-            ShardRouting.Role.DEFAULT
-        );
-    }
-
-    public static ShardRouting newShardRouting(
-        String index,
-        int shardId,
-        String currentNodeId,
-        String relocatingNodeId,
-        boolean primary,
-        ShardRoutingState state,
         UnassignedInfo unassignedInfo
     ) {
         return newShardRouting(

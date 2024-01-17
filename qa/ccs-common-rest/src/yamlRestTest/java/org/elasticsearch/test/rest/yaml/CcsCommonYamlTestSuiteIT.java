@@ -260,7 +260,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             new ClientYamlTestSection(
                 testSection.getLocation(),
                 testSection.getName(),
-                testSection.getSkipSection(),
+                testSection.getPrerequisiteSection(),
                 modifiedExecutableSections
             )
         );

@@ -70,7 +70,6 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
 
     @Override
     public BytesRefBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
         final BytesRef scratch = new BytesRef();
         try (var builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
             for (int pos : positions) {

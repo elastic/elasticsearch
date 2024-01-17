@@ -36,7 +36,7 @@ public class FilteringRoleMapper implements UserRoleMapper {
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         delegate.resolveRoles(user, ActionListener.wrap((roles -> {
             if (fileRolesStore == null) {
-                logger.info("Skipping filtering role mapper");
+                logger.info("Skipping filtering role mapper...");
                 listener.onResponse(roles);
                 return;
             }

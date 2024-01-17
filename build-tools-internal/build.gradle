@@ -295,6 +295,8 @@ dependencies {
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
 
+  implementation 'com.github.javaparser:javaparser-core:3.18.0'
+
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle
   testImplementation buildLibs.wiremock

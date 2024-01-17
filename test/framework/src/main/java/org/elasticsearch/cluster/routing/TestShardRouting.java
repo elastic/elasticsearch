@@ -145,7 +145,7 @@ public class TestShardRouting {
                 relocatingNodeId,
                 primary,
                 state,
-                recoverySource != null ? recoverySource : buildRecoveryTarget(primary, state),
+                recoverySource != null ? recoverySource : buildRecoverySource(primary, state),
                 unassignedInfo != null ? unassignedInfo : buildUnassignedInfo(state),
                 relocationFailureInfo != null ? relocationFailureInfo : buildRelocationFailureInfo(state),
                 allocationId != null ? allocationId : buildAllocationId(state),
@@ -177,7 +177,7 @@ public class TestShardRouting {
             null,
             primary,
             state,
-            buildRecoveryTarget(primary, state),
+            buildRecoverySource(primary, state),
             buildUnassignedInfo(state),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -261,7 +261,7 @@ public class TestShardRouting {
             relocatingNodeId,
             primary,
             state,
-            buildRecoveryTarget(primary, state),
+            buildRecoverySource(primary, state),
             buildUnassignedInfo(state),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -303,7 +303,7 @@ public class TestShardRouting {
             relocatingNodeId,
             primary,
             state,
-            buildRecoveryTarget(primary, state),
+            buildRecoverySource(primary, state),
             buildUnassignedInfo(state),
             buildRelocationFailureInfo(state),
             allocationId,
@@ -345,7 +345,7 @@ public class TestShardRouting {
             relocatingNodeId,
             primary,
             state,
-            buildRecoveryTarget(primary, state),
+            buildRecoverySource(primary, state),
             unassignedInfo,
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -358,7 +358,7 @@ public class TestShardRouting {
         return shardRouting.relocate(relocatingNodeId, expectedShardSize);
     }
 
-    public static RecoverySource buildRecoveryTarget(boolean primary, ShardRoutingState state) {
+    public static RecoverySource buildRecoverySource(boolean primary, ShardRoutingState state) {
         return switch (state) {
             case UNASSIGNED, INITIALIZING -> primary
                 ? randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)

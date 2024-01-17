@@ -7,8 +7,18 @@
 
 package org.elasticsearch.xpack.ml.mapper;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -17,7 +27,10 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataMapperTestCase;
+import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -142,6 +155,39 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             assertEquals(3, leaf.doc());
             assertEquals(3, leaf.rootDoc());
             assertNull(leaf.nestedIdentity());
+
+            IndexSearcher searcher = newSearcher(reader);
+            {
+                TopDocs topDocs = searcher.search(
+                    generateNestedTermSparseVectorQuery(nestedMapperService.mappingLookup().nestedLookup(), fieldName1, List.of("a")),
+                    10
+                );
+                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(3, topDocs.scoreDocs[0].doc);
+            }
+            {
+                TopDocs topDocs = searcher.search(
+                    generateNestedTermSparseVectorQuery(nestedMapperService.mappingLookup().nestedLookup(), fieldName1, List.of("a", "b")),
+                    10
+                );
+                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(3, topDocs.scoreDocs[0].doc);
+            }
+            {
+                TopDocs topDocs = searcher.search(
+                    generateNestedTermSparseVectorQuery(nestedMapperService.mappingLookup().nestedLookup(), fieldName2, List.of("d")),
+                    10
+                );
+                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(3, topDocs.scoreDocs[0].doc);
+            }
+            {
+                TopDocs topDocs = searcher.search(
+                    generateNestedTermSparseVectorQuery(nestedMapperService.mappingLookup().nestedLookup(), fieldName2, List.of("z")),
+                    10
+                );
+                assertEquals(0, topDocs.totalHits.value);
+            }
         });
     }
 
@@ -449,6 +495,34 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         mappingBuilder.endObject();
         mappingBuilder.endObject();
         mappingBuilder.endObject();
+    }
+
+    private static Query generateNestedTermSparseVectorQuery(NestedLookup nestedLookup, String path, List<String> tokens) {
+        NestedObjectMapper mapper = nestedLookup.getNestedMappers().get(path);
+        assertNotNull(mapper);
+
+        BitSetProducer parentFilter = new QueryBitSetProducer(Queries.newNonNestedFilter(IndexVersion.current()));
+        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+        for (String token : tokens) {
+            queryBuilder.add(
+                new BooleanClause(
+                    new TermQuery(
+                        new Term(
+                            path
+                                + "."
+                                + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME
+                                + "."
+                                + SparseEmbeddingResults.Embedding.EMBEDDING,
+                            token
+                        )
+                    ),
+                    BooleanClause.Occur.MUST
+                )
+            );
+        }
+        queryBuilder.add(new BooleanClause(mapper.nestedTypeFilter(), BooleanClause.Occur.FILTER));
+
+        return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, null);
     }
 
     private static void assertValidChildDoc(

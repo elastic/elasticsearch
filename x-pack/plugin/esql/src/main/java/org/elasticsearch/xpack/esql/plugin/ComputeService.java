@@ -155,7 +155,14 @@ public class ComputeService {
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planConcreteIndices(physicalPlan).toArray(String[]::new));
         QueryPragmas queryPragmas = configuration.pragmas();
         if (dataNodePlan == null || clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
-            var computeContext = new ComputeContext(sessionId, List.of(), configuration, null, null);
+            var computeContext = new ComputeContext(
+                sessionId,
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                List.of(),
+                configuration,
+                null,
+                null
+            );
             runCompute(
                 rootTask,
                 computeContext,
@@ -187,7 +194,7 @@ public class ComputeService {
             // run compute on the coordinator
             runCompute(
                 rootTask,
-                new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null),
+                new ComputeContext(sessionId, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(), configuration, exchangeSource, null),
                 coordinatorPlan,
                 cancelOnFailure(rootTask, cancelled, refs.acquire()).map(driverProfiles -> {
                     responseHeadersCollector.collect();
@@ -378,6 +385,7 @@ public class ComputeService {
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId,
+                context.clusterAlias,
                 task,
                 bigArrays,
                 blockFactory,
@@ -570,13 +578,14 @@ public class ComputeService {
             );
             final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
             final EsqlConfiguration configuration = request.configuration();
+            String clusterAlias = request.clusterAlias();
             acquireSearchContexts(
-                request.clusterAlias(),
+                clusterAlias,
                 request.shardIds(),
                 configuration,
                 request.aliasFilters(),
                 ActionListener.wrap(searchContexts -> {
-                    var computeContext = new ComputeContext(sessionId, searchContexts, configuration, null, exchangeSink);
+                    var computeContext = new ComputeContext(sessionId, clusterAlias, searchContexts, configuration, null, exchangeSink);
                     runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(driverProfiles -> {
                         // don't return until all pages are fetched
                         exchangeSink.addCompletionListener(
@@ -669,7 +678,7 @@ public class ComputeService {
             );
             runCompute(
                 parentTask,
-                new ComputeContext(localSessionId, List.of(), configuration, exchangeSource, exchangeSink),
+                new ComputeContext(localSessionId, clusterAlias, List.of(), configuration, exchangeSource, exchangeSink),
                 coordinatorPlan,
                 cancelOnFailure(parentTask, cancelled, refs.acquire()).map(driverProfiles -> {
                     responseHeadersCollector.collect();
@@ -702,6 +711,7 @@ public class ComputeService {
 
     record ComputeContext(
         String sessionId,
+        String clusterAlias,
         List<SearchContext> searchContexts,
         EsqlConfiguration configuration,
         ExchangeSourceHandler exchangeSource,

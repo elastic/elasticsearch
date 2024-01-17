@@ -16,7 +16,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -34,6 +33,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -245,7 +245,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     listener.onResponse((Response) response);
                 } else if (RefreshAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(RefreshRequest.class));
-                    listener.onResponse((Response) mock(RefreshResponse.class));
+                    listener.onResponse((Response) mock(BroadcastResponse.class));
                 } else {
                     super.doExecute(action, request, listener);
                 }

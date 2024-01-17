@@ -221,7 +221,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
             return typeErrorMessage(includeOrdinal, validPerPosition, types);
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
-            return "[] has arguments with incompatible types ["
+            return "[+] has arguments with incompatible types ["
                 + types.get(0).typeName().toUpperCase()
                 + "] and ["
                 + types.get(1).typeName().toUpperCase()

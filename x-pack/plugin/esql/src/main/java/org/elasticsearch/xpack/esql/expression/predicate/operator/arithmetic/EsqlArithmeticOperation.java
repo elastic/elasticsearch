@@ -132,12 +132,12 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         DataType rightType = right().dataType();
         if ((rightType == DataTypes.UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
             || (leftType == DataTypes.UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
-            return new TypeResolution(formatIncombatibleTypesMessage(sourceText(), leftType.typeName(), rightType.typeName()));
+            return new TypeResolution(formatIncombatibleTypesMessage(symbol(), leftType.typeName(), rightType.typeName()));
         }
         // If the LHS is numeric, the RHS should be numeric or null
         if (leftType.isNumeric()) {
             if (false == (rightType.isNumeric() || DataTypes.isNull(rightType))) {
-                return new TypeResolution(formatIncombatibleTypesMessage(sourceText(), leftType.typeName(), rightType.typeName()));
+                return new TypeResolution(formatIncombatibleTypesMessage(symbol(), leftType.typeName(), rightType.typeName()));
             }
         }
         // at this point, left should be null, and right should be null or numeric.

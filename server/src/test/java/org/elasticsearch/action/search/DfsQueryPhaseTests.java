@@ -336,15 +336,28 @@ public class DfsQueryPhaseTests extends ESTestCase {
 
         QueryBuilder bm25 = new TermQueryBuilder("field", "term");
         SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)
-            .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, null)))
+            .knnSearch(
+                List.of(
+                    new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, null),
+                    new KnnSearchBuilder("vector2", new float[] { 0.0f }, 10, 100, null)
+                )
+            )
             .rankBuilder(new TestRankBuilder(100));
         SearchRequest sr = new SearchRequest().allowPartialSearchResults(true).source(ssb);
         ShardSearchRequest ssr = new ShardSearchRequest(null, sr, new ShardId("test", "testuuid", 1), 1, 1, null, 1.0f, 0, null);
 
         dqp.rewriteShardSearchRequest(ssr);
 
-        KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) });
-        KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) });
+        KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(
+            new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) },
+            "vector",
+            new float[] { 0.0f }
+        );
+        KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(
+            new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) },
+            "vector2",
+            new float[] { 0.0f }
+        );
         assertEquals(
             List.of(bm25, ksdqb0, ksdqb1),
             List.of(

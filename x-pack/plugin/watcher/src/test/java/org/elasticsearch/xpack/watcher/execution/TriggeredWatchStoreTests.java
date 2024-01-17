@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
@@ -24,6 +23,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -202,7 +202,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
+            ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocation.getArguments()[2];
             listener.onResponse(mockRefreshResponse(1, 1));
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
@@ -409,7 +409,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
+            ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocation.getArguments()[2];
             listener.onFailure(new IndexNotFoundException(TriggeredWatchStoreField.INDEX_NAME));
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
@@ -507,8 +507,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         assertThat(response.getItems().length, is(1));
     }
 
-    private RefreshResponse mockRefreshResponse(int total, int successful) {
-        RefreshResponse refreshResponse = mock(RefreshResponse.class);
+    private BroadcastResponse mockRefreshResponse(int total, int successful) {
+        BroadcastResponse refreshResponse = mock(BroadcastResponse.class);
         when(refreshResponse.getTotalShards()).thenReturn(total);
         when(refreshResponse.getSuccessfulShards()).thenReturn(successful);
         return refreshResponse;

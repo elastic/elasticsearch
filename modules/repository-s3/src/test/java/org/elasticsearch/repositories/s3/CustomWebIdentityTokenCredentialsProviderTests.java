@@ -204,15 +204,15 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             );
             assertCredentials(awsCredentialsProvider.getCredentials());
 
-            String newWebIdentityToken = "88f84342080d4671a511e10ae905b2b0";
-            Files.writeString(environment.configFile().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
-
             var latch = new CountDownLatch(1);
+            String newWebIdentityToken = "88f84342080d4671a511e10ae905b2b0";
             webIdentityTokenCheck.setDelegate(s -> {
                 if (s.equals(newWebIdentityToken)) {
                     latch.countDown();
                 }
             });
+            Files.writeString(environment.configFile().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
+
             safeAwait(latch);
             assertCredentials(awsCredentialsProvider.getCredentials());
         } finally {

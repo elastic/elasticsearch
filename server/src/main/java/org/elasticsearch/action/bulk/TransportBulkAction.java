@@ -1196,19 +1196,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     errorDocument.setPipeline(IngestService.NOOP_PIPELINE_NAME);
                     errorDocument.setFinalPipeline(IngestService.NOOP_PIPELINE_NAME);
                     bulkRequest.requests.set(slot, errorDocument);
-                } catch (IOException ex) {
+                } catch (IOException ioException) {
                     // This is unlikely to happen because the conversion is so simple, but be defensive and attempt to report about it if
                     // we need the info later.
-                    ex.addSuppressed(e);
+                    e.addSuppressed(ioException); // Prefer to return the original exception to the end user instead of this new one.
                     logger.debug(
                         () -> "Encountered exception while attempting to redirect a failed ingest operation: index ["
                             + targetIndexName
                             + "], source: ["
                             + indexRequest.source().utf8ToString()
                             + "]",
-                        ex
+                        ioException
                     );
-                    markItemAsFailed(slot, ex);
+                    markItemAsFailed(slot, e);
                 }
             }
         }

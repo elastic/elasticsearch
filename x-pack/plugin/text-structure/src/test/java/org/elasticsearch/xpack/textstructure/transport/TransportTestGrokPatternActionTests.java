@@ -66,4 +66,28 @@ public class TransportTestGrokPatternActionTests extends ESTestCase {
         assertThat(source.getValue("matches.1"), aMapWithSize(1));
         assertThat(source.getValue("matches.1.matched"), equalTo(false));
     }
+
+    public void test_repeatedIdentifiers() throws Exception {
+        TestGrokPatternAction.Request request = new TestGrokPatternAction.Request.Builder().grokPattern(
+            "%{WORD}.*%{WORD:name} %{WORD:name}!"
+        ).text(List.of("Hello   Dave Roberts!", "this does not match")).build();
+
+        XContentSource source = executeRequest(request);
+        assertThat(source.getValue(""), aMapWithSize(1));
+        assertThat(source.getValue("matches"), hasSize(2));
+        assertThat(source.getValue("matches.0"), aMapWithSize(2));
+        assertThat(source.getValue("matches.0.matched"), equalTo(true));
+        assertThat(source.getValue("matches.0.fields"), aMapWithSize(1));
+        assertThat(source.getValue("matches.0.fields.name"), hasSize(2));
+        assertThat(source.getValue("matches.0.fields.name.0"), aMapWithSize(3));
+        assertThat(source.getValue("matches.0.fields.name.0.match"), equalTo("Dave"));
+        assertThat(source.getValue("matches.0.fields.name.0.offset"), equalTo(8));
+        assertThat(source.getValue("matches.0.fields.name.0.length"), equalTo(4));
+        assertThat(source.getValue("matches.0.fields.name.1"), aMapWithSize(3));
+        assertThat(source.getValue("matches.0.fields.name.1.match"), equalTo("Roberts"));
+        assertThat(source.getValue("matches.0.fields.name.1.offset"), equalTo(13));
+        assertThat(source.getValue("matches.0.fields.name.1.length"), equalTo(7));
+        assertThat(source.getValue("matches.1"), aMapWithSize(1));
+        assertThat(source.getValue("matches.1.matched"), equalTo(false));
+    }
 }

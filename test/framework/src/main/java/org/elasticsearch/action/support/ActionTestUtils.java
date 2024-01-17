@@ -74,7 +74,7 @@ public class ActionTestUtils {
     ) {
         Request request = requestBuilder.buildRequest();
         try {
-            ActionTestUtils.execute(action, task, request, listener);
+            ActionTestUtils.execute(action, task, request, ActionListener.runAfter(listener, request::decRef));
         } catch (Exception e) {
             request.decRef();
             throw e;

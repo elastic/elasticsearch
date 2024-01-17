@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
@@ -281,6 +282,7 @@ public class PrivilegeTests extends ESTestCase {
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME,
             GetUsersAction.NAME,
+            ActionTypes.QUERY_USER_ACTION.name(),
             HasPrivilegesAction.NAME,
             GetUserPrivilegesAction.NAME,
             GetSecuritySettingsAction.NAME
@@ -341,14 +343,9 @@ public class PrivilegeTests extends ESTestCase {
         );
         verifyClusterActionDenied(
             ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
-            "cluster:admin/xpack/security/role/put",
-            "cluster:admin/xpack/security/role/get",
-            "cluster:admin/xpack/security/role/delete"
-        );
-        verifyClusterActionDenied(
-            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
             "cluster:admin/xpack/security/user/put",
             "cluster:admin/xpack/security/user/get",
+            "cluster:admin/xpack/security/user/query",
             "cluster:admin/xpack/security/user/delete"
         );
         verifyClusterActionDenied(

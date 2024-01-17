@@ -92,7 +92,7 @@ public class TransportVersions {
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
-    public static final TransportVersion V_8_500_020 = def(8_500_020);
+    public static final TransportVersion V_8_9_X = def(8_500_020);
     public static final TransportVersion V_8_10_X = def(8_500_061);
     public static final TransportVersion V_8_500_062 = def(8_500_062);
     public static final TransportVersion V_8_500_063 = def(8_500_063);
@@ -184,6 +184,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED = def(8_572_00_0);
     public static final TransportVersion ESQL_ENRICH_POLICY_CCQ_MODE = def(8_573_00_0);
     public static final TransportVersion DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ = def(8_574_00_0);
+    public static final TransportVersion PEERFINDER_REPORTS_PEERS_MASTERS = def(8_575_00_0);
+    public static final TransportVersion ESQL_MULTI_CLUSTERS_ENRICH = def(8_576_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

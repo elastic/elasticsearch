@@ -23,7 +23,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.function.Function
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/104428")
 class SymbolicLinkPreservingTarFuncTest extends AbstractGradleFuncTest {
 
     def setup() {

@@ -1,0 +1,6 @@
+pr: 103681
+summary: "ESQL: Expand shallow copy with vecs"
+area: ES|QL
+type: enhancement
+issues:
+ - 100528

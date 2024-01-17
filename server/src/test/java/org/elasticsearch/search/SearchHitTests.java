@@ -143,7 +143,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     @Override
     protected Writeable.Reader<SearchHit> instanceReader() {
-        return SearchHit::new;
+        return SearchHit::readFrom;
     }
 
     @Override

@@ -30,7 +30,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -2077,7 +2077,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ForceMergeAction.INSTANCE,
             RefreshAction.INSTANCE,
             IndicesSegmentsAction.INSTANCE,
-            UpdateSettingsAction.INSTANCE,
+            TransportUpdateSettingsAction.TYPE,
             TransportClusterHealthAction.TYPE
         );
         logger.info("Selected [{}] to perform cancel", randomActionType.name());

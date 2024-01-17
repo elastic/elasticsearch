@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -543,7 +544,10 @@ public class AllocationService {
         }
 
         for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
-            existingShardsAllocator.afterPrimariesBeforeReplicas(allocation);
+            existingShardsAllocator.afterPrimariesBeforeReplicas(
+                allocation,
+                shardRouting -> getAllocatorForShard(shardRouting, allocation) == existingShardsAllocator
+            );
         }
 
         final RoutingNodes.UnassignedShards.UnassignedIterator replicaIterator = allocation.routingNodes().unassigned().iterator();
@@ -695,7 +699,7 @@ public class AllocationService {
         public void beforeAllocation(RoutingAllocation allocation) {}
 
         @Override
-        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
         @Override
         public void allocateUnassigned(

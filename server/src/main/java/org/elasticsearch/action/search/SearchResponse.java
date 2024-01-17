@@ -24,7 +24,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -633,7 +632,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = in.readVInt();
             int successfulTemp = in.readVInt();
             int skippedTemp = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
                     this.clusterInfo = Collections.emptyMap();
@@ -686,7 +685,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 if (clusterInfo != null) {
                     List<Cluster> clusterList = clusterInfo.values().stream().toList();
                     out.writeCollection(clusterList);
@@ -1368,9 +1367,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     // public for tests
     public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
-        SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
         return new SearchResponse(
-            searchHits,
+            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
             null,
             false,

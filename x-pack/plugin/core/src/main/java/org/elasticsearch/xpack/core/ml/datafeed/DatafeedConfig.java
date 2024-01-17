@@ -300,7 +300,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        runtimeMappings = in.readMap();
+        runtimeMappings = in.readGenericMap();
     }
 
     /**
@@ -815,7 +815,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (in.readBoolean()) {
                 indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
-            runtimeMappings = in.readMap();
+            runtimeMappings = in.readGenericMap();
         }
 
         @Override

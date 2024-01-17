@@ -37,8 +37,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         // Special "match none" pattern succeeds, since non-destructive
         assertAcked(indicesAdmin().prepareDelete("*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareDelete("i*").get());
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareDelete("_all").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareDelete("i*"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareDelete("_all"));
     }
 
     public void testDeleteIndexDefaultBehaviour() throws Exception {
@@ -67,8 +67,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         // Special "match none" pattern succeeds, since non-destructive
         assertAcked(indicesAdmin().prepareClose("*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareClose("i*").get());
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareClose("_all").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareClose("i*"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareClose("_all"));
     }
 
     public void testCloseIndexDefaultBehaviour() throws Exception {
@@ -99,8 +99,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         // Special "match none" pattern succeeds, since non-destructive
         assertAcked(indicesAdmin().prepareOpen("*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareOpen("i*").get());
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareOpen("_all").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareOpen("i*"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareOpen("_all"));
     }
 
     public void testOpenIndexDefaultBehaviour() throws Exception {
@@ -133,8 +133,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         // Special "match none" pattern succeeds, since non-destructive
         assertAcked(indicesAdmin().prepareAddBlock(WRITE, "*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareAddBlock(WRITE, "i*").get());
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareAddBlock(WRITE, "_all").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAddBlock(WRITE, "i*"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAddBlock(WRITE, "_all"));
     }
 
     public void testAddIndexBlockDefaultBehaviour() throws Exception {

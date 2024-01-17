@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -164,25 +163,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
-        var enrichResolution = new EnrichResolution(
-            Set.of(
-                new EnrichPolicyResolution(
-                    "foo",
-                    new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
-                    IndexResolution.valid(
-                        new EsIndex(
-                            "idx",
-                            Map.ofEntries(
-                                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
-                            )
-                        )
-                    )
-                )
-            ),
-            Set.of("foo")
+        EnrichResolution enrichResolution = new EnrichResolution();
+        enrichResolution.addResolvedPolicy(
+            "foo",
+            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
+            Map.of("", "idx"),
+            Map.ofEntries(
+                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
+                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+            )
         );
-
+        enrichResolution.addExistingPolicies(Set.of("foo"));
         analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
     }
 
@@ -1388,8 +1379,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertEquals(WildcardQueryBuilder.class, query.getClass());
-        WildcardQueryBuilder wildcard = ((WildcardQueryBuilder) query);
+        assertEquals(SingleValueQuery.Builder.class, query.getClass());
+        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(WildcardQueryBuilder.class));
+        WildcardQueryBuilder wildcard = ((WildcardQueryBuilder) ((SingleValueQuery.Builder) query).next());
         assertEquals("first_name", wildcard.fieldName());
         assertEquals("*foo*", wildcard.value());
     }
@@ -1453,8 +1445,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertEquals(RegexpQueryBuilder.class, query.getClass());
-        RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) query);
+        assertEquals(SingleValueQuery.Builder.class, query.getClass());
+        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(RegexpQueryBuilder.class));
+        RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) ((SingleValueQuery.Builder) query).next());
         assertEquals("first_name", wildcard.fieldName());
         assertEquals(".*foo.*", wildcard.value());
     }
@@ -1475,8 +1468,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertThat(query, instanceOf(BoolQueryBuilder.class));
-        var boolQuery = (BoolQueryBuilder) query;
+        assertThat(query, instanceOf(SingleValueQuery.Builder.class));
+        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) ((SingleValueQuery.Builder) query).next();
         List<QueryBuilder> mustNot = boolQuery.mustNot();
         assertThat(mustNot.size(), is(1));
         assertThat(mustNot.get(0), instanceOf(RegexpQueryBuilder.class));

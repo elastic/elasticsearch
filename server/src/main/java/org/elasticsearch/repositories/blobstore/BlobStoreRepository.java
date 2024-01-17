@@ -114,6 +114,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
+import org.elasticsearch.snapshots.PausedSnapshotException;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -1740,6 +1741,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     (indexId, gens) -> gens.forEach(
                         (shardId, oldGen) -> toDelete.add(
                             shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
+                                .toBlobNamePart()
                         )
                     )
                 );
@@ -3254,7 +3256,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotStatus.ensureNotAborted();
         } catch (Exception e) {
             logger.debug("[{}] [{}] {} on the file [{}], exiting", shardId, snapshotId, e.getMessage(), fileName);
-            assert e instanceof AbortedSnapshotException : e;
+            assert e instanceof AbortedSnapshotException || e instanceof PausedSnapshotException : e;
             throw e;
         }
     }

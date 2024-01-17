@@ -11,10 +11,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Settings;
@@ -590,7 +590,7 @@ public class RollupJobTaskTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         Client client = mock(Client.class);
         doAnswer(invocationOnMock -> {
-            RefreshResponse r = new RefreshResponse(2, 2, 0, Collections.emptyList());
+            BroadcastResponse r = new BroadcastResponse(2, 2, 0, Collections.emptyList());
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
@@ -697,7 +697,7 @@ public class RollupJobTaskTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
         Client client = mock(Client.class);
         doAnswer(invocationOnMock -> {
-            RefreshResponse r = new RefreshResponse(2, 2, 0, Collections.emptyList());
+            BroadcastResponse r = new BroadcastResponse(2, 2, 0, Collections.emptyList());
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
@@ -806,7 +806,7 @@ public class RollupJobTaskTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
         Client client = mock(Client.class);
         doAnswer(invocationOnMock -> {
-            RefreshResponse r = new RefreshResponse(2, 2, 0, Collections.emptyList());
+            BroadcastResponse r = new BroadcastResponse(2, 2, 0, Collections.emptyList());
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());

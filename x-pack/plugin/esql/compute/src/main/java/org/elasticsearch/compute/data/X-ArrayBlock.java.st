@@ -41,12 +41,29 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
         MvOrdering mvOrdering,
         BlockFactory blockFactory
     ) {
+        this(
+            new $Type$ArrayVector(values, firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount], blockFactory),
+            positionCount,
+            firstValueIndexes,
+            nulls,
+            mvOrdering,
+            blockFactory
+        );
+    }
+
+    private $Type$ArrayBlock(
+        $Type$ArrayVector vector,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        $if(BytesRef)$
-        this.vector = new BytesRefArrayVector(values, (int) values.size(), blockFactory);
-        $else$
-        this.vector = new $Type$ArrayVector(values, values.length, blockFactory);
-        $endif$
+        this.vector = vector;
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
     @Override
@@ -102,28 +119,28 @@ $endif$
             incRef();
             return this;
         }
-        // TODO use reference counting to share the vector
-$if(BytesRef)$
-        final BytesRef scratch = new BytesRef();
-$endif$
-        try (var builder = blockFactory().new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
-            for (int pos = 0; pos < getPositionCount(); pos++) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int first = getFirstValueIndex(pos);
-                int end = first + getValueCount(pos);
-                for (int i = first; i < end; i++) {
-$if(BytesRef)$
-                    builder.append$Type$(get$Type$(i, scratch));
-$else$
-                    builder.append$Type$(get$Type$(i));
-$endif$
-                }
-            }
-            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
+        if (nullsMask == null) {
+            vector.incRef();
+            return vector.asBlock();
         }
+
+        // The following line is correct because positions with multi-values are never null.
+        int expandedPositionCount = vector.getPositionCount();
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate);
+
+        $Type$ArrayBlock expanded = new $Type$ArrayBlock(
+            vector,
+            expandedPositionCount,
+            null,
+            shiftNullsToExpandedPositions(),
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+            blockFactory()
+        );
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
+        return expanded;
     }
 
     private long ramBytesUsedOnlyBlock() {
@@ -168,7 +185,7 @@ $endif$
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

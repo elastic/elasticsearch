@@ -282,6 +282,7 @@ public class Constants {
         "cluster:admin/xpack/security/user/change_password",
         "cluster:admin/xpack/security/user/delete",
         "cluster:admin/xpack/security/user/get",
+        "cluster:admin/xpack/security/user/query",
         "cluster:admin/xpack/security/user/has_privileges",
         "cluster:admin/xpack/security/user/list_privileges",
         "cluster:admin/xpack/security/user/put",

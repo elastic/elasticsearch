@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
@@ -554,7 +554,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         expectThrows(
             SnapshotRestoreException.class,
-            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds").get()
+            client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds")
         );
 
         client.admin()
@@ -671,7 +671,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         expectThrows(
             SnapshotRestoreException.class,
-            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds").get()
+            client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds")
         );
 
         // delete data stream
@@ -708,7 +708,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         expectThrows(
             SnapshotRestoreException.class,
-            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds").get()
+            client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds")
         );
 
         // restore data stream attempting to rename the backing index
@@ -787,7 +787,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, status);
         expectThrows(
             Exception.class,
-            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, "snap2").setWaitForCompletion(true).setIndices("ds").get()
+            client.admin().cluster().prepareRestoreSnapshot(REPO, "snap2").setWaitForCompletion(true).setIndices("ds")
         );
     }
 
@@ -815,7 +815,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
         GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request(new String[] { "ds" });
-        expectThrows(ResourceNotFoundException.class, () -> client.execute(GetDataStreamAction.INSTANCE, getRequest).actionGet());
+        expectThrows(ResourceNotFoundException.class, client.execute(GetDataStreamAction.INSTANCE, getRequest));
     }
 
     public void testDataStreamNotIncludedInLimitedSnapshot() throws ExecutionException, InterruptedException {
@@ -957,7 +957,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         if (partial) {
             assertTrue(rolloverResponse.get().isRolledOver());
         } else {
-            SnapshotInProgressException e = expectThrows(SnapshotInProgressException.class, rolloverResponse::actionGet);
+            SnapshotInProgressException e = expectThrows(SnapshotInProgressException.class, rolloverResponse);
             assertThat(e.getMessage(), containsString("Cannot roll over data stream that is being snapshotted:"));
         }
         unblockAllDataNodes(repoName);
@@ -1065,15 +1065,17 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertAcked(client.execute(CreateDataStreamAction.INSTANCE, request).actionGet());
             var e = expectThrows(
                 IllegalStateException.class,
-                () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
+                client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true)
             );
             assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
         } finally {
             // Need to remove data streams in order to remove template
             client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
             // Need to remove template, because base class doesn't remove composable index templates after each test (only legacy templates)
-            client.execute(DeleteComposableIndexTemplateAction.INSTANCE, new DeleteComposableIndexTemplateAction.Request("my-template"))
-                .actionGet();
+            client.execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("my-template")
+            ).actionGet();
         }
     }
 
@@ -1086,7 +1088,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         var e = expectThrows(
             IllegalStateException.class,
-            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
+            client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true)
         );
         assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
     }

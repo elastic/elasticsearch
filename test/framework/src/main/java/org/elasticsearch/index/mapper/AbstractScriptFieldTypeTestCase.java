@@ -436,6 +436,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             public String parentField(String field) {
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
         };
     }
 

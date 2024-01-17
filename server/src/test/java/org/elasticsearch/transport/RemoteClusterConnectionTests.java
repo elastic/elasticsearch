@@ -153,7 +153,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                             1F
                         );
                     } else {
-                        searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                        searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
                     SearchResponse searchResponse = new SearchResponse(
                         searchHits,

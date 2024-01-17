@@ -36,7 +36,10 @@ import java.util.Optional;
 
 public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContentObject, Releasable {
 
+    @SuppressWarnings("this-escape")
     private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);
+
+    public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
     private final List<ColumnInfo> columns;
     private final List<Page> pages;
@@ -159,18 +162,43 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        final Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar);
+        boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+        boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+        Iterator<? extends ToXContent> columnHeadings = dropNullColumns
+            ? Iterators.concat(
+                ResponseXContentUtils.allColumns(columns, "all_columns"),
+                ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns")
+            )
+            : ResponseXContentUtils.allColumns(columns, "columns");
+        Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
         Iterator<ToXContent> profileRender = profile == null
             ? List.<ToXContent>of().iterator()
             : ChunkedToXContentHelper.field("profile", profile, params);
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),
-            ResponseXContentUtils.columnHeadings(columns),
+            columnHeadings,
             ChunkedToXContentHelper.array("values", valuesIt),
             profileRender,
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    private boolean[] nullColumns() {
+        boolean[] nullColumns = new boolean[columns.size()];
+        for (int c = 0; c < nullColumns.length; c++) {
+            nullColumns[c] = allColumnsAreNull(c);
+        }
+        return nullColumns;
+    }
+
+    private boolean allColumnsAreNull(int c) {
+        for (Page page : pages) {
+            if (page.getBlock(c).areAllValuesNull() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

@@ -105,18 +105,24 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(LAST_ACCESS_CONTROL_SYNC_ERROR.getPreferredName(), lastAccessControlSyncError);
         builder.field(LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD.getPreferredName(), lastAccessControlSyncStatus);
-        builder.field(LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastAccessControlSyncScheduledAt);
+        builder.field(
+            LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(),
+            ConnectorUtils.formatInstantToFrameworkString(lastAccessControlSyncScheduledAt)
+        );
         if (lastDeletedDocumentCount != null) {
             builder.field(LAST_DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastDeletedDocumentCount);
         }
-        builder.field(LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastIncrementalSyncScheduledAt);
+        builder.field(
+            LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(),
+            ConnectorUtils.formatInstantToFrameworkString(lastIncrementalSyncScheduledAt)
+        );
         if (lastIndexedDocumentCount != null) {
             builder.field(LAST_INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastIndexedDocumentCount);
         }
         builder.field(LAST_SYNC_ERROR_FIELD.getPreferredName(), lastSyncError);
-        builder.field(LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastSyncScheduledAt);
+        builder.field(LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(lastSyncScheduledAt));
         builder.field(LAST_SYNC_STATUS_FIELD.getPreferredName(), lastSyncStatus);
-        builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
+        builder.field(LAST_SYNCED_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(lastSynced));
         return builder;
     }
 

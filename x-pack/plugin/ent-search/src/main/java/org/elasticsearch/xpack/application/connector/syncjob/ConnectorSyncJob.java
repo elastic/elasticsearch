@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
+import org.elasticsearch.xpack.application.connector.ConnectorUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -265,19 +266,19 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
     static {
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> parseNullableInstant(p),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, CANCELATION_REQUESTED_AT_FIELD.getPreferredName()),
             CANCELATION_REQUESTED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> parseNullableInstant(p),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, CANCELED_AT_FIELD.getPreferredName()),
             CANCELED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> parseNullableInstant(p),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, COMPLETED_AT_FIELD.getPreferredName()),
             COMPLETED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -287,7 +288,12 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             CONNECTOR_FIELD,
             ObjectParser.ValueType.OBJECT
         );
-        PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), CREATED_AT_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorUtils.parseInstant(p, CREATED_AT_FIELD.getPreferredName()),
+            CREATED_AT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
         PARSER.declareLong(constructorArg(), DELETED_DOCUMENT_COUNT_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ERROR_FIELD);
         PARSER.declareString(constructorArg(), ID_FIELD);
@@ -299,11 +305,16 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             JOB_TYPE_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(constructorArg(), (p, c) -> parseNullableInstant(p), LAST_SEEN_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, LAST_SEEN_FIELD.getPreferredName()),
+            LAST_SEEN_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
         PARSER.declareField(constructorArg(), (p, c) -> p.map(), METADATA_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> parseNullableInstant(p),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, STARTED_AT_FIELD.getPreferredName()),
             STARTED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -321,10 +332,6 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             ObjectParser.ValueType.STRING
         );
         PARSER.declareStringOrNull(optionalConstructorArg(), WORKER_HOSTNAME_FIELD);
-    }
-
-    private static Instant parseNullableInstant(XContentParser p) throws IOException {
-        return p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text());
     }
 
     @SuppressWarnings("unchecked")
@@ -477,13 +484,16 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         builder.startObject();
         {
             if (cancelationRequestedAt != null) {
-                builder.field(CANCELATION_REQUESTED_AT_FIELD.getPreferredName(), cancelationRequestedAt);
+                builder.field(
+                    CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
+                    ConnectorUtils.formatInstantToFrameworkString(cancelationRequestedAt)
+                );
             }
             if (canceledAt != null) {
-                builder.field(CANCELED_AT_FIELD.getPreferredName(), canceledAt);
+                builder.field(CANCELED_AT_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(canceledAt));
             }
             if (completedAt != null) {
-                builder.field(COMPLETED_AT_FIELD.getPreferredName(), completedAt);
+                builder.field(COMPLETED_AT_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(completedAt));
             }
 
             builder.startObject(CONNECTOR_FIELD.getPreferredName());
@@ -512,7 +522,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             }
             builder.endObject();
 
-            builder.field(CREATED_AT_FIELD.getPreferredName(), createdAt);
+            builder.field(CREATED_AT_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(createdAt));
             builder.field(DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(), deletedDocumentCount);
             if (error != null) {
                 builder.field(ERROR_FIELD.getPreferredName(), error);
@@ -522,11 +532,11 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             builder.field(INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName(), indexedDocumentVolume);
             builder.field(JOB_TYPE_FIELD.getPreferredName(), jobType);
             if (lastSeen != null) {
-                builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+                builder.field(LAST_SEEN_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(lastSeen));
             }
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
             if (startedAt != null) {
-                builder.field(STARTED_AT_FIELD.getPreferredName(), startedAt);
+                builder.field(STARTED_AT_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(startedAt));
             }
             builder.field(STATUS_FIELD.getPreferredName(), status);
             builder.field(TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName(), totalDocumentCount);

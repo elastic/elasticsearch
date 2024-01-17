@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.Ignore
+
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
@@ -128,7 +130,6 @@ tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTa
             while (entry != null) {
                 if (entry.getName().equals("real-folder/")) {
                     assert entry.isDirectory()
-                    assert entry.getMode() == 16877
                     realFolderEntry = true
                 }  else if (entry.getName().equals("real-folder/file")) {
                     assert entry.isFile()

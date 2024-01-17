@@ -43,10 +43,6 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
         return this;
     }
 
-    int[] ords() {
-        return ords;
-    }
-
     @Override
     public SingletonOrdinalsBuilder beginPositionEntry() {
         throw new UnsupportedOperationException("should only have one value per doc");

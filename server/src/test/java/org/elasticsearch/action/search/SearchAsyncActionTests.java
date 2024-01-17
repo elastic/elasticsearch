@@ -202,8 +202,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", AliasFilter.EMPTY);
         CountDownLatch awaitInitialRequests = new CountDownLatch(1);
         AtomicInteger numRequests = new AtomicInteger(0);
-        var results = new ArraySearchPhaseResults<TestSearchPhaseResult>(shardsIter.size());
-        try {
+        try (var results = new ArraySearchPhaseResults<TestSearchPhaseResult>(shardsIter.size())) {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
@@ -275,8 +274,6 @@ public class SearchAsyncActionTests extends ESTestCase {
             latch.await();
             assertTrue(searchPhaseDidRun.get());
             assertEquals(numShards, numRequests.get());
-        } finally {
-            results.decRef();
         }
     }
 
@@ -318,9 +315,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean latchTriggered = new AtomicBoolean();
-        var results = new ArraySearchPhaseResults<TestSearchPhaseResult>(shardsIter.size());
         final TestSearchResponse testResponse = new TestSearchResponse();
-        try {
+        try (var results = new ArraySearchPhaseResults<TestSearchPhaseResult>(shardsIter.size())) {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
@@ -400,7 +396,6 @@ public class SearchAsyncActionTests extends ESTestCase {
             assertThat(runnables, equalTo(Collections.emptyList()));
         } finally {
             testResponse.decRef();
-            results.decRef();
         }
     }
 
@@ -556,8 +551,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", AliasFilter.EMPTY);
         AtomicInteger numRequests = new AtomicInteger(0);
         AtomicInteger numFailReplicas = new AtomicInteger(0);
-        var results = new ArraySearchPhaseResults<TestSearchPhaseResult>(shardsIter.size());
-        try {
+        try (var results = new ArraySearchPhaseResults<TestSearchPhaseResult>(shardsIter.size())) {
             AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
                 "test",
                 logger,
@@ -627,8 +621,6 @@ public class SearchAsyncActionTests extends ESTestCase {
             assertTrue(searchPhaseDidRun.get());
             assertEquals(numShards, numRequests.get());
             assertThat(numFailReplicas.get(), greaterThanOrEqualTo(1));
-        } finally {
-            results.decRef();
         }
     }
 

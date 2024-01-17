@@ -176,7 +176,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
-        addReleasable(resultConsumer::decRef);
+        addReleasable(resultConsumer);
         this.clusters = clusters;
         this.searchResponseTookMetrics = searchResponseTookMetrics;
     }

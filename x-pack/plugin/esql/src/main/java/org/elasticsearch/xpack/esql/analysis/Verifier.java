@@ -279,7 +279,9 @@ public class Verifier {
         allowed.add(DataTypes.DATETIME);
         allowed.add(DataTypes.VERSION);
         allowed.add(EsqlDataTypes.GEO_POINT);
+        allowed.add(EsqlDataTypes.GEO_SHAPE);
         allowed.add(EsqlDataTypes.CARTESIAN_POINT);
+        allowed.add(EsqlDataTypes.CARTESIAN_SHAPE);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataTypes.BOOLEAN);
         }

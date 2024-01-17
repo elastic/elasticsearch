@@ -95,7 +95,7 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
         );
         assertTrue(ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.V_8_11_X));
 
-        assertFalse(ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.V_8_500_061));
+        assertFalse(ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.V_8_10_X));
         assertFalse(
             ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
                 TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME

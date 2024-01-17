@@ -92,13 +92,13 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         );
 
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
-            // Settings.builder().put(APM_DATA_ENABLED.getKey(), true).put(APMPlugin.APM_DATA_REGISTRY_ENABLED.getKey(), true).build(),
             Settings.EMPTY,
             clusterService,
             threadPool,
             client,
             NamedXContentRegistry.EMPTY
         );
+        apmIndexTemplateRegistry.setEnabled(true);
     }
 
     @After

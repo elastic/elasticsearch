@@ -302,8 +302,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         DocBlock docBlock = page.getBlock(0);
         IntVector docIndices = docBlock.asVector().docs();
         Block originalData = testData.getBlock(columnIndex);
-        var blockCopier = (EsqlDataTypes.isSpatial(dataType) && forStats)
-            ? TestSpatialStatsBlockCopier.create(docIndices, dataType)
+        var blockCopier = (EsqlDataTypes.isSpatialPoint(dataType) && forStats)
+            ? TestSpatialPointStatsBlockCopier.create(docIndices, dataType)
             : new TestBlockCopier(docIndices);
         return blockCopier.copyBlock(originalData);
     }
@@ -330,9 +330,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
     }
 
-    private abstract static class TestSpatialStatsBlockCopier extends TestBlockCopier {
+    /**
+     * geo_point and cartesian_point are normally loaded as WKT from source, but for aggregations we can load them as doc-values
+     * which are encoded Long values. This class is used to convert the test loaded WKB into encoded longs for the aggregators.
+     * TODO: We need a different solution to support geo_shape and cartesian_shape
+     */
+    private abstract static class TestSpatialPointStatsBlockCopier extends TestBlockCopier {
 
-        private TestSpatialStatsBlockCopier(IntVector docIndices) {
+        private TestSpatialPointStatsBlockCopier(IntVector docIndices) {
             super(docIndices);
         }
 
@@ -355,13 +360,13 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             }
         }
 
-        private static TestSpatialStatsBlockCopier create(IntVector docIndices, DataType dataType) {
+        private static TestSpatialPointStatsBlockCopier create(IntVector docIndices, DataType dataType) {
             Function<BytesRef, Long> encoder = switch (dataType.esType()) {
                 case "geo_point" -> SpatialCoordinateTypes.GEO::wkbAsLong;
                 case "cartesian_point" -> SpatialCoordinateTypes.CARTESIAN::wkbAsLong;
                 default -> throw new IllegalArgumentException("Unsupported spatial data type: " + dataType);
             };
-            return new TestSpatialStatsBlockCopier(docIndices) {
+            return new TestSpatialPointStatsBlockCopier(docIndices) {
                 @Override
                 protected long encode(BytesRef wkb) {
                     return encoder.apply(wkb);

@@ -245,13 +245,11 @@ public class PlannerUtils {
         if (dataType == EsQueryExec.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
-        if (dataType == EsqlDataTypes.GEO_POINT) {
-            return forStats ? ElementType.LONG : ElementType.BYTES_REF;
-        }
-        if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
+        if (EsqlDataTypes.isSpatialPoint(dataType)) {
             return forStats ? ElementType.LONG : ElementType.BYTES_REF;
         }
         if (EsqlDataTypes.isSpatial(dataType)) {
+            // TODO: support forStats for shape aggregations, like st_centroid
             return ElementType.BYTES_REF;
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);

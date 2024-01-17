@@ -33,11 +33,11 @@ import static org.junit.Assert.assertNotEquals;
  */
 public class TestShardRouting {
 
-    public static Builder aSharRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+    public static Builder aShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
         return new Builder(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
     }
 
-    public static Builder aSharRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+    public static Builder aShardRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
         return new Builder(shardId, currentNodeId, primary, state);
     }
 
@@ -218,27 +218,7 @@ public class TestShardRouting {
             currentNodeId,
             relocatingNodeId,
             primary,
-            state,
-            ShardRouting.Role.DEFAULT
-        );
-    }
-
-    public static ShardRouting newShardRouting(
-        String index,
-        int shardId,
-        String currentNodeId,
-        String relocatingNodeId,
-        boolean primary,
-        ShardRoutingState state,
-        ShardRouting.Role role
-    ) {
-        return newShardRouting(
-            new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId),
-            currentNodeId,
-            relocatingNodeId,
-            primary,
-            state,
-            role
+            state
         );
     }
 
@@ -248,17 +228,6 @@ public class TestShardRouting {
         String relocatingNodeId,
         boolean primary,
         ShardRoutingState state
-    ) {
-        return newShardRouting(shardId, currentNodeId, relocatingNodeId, primary, state, ShardRouting.Role.DEFAULT);
-    }
-
-    public static ShardRouting newShardRouting(
-        ShardId shardId,
-        String currentNodeId,
-        String relocatingNodeId,
-        boolean primary,
-        ShardRoutingState state,
-        ShardRouting.Role role
     ) {
         return new ShardRouting(
             shardId,
@@ -271,7 +240,7 @@ public class TestShardRouting {
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             -1,
-            role
+            ShardRouting.Role.DEFAULT
         );
     }
 

@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
 import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -399,15 +400,7 @@ public class ClusterStateCreationUtils {
                 );
                 for (int replica = 0; replica < replicaRoles.size(); replica++) {
                     indexShardRoutingBuilder.addShard(
-                        TestShardRouting.newShardRouting(
-                            index,
-                            i,
-                            newNode(replica + 1).getId(),
-                            null,
-                            false,
-                            ShardRoutingState.STARTED,
-                            replicaRoles.get(replica)
-                        )
+                        aShardRouting(index, i, newNode(replica + 1).getId(), false, ShardRoutingState.STARTED).withRole(replicaRoles.get(replica)).build()
                     );
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);

@@ -237,7 +237,6 @@ public class PlannerUtils {
         if (dataType == EsQueryExec.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
-        // TODO: Spatial types can be read from source into BYTES_REF, or read from doc-values
         if (EsqlDataTypes.isSpatial(dataType)) {
             return ElementType.BYTES_REF;
         }

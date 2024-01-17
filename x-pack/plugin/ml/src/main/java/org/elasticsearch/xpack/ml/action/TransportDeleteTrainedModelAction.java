@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -115,7 +115,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     }
 
     // package-private for testing
-    static void cancelDownloadTask(Client client, String modelId, ActionListener<CancelTasksResponse> listener, TimeValue timeout) {
+    static void cancelDownloadTask(Client client, String modelId, ActionListener<ListTasksResponse> listener, TimeValue timeout) {
         logger.debug(() -> format("[%s] Checking if download task exists and cancelling it", modelId));
 
         OriginSettingClient mlClient = new OriginSettingClient(client, ML_ORIGIN);
@@ -133,7 +133,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         );
 
         // setting waitForCompletion to false here so that we don't block waiting for an existing task to complete before returning it
-        getDownloadTaskInfo(mlClient, modelId, false, taskListener, timeout);
+        getDownloadTaskInfo(mlClient, modelId, false, timeout, () -> null, taskListener);
     }
 
     static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata, IngestService ingestService) {
@@ -283,11 +283,11 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         Client client,
         String modelId,
         TaskInfo taskInfo,
-        ActionListener<CancelTasksResponse> listener,
+        ActionListener<ListTasksResponse> listener,
         TimeValue timeout
     ) {
         if (taskInfo != null) {
-            ActionListener<CancelTasksResponse> cancelListener = ActionListener.wrap(listener::onResponse, e -> {
+            ActionListener<ListTasksResponse> cancelListener = ActionListener.wrap(listener::onResponse, e -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof ResourceNotFoundException) {
                     logger.debug(() -> format("[%s] Task no longer exists when attempting to cancel it", modelId));

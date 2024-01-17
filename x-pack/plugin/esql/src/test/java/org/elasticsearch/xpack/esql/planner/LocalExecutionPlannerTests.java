@@ -120,6 +120,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private LocalExecutionPlanner planner() throws IOException {
         return new LocalExecutionPlanner(
             "test",
+            "",
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
             TestBlockFactory.getNonBreakingInstance(),

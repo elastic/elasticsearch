@@ -58,11 +58,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -279,6 +281,48 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         // ingest pipelines and component templates should not have been installed as we used a cluster state that includes them already
         assertThat(actualInstalledComponentTemplates.get(), equalTo(0));
         assertThat(actualInstalledIngestPipelines.get(), equalTo(0));
+    }
+
+    public void testIndexTemplateConventions() throws Exception {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet()) {
+            final String name = entry.getKey();
+            final int atIndex = name.lastIndexOf('@');
+            assertThat(atIndex, not(equalTo(-1)));
+            assertThat(name.substring(atIndex + 1), equalTo("template"));
+
+            final String dataStreamType = name.substring(0, name.indexOf('-'));
+            assertThat(dataStreamType, isIn(List.of("logs", "metrics", "traces")));
+
+            final ComposableIndexTemplate template = entry.getValue();
+            assertThat(template.indexPatterns().size(), equalTo(1));
+
+            final String namePrefix = name.substring(0, atIndex);
+            switch (namePrefix) {
+                case "logs-apm.app", "metrics-apm.app":
+                    // These two data streams have a service-specific dataset.
+                    assertThat(template.indexPatterns().get(0), equalTo(namePrefix + ".*-*"));
+                    break;
+                default:
+                    assertThat(template.indexPatterns().get(0), equalTo(namePrefix + "-*"));
+                    break;
+            }
+
+            // Each index template should be composed of the following optional component templates:
+            // <data_stream.type>@custom
+            // <data_stream.type>-<data_stream.dataset>@custom
+            final List<String> optionalComponentTemplates = template.composedOf()
+                .stream()
+                .filter(t -> template.getIgnoreMissingComponentTemplates().contains(t))
+                .toList();
+            assertThat(optionalComponentTemplates, containsInAnyOrder(namePrefix + "@custom", dataStreamType + "@custom"));
+
+            // There should be no required custom component templates.
+            final List<String> requiredCustomComponentTemplates = template.getRequiredComponentTemplates()
+                .stream()
+                .filter(t -> t.endsWith("@custom"))
+                .toList();
+            assertThat(requiredCustomComponentTemplates, empty());
+        }
     }
 
     private Map<String, ComponentTemplate> getIndependentComponentTemplateConfigs() {

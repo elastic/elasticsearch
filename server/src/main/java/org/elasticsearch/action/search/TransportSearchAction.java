@@ -362,6 +362,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             .notifyListShards(Collections.emptyList(), Collections.emptyList(), clusters, false, timeProvider);
                     }
                     ccsRemoteReduce(
+                        task,
                         parentTaskId,
                         rewritten,
                         localIndices,
@@ -496,6 +497,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * Handles ccs_minimize_roundtrips=true
      */
     static void ccsRemoteReduce(
+        SearchTask task,
         TaskId parentTaskId,
         SearchRequest searchRequest,
         OriginalIndices localIndices,
@@ -532,7 +534,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    // TODO: in CCS fail fast ticket we may need to fail the query if the cluster is marked as FAILED
                     // overwrite the existing cluster entry with the updated one
                     ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, skipUnavailable);
                     Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
@@ -580,6 +581,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider,
                 aggReduceContextBuilder
             );
+            task.setSearchResponseMergerSupplier(
+                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder)
+            );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
             final CountDown countDown = new CountDown(totalClusters);
@@ -602,6 +606,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     clusters,
+                    task.getProgressListener(),
                     listener
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
@@ -619,6 +624,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     clusters,
+                    task.getProgressListener(),
                     listener
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
@@ -759,6 +765,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AtomicReference<Exception> exceptions,
         SearchResponseMerger searchResponseMerger,
         SearchResponse.Clusters clusters,
+        SearchProgressListener progressListener,
         ActionListener<SearchResponse> originalListener
     ) {
         return new CCSActionListener<>(
@@ -771,9 +778,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
-                // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
                 ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, skipUnavailable);
                 searchResponseMerger.add(searchResponse);
+                progressListener.notifyClusterResponseMinimizeRoundtrips(clusterAlias, searchResponse);
             }
 
             @Override
@@ -1494,7 +1501,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
-                // skippedClusters.incrementAndGet();
             } else {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);

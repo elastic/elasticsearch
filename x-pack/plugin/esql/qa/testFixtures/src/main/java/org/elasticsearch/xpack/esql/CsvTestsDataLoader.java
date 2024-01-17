@@ -320,16 +320,22 @@ public class CsvTestsDataLoader {
                                     if (multiValues.length > 0) {// multi-value
                                         StringBuilder rowStringValue = new StringBuilder("[");
                                         for (String s : multiValues) {
-                                            rowStringValue.append("\"" + s + "\",");
+                                            if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
+                                                rowStringValue.append("\"" + s + "\",");
+                                            } else {
+                                                rowStringValue.append(s + ",");
+                                            }
                                         }
                                         // remove the last comma and put a closing bracket instead
                                         rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
                                         entries[i] = rowStringValue.toString();
                                     } else {
-                                        entries[i] = "\"" + entries[i] + "\"";
+                                        if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
+                                            entries[i] = "\"" + entries[i] + "\"";
+                                        }
                                     }
                                     // replace any escaped commas with single comma
-                                    entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
+                                    entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
                                     row.append("\"" + columns[i] + "\":" + entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(

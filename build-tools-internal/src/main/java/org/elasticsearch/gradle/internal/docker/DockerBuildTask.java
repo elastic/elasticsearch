@@ -39,6 +39,7 @@ import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+
 import javax.inject.Inject;
 
 /**
@@ -207,7 +208,7 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
 
-                if(parameters.getPush().getOrElse(false)) {
+                if (parameters.getPush().getOrElse(false)) {
                     spec.args("--push");
                 }
             });

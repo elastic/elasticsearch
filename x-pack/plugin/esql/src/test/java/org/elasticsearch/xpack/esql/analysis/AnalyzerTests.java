@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -1455,10 +1454,9 @@ public class AnalyzerTests extends ESTestCase {
         IndexResolution testIndex = loadMapping("mapping-basic.json", "test");
         IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
         var enrichPolicy = new EnrichPolicy("match", null, List.of("unused"), "language_code", List.of("language_code", "language_name"));
-        EnrichResolution enrichResolution = new EnrichResolution(
-            Set.of(new EnrichPolicyResolution("languages", enrichPolicy, languageIndex)),
-            Set.of("languages")
-        );
+        EnrichResolution enrichResolution = new EnrichResolution();
+        enrichResolution.addResolvedPolicy("languages", enrichPolicy, Map.of("", "languages"), languageIndex.get().mapping());
+        enrichResolution.addExistingPolicies(Set.of("languages"));
         AnalyzerContext context = new AnalyzerContext(configuration(query), new EsqlFunctionRegistry(), testIndex, enrichResolution);
         Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
         LogicalPlan plan = analyze(query, analyzer);

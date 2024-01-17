@@ -41,6 +41,32 @@ public class TestShardRouting {
         return new Builder(shardId, currentNodeId, primary, state);
     }
 
+    public static Builder aShardRouting(
+        String index,
+        int shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        UnassignedInfo unassignedInfo
+    ) {
+        return new Builder(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state)
+            .withRelocatingNodeId(relocatingNodeId)
+            .withUnassignedInfo(unassignedInfo);
+    }
+
+    public static Builder aShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        UnassignedInfo unassignedInfo
+    ) {
+        return new Builder(shardId, currentNodeId, primary, state).withRelocatingNodeId(relocatingNodeId)
+            .withUnassignedInfo(unassignedInfo);
+    }
+
     public static class Builder {
 
         private final ShardId shardId;
@@ -295,27 +321,13 @@ public class TestShardRouting {
         ShardRoutingState state,
         UnassignedInfo unassignedInfo
     ) {
-        return newShardRouting(index, shardId, currentNodeId, relocatingNodeId, primary, state, unassignedInfo, ShardRouting.Role.DEFAULT);
-    }
-
-    public static ShardRouting newShardRouting(
-        String index,
-        int shardId,
-        String currentNodeId,
-        String relocatingNodeId,
-        boolean primary,
-        ShardRoutingState state,
-        UnassignedInfo unassignedInfo,
-        ShardRouting.Role role
-    ) {
         return newShardRouting(
             new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId),
             currentNodeId,
             relocatingNodeId,
             primary,
             state,
-            unassignedInfo,
-            role
+            unassignedInfo
         );
     }
 
@@ -326,18 +338,6 @@ public class TestShardRouting {
         boolean primary,
         ShardRoutingState state,
         UnassignedInfo unassignedInfo
-    ) {
-        return newShardRouting(shardId, currentNodeId, relocatingNodeId, primary, state, unassignedInfo, ShardRouting.Role.DEFAULT);
-    }
-
-    public static ShardRouting newShardRouting(
-        ShardId shardId,
-        String currentNodeId,
-        String relocatingNodeId,
-        boolean primary,
-        ShardRoutingState state,
-        UnassignedInfo unassignedInfo,
-        ShardRouting.Role role
     ) {
         return new ShardRouting(
             shardId,
@@ -350,7 +350,7 @@ public class TestShardRouting {
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
             -1,
-            role
+            ShardRouting.Role.DEFAULT
         );
     }
 

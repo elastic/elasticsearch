@@ -175,7 +175,7 @@ public class ClusterStateCreationUtils {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         }
         indexShardRoutingBuilder.addShard(
-            TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, true, primaryState, unassignedInfo, primaryRole)
+            aShardRouting(index, 0, primaryNode, relocatingNode, true, primaryState, unassignedInfo).withRole(primaryRole).build()
         );
 
         for (var replicaState : replicaStates) {
@@ -192,16 +192,9 @@ public class ClusterStateCreationUtils {
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
             indexShardRoutingBuilder.addShard(
-                TestShardRouting.newShardRouting(
-                    index,
-                    shardId.id(),
-                    replicaNode,
-                    relocatingNode,
-                    false,
-                    replicaState.v1(),
-                    unassignedInfo,
+                aShardRouting(index, shardId.id(), replicaNode, relocatingNode, false, replicaState.v1(), unassignedInfo).withRole(
                     replicaState.v2()
-                )
+                ).build()
             );
         }
         final IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
@@ -400,7 +393,9 @@ public class ClusterStateCreationUtils {
                 );
                 for (int replica = 0; replica < replicaRoles.size(); replica++) {
                     indexShardRoutingBuilder.addShard(
-                        aShardRouting(index, i, newNode(replica + 1).getId(), false, ShardRoutingState.STARTED).withRole(replicaRoles.get(replica)).build()
+                        aShardRouting(index, i, newNode(replica + 1).getId(), false, ShardRoutingState.STARTED).withRole(
+                            replicaRoles.get(replica)
+                        ).build()
                     );
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);

@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -154,11 +155,11 @@ public class DataFrameDataExtractor {
                     return;
                 }
 
-                final SearchHit[] hits = searchResponse.getHits().getHits();
-                List<Row> rows = new ArrayList<>(hits.length);
-                for (SearchHit hit : hits) {
-                    String[] extractedValues = extractValues(hit);
-                    rows.add(extractedValues == null ? new Row(null, hit, true) : new Row(extractedValues, hit, false));
+                List<Row> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    var unpooled = hit.asUnpooled();
+                    String[] extractedValues = extractValues(unpooled);
+                    rows.add(extractedValues == null ? new Row(null, unpooled, true) : new Row(extractedValues, unpooled, false));
                 }
                 delegate.onResponse(rows);
             })
@@ -251,8 +252,8 @@ public class DataFrameDataExtractor {
             return null;
         }
 
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        List<Row> rows = new ArrayList<>(hits.length);
+        SearchHits hits = searchResponse.getHits();
+        List<Row> rows = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
             if (isCancelled) {
                 hasNext = false;
@@ -317,12 +318,13 @@ public class DataFrameDataExtractor {
     }
 
     private Row createRow(SearchHit hit) {
-        String[] extractedValues = extractValues(hit);
+        var unpooled = hit.asUnpooled();
+        String[] extractedValues = extractValues(unpooled);
         if (extractedValues == null) {
-            return new Row(null, hit, true);
+            return new Row(null, unpooled, true);
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        Row row = new Row(extractedValues, hit, isTraining);
+        Row row = new Row(extractedValues, unpooled, isTraining);
         LOGGER.trace(
             () -> format(
                 "[%s] Extracted row: sort key = [%s], is_training = [%s], values = %s",

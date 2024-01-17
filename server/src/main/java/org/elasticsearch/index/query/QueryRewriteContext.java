@@ -290,6 +290,13 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Returns the MappingLookup for the queried index.
+     */
+    public MappingLookup getMappingLookup() {
+        return mappingLookup;
+    }
+
+    /**
      *  Given an index pattern, checks whether it matches against the current shard. The pattern
      *  may represent a fully qualified index name if the search targets remote shards.
      */

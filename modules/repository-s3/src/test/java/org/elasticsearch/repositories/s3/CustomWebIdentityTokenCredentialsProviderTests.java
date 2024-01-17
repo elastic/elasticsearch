@@ -182,7 +182,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "HTTP server is used for testing")
-    public void testPickUpNewWebIdentityTokenInBackground() throws Exception {
+    public void testPickUpNewWebIdentityTokenWhenItsChanged() throws Exception {
         DelegatingConsumer webIdentityTokenCheck = new DelegatingConsumer(s -> assertEquals("YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl", s));
 
         HttpServer httpServer = getHttpServer(webIdentityTokenCheck);

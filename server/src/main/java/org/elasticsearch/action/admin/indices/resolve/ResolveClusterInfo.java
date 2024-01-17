@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,8 +17,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ResolveClusterInfo implements Writeable {
+
+    private static final Logger logger = LogManager.getLogger(ResolveClusterInfo.class);
 
     private final boolean connected;
     private final Boolean skipUnavailable;  // remote clusters don't know their setting, so they put null and querying cluster fills in
@@ -46,7 +51,6 @@ public class ResolveClusterInfo implements Writeable {
         this.matchingIndices = matchingIndices;
         this.build = build;
         this.error = error;
-        System.err.printf("ERROR: %s ; matchingIndices: %s; connected: %s\n", error, matchingIndices, connected);
         assert error != null || matchingIndices != null || connected == false : "If matchingIndices is null, connected must be false";
     }
 
@@ -63,7 +67,8 @@ public class ResolveClusterInfo implements Writeable {
         this.skipUnavailable = in.readOptionalBoolean();
         this.matchingIndices = in.readOptionalBoolean();
         this.error = in.readOptionalString();
-        if (error == null) {
+        boolean buildIsPresent = in.readBoolean();
+        if (buildIsPresent) {
             this.build = Build.readBuild(in);
         } else {
             this.build = null;
@@ -84,7 +89,11 @@ public class ResolveClusterInfo implements Writeable {
         out.writeOptionalBoolean(skipUnavailable);
         out.writeOptionalBoolean(matchingIndices);
         out.writeOptionalString(error);
-        if (build != null) {
+        // since TransportResolveClusterAction has fallbacks, Build is not always present and doesn't have a "writeOptional" method
+        // so we add an extra boolean to specify whether build has been serialized or not
+        boolean buildIsPresent = build != null;
+        out.writeBoolean(buildIsPresent);
+        if (buildIsPresent) {
             Build.writeBuild(build, out);
         }
     }
@@ -123,5 +132,22 @@ public class ResolveClusterInfo implements Writeable {
             + ", error="
             + error
             + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ResolveClusterInfo that = (ResolveClusterInfo) o;
+        return connected == that.connected
+            && Objects.equals(skipUnavailable, that.skipUnavailable)
+            && Objects.equals(matchingIndices, that.matchingIndices)
+            && Objects.equals(build, that.build)
+            && Objects.equals(error, that.error);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(connected, skipUnavailable, matchingIndices, build, error);
     }
 }

@@ -7,32 +7,21 @@ setup:
 
   - do:
       indices.create:
-        index: test_index1
+        index: index1
         body:
           aliases:
-            test_alias: {}
-            test_blias: {}
-            test_clias: {}
+            my_alias1: {}
+            my_alias2: {}
 
   - do:
       indices.create:
-        index: test_index2
-        body:
-          aliases:
-            test_alias: {}
+        index: index2
 
   - do:
       indices.close:
-        index: test_index2
+        index: index2
       allowed_warnings:
         - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
-
-  - do:
-      indices.create:
-        index: test_index3
-        body:
-          aliases:
-            test_blias: {}
 
 ---
 "Resolve cluster with indices and aliases":
@@ -49,40 +38,16 @@ setup:
   - match: {(local).matching_indices: true}
   - exists: (local).version.number
 
----
-"Resolve cluster with hidden and closed indices":
-  - skip:
-      version: " - 8.12.99"
-      reason: "resolve cluster introduced in 8.13"
-
   - do:
       indices.resolve_cluster:
-        # exclude security index for test to work with and without security
-        name: '*,-.security*'
-        expand_wildcards: [all]
+        name: '*'
+        expand_wildcards: [closed]
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
+    # still true because resolve_index/resolve_cluster does not check closed status of aliases
   - match: {(local).matching_indices: true}
   - exists: (local).version.number
-
-
----
-"Resolve cluster with hidden index":
-  - skip:
-      version: " - 8.12.99"
-      reason: "resolve cluster introduced in 8.13"
-
-  - do:
-      indices.resolve_cluster:
-        name: '.security*'
-        expand_wildcards: [all]
-
-  - match: {(local).connected: true}
-  - match: {(local).skip_unavailable: false}
-  - match: {(local).matching_indices: false}
-  - exists: (local).version.number
-
 
 ---
 "Resolve cluster with closed index":
@@ -92,18 +57,17 @@ setup:
 
   - do:
       indices.resolve_cluster:
-        name: 'test_index2'
-        expand_wildcards: [closed]
+        name: 'index2'
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
-  - match: {(local).matching_indices: true}  # TODO: this should be false?
+  - match: {(local).matching_indices: false}  # false since doing a search with this index pattern gives an error
   - exists: (local).version.number
 
   - do:
       indices.resolve_cluster:
-        name: 'test_index2*'
-        expand_wildcards: [open]
+        name: 'index2*'
+        expand_wildcards: [open,closed]
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
@@ -112,12 +76,12 @@ setup:
 
   - do:
       indices.resolve_cluster:
-        name: 'test_index2*'
+        name: 'index2*'
         expand_wildcards: [closed]
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
-  - match: {(local).matching_indices: true}
+  - match: {(local).matching_indices: false}
   - exists: (local).version.number
 
 ---
@@ -128,14 +92,21 @@ setup:
 
   - do:
       indices.resolve_cluster:
-        name: 'test_clias'
-        expand_wildcards: [all]
+        name: 'my_alias2'
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
   - match: {(local).matching_indices: true}
   - exists: (local).version.number
 
+  - do:
+      indices.resolve_cluster:
+        name: 'my_ali*'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
 
 ---
 "Resolve cluster using alias and index that does not exist":
@@ -145,10 +116,20 @@ setup:
 
   - do:
       indices.resolve_cluster:
-        name: 'test_clias,doesnotexist*'
+        name: 'my_alias2,doesnotexist*'
         expand_wildcards: [all]
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
   - match: {(local).matching_indices: true}
   - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_alias2,doesnotexist'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - is_false: (local).matching_indices  # should not be present
+  - is_false: (local).version  # should not be present
+  - match: {(local).error: "no such index [doesnotexist]"}

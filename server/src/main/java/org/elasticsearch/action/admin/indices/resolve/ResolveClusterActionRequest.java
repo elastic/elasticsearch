@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,6 +25,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 public class ResolveClusterActionRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
@@ -81,7 +83,11 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (names == null || names.length == 0) {
+            validationException = ValidateActions.addValidationError("no index expressions specified", validationException);
+        }
+        return validationException;
     }
 
     @Override
@@ -89,12 +95,14 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ResolveClusterActionRequest request = (ResolveClusterActionRequest) o;
-        return Arrays.equals(names, request.names);
+        return Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions());
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(names);
+        int result = Objects.hash(indicesOptions);
+        result = 31 * result + Arrays.hashCode(names);
+        return result;
     }
 
     @Override
@@ -109,6 +117,12 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    // for testing
+    protected IndicesRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
     }
 
     @Override
@@ -139,7 +153,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
     }
 
     // MP TODO: add test for this
-    private boolean localIndicesPresent(String[] indices) {
+    boolean localIndicesPresent(String[] indices) {
         for (String index : indices) {
             // ensure that `index` is a remote name and not a date math expression which includes ':' symbol
             // since date math expression after evaluation should not contain ':' symbol

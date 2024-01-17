@@ -83,7 +83,6 @@ public class ResolveClusterActionResponse extends ActionResponse implements ToXC
             }
             Build build = clusterInfo.getBuild();
             if (build != null) {
-                // TODO Lucene version is not part of build - do we want that as well?
                 builder.startObject(ES_VERSION_FIELD.getPreferredName())
                     .field("number", build.qualifiedVersion())
                     .field("build_flavor", build.flavor())  // is "stateless" for stateless projects

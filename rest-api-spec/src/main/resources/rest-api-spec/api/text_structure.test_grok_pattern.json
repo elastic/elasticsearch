@@ -10,20 +10,20 @@
       "accept": ["application/json"],
       "content_type": ["application/json"]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_text_structure/test_grok_pattern",
-          "methods":[
+          "path": "/_text_structure/test_grok_pattern",
+          "methods": [
             "GET",
             "POST"
-          ],
-          "body":{
-            "description":"The Grok pattern and text.",
-            "required":true
-          }
+          ]
         }
       ]
+    },
+    "body":{
+      "description":"The Grok pattern and text.",
+      "required":true
     }
   }
 }

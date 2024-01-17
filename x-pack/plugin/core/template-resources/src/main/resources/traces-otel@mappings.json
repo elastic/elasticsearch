@@ -49,6 +49,7 @@
               "type": "keyword"
             },
             "attributes": {
+              "type": "object",
               "subobjects": false,
               "dynamic": true
             },

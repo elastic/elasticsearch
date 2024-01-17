@@ -740,6 +740,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "logs@lifecycle",
             "metrics",
             "metrics@lifecycle",
+            "traces@lifecycle",
             "profiling-60-days",
             "profiling-60-days@lifecycle",
             "synthetics",

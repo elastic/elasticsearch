@@ -695,7 +695,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 replicaRouting.currentNodeId(),
                 true,
                 ShardRoutingState.STARTED
-            ).withRelocatingNodeId(null).withAllocationId(replicaRouting.allocationId()).build();
+            ).withAllocationId(replicaRouting.allocationId()).build();
             final long newPrimaryTerm = indexShard.getPendingPrimaryTerm() + between(1, 1000);
             CountDownLatch latch = new CountDownLatch(1);
             indexShard.updateShardState(primaryRouting, newPrimaryTerm, (shard, listener) -> {
@@ -918,11 +918,12 @@ public class IndexShardTests extends IndexShardTestCase {
             case 1 -> {
                 // initializing replica / primary
                 final boolean relocating = randomBoolean();
-                String relocatingNodeId = relocating ? "sourceNode" : null;
-                boolean primary = relocating ? randomBoolean() : false;
-                ShardRouting routing = aShardRouting(shardId, "local_node", primary, ShardRoutingState.INITIALIZING).withRelocatingNodeId(
-                    relocatingNodeId
-                )
+                ShardRouting routing = aShardRouting(
+                    shardId,
+                    "local_node",
+                    relocating ? randomBoolean() : false,
+                    ShardRoutingState.INITIALIZING
+                ).withRelocatingNodeId(relocating ? "sourceNode" : null)
                     .withAllocationId(
                         relocating ? AllocationId.newRelocation(AllocationId.newInitializing()) : AllocationId.newInitializing()
                     )

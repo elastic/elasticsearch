@@ -57,10 +57,10 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             true,
             ShardRoutingState.INITIALIZING
         );
-        ShardId shardId = new ShardId(index, 1);
-        final ShardRouting relocatingShard = aShardRouting(shardId, "node1", true, ShardRoutingState.RELOCATING).withRelocatingNodeId(
-            "node2"
-        ).withAllocationId(allocationId).build();
+        final ShardRouting relocatingShard = aShardRouting(new ShardId(index, 1), "node1", true, ShardRoutingState.RELOCATING)
+            .withRelocatingNodeId("node2")
+            .withAllocationId(allocationId)
+            .build();
         stateBuilder.routingTable(
             RoutingTable.builder()
                 .add(
@@ -121,16 +121,16 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4")))
             .metadata(Metadata.builder().put(indexMetadata, false));
 
-        ShardId shardId1 = new ShardId(index, 0);
-        final ShardRouting relocatingPrimary = aShardRouting(shardId1, "node1", true, ShardRoutingState.RELOCATING).withRelocatingNodeId(
-            "node2"
-        ).withAllocationId(primaryId).build();
-        ShardId shardId = new ShardId(index, 0);
-        String relocatingNodeId = relocatingReplica ? "node4" : null;
-        ShardRoutingState state1 = relocatingReplica ? ShardRoutingState.RELOCATING : ShardRoutingState.INITIALIZING;
-        final ShardRouting replica = aShardRouting(shardId, "node3", false, state1).withRelocatingNodeId(relocatingNodeId)
-            .withAllocationId(replicaId)
+        final ShardRouting relocatingPrimary = aShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.RELOCATING)
+            .withRelocatingNodeId("node2")
+            .withAllocationId(primaryId)
             .build();
+        final ShardRouting replica = aShardRouting(
+            new ShardId(index, 0),
+            "node3",
+            false,
+            relocatingReplica ? ShardRoutingState.RELOCATING : ShardRoutingState.INITIALIZING
+        ).withRelocatingNodeId(relocatingReplica ? "node4" : null).withAllocationId(replicaId).build();
 
         stateBuilder.routingTable(
             RoutingTable.builder()

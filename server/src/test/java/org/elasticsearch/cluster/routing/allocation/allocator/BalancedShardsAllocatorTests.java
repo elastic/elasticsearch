@@ -573,9 +573,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         int shardId = 0;
         for (var assignment : assignments.entrySet()) {
             for (int i = 0; i < assignment.getValue(); i++) {
-                ShardId shardId1 = new ShardId(indexId, shardId);
                 indexRoutingTableBuilder.addShard(
-                    aShardRouting(shardId1, assignment.getKey(), true, ShardRoutingState.STARTED).withAllocationId(
+                    aShardRouting(new ShardId(indexId, shardId), assignment.getKey(), true, ShardRoutingState.STARTED).withAllocationId(
                         AllocationId.newInitializing(inSyncIds.get(shardId))
                     ).build()
                 );

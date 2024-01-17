@@ -642,9 +642,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     usedDiskSpace.compute(primaryNodeId, (k, v) -> v + thisShardSize);
                 }
 
-                ShardRoutingState state1 = primaryNodeId == null ? UNASSIGNED : STARTED;
                 indexRoutingTableBuilder.addShard(
-                    aShardRouting(shardId, primaryNodeId, true, state1).withAllocationId(
+                    aShardRouting(shardId, primaryNodeId, true, primaryNodeId == null ? UNASSIGNED : STARTED).withAllocationId(
                         AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
                     ).build()
                 );
@@ -657,9 +656,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         usedDiskSpace.compute(replicaNodeId, (k, v) -> v + thisShardSize);
                     }
 
-                    ShardRoutingState state = replicaNodeId == null ? UNASSIGNED : STARTED;
                     indexRoutingTableBuilder.addShard(
-                        aShardRouting(shardId, replicaNodeId, false, state).withAllocationId(
+                        aShardRouting(shardId, replicaNodeId, false, replicaNodeId == null ? UNASSIGNED : STARTED).withAllocationId(
                             AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1) + 1 + replica))
                         ).build()
                     );

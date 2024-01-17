@@ -54,8 +54,8 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase {
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        String currentNodeId = nodeIdFromAllocationId(primaryId);
-        final ShardRouting primaryShard = aShardRouting(shardId, currentNodeId, true, ShardRoutingState.STARTED).withAllocationId(primaryId)
+        final ShardRouting primaryShard = aShardRouting(shardId, nodeIdFromAllocationId(primaryId), true, ShardRoutingState.STARTED)
+            .withAllocationId(primaryId)
             .build();
         return routingTable(initializingIds, primaryShard);
     }
@@ -65,9 +65,10 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
         for (final AllocationId initializingId : initializingIds) {
-            String currentNodeId = nodeIdFromAllocationId(initializingId);
             builder.addShard(
-                aShardRouting(shardId, currentNodeId, false, ShardRoutingState.INITIALIZING).withAllocationId(initializingId).build()
+                aShardRouting(shardId, nodeIdFromAllocationId(initializingId), false, ShardRoutingState.INITIALIZING).withAllocationId(
+                    initializingId
+                ).build()
             );
         }
 

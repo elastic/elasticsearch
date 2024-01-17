@@ -931,11 +931,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         activeAllocationIds.remove(primaryId);
         activeAllocationIds.add(relocatingId);
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        String currentNodeId = nodeIdFromAllocationId(relocatingId);
-        String relocatingNodeId = nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId()));
-        final ShardRouting primaryShard = aShardRouting(shardId, currentNodeId, true, ShardRoutingState.RELOCATING).withRelocatingNodeId(
-            relocatingNodeId
-        ).withAllocationId(relocatingId).build();
+        final ShardRouting primaryShard = aShardRouting(shardId, nodeIdFromAllocationId(relocatingId), true, ShardRoutingState.RELOCATING)
+            .withRelocatingNodeId(nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId())))
+            .withAllocationId(relocatingId)
+            .build();
 
         return new FakeClusterState(initialClusterStateVersion, activeAllocationIds, routingTable(initializingAllocationIds, primaryShard));
     }

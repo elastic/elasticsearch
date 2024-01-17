@@ -18,12 +18,14 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.Version.V_8_12_0;
 
+@Ignore("https://github.com/elastic/elasticsearch/issues/104470")
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
     private static final Version DSL_DEFAULT_RETENTION_VERSION = V_8_12_0;

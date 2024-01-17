@@ -46,7 +46,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -98,6 +97,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
@@ -150,6 +150,7 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -227,8 +228,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         startSearchNodes(1);
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
-        SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value")).get();
-        assertHitCount(searchResponse, customDocs);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value")), customDocs);
     }
 
     public void testTranslogRecoveryWithHeavyIndexing() throws Exception {
@@ -567,7 +567,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, numDocsRound1);
         refresh(indexName);
 
-        assertHitCount(client().prepareSearch(indexName).get(), numDocsRound1);
+        assertHitCount(prepareSearch(indexName), numDocsRound1);
 
         if (randomBoolean()) {
             internalCluster().restartNode(indexingNode1);
@@ -581,7 +581,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         int numDocsRound2 = randomIntBetween(1, 100);
         indexDocs(indexName, numDocsRound2);
         refresh(indexName);
-        assertHitCount(client().prepareSearch(indexName).get(), numDocsRound1 + numDocsRound2);
+        assertHitCount(prepareSearch(indexName), numDocsRound1 + numDocsRound2);
     }
 
     public void testRecoverSearchShard() throws IOException {
@@ -600,12 +600,12 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
         var searchNode1 = startSearchNode();
         ensureGreen(indexName);
-        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
         internalCluster().stopNode(searchNode1);
 
         var searchNode2 = startSearchNode();
         ensureGreen(indexName);
-        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
         internalCluster().stopNode(searchNode2);
     }
 
@@ -653,8 +653,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         startSearchNode();
         ensureGreen(indexName);
 
-        SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value")).get();
-        assertHitCount(searchResponse, 1);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.termQuery("custom", "value")), 1);
     }
 
     public void testStartingTranslogFileWrittenInCommit() throws Exception {
@@ -936,7 +935,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, numDocsRound1);
         refresh(indexName);
 
-        assertHitCount(client().prepareSearch(indexName).get(), numDocsRound1);
+        assertHitCount(prepareSearch(indexName), numDocsRound1);
 
         internalCluster().stopNode(initialNode);
         // second replacement node. we are checking here that green state == flush occurred so that the third node recovers from the correct
@@ -952,7 +951,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         startIndexNode(); // third replacement node
         ensureGreen(indexName);
 
-        assertHitCount(client().prepareSearch(indexName).get(), numDocsRound1 + numDocsRound2);
+        assertHitCount(prepareSearch(indexName), numDocsRound1 + numDocsRound2);
     }
 
     private List<RecoveryState> findRecoveriesForTargetNode(String nodeName, List<RecoveryState> recoveryStates) {
@@ -1099,7 +1098,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen();
 
         refresh(indexName); // so that any translog ops become visible for searching
-        final long totalHits = client().prepareSearch(indexName).get().getHits().getTotalHits().value;
+        final long totalHits = SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName));
         assertThat(totalHits, greaterThanOrEqualTo((long) docsAcknowledged.get()));
     }
 
@@ -1208,7 +1207,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         staleRequestDone.actionGet();
 
         refresh(indexName);
-        final long totalHits = client().prepareSearch(indexName).get().getHits().getTotalHits().value;
+        final long totalHits = SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName));
         assertThat(totalHits, equalTo((long) docsAcknowledged.get()));
     }
 
@@ -1402,7 +1401,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
         ensureGreen();
         assertThat(repository.getFailureCount(), greaterThan(0L));
-        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
     }
 
     public void testRelocateSearchShardWithObjectStoreFailures() throws Exception {
@@ -1431,7 +1430,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertNodeHasNoCurrentRecoveries(searchNodeB);
         final String searchNodeBId = internalCluster().getInstance(ClusterService.class, searchNodeB).localNode().getId();
         assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(searchNodeBId));
-        assertHitCount(client(searchNodeB).prepareSearch(indexName).setPreference("_local").get(), numDocs);
+        assertHitCount(client(searchNodeB).prepareSearch(indexName).setPreference("_local"), numDocs);
     }
 
     public void testRecoverIndexingShardWithObjectStoreFailures() throws Exception {
@@ -1791,7 +1790,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         setReplicaCount(1, indexName);
         assertFalse(clusterAdmin().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
         ensureGreen(indexName);
-        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
     }
 
     public void testSearchShardRecoveryRegistersCommit() throws Exception {
@@ -1946,9 +1945,10 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(searchGeneration, equalTo(newCommitNotificationResponseGeneration.get()));
 
         // Assert that a search returns all the documents
-        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
+        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
+        });
     }
 
     public void testRefreshOfRecoveringSearchShard() throws Exception {
@@ -1982,9 +1982,10 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         var refreshResponse = future.get();
         assertThat("Refresh should have been successful", refreshResponse.getSuccessfulShards(), equalTo(1));
 
-        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
+        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
+        });
     }
 
     public void testRefreshOfRecoveringSearchShardAndDeleteIndex() throws Exception {

@@ -46,6 +46,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -75,6 +76,7 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -442,11 +444,11 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // must refresh since flush only advances internal searcher.
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
 
-        var scrollSearchResponse = client().prepareSearch(indexName)
-            .setQuery(matchAllQuery())
-            .setSize(1)
-            .setScroll(TimeValue.timeValueMinutes(2))
-            .get();
+        final AtomicReference<String> currentScrollId = new AtomicReference<>();
+        assertResponse(
+            prepareSearch(indexName).setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(2)),
+            response -> currentScrollId.set(response.getScrollId())
+        );
 
         var numberOfCommitsAfterOpeningScroll = randomIntBetween(3, 5);
         for (int i = 0; i < numberOfCommitsAfterOpeningScroll; i++) {
@@ -465,15 +467,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // We request 1 document per search request
         int numberOfScrollRequests = numDocsBeforeOpenScroll - 1;
         for (int i = 0; i < numberOfScrollRequests; i++) {
-            var searchResponse = client().prepareSearchScroll(scrollSearchResponse.getScrollId())
-                .setScroll(TimeValue.timeValueMinutes(2))
-                .get();
-            var hit = searchResponse.getHits().getHits()[0];
-            assertThat(hit, is(notNullValue()));
+            assertResponse(client().prepareSearchScroll(currentScrollId.get()).setScroll(TimeValue.timeValueMinutes(2)), searchResponse -> {
+                var hit = searchResponse.getHits().getHits()[0];
+                assertThat(hit, is(notNullValue()));
+            });
         }
 
-        var searchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+        final int finalTotalDocs = totalIndexedDocs;
+        assertThat(
+            SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(matchAllQuery())),
+            equalTo((long) finalTotalDocs)
+        );
 
         var indexNodeObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
         // awaits #793
@@ -484,7 +488,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // )
         // );
 
-        client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+        client().prepareClearScroll().addScrollId(currentScrollId.get()).get().decRef();
 
         // Trigger a new flush so the index shard cleans the unused files after the search node responds with the used commits
         totalIndexedDocs += indexDocsAndFlush(indexName);
@@ -493,9 +497,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // assertBusy(() -> assertThat(indexNodeObjectStoreService.getCommitBlobsToDelete().containsAll(blobsBeforeForceMerge), is(true)));
 
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
-
-        var finalSearchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
-        assertThat(finalSearchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+        assertThat(
+            SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(matchAllQuery())),
+            equalTo((long) totalIndexedDocs)
+        );
     }
 
     public void testStaleCommitsArePrunedAfterBeingReleased() throws Exception {
@@ -530,9 +535,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         });
         long millisForDeletions = System.currentTimeMillis() - millisBeforeDeletions;
         assertThat("delete delay should have taken effect", millisForDeletions, greaterThan((long) deleteDelayMillis));
-
-        var searchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+        assertThat(
+            SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(matchAllQuery())),
+            equalTo((long) totalIndexedDocs)
+        );
     }
 
     public void testCommitsAreRetainedUntilScrollCloses() throws Exception {
@@ -585,11 +591,11 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var blobsUsedForScroll = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
 
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
-        var scrollSearchResponse = client().prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(1)
-            .setScroll(TimeValue.timeValueMinutes(2))
-            .get();
+        final AtomicReference<String> currentScrollId = new AtomicReference<>();
+        assertResponse(
+            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(2)),
+            scrollSearchResponse -> currentScrollId.set(scrollSearchResponse.getScrollId())
+        );
 
         var numberOfCommitsAfterOpeningScroll = randomIntBetween(3, 5);
         for (int i = 0; i < numberOfCommitsAfterOpeningScroll; i++) {
@@ -603,15 +609,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // We request 1 document per search request
         int numberOfScrollRequests = numDocsBeforeOpenScroll - 1;
         for (int i = 0; i < numberOfScrollRequests; i++) {
-            var searchResponse = client().prepareSearchScroll(scrollSearchResponse.getScrollId())
-                .setScroll(TimeValue.timeValueMinutes(2))
-                .get();
-            var hit = searchResponse.getHits().getHits()[0];
-            assertThat(hit, is(notNullValue()));
+            assertResponse(client().prepareSearchScroll(currentScrollId.get()).setScroll(TimeValue.timeValueMinutes(2)), searchResponse -> {
+                var hit = searchResponse.getHits().getHits()[0];
+                assertThat(hit, is(notNullValue()));
+                currentScrollId.set(searchResponse.getScrollId());
+            });
         }
 
-        var searchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+        assertThat(
+            SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(matchAllQuery())),
+            equalTo((long) totalIndexedDocs)
+        );
 
         var blobsBeforeReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
         assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
@@ -625,18 +633,18 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         switch (testCase) {
             case COMMITS_RETAINED_UNTIL_SCROLL_CLOSES:
-                client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+                client().prepareClearScroll().addScrollId(currentScrollId.get()).get();
                 // Trigger a new flush so the index shard cleans the unused files after the search node responds with the used commits
                 totalIndexedDocs += indexDocsAndFlush(indexName);
                 break;
             case COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY:
-                client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+                client().prepareClearScroll().addScrollId(currentScrollId.get()).get();
                 // New commit notifications should be sent from the inactive indexing shard so that ultimately the new commit notification
                 // responses do not contain the search's open readers anymore, and the shard cleans unused files.
                 break;
             case COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED:
                 assertAcked(indicesAdmin().close(new CloseIndexRequest(indexName)).actionGet());
-                client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+                client().prepareClearScroll().addScrollId(currentScrollId.get()).get();
                 assertAcked(indicesAdmin().open(new OpenIndexRequest(indexName)).actionGet());
                 break;
             case ALL_COMMITS_DELETED_AFTER_INDEX_DELETED:
@@ -663,8 +671,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         }
 
         // Check that a new search returns all docs
-        var finalSearchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
-        assertThat(finalSearchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+        assertThat(
+            SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(matchAllQuery())),
+            equalTo((long) totalIndexedDocs)
+        );
     }
 
     public void testDeleteIndexAfterFlush() throws Exception {

@@ -38,6 +38,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -73,7 +74,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", TranslogReplicatorTests.class.getSimpleName()).build();
         // TODO: Eventually we will move to more complicated scheduling logic than scheduleAtFixedRate. At that time switch to
         // DeterministicTaskQueue (which does not support scheduleAtFixedRate)
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
     }
 
     @After

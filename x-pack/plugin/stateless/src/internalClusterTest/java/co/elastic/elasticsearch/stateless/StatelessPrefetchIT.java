@@ -75,7 +75,7 @@ public class StatelessPrefetchIT extends AbstractStatelessIntegTestCase {
         var mockRepository = getObjectStoreMockRepository(internalCluster().getInstance(ObjectStoreService.class, searchNode));
         mockRepository.setBlockOnAnyFiles();
         logger.info("--> running search and verifying that the repository was not accessed because prefetching warmed the cache already");
-        assertHitCount(client().prepareSearch().setQuery(new MatchAllQueryBuilder()).get(), totalDocs);
+        assertHitCount(client().prepareSearch().setQuery(new MatchAllQueryBuilder()), totalDocs);
         assertFalse(mockRepository.blocked());
     }
 }

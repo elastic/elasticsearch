@@ -83,6 +83,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String LOGS_INDEX_TEMPLATE_NAME = "logs";
 
     //////////////////////////////////////////////////////////
+    // Logs components (for matching logs-*.otel-* indices)
+    //////////////////////////////////////////////////////////
+    public static final String LOGS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-otel@mappings";
+    public static final String LOGS_OTEL_INDEX_TEMPLATE_NAME = "logs-otel@template";
+
+    //////////////////////////////////////////////////////////
     // Metrics components (for matching metric-*-* indices)
     //////////////////////////////////////////////////////////
     public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics@mappings";
@@ -178,6 +184,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
+                LOGS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs-otel@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
                 ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/ecs@mappings.json",
                 REGISTRY_VERSION,
@@ -248,6 +261,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             LOGS_INDEX_TEMPLATE_NAME,
             "/logs@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
+            LOGS_OTEL_INDEX_TEMPLATE_NAME,
+            "/logs-otel@template.json",
             REGISTRY_VERSION,
             TEMPLATE_VERSION_VARIABLE,
             ADDITIONAL_TEMPLATE_VARIABLES

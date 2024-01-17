@@ -31,7 +31,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     @Before
     public void setup() throws Exception {
         client = client();
-        waitForLogs(client);
+        waitForIndexTemplate(client, "logs");
     }
 
     @After
@@ -716,10 +716,10 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         assertEquals(0, results.size());
     }
 
-    static void waitForLogs(RestClient client) throws Exception {
+    static void waitForIndexTemplate(RestClient client, String indexTemplate) throws Exception {
         assertBusy(() -> {
             try {
-                Request request = new Request("GET", "_index_template/logs");
+                Request request = new Request("GET", "_index_template/" + indexTemplate);
                 assertOK(client.performRequest(request));
             } catch (ResponseException e) {
                 fail(e.getMessage());

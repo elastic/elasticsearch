@@ -1,0 +1,97 @@
+{
+  "template": {
+    "mappings": {
+      "date_detection": false,
+      "dynamic": "strict",
+      "properties": {
+        "data_stream.type": {
+          "type": "constant_keyword",
+          "value": "logs"
+        },
+        "data_stream.dataset": {
+          "type": "constant_keyword"
+        },
+        "data_stream.namespace": {
+          "type": "constant_keyword"
+        },
+        "@timestamp": {
+          "type": "date_nanos"
+        },
+        "observed_timestamp": {
+          "type": "date_nanos"
+        },
+        "severity_number": {
+          "type": "byte"
+        },
+        "severity_text": {
+          "type": "keyword"
+        },
+        "body.text": {
+          "type": "match_only_text"
+        },
+        "body.structured": {
+          "type": "flattened"
+        },
+        "attributes": {
+          "type": "object",
+          "dynamic": true,
+          "subobjects": false
+        },
+        "dropped_attributes_count": {
+          "type": "long"
+        },
+        "flags": {
+          "type": "byte"
+        },
+        "trace_id": {
+          "type": "keyword"
+        },
+        "span_id": {
+          "type": "keyword"
+        },
+        "resource": {
+          "properties": {
+            "schema_url": {
+              "type": "keyword"
+            },
+            "dropped_attributes_count": {
+              "type": "long"
+            },
+            "attributes": {
+              "type": "object",
+              "dynamic": true,
+              "subobjects": false
+            }
+          }
+        },
+        "scope": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "version": {
+              "type": "version"
+            },
+            "schema_url": {
+              "type": "keyword"
+            },
+            "dropped_attributes_count": {
+              "type": "long"
+            },
+            "attributes": {
+              "type": "object",
+              "dynamic": true,
+              "subobjects": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default mappings for the logs index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

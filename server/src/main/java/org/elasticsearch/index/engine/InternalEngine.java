@@ -2093,7 +2093,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void writeIndexingBuffer() throws IOException {
-        final long reclaimableVersionMapBytes = versionMap.reclaimableRefreshRamBytes();
+        final long reclaimableVersionMapBytes = versionMap.reclaimableRefreshMemoryBytes();
         // Only count bytes that are not already being written to disk. Note: this number may be negative at times if these two metrics get
         // updated concurrently. It's fine as it's only being used as a heuristic to decide on a full refresh vs. writing a single segment.
         // TODO: it might be more relevant to use the RAM usage of the largest DWPT as opposed to the overall RAM usage? Can we get this
@@ -2564,7 +2564,7 @@ public class InternalEngine extends Engine {
     @Override
     public long getIndexBufferRAMBytesUsed() {
         // We don't guard w/ readLock here, so we could throw AlreadyClosedException
-        return indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
+        return indexWriter.ramBytesUsed() + versionMap.memoryBytesUsedForRefresh();
     }
 
     @Override

@@ -37,7 +37,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     private final NodeService nodeService;
     private final List<AutoCloseable> metrics;
     private NodeStatsCache stats;
-    private TimeValue cacheExpiry;
+    private final TimeValue cacheExpiry;
 
     /**
      * Constructs a new NodeMetrics instance.

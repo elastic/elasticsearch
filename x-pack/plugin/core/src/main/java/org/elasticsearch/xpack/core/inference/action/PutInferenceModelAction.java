@@ -42,8 +42,8 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         private final BytesReference content;
         private final XContentType contentType;
 
-        public Request(String taskType, String modelId, BytesReference content, XContentType contentType) {
-            this.taskType = TaskType.fromStringOrStatusException(taskType);
+        public Request(TaskType taskType, String modelId, BytesReference content, XContentType contentType) {
+            this.taskType = taskType;
             this.modelId = modelId;
             this.content = content;
             this.contentType = contentType;

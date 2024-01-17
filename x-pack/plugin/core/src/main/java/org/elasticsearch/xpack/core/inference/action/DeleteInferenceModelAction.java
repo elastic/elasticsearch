@@ -32,9 +32,9 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
         private final String modelId;
         private final TaskType taskType;
 
-        public Request(String modelId, String taskType) {
+        public Request(String modelId, TaskType taskType) {
             this.modelId = modelId;
-            this.taskType = TaskType.fromStringOrStatusException(taskType);
+            this.taskType = taskType;
         }
 
         public Request(StreamInput in) throws IOException {

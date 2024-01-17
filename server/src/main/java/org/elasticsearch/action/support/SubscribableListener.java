@@ -34,7 +34,7 @@ import java.util.concurrent.Executor;
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
  * fans-out its result to the subscribed listeners. Exceptions are passed to subscribed listeners without modification.
  * <p>
- * A sequence of async steps can be chained together using a series of SubscribableListeners, similar to {@link CompletionStage} (without
+ * A sequence of async steps can be chained together using a series of {@link SubscribableListener}s, similar to {@link CompletionStage} (without
  * the {@code catch (Throwable t)}). Listeners can be created for each step, where the next step subscribes to the result of the previous,
  * using utilities like {@link #andThen(CheckedBiConsumer)}. The following example demonstrates how this might be used:
  * <pre>{@code

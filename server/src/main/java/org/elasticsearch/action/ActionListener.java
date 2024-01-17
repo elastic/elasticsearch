@@ -89,20 +89,20 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Creates a new listener, wrapping this one, that overrides {@link #onResponse(Object)} handling with the given {@code bc} lambda.
-     * {@link #onFailure(Exception)} handling is delegated to the wrapped internal listener. Exceptions in onResponse are not handled.
+     * Creates a new listener, wrapping this one, that overrides {@link #onResponse} handling with the given {@code bc} consumer.
+     * {@link #onFailure(Exception)} handling is delegated to the original listener. Exceptions in {@link #onResponse} are forbidden.
      *
-     * @param bc BiConsumer invoked via {@link #onResponse(Object)} with internal wrapped listener and response
+     * @param bc {@link BiConsumer} invoked via {@link #onResponse} with the original listener and the response with which the new listener was completed.
      * @param <T> Type of the delegating listener's response
-     * @return a new listener that delegates failures to the internal wrapped listener but runs {@code bc} on a response.
+     * @return a new listener that delegates failures to this listener and runs {@code bc} on a response.
      */
     default <T> ActionListener<T> delegateFailure(BiConsumer<ActionListener<Response>, T> bc) {
         return new ActionListenerImplementations.DelegatingFailureActionListener<>(this, bc);
     }
 
     /**
-     * Same as {@link #delegateFailure(BiConsumer)} except that any failure thrown by {@code bc} or the internal listener's
-     * {@link #onResponse} will be passed to the internal listener's {@link #onFailure(Exception)}.
+     * Same as {@link #delegateFailure(BiConsumer)} except that any failure thrown by {@code bc} or the original listener's
+     * {@link #onResponse} will be passed to the original listener's {@link #onFailure(Exception)}.
      */
     default <T> ActionListener<T> delegateFailureAndWrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
         return new ActionListenerImplementations.ResponseWrappingActionListener<>(this, bc);

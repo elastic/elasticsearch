@@ -78,6 +78,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -796,6 +797,7 @@ class NodeConstruction {
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
+            namedWriteableRegistry,
             settingsModule.getIndexScopedSettings(),
             settingsModule.getClusterSettings(),
             settingsModule.getSettingsFilter(),
@@ -965,7 +967,8 @@ class NodeConstruction {
             repositoryService
         );
 
-        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
+        final TimeValue metricsInterval = settings.getAsTime("tracing.apm.agent.metrics_interval", TimeValue.timeValueSeconds(10));
+        final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
 
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
@@ -1249,8 +1252,7 @@ class NodeConstruction {
             transportService.getTaskManager(),
             () -> clusterService.localNode().getId(),
             transportService.getLocalNodeConnection(),
-            transportService.getRemoteClusterService(),
-            namedWriteableRegistry
+            transportService.getRemoteClusterService()
         );
 
         logger.debug("initializing HTTP handlers ...");

@@ -37,18 +37,20 @@ public class MvCount extends AbstractMultivalueFunction {
         @Param(
             name = "v",
             type = {
-                "unsigned_long",
-                "date",
                 "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
                 "double",
-                "ip",
-                "text",
-                "integer",
-                "keyword",
-                "version",
-                "long",
                 "geo_point",
-                "cartesian_point" }
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
         ) Expression v
     ) {
         super(source, v);

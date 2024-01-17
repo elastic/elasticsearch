@@ -260,6 +260,7 @@ import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAc
 import org.elasticsearch.xpack.security.action.user.TransportGetUsersAction;
 import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
+import org.elasticsearch.xpack.security.action.user.TransportQueryUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -365,6 +366,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
+import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
@@ -391,7 +393,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -1316,6 +1317,7 @@ public class Security extends Plugin
             new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
             new ActionHandler<>(ClearSecurityCacheAction.INSTANCE, TransportClearSecurityCacheAction.class),
             new ActionHandler<>(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
+            new ActionHandler<>(ActionTypes.QUERY_USER_ACTION, TransportQueryUserAction.class),
             new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
             new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
             new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
@@ -1388,6 +1390,7 @@ public class Security extends Plugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -1406,6 +1409,7 @@ public class Security extends Plugin
             new RestClearApiKeyCacheAction(settings, getLicenseState()),
             new RestClearServiceAccountTokenStoreCacheAction(settings, getLicenseState()),
             new RestGetUsersAction(settings, getLicenseState()),
+            new RestQueryUserAction(settings, getLicenseState()),
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),
@@ -1975,14 +1979,19 @@ public class Security extends Plugin
      * See {@link TransportReloadRemoteClusterCredentialsAction} for more context.
      */
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
+        // Using `settings` instead of `settingsWithKeystore` is deliberate: we are not interested in secure settings here
+        if (DiscoveryNode.isStateless(settings)) {
+            // Stateless does not support remote cluster operations. Skip.
+            return;
+        }
+
         final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>();
         getClient().execute(
             ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
             new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
             future
         );
-        assert future.isDone() : "expecting local-only action call to return immediately on invocation";
-        future.actionGet(0, TimeUnit.NANOSECONDS);
+        future.actionGet();
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

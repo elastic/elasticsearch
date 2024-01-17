@@ -148,6 +148,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

@@ -118,7 +118,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
                 } else {
                     totalHits = null;
                 }
-                return new SearchHits(instance.getHits(), totalHits, instance.getMaxScore());
+                return new SearchHits(instance.asUnpooled().getHits(), totalHits, instance.getMaxScore());
             case 2:
                 final float maxScore;
                 if (Float.isNaN(instance.getMaxScore())) {
@@ -126,7 +126,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
                 } else {
                     maxScore = Float.NaN;
                 }
-                return new SearchHits(instance.getHits(), instance.getTotalHits(), maxScore);
+                return new SearchHits(instance.asUnpooled().getHits(), instance.getTotalHits(), maxScore);
             case 3:
                 SortField[] sortFields;
                 if (instance.getSortFields() == null) {
@@ -135,7 +135,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
                     sortFields = randomBoolean() ? createSortFields(instance.getSortFields().length + 1) : null;
                 }
                 return new SearchHits(
-                    instance.getHits(),
+                    instance.asUnpooled().getHits(),
                     instance.getTotalHits(),
                     instance.getMaxScore(),
                     sortFields,
@@ -150,7 +150,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
                     collapseField = randomBoolean() ? instance.getCollapseField() + randomAlphaOfLengthBetween(2, 5) : null;
                 }
                 return new SearchHits(
-                    instance.getHits(),
+                    instance.asUnpooled().getHits(),
                     instance.getTotalHits(),
                     instance.getMaxScore(),
                     instance.getSortFields(),
@@ -165,7 +165,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
                     collapseValues = randomBoolean() ? createCollapseValues(instance.getCollapseValues().length + 1) : null;
                 }
                 return new SearchHits(
-                    instance.getHits(),
+                    instance.asUnpooled().getHits(),
                     instance.getTotalHits(),
                     instance.getMaxScore(),
                     instance.getSortFields(),
@@ -175,6 +175,11 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
             default:
                 throw new UnsupportedOperationException();
         }
+    }
+
+    @Override
+    protected void dispose(SearchHits searchHits) {
+        searchHits.decRef();
     }
 
     @Override
@@ -193,7 +198,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
 
     @Override
     protected Writeable.Reader<SearchHits> instanceReader() {
-        return SearchHits::new;
+        return in -> SearchHits.readFrom(in, randomBoolean());
     }
 
     @Override
@@ -223,15 +228,19 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
         SearchHits searchHits = SearchHits.fromXContent(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        return searchHits;
+        try {
+            return searchHits.asUnpooled();
+        } finally {
+            searchHits.decRef();
+        }
     }
 
     public void testToXContent() throws IOException {
-        SearchHit[] hits = new SearchHit[] { new SearchHit(1, "id1"), new SearchHit(2, "id2") };
+        SearchHit[] hits = new SearchHit[] { SearchHit.unpooled(1, "id1"), SearchHit.unpooled(2, "id2") };
 
         long totalHits = 1000;
         float maxScore = 1.5f;
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
+        SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         ChunkedToXContent.wrapAsToXContent(searchHits).toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -251,7 +260,10 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
 
     public void testFromXContentWithShards() throws IOException {
         for (boolean withExplanation : new boolean[] { true, false }) {
-            final SearchHit[] hits = new SearchHit[] { new SearchHit(1, "id1"), new SearchHit(2, "id2"), new SearchHit(10, "id10") };
+            final SearchHit[] hits = new SearchHit[] {
+                SearchHit.unpooled(1, "id1"),
+                SearchHit.unpooled(2, "id2"),
+                SearchHit.unpooled(10, "id10") };
 
             for (SearchHit hit : hits) {
                 String index = randomAlphaOfLengthBetween(5, 10);
@@ -269,7 +281,7 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
 
             long totalHits = 1000;
             float maxScore = 1.5f;
-            SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
+            SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
             XContentType xContentType = randomFrom(XContentType.values()).canonical();
             BytesReference bytes = toShuffledXContent(
                 ChunkedToXContent.wrapAsToXContent(searchHits),
@@ -304,7 +316,6 @@ public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHi
                     }
                 }
             }
-
         }
     }
 }

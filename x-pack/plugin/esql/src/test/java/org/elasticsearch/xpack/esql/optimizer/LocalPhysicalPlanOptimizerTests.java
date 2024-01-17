@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -120,25 +119,17 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
-        var enrichResolution = new EnrichResolution(
-            Set.of(
-                new EnrichPolicyResolution(
-                    "foo",
-                    new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
-                    IndexResolution.valid(
-                        new EsIndex(
-                            "idx",
-                            Map.ofEntries(
-                                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
-                            )
-                        )
-                    )
-                )
-            ),
-            Set.of("foo")
+        EnrichResolution enrichResolution = new EnrichResolution();
+        enrichResolution.addResolvedPolicy(
+            "foo",
+            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
+            Map.of("", "idx"),
+            Map.ofEntries(
+                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
+                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+            )
         );
-
+        enrichResolution.addExistingPolicies(Set.of("foo"));
         analyzer = new Analyzer(
             new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution),
             new Verifier(new Metrics())

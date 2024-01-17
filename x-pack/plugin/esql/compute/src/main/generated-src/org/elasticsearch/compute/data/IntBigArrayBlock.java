@@ -68,7 +68,6 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
 
     @Override
     public IntBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newIntBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

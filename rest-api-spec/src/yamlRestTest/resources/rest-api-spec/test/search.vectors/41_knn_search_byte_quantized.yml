@@ -249,7 +249,7 @@ setup:
         id: "1"
         body:
           name: cow.jpg
-          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          vector: [1, 2, 3, 4, 5]
 
   - do:
       index:
@@ -257,7 +257,7 @@ setup:
         id: "2"
         body:
           name: moose.jpg
-          vector: [-0.5, 10.0, -13, 14.8, 15.0]
+          vector: [1, 1, 1, 1, 1]
 
   - do:
       index:
@@ -265,7 +265,7 @@ setup:
         id: "3"
         body:
           name: rabbit.jpg
-          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+          vector: [1, 2, 2, 2, 2]
 
   # We force merge into a single segment to make sure scores are more uniform
   # Each segment can have a different quantization error, which can affect scores and mip is especially sensitive to this
@@ -286,7 +286,7 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [1, 2, 3, 4, 5]
 
 
   - length: {hits.hits: 3}
@@ -303,7 +303,7 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [1, 2, 3, 4, 5]
             filter: { "term": { "name": "moose.jpg" } }
 
 

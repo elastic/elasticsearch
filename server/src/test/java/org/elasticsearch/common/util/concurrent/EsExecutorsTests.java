@@ -442,7 +442,7 @@ public class EsExecutorsTests extends ESTestCase {
     // Specifically that ExecutorScalingQueue, which subclasses LinkedTransferQueue, correctly
     // tracks tasks submitted to the executor.
     public void testBasicTaskExecution() {
-        final var executorService = EsExecutors.newScaling(
+        final ThreadPoolExecutor executorService = EsExecutors.newScaling(
             "test",
             0,
             between(1, 5),
@@ -453,7 +453,7 @@ public class EsExecutorsTests extends ESTestCase {
             new ThreadContext(Settings.EMPTY)
         );
         try {
-            final var countDownLatch = new CountDownLatch(between(1, 10));
+            final CountDownLatch countDownLatch = new CountDownLatch(between(1, 10));
             class TestTask extends AbstractRunnable {
                 @Override
                 protected void doRun() {

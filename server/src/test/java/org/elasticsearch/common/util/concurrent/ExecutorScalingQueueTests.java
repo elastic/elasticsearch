@@ -15,19 +15,19 @@ import java.util.concurrent.TimeUnit;
 public class ExecutorScalingQueueTests extends ESTestCase {
 
     public void testPut() {
-        var queue = new EsExecutors.ExecutorScalingQueue<>();
+        LinkedTransferQueue queue = new EsExecutors.ExecutorScalingQueue<>();
         queue.put(new Object());
         assertEquals(queue.size(), 1);
     }
 
     public void testAdd() {
-        var queue = new EsExecutors.ExecutorScalingQueue<>();
+        LinkedTransferQueue queue = new EsExecutors.ExecutorScalingQueue<>();
         assertTrue(queue.add(new Object()));
         assertEquals(queue.size(), 1);
     }
 
     public void testTimedOffer() {
-        var queue = new EsExecutors.ExecutorScalingQueue<>();
+        LinkedTransferQueue queue = new EsExecutors.ExecutorScalingQueue<>();
         assertTrue(queue.offer(new Object(), 60, TimeUnit.SECONDS));
         assertEquals(queue.size(), 1);
     }

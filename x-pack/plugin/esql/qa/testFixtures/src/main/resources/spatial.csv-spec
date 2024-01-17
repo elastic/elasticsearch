@@ -80,10 +80,16 @@ ZAH            | POINT(60.900708564915 29.4752941956573)   | Zahedan Int'l      
 ;
 
 centroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
-FROM airports | STATS centroid=ST_CENTROID(location);
+// tag::st_centroid-airports[]
+FROM airports
+| STATS centroid=ST_CENTROID(location)
+// end::st_centroid-airports[]
+;
 
+// tag::st_centroid-airports-results[]
 centroid:geo_point
 POINT(-0.030548143003023033 24.37553649504829)
+// end::st_centroid-airports-results[]
 ;
 
 centroidFromAirportsCount#[skip:-8.12.99, reason:st_centroid added in 8.13]

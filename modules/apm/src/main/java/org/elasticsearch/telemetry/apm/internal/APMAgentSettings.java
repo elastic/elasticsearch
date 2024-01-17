@@ -240,7 +240,10 @@ public class APMAgentSettings {
         }
     );
 
-    // TODO eventually remove deprecated setting
+    /**
+     * @deprecated in favor of TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.
+     */
+    @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
         "tracing.apm.names.include",
         OperatorDynamic,
@@ -256,7 +259,10 @@ public class APMAgentSettings {
         NodeScope
     );
 
-    // TODO eventually remove deprecated setting
+    /**
+     * @deprecated in favor of TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.
+     */
+    @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
         "tracing.apm.names.exclude",
         OperatorDynamic,
@@ -272,7 +278,10 @@ public class APMAgentSettings {
         NodeScope
     );
 
-    // TODO eventually remove deprecated setting (after moving defaults to TELEMETRY_TRACING_SANITIZE_FIELD_NAMES)
+    /**
+     * @deprecated in favor of TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.
+     */
+    @Deprecated
     public static final Setting<List<String>> TRACING_APM_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
         "tracing.apm.sanitize_field_names",
         List.of(
@@ -302,7 +311,10 @@ public class APMAgentSettings {
         NodeScope
     );
 
-    // TODO eventually remove deprecated setting
+    /**
+     * @deprecated in favor of TELEMETRY_TRACING_ENABLED_SETTING.
+     */
+    @Deprecated
     public static final Setting<Boolean> TRACING_APM_ENABLED_SETTING = Setting.boolSetting(
         "tracing.apm.enabled",
         false,
@@ -325,7 +337,10 @@ public class APMAgentSettings {
         NodeScope
     );
 
-    // TODO eventually remove deprecated setting
+    /**
+     * @deprecated in favor of TELEMETRY_SECRET_TOKEN_SETTING.
+     */
+    @Deprecated
     public static final Setting<SecureString> TRACING_APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
         "tracing.apm.secret_token",
         null,
@@ -337,7 +352,10 @@ public class APMAgentSettings {
         TRACING_APM_SECRET_TOKEN_SETTING
     );
 
-    // TODO eventually remove deprecated setting
+    /**
+     * @deprecated in favor of TELEMETRY_API_KEY_SETTING.
+     */
+    @Deprecated
     public static final Setting<SecureString> TRACING_APM_API_KEY_SETTING = SecureSetting.secureString(
         "tracing.apm.api_key",
         null,

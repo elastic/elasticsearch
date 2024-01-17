@@ -140,38 +140,44 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id"));
+        try (BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id"))) {
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
 
-        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
-
-        BulkResponse response = future.actionGet();
-        assertFalse(bulkAction.indexCreated);
-        BulkItemResponse[] bulkResponses = response.getItems();
-        assertEquals(bulkResponses.length, 1);
-        assertTrue(bulkResponses[0].isFailed());
-        assertTrue(bulkResponses[0].getFailure().getCause() instanceof IndexNotFoundException);
-        assertEquals("index", bulkResponses[0].getFailure().getIndex());
+            BulkResponse response = future.actionGet();
+            assertFalse(bulkAction.indexCreated);
+            BulkItemResponse[] bulkResponses = response.getItems();
+            assertEquals(bulkResponses.length, 1);
+            assertTrue(bulkResponses[0].isFailed());
+            assertTrue(bulkResponses[0].getFailure().getCause() instanceof IndexNotFoundException);
+            assertEquals("index", bulkResponses[0].getFailure().getIndex());
+        }
     }
 
     public void testDeleteNonExistingDocExternalVersionCreatesIndex() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id").versionType(VersionType.EXTERNAL).version(0));
-
-        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
-        future.actionGet();
-        assertTrue(bulkAction.indexCreated);
+        try (
+            BulkRequest bulkRequest = new BulkRequest().add(
+                new DeleteRequest("index").id("id").versionType(VersionType.EXTERNAL).version(0)
+            )
+        ) {
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            future.actionGet();
+            assertTrue(bulkAction.indexCreated);
+        }
     }
 
     public void testDeleteNonExistingDocExternalGteVersionCreatesIndex() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest().add(
-            new DeleteRequest("index2").id("id").versionType(VersionType.EXTERNAL_GTE).version(0)
-        );
-
-        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
-        future.actionGet();
-        assertTrue(bulkAction.indexCreated);
+        try (
+            BulkRequest bulkRequest = new BulkRequest().add(
+                new DeleteRequest("index2").id("id").versionType(VersionType.EXTERNAL_GTE).version(0)
+            )
+        ) {
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            future.actionGet();
+            assertTrue(bulkAction.indexCreated);
+        }
     }
 
     public void testGetIndexWriteRequest() throws Exception {
@@ -309,9 +315,7 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testRejectCoordination() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
-
-        try {
+        try (BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()))) {
             threadPool.startForcingRejections();
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
@@ -322,10 +326,8 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
-
         bulkAction.failIndexCreation = randomBoolean();
-        try {
+        try (BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()))) {
             bulkAction.beforeIndexCreation = threadPool::startForcingRejections;
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
@@ -337,16 +339,17 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {
-        BulkRequest request = new BulkRequest();
-        for (String index : indices) {
-            final DocWriteRequest<?> subRequest = switch (randomIntBetween(1, 3)) {
-                case 1 -> new IndexRequest(index);
-                case 2 -> new DeleteRequest(index).id("0");
-                case 3 -> new UpdateRequest(index, "0");
-                default -> throw new IllegalStateException("only have 3 cases");
-            };
-            request.add(subRequest);
+        try (BulkRequest request = new BulkRequest()) {
+            for (String index : indices) {
+                final DocWriteRequest<?> subRequest = switch (randomIntBetween(1, 3)) {
+                    case 1 -> new IndexRequest(index);
+                    case 2 -> new DeleteRequest(index).id("0");
+                    case 3 -> new UpdateRequest(index, "0");
+                    default -> throw new IllegalStateException("only have 3 cases");
+                };
+                request.add(subRequest);
+            }
+            return request;
         }
-        return request;
     }
 }

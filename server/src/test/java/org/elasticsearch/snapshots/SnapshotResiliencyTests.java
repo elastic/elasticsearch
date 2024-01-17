@@ -303,17 +303,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (documents == 0) {
                 afterIndexing.run();
             } else {
-                final BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                for (int i = 0; i < documents; ++i) {
-                    bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
+                try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+                    for (int i = 0; i < documents; ++i) {
+                        bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
+                    }
+                    final SubscribableListener<BulkResponse> bulkResponseStepListener = new SubscribableListener<>();
+                    client().bulk(bulkRequest, bulkResponseStepListener);
+                    continueOrDie(bulkResponseStepListener, bulkResponse -> {
+                        assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+                        assertEquals(documents, bulkResponse.getItems().length);
+                        afterIndexing.run();
+                    });
                 }
-                final SubscribableListener<BulkResponse> bulkResponseStepListener = new SubscribableListener<>();
-                client().bulk(bulkRequest, bulkResponseStepListener);
-                continueOrDie(bulkResponseStepListener, bulkResponse -> {
-                    assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-                    assertEquals(documents, bulkResponse.getItems().length);
-                    afterIndexing.run();
-                });
             }
         });
 
@@ -799,17 +800,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
             afterIndexing.run();
             return;
         }
-        final BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < documents; ++i) {
-            bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
+        try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < documents; ++i) {
+                bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
+            }
+            final SubscribableListener<BulkResponse> bulkResponseStepListener = new SubscribableListener<>();
+            client().bulk(bulkRequest, bulkResponseStepListener);
+            continueOrDie(bulkResponseStepListener, bulkResponse -> {
+                assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+                assertEquals(documents, bulkResponse.getItems().length);
+                afterIndexing.run();
+            });
         }
-        final SubscribableListener<BulkResponse> bulkResponseStepListener = new SubscribableListener<>();
-        client().bulk(bulkRequest, bulkResponseStepListener);
-        continueOrDie(bulkResponseStepListener, bulkResponse -> {
-            assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-            assertEquals(documents, bulkResponse.getItems().length);
-            afterIndexing.run();
-        });
     }
 
     public void testConcurrentSnapshotDeleteAndDeleteIndex() throws IOException {
@@ -1083,10 +1085,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final AtomicBoolean initiatedSnapshot = new AtomicBoolean(false);
             for (int i = 0; i < documents; ++i) {
                 // Index a few documents with different field names so we trigger a dynamic mapping update for each of them
-                client().bulk(
-                    new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar")))
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
-                    assertNoFailureListener(bulkResponse -> {
+                try (
+                    BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar")))
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                ) {
+                    client().bulk(bulkRequest, assertNoFailureListener(bulkResponse -> {
                         assertFalse("Failures in bulkresponse: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
                         if (initiatedSnapshot.compareAndSet(false, true)) {
                             client().admin()
@@ -1095,8 +1098,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                 .setWaitForCompletion(true)
                                 .execute(createSnapshotResponseStepListener);
                         }
-                    })
-                );
+                    }));
+                }
             }
         });
 
@@ -1190,17 +1193,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         .execute(snapshotListener)
                 );
             }
-            final BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (int i = 0; i < documents; ++i) {
-                bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
+            try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+                for (int i = 0; i < documents; ++i) {
+                    bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
+                }
+                final SubscribableListener<BulkResponse> bulkResponseStepListener = new SubscribableListener<>();
+                client().bulk(bulkRequest, bulkResponseStepListener);
+                continueOrDie(bulkResponseStepListener, bulkResponse -> {
+                    assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+                    assertEquals(documents, bulkResponse.getItems().length);
+                    doneIndexing.set(true);
+                });
             }
-            final SubscribableListener<BulkResponse> bulkResponseStepListener = new SubscribableListener<>();
-            client().bulk(bulkRequest, bulkResponseStepListener);
-            continueOrDie(bulkResponseStepListener, bulkResponse -> {
-                assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-                assertEquals(documents, bulkResponse.getItems().length);
-                doneIndexing.set(true);
-            });
         });
 
         final AtomicBoolean doneSnapshotting = new AtomicBoolean(false);

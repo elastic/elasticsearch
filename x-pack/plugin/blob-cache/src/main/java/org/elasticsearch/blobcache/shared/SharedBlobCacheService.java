@@ -525,18 +525,20 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      * @param region    the region of the blob to fetch
      * @param blobLength the length of the blob from which the region is fetched (used to compute the size of the ending region)
      * @param writer    a writer that handles writing of newly downloaded data to the shared cache
-     * @param listener  listener that is called once all downloading has finished
+     * @param listener  a listener that is completed with {@code true} if the current thread triggered the fetching of the region. The
+     *                  listener is completed with {@code false} if the region to write is already available in cache or is pending
+     *                  fetching via  another thread.
      */
     public void maybeFetchRegion(
         final KeyType cacheKey,
         final int region,
         final long blobLength,
         final RangeMissingHandler writer,
-        final ActionListener<Void> listener
+        final ActionListener<Boolean> listener
     ) {
         if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
-            listener.onResponse(null);
+            listener.onResponse(false);
             return;
         }
         long regionLength = regionSize;
@@ -546,7 +548,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             ByteRange regionRange = ByteRange.of(0, regionLength);
             if (regionRange.isEmpty()) {
-                listener.onResponse(null);
+                listener.onResponse(false);
                 return;
             }
             final CacheFileRegion entry = get(cacheKey, blobLength, region);
@@ -740,17 +742,21 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         /**
-         * Populates a range in cache
-         * <p>
-         * If the range to write is already available (or pending to be available) in cache, then the listener is completed immediately. If
-         * the range is not fully available then the listener is completed once the missing gaps are written in cache.
-         * </p>
+         * Populates a range in cache if the range is not available nor pending to be available in cache.
+         *
+         * @param rangeToWrite the range of bytes to populate
+         * @param writer a writer that handles writing of newly downloaded data to the shared cache
+         * @param executor the executor used to download and to write new dat
+         * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of the
+         *                 range, in which case the listener is completed once writing is done. The listener is completed with {@code false}
+         *                 if the range to write is already available in cache or if another thread will download and write the range, in
+         *                 which cases the listener is completed immediately.
          */
         void populate(
             final ByteRange rangeToWrite,
             final RangeMissingHandler writer,
             final Executor executor,
-            final ActionListener<Void> listener
+            final ActionListener<Boolean> listener
         ) {
             Releasable resource = null;
             try {
@@ -764,8 +770,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         assert regionOwners.get(io) == this;
                     }), resource) : ActionListener.releasing(resource)
                 );
-                try (RefCountingListener refs = new RefCountingListener(listener)) {
-                    if (gaps.isEmpty() == false) {
+                final var hasGapsToFill = gaps.size() > 0;
+                try (RefCountingListener refs = new RefCountingListener(listener.map(unused -> hasGapsToFill))) {
+                    if (hasGapsToFill) {
                         final var cacheFileRegion = CacheFileRegion.this;
                         for (SparseFileTracker.Gap gap : gaps) {
                             var fillGapRunnable = fillGapRunnable(cacheFileRegion, writer, gap);

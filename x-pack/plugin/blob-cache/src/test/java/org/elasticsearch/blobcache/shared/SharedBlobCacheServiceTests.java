@@ -9,8 +9,8 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -707,7 +708,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testMaybeEvictLeastUsed() throws Exception {
-        final int numRegions = 3;randomIntBetween(1, 500);
+        final int numRegions = 3;
+        randomIntBetween(1, 500);
         final long regionSize = size(1L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -834,13 +836,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertEquals(5, cacheService.freeRegionCount());
                 final long blobLength = size(250); // 3 regions
                 AtomicLong bytesRead = new AtomicLong(0L);
-                final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
                     bytesRead.addAndGet(length);
                     progressUpdater.accept(length);
                 }, future);
 
-                future.get(10, TimeUnit.SECONDS);
+                var fetched = future.get(10, TimeUnit.SECONDS);
+                assertThat("Region has been fetched", fetched, is(true));
                 assertEquals(regionSize, bytesRead.get());
                 assertEquals(4, cacheService.freeRegionCount());
                 assertEquals(1, bulkTaskCount.get());
@@ -854,24 +857,24 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final long blobLength = regionSize * remainingFreeRegions;
                 AtomicLong bytesRead = new AtomicLong(0L);
 
-                final PlainActionFuture<Void> future = new PlainActionFuture<>();
-                try (var refs = new RefCountingListener(future)) {
-                    for (int region = 0; region < remainingFreeRegions; region++) {
-                        relativeTimeInMillis.addAndGet(1_000L);
-                        cacheService.maybeFetchRegion(
-                            cacheKey,
-                            region,
-                            blobLength,
-                            (channel, channelPos, relativePos, length, progressUpdater) -> {
-                                bytesRead.addAndGet(length);
-                                progressUpdater.accept(length);
-                            },
-                            refs.acquire()
-                        );
-                    }
+                final PlainActionFuture<Collection<Boolean>> future = new PlainActionFuture<>();
+                final var listener = new GroupedActionListener<>(remainingFreeRegions, future);
+                for (int region = 0; region < remainingFreeRegions; region++) {
+                    relativeTimeInMillis.addAndGet(1_000L);
+                    cacheService.maybeFetchRegion(
+                        cacheKey,
+                        region,
+                        blobLength,
+                        (channel, channelPos, relativePos, length, progressUpdater) -> {
+                            bytesRead.addAndGet(length);
+                            progressUpdater.accept(length);
+                        },
+                        listener
+                    );
                 }
 
-                future.get(10, TimeUnit.SECONDS);
+                var results = future.get(10, TimeUnit.SECONDS);
+                assertThat(results.stream().allMatch(result -> result), is(true));
                 assertEquals(blobLength, bytesRead.get());
                 assertEquals(0, cacheService.freeRegionCount());
                 assertEquals(1 + remainingFreeRegions, bulkTaskCount.get());
@@ -880,7 +883,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 // cache fully used, no entry old enough to be evicted
                 assertEquals(0, cacheService.freeRegionCount());
                 final var cacheKey = generateCacheKey();
-                final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.maybeFetchRegion(
                     cacheKey,
                     randomIntBetween(0, 10),
@@ -891,6 +894,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     future
                 );
                 assertThat("Listener is immediately completed", future.isDone(), is(true));
+                assertThat("Region already exists in cache", future.get(), is(false));
             }
             {
                 // simulate elapsed time and compute decay
@@ -903,13 +907,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertEquals(0, cacheService.freeRegionCount());
                 long blobLength = randomLongBetween(1L, regionSize);
                 AtomicLong bytesRead = new AtomicLong(0L);
-                final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.maybeFetchRegion(cacheKey, 0, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
                     bytesRead.addAndGet(length);
                     progressUpdater.accept(length);
                 }, future);
 
-                future.get(10, TimeUnit.SECONDS);
+                var fetched = future.get(10, TimeUnit.SECONDS);
+                assertThat("Region has been fetched", fetched, is(true));
                 assertEquals(blobLength, bytesRead.get());
                 assertEquals(0, cacheService.freeRegionCount());
             }
@@ -947,7 +952,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // start populating the first region
             var entry = cacheService.get(cacheKey, blobLength, 0);
             AtomicLong bytesWritten = new AtomicLong(0L);
-            final PlainActionFuture<Void> future1 = new PlainActionFuture<>();
+            final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
             entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, relativePos, length, progressUpdater) -> {
                 bytesWritten.addAndGet(length);
                 progressUpdater.accept(length);
@@ -957,7 +962,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             // start populating the second region
             entry = cacheService.get(cacheKey, blobLength, 1);
-            final PlainActionFuture<Void> future2 = new PlainActionFuture<>();
+            final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
             entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, relativePos, length, progressUpdater) -> {
                 bytesWritten.addAndGet(length);
                 progressUpdater.accept(length);
@@ -965,21 +970,24 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             // start populating again the first region, listener should be called immediately
             entry = cacheService.get(cacheKey, blobLength, 0);
-            final PlainActionFuture<Void> future3 = new PlainActionFuture<>();
+            final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
             entry.populate(ByteRange.of(0, regionSize - 1), (channel, channelPos, relativePos, length, progressUpdater) -> {
                 bytesWritten.addAndGet(length);
                 progressUpdater.accept(length);
             }, taskQueue.getThreadPool().generic(), future3);
 
-            future3.get(10L, TimeUnit.SECONDS);
+            var written = future3.get(10L, TimeUnit.SECONDS);
             assertThat(future3.isDone(), is(true));
+            assertThat(written, is(false));
 
             taskQueue.runAllRunnableTasks();
 
-            future1.get(10L, TimeUnit.SECONDS);
+            written = future1.get(10L, TimeUnit.SECONDS);
             assertThat(future1.isDone(), is(true));
-            future2.get(10L, TimeUnit.SECONDS);
+            assertThat(written, is(true));
+            written = future2.get(10L, TimeUnit.SECONDS);
             assertThat(future2.isDone(), is(true));
+            assertThat(written, is(true));
         }
     }
 

@@ -111,6 +111,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         RoleDescriptor descriptor = roles.get("role1");
         assertNotNull(descriptor);
+        assertNotNull(descriptor.getMetadata().get("_internal"));
         Role role = Role.buildFromRoleDescriptor(descriptor, new FieldPermissionsCache(Settings.EMPTY), restrictedIndices);
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role1" }));

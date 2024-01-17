@@ -11,6 +11,8 @@ role1:
       privileges:
         - READ
         - WRITE
+  metadata:
+    _internal: true
 
 role1.ab:
   cluster:

@@ -1078,7 +1078,8 @@ public class RealmsTests extends ESTestCase {
                 mock(SSLService.class),
                 mock(NativeUsersStore.class),
                 mock(NativeRoleMappingStore.class),
-                mock(SecurityIndexManager.class)
+                mock(SecurityIndexManager.class),
+                null
             );
             Environment env = TestEnvironment.newEnvironment(settings);
             final IllegalArgumentException exception = expectThrows(

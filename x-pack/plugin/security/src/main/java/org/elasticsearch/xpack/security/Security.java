@@ -748,6 +748,15 @@ public class Security extends Plugin
             resourceWatcherService,
             nativeRoleMappingStore
         );
+        // hack hack hack: must be here to be properly initialized for realms
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
+        final FileRolesStore fileRolesStore = new FileRolesStore(
+            settings,
+            environment,
+            resourceWatcherService,
+            getLicenseState(),
+            xContentRegistry
+        );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
                 threadPool,
@@ -756,7 +765,8 @@ public class Security extends Plugin
                 getSslService(),
                 nativeUsersStore,
                 nativeRoleMappingStore,
-                systemIndices.getMainIndexManager()
+                systemIndices.getMainIndexManager(),
+                fileRolesStore
             )
         );
         for (SecurityExtension extension : securityExtensions) {
@@ -797,16 +807,9 @@ public class Security extends Plugin
         );
         components.add(privilegeStore);
 
-        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
-        final FileRolesStore fileRolesStore = new FileRolesStore(
-            settings,
-            environment,
-            resourceWatcherService,
-            getLicenseState(),
-            xContentRegistry
-        );
+
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(
             settings,
             client,

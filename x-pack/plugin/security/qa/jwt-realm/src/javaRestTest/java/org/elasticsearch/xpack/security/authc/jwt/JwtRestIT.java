@@ -306,6 +306,59 @@ public class JwtRestIT extends ESRestTestCase {
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, groups, rules);
     }
 
+    public void testAuthenticateReservedRolesFiltered() throws Exception {
+        final String principal = randomPrincipal();
+        final String dn = randomDn();
+        final String name = randomName();
+        final String mail = randomMail();
+        final List<String> groups = List.of("superuser", "abc");
+
+        final String rules = Strings.format("""
+            {
+              "all": [{ "field": { "realm.name": "jwt1" } }]
+            }
+            """);
+        final String roleTemplates = Strings.format("""
+            {
+              "template": { "source": "{{#tojson}}groups{{/tojson}}" },
+              "format" : "json"
+            }
+            """);
+
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("enabled", true);
+        mapping.put("role_templates", List.of(XContentHelper.convertToMap(XContentType.JSON.xContent(), roleTemplates, true)));
+        mapping.put("rules", XContentHelper.convertToMap(XContentType.JSON.xContent(), rules, true));
+        final String mappingName = "test-" + getTestName() + "-" + randomAlphaOfLength(8);
+        getAdminSecurityClient().putRoleMapping(mappingName, mapping);
+
+        try {
+            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, dn, name, mail, groups, Instant.now());
+            final TestSecurityClient client = getSecurityClient(jwt, Optional.empty());
+
+            final Map<String, Object> response = client.authenticate();
+
+            final String description = "Authentication response [" + response + "]";
+            assertThat(description, response, hasEntry(User.Fields.USERNAME.getPreferredName(), principal));
+            assertThat(
+                description,
+                assertMap(response, User.Fields.AUTHENTICATION_REALM),
+                hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
+            );
+            assertThat(description, assertList(response, User.Fields.ROLES), contains("abc"));
+            assertThat(description, assertMap(response, User.Fields.METADATA), hasEntry("jwt_token_type", "id_token"));
+
+            // The user has no real role (we never define them) so everything they try to do will be FORBIDDEN
+            final ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> client.getRoleDescriptors(new String[] { "*" })
+            );
+            assertThat(exception.getResponse(), hasStatusCode(RestStatus.FORBIDDEN));
+        } finally {
+            deleteRoleMapping(mappingName);
+        }
+    }
+
     public void testAuthenticateWithRsaSignedJWTAndRoleMappingByMetadata() throws Exception {
         final String principal = randomPrincipal();
         final String dn = randomDn();

@@ -56,7 +56,8 @@ public class InternalRealmsTests extends ESTestCase {
             mock(SSLService.class),
             mock(NativeUsersStore.class),
             mock(NativeRoleMappingStore.class),
-            securityIndex
+            securityIndex,
+            null
         );
         assertThat(factories, hasEntry(is(NativeRealmSettings.TYPE), any(Realm.Factory.class)));
         verifyNoMoreInteractions(securityIndex);

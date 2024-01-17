@@ -39,7 +39,9 @@ import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
+import org.elasticsearch.xpack.security.authc.support.mapper.FilteringRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collection;
@@ -135,7 +137,8 @@ public final class InternalRealms {
         SSLService sslService,
         NativeUsersStore nativeUsersStore,
         NativeRoleMappingStore nativeRoleMappingStore,
-        SecurityIndexManager securityIndex
+        SecurityIndexManager securityIndex,
+        FileRolesStore fileRolesStore
     ) {
         return Map.of(
             // file realm
@@ -164,7 +167,7 @@ public final class InternalRealms {
             config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService),
             // JWT realm
             JwtRealmSettings.TYPE,
-            config -> new JwtRealm(config, sslService, nativeRoleMappingStore)
+            config -> new JwtRealm(config, sslService, new FilteringRoleMapper(fileRolesStore, nativeRoleMappingStore))
         );
     }
 

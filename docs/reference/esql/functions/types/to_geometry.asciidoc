@@ -1,7 +1,0 @@
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-v | result
-geometry | geometry
-keyword | geometry
-text | geometry
-|===

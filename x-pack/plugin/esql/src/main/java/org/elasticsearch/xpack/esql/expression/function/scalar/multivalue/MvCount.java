@@ -39,11 +39,11 @@ public class MvCount extends AbstractMultivalueFunction {
             type = {
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
                 "double",
-                "geography",
-                "geometry",
                 "geo_point",
+                "geo_shape",
                 "integer",
                 "ip",
                 "keyword",

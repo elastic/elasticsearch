@@ -26,8 +26,8 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
-public class ToGeographyTests extends AbstractFunctionTestCase {
-    public ToGeographyTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class ToGeoShapeTests extends AbstractFunctionTestCase {
+    public ToGeoShapeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -35,15 +35,15 @@ public class ToGeographyTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         final String attribute = "Attribute[channel=0]";
-        final Function<String, String> evaluatorName = s -> "ToGeography" + s + "Evaluator[field=" + attribute + "]";
+        final Function<String, String> evaluatorName = s -> "ToGeoShape" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryGeography(suppliers, attribute, EsqlDataTypes.GEOGRAPHY, v -> v, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, attribute, EsqlDataTypes.GEO_SHAPE, v -> v, List.of());
         // random strings that don't look like a geo point
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("FromString"),
-            EsqlDataTypes.GEOGRAPHY,
+            EsqlDataTypes.GEO_SHAPE,
             bytesRef -> null,
             bytesRef -> {
                 var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));
@@ -53,18 +53,18 @@ public class ToGeographyTests extends AbstractFunctionTestCase {
                 );
             }
         );
-        // strings that are geography representations
+        // strings that are geo_shape representations
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("FromString"),
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
-                    "<geography as string>",
+                    "<geo_shape as string>",
                     () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))),
                     DataTypes.KEYWORD
                 )
             ),
-            EsqlDataTypes.GEOGRAPHY,
+            EsqlDataTypes.GEO_SHAPE,
             bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
@@ -74,6 +74,6 @@ public class ToGeographyTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToGeography(source, args.get(0));
+        return new ToGeoShape(source, args.get(0));
     }
 }

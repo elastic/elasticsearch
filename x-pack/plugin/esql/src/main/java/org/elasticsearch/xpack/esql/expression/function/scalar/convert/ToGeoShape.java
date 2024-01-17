@@ -19,21 +19,21 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEOGRAPHY;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
-public class ToGeography extends AbstractConvertFunction {
+public class ToGeoShape extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(GEOGRAPHY, (fieldEval, source) -> fieldEval),
-        Map.entry(KEYWORD, ToGeographyFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToGeographyFromStringEvaluator.Factory::new)
+        Map.entry(GEO_SHAPE, (fieldEval, source) -> fieldEval),
+        Map.entry(KEYWORD, ToGeoShapeFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToGeoShapeFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "geography", description = "Converts an input value to a geography value.")
-    public ToGeography(Source source, @Param(name = "v", type = { "geography", "keyword", "text" }) Expression field) {
+    @FunctionInfo(returnType = "geo_shape", description = "Converts an input value to a geo_shape value.")
+    public ToGeoShape(Source source, @Param(name = "v", type = { "geo_shape", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 
@@ -44,17 +44,17 @@ public class ToGeography extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return GEOGRAPHY;
+        return GEO_SHAPE;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToGeography(source(), newChildren.get(0));
+        return new ToGeoShape(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToGeography::new, field());
+        return NodeInfo.create(this, ToGeoShape::new, field());
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })

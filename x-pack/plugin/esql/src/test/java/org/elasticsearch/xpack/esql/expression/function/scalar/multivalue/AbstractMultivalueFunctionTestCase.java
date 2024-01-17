@@ -456,11 +456,11 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build many test cases with {@code geography} values that are converted to another type.
-     * This assumes that the function consumes {@code geography} values and produces another type.
-     * For example, mv_count() can consume geographies and produce an integer count.
+     * Build many test cases with {@code geo_shape} values that are converted to another type.
+     * This assumes that the function consumes {@code geo_shape} values and produces another type.
+     * For example, mv_count() can consume geo_shapes and produce an integer count.
      */
-    protected static void geography(
+    protected static void geoShape(
         List<TestCaseSupplier> cases,
         String name,
         String evaluatorName,
@@ -471,7 +471,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             cases,
             name,
             evaluatorName,
-            EsqlDataTypes.GEOGRAPHY,
+            EsqlDataTypes.GEO_SHAPE,
             expectedDataType,
             GEO,
             () -> GeometryTestUtils.randomGeometry(randomBoolean()),
@@ -480,11 +480,11 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build many test cases with {@code geometry} values that are converted to another type.
-     * This assumes that the function consumes {@code geometry} values and produces another type.
-     * For example, mv_count() can consume geometries and produce an integer count.
+     * Build many test cases with {@code cartesian_shape} values that are converted to another type.
+     * This assumes that the function consumes {@code cartesian_shape} values and produces another type.
+     * For example, mv_count() can consume cartesian shapes and produce an integer count.
      */
-    protected static void geometry(
+    protected static void cartesianShape(
         List<TestCaseSupplier> cases,
         String name,
         String evaluatorName,
@@ -495,7 +495,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             cases,
             name,
             evaluatorName,
-            EsqlDataTypes.GEOMETRY,
+            EsqlDataTypes.CARTESIAN_SHAPE,
             expectedDataType,
             CARTESIAN,
             () -> ShapeTestUtils.randomGeometry(randomBoolean()),

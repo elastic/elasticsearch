@@ -17,18 +17,18 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToGeography}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToGeoShape}.
  * This class is generated. Do not edit it.
  */
-public final class ToGeographyFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToGeographyFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+public final class ToGeoShapeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public ToGeoShapeFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
     super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToGeographyFromString";
+    return "ToGeoShapeFromString";
   }
 
   @Override
@@ -59,7 +59,7 @@ public final class ToGeographyFromStringEvaluator extends AbstractConvertFunctio
 
   private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToGeography.fromKeyword(value);
+    return ToGeoShape.fromKeyword(value);
   }
 
   @Override
@@ -99,7 +99,7 @@ public final class ToGeographyFromStringEvaluator extends AbstractConvertFunctio
 
   private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToGeography.fromKeyword(value);
+    return ToGeoShape.fromKeyword(value);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -113,13 +113,13 @@ public final class ToGeographyFromStringEvaluator extends AbstractConvertFunctio
     }
 
     @Override
-    public ToGeographyFromStringEvaluator get(DriverContext context) {
-      return new ToGeographyFromStringEvaluator(field.get(context), source, context);
+    public ToGeoShapeFromStringEvaluator get(DriverContext context) {
+      return new ToGeoShapeFromStringEvaluator(field.get(context), source, context);
     }
 
     @Override
     public String toString() {
-      return "ToGeographyFromStringEvaluator[field=" + field + "]";
+      return "ToGeoShapeFromStringEvaluator[field=" + field + "]";
     }
   }
 }

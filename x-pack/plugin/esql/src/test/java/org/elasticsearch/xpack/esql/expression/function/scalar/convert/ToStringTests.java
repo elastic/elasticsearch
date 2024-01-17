@@ -101,16 +101,16 @@ public class ToStringTests extends AbstractFunctionTestCase {
             wkb -> new BytesRef(CARTESIAN.wkbToWkt(wkb)),
             List.of()
         );
-        TestCaseSupplier.forUnaryGeography(
+        TestCaseSupplier.forUnaryGeoShape(
             suppliers,
-            "ToStringFromGeographyEvaluator[field=" + read + "]",
+            "ToStringFromGeoShapeEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
             wkb -> new BytesRef(GEO.wkbToWkt(wkb)),
             List.of()
         );
-        TestCaseSupplier.forUnaryGeometry(
+        TestCaseSupplier.forUnaryCartesianShape(
             suppliers,
-            "ToStringFromGeometryEvaluator[field=" + read + "]",
+            "ToStringFromCartesianShapeEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
             wkb -> new BytesRef(CARTESIAN.wkbToWkt(wkb)),
             List.of()

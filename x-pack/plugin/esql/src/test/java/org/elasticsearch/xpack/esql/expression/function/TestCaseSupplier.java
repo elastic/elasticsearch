@@ -571,29 +571,29 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEOGRAPHY}.
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_SHAPE}.
      */
-    public static void forUnaryGeography(
+    public static void forUnaryGeoShape(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
         Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(suppliers, expectedEvaluatorToString, geographyCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+        unary(suppliers, expectedEvaluatorToString, geoShapeCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEOMETRY}.
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#CARTESIAN_SHAPE}.
      */
-    public static void forUnaryGeometry(
+    public static void forUnaryCartesianShape(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
         Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(suppliers, expectedEvaluatorToString, geometryCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+        unary(suppliers, expectedEvaluatorToString, cartesianShapeCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
@@ -948,22 +948,22 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> geographyCases() {
+    private static List<TypedDataSupplier> geoShapeCases() {
         return List.of(
             new TypedDataSupplier(
-                "<geography>",
+                "<geo_shape>",
                 () -> GEO.asWkb(GeometryTestUtils.randomGeometry(ESTestCase.randomBoolean())),
-                EsqlDataTypes.GEOGRAPHY
+                EsqlDataTypes.GEO_SHAPE
             )
         );
     }
 
-    private static List<TypedDataSupplier> geometryCases() {
+    private static List<TypedDataSupplier> cartesianShapeCases() {
         return List.of(
             new TypedDataSupplier(
-                "<geometry>",
+                "<cartesian_shape>",
                 () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(ESTestCase.randomBoolean())),
-                EsqlDataTypes.GEOMETRY
+                EsqlDataTypes.CARTESIAN_SHAPE
             )
         );
     }

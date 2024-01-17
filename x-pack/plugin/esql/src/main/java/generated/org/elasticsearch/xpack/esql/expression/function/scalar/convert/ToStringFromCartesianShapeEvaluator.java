@@ -19,15 +19,15 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Do not edit it.
  */
-public final class ToStringFromGeographyEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromGeographyEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+public final class ToStringFromCartesianShapeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public ToStringFromCartesianShapeEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
     super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToStringFromGeography";
+    return "ToStringFromCartesianShape";
   }
 
   @Override
@@ -48,7 +48,7 @@ public final class ToStringFromGeographyEvaluator extends AbstractConvertFunctio
 
   private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromGeography(value);
+    return ToString.fromCartesianShape(value);
   }
 
   @Override
@@ -84,7 +84,7 @@ public final class ToStringFromGeographyEvaluator extends AbstractConvertFunctio
 
   private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromGeography(value);
+    return ToString.fromCartesianShape(value);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -98,13 +98,13 @@ public final class ToStringFromGeographyEvaluator extends AbstractConvertFunctio
     }
 
     @Override
-    public ToStringFromGeographyEvaluator get(DriverContext context) {
-      return new ToStringFromGeographyEvaluator(field.get(context), source, context);
+    public ToStringFromCartesianShapeEvaluator get(DriverContext context) {
+      return new ToStringFromCartesianShapeEvaluator(field.get(context), source, context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromGeographyEvaluator[field=" + field + "]";
+      return "ToStringFromCartesianShapeEvaluator[field=" + field + "]";
     }
   }
 }

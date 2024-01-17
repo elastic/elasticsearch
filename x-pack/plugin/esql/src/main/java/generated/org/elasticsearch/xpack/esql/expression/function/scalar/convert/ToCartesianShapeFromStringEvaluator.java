@@ -17,18 +17,18 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToGeometry}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToCartesianShape}.
  * This class is generated. Do not edit it.
  */
-public final class ToGeometryFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToGeometryFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+public final class ToCartesianShapeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public ToCartesianShapeFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
     super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToGeometryFromString";
+    return "ToCartesianShapeFromString";
   }
 
   @Override
@@ -59,7 +59,7 @@ public final class ToGeometryFromStringEvaluator extends AbstractConvertFunction
 
   private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToGeometry.fromKeyword(value);
+    return ToCartesianShape.fromKeyword(value);
   }
 
   @Override
@@ -99,7 +99,7 @@ public final class ToGeometryFromStringEvaluator extends AbstractConvertFunction
 
   private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToGeometry.fromKeyword(value);
+    return ToCartesianShape.fromKeyword(value);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -113,13 +113,13 @@ public final class ToGeometryFromStringEvaluator extends AbstractConvertFunction
     }
 
     @Override
-    public ToGeometryFromStringEvaluator get(DriverContext context) {
-      return new ToGeometryFromStringEvaluator(field.get(context), source, context);
+    public ToCartesianShapeFromStringEvaluator get(DriverContext context) {
+      return new ToCartesianShapeFromStringEvaluator(field.get(context), source, context);
     }
 
     @Override
     public String toString() {
-      return "ToGeometryFromStringEvaluator[field=" + field + "]";
+      return "ToCartesianShapeFromStringEvaluator[field=" + field + "]";
     }
   }
 }

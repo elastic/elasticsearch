@@ -424,8 +424,8 @@ public final class CsvTestUtils {
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
-        GEOGRAPHY(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
-        GEOMETRY(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
+        GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
+        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -490,7 +490,7 @@ public final class CsvTestUtils {
         }
 
         private static Type bytesRefBlockType(Type actualType) {
-            if (actualType == GEO_POINT || actualType == CARTESIAN_POINT || actualType == GEOGRAPHY || actualType == GEOMETRY) {
+            if (actualType == GEO_POINT || actualType == CARTESIAN_POINT || actualType == GEO_SHAPE || actualType == CARTESIAN_SHAPE) {
                 return actualType;
             } else {
                 return KEYWORD;

@@ -95,7 +95,7 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
                     String.format(
                         Locale.ROOT,
                         "first argument of [%s %s] must be [numeric, keyword, text, ip, datetime, version, geo_point, "
-                            + "cartesian_point, geometry or geography], found value [] type [%s]",
+                            + "geo_shape, cartesian_point or cartesian_shape], found value [] type [%s]",
                         lhsType.typeName(),
                         rhsType.typeName(),
                         lhsType.typeName()

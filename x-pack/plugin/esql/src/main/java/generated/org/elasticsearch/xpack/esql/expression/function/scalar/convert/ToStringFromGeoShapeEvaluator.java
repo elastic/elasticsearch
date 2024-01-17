@@ -19,15 +19,15 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Do not edit it.
  */
-public final class ToStringFromGeometryEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromGeometryEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+public final class ToStringFromGeoShapeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public ToStringFromGeoShapeEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
     super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToStringFromGeometry";
+    return "ToStringFromGeoShape";
   }
 
   @Override
@@ -48,7 +48,7 @@ public final class ToStringFromGeometryEvaluator extends AbstractConvertFunction
 
   private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromGeometry(value);
+    return ToString.fromGeoShape(value);
   }
 
   @Override
@@ -84,7 +84,7 @@ public final class ToStringFromGeometryEvaluator extends AbstractConvertFunction
 
   private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToString.fromGeometry(value);
+    return ToString.fromGeoShape(value);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -98,13 +98,13 @@ public final class ToStringFromGeometryEvaluator extends AbstractConvertFunction
     }
 
     @Override
-    public ToStringFromGeometryEvaluator get(DriverContext context) {
-      return new ToStringFromGeometryEvaluator(field.get(context), source, context);
+    public ToStringFromGeoShapeEvaluator get(DriverContext context) {
+      return new ToStringFromGeoShapeEvaluator(field.get(context), source, context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromGeometryEvaluator[field=" + field + "]";
+      return "ToStringFromGeoShapeEvaluator[field=" + field + "]";
     }
   }
 }

@@ -238,10 +238,7 @@ public class PlannerUtils {
             return ElementType.DOC;
         }
         // TODO: Spatial types can be read from source into BYTES_REF, or read from doc-values
-        if (dataType == EsqlDataTypes.GEO_POINT
-            || dataType == EsqlDataTypes.CARTESIAN_POINT
-            || dataType == EsqlDataTypes.GEOMETRY
-            || dataType == EsqlDataTypes.GEOGRAPHY) {
+        if (EsqlDataTypes.isSpatial(dataType)) {
             return ElementType.BYTES_REF;
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);

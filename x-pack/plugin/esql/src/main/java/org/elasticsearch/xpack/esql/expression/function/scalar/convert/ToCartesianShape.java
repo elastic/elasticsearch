@@ -19,21 +19,21 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEOMETRY;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 
-public class ToGeometry extends AbstractConvertFunction {
+public class ToCartesianShape extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(GEOMETRY, (fieldEval, source) -> fieldEval),
-        Map.entry(KEYWORD, ToGeometryFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToGeometryFromStringEvaluator.Factory::new)
+        Map.entry(CARTESIAN_SHAPE, (fieldEval, source) -> fieldEval),
+        Map.entry(KEYWORD, ToCartesianShapeFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToCartesianShapeFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "geometry", description = "Converts an input value to a geometry value.")
-    public ToGeometry(Source source, @Param(name = "v", type = { "geometry", "keyword", "text" }) Expression field) {
+    @FunctionInfo(returnType = "cartesian_shape", description = "Converts an input value to a shape value.")
+    public ToCartesianShape(Source source, @Param(name = "v", type = { "cartesian_shape", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 
@@ -44,21 +44,21 @@ public class ToGeometry extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return GEOMETRY;
+        return CARTESIAN_SHAPE;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToGeometry(source(), newChildren.get(0));
+        return new ToCartesianShape(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToGeometry::new, field());
+        return NodeInfo.create(this, ToCartesianShape::new, field());
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return GEO.wktToWkb(in.utf8ToString());
+        return CARTESIAN.wktToWkb(in.utf8ToString());
     }
 }

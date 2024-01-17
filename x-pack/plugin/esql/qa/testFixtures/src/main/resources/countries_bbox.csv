@@ -1,4 +1,4 @@
-id:keyword,name:keyword,shape:geography
+id:keyword,name:keyword,shape:geo_shape
 FLK,Falkland Is.,"BBOX(-61.148055\, -57.733200\, -51.249455\, -52.343055)"
 GUF,French Guiana,"BBOX(-54.603782\, -51.648055\, 5.755418\, 2.113473)"
 GUY,Guyana,"BBOX(-61.389727\, -56.470636\, 8.535273\, 1.186873)"

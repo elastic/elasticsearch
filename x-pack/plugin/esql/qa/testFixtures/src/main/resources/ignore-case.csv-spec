@@ -14,11 +14,13 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10011          | Mary               | Sluis
 ;
 
+
 simpleFilterPartial#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees | where first_name =~ "mar" | keep emp_no, first_name, last_name;
 
 emp_no:integer | first_name:keyword | last_name:keyword
 ;
+
 
 mixedConditionsAnd#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees | where first_name =~ "mary" AND emp_no == 10011 | keep emp_no, first_name, last_name;
@@ -54,80 +56,23 @@ name:keyword
 foobar
 ;
 
-wildcardSimple#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+
+noWildcardSimple#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 row name = "foobar" | where name =~ "FoOb*";
 
 name:keyword
-foobar
-;
-
-wildcardNoMatchSimple#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
-row name = "foobar" | where name =~ "FoOb";
-
-name:keyword
 ;
 
 
-wildcard#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
-from employees | where first_name =~ "georg*" | sort emp_no | keep emp_no, first_name;
+noWildcard#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "Georg*" | sort emp_no | keep emp_no, first_name;
 
 emp_no:integer | first_name:keyword
-10001          | Georgi
-10055          | Georgy
-;
-
-wildcardSuffix#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
-from employees | where first_name =~ "*eOrGi" | keep emp_no, first_name;
-
-emp_no:integer | first_name:keyword
-10001          | Georgi
-;
-
-wildcardPrefixSuffix#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
-from employees | where first_name =~ "*eOrG*" | sort emp_no | keep emp_no, first_name;
-
-emp_no:integer | first_name:keyword
-10001          | Georgi
-10055          | Georgy
 ;
 
 
-wildcardMixedConditionsOr#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
-from employees | where first_name =~ "mar*" OR emp_no == 10001 | keep emp_no, first_name, last_name |sort emp_no;
-
-emp_no:integer | first_name:keyword | last_name:keyword
-10001          | Georgi             | Facello
-10011          | Mary               | Sluis
-10069          | Margareta          | Bierman
-;
-
-
-wildcardMixedConditionsAnd#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
-from employees | where first_name =~ "mar*" AND emp_no == 10011 | keep emp_no, first_name, last_name |sort emp_no;
-
-emp_no:integer | first_name:keyword | last_name:keyword
-10011          | Mary               | Sluis
-;
-
-wildcardPrefixSuffixNot#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
-from employees | where not (first_name =~ "*eOrG*") | sort emp_no | keep emp_no, first_name | limit 1;
-
-emp_no:integer | first_name:keyword
-10002          | Bezalel
-;
-
-
-wildcardPrefixSuffixNotNot#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
-from employees | where not (not (first_name =~ "*eOrG*")) | sort emp_no | keep emp_no, first_name;
-
-emp_no:integer | first_name:keyword
-10001          | Georgi
-10055          | Georgy
-;
-
-
-wildcardQuoted#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
-from employees | where first_name =~ "georg\\*" | sort emp_no | keep emp_no, first_name;
+noWildcardSingle#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "Georg?" | sort emp_no | keep emp_no, first_name;
 
 emp_no:integer | first_name:keyword
 ;

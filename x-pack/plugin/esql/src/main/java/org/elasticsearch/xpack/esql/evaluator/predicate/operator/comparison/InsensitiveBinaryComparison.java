@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -24,8 +23,4 @@ public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
         return DataTypes.BOOLEAN;
     }
 
-    public static boolean isWildcard(BytesRef value) {
-        String str = value.utf8ToString();
-        return str.contains("*") || str.contains("?");
-    }
 }

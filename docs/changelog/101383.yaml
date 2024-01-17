@@ -1,5 +1,0 @@
-pr: 101383
-summary: "ESQL: Track memory from values loaded from lucene"
-area: ES|QL
-type: enhancement
-issues: []

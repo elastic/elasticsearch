@@ -48,7 +48,7 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
         indexDoc(client, dataStream, """
             {
-               "@timestamp": 1705488709292,
+               "@timestamp": "1688394864123.456789",
                "body.text": "This is a log message",
                "data_stream": {
                  "type": "logs",
@@ -96,6 +96,7 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         assertThat(fields.get("data_stream.type"), is(List.of("logs")));
         assertThat(fields.get("attributes.foo"), is(List.of("bar")));
         assertThat(fields.get("resource.attributes.service.name"), is(List.of("my-service")));
+        assertThat(fields.get("@timestamp"), is(List.of("2023-07-03T14:34:24.123456789Z")));
 
         Map<String, Object> properties = getMappingProperties(client, getWriteBackingIndex(client, dataStream));
         assertThat(

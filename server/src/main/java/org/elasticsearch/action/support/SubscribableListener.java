@@ -32,7 +32,10 @@ import java.util.concurrent.Executor;
 
 /**
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
- * fans-out its result to the subscribed listeners. Exceptions are passed to subscribed listeners without modification.
+ * fans-out its result to the subscribed listeners.
+ * <p>
+ * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are child
+ * classes that provide additional exception handling.
  * <p>
  * A sequence of async steps can be chained together using a series of {@link SubscribableListener}s, similar to {@link CompletionStage} (without
  * the {@code catch (Throwable t)}). Listeners can be created for each step, where the next step subscribes to the result of the previous,

@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsActi
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
@@ -195,7 +194,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -803,12 +801,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request) {
+        public ActionFuture<ListTasksResponse> cancelTasks(CancelTasksRequest request) {
             return execute(CancelTasksAction.INSTANCE, request);
         }
 
         @Override
-        public void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener) {
+        public void cancelTasks(CancelTasksRequest request, ActionListener<ListTasksResponse> listener) {
             execute(CancelTasksAction.INSTANCE, request, listener);
         }
 
@@ -1450,7 +1448,7 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener) {
+        public void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener) {
             execute(ResizeAction.INSTANCE, request, listener);
         }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -85,13 +85,13 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.threadPool()));
+        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service);
     }
 
-    S3Service s3Service(Environment environment, Settings nodeSettings, ThreadPool threadPool) {
-        return new S3Service(environment, nodeSettings, threadPool);
+    S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+        return new S3Service(environment, nodeSettings, resourceWatcherService);
     }
 
     @Override
@@ -131,7 +131,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.REGION,
             S3Service.REPOSITORY_S3_CAS_TTL_SETTING,
             S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING,
-            S3Service.WEB_IDENTITY_TOKEN_REFRESH_CREDENTIALS_SETTING,
             S3Repository.ACCESS_KEY_SETTING,
             S3Repository.SECRET_KEY_SETTING
         );

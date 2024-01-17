@@ -22,6 +22,7 @@ import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Assert;
 import org.mockito.Mockito;
@@ -49,10 +50,12 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     private static final String ROLE_NAME = "aws-sdk-java-1651084775908";
     private final TestThreadPool threadPool = new TestThreadPool("test");
-    private final TimeValue credentialsRefreshInterval = TimeValue.timeValueHours(1);
+    private final Settings settings = Settings.builder().put("resource.reload.interval.low", TimeValue.timeValueMillis(100)).build();
+    private final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
 
     @After
     public void shutdown() throws Exception {
+        resourceWatcherService.close();
         threadPool.shutdown();
     }
 
@@ -145,8 +148,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             environmentVariables::get,
             systemProperties::getOrDefault,
             Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC),
-            threadPool,
-            credentialsRefreshInterval
+            resourceWatcherService
         );
         try {
             AWSCredentials credentials = S3Service.buildCredentials(
@@ -192,8 +194,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             environmentVariables::get,
             systemProperties::getOrDefault,
             Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC),
-            threadPool,
-            TimeValue.timeValueSeconds(1)
+            resourceWatcherService
         );
         try {
             AWSCredentialsProvider awsCredentialsProvider = S3Service.buildCredentials(
@@ -205,6 +206,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
 
             String newWebIdentityToken = "88f84342080d4671a511e10ae905b2b0";
             Files.writeString(environment.configFile().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
+
             var latch = new CountDownLatch(1);
             webIdentityTokenCheck.setDelegate(s -> {
                 if (s.equals(newWebIdentityToken)) {
@@ -237,8 +239,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             environmentVariables::get,
             systemProperties::getOrDefault,
             Clock.systemUTC(),
-            threadPool,
-            credentialsRefreshInterval
+            resourceWatcherService
         );
         // We can't verify that webIdentityTokenCredentialsProvider's STS client uses the "https://sts.us-west-2.amazonaws.com"
         // endpoint in a unit test. The client depends on hardcoded RegionalEndpointsOptionResolver that in turn depends

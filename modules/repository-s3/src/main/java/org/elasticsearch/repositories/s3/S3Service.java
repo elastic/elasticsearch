@@ -28,6 +28,7 @@ import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
@@ -37,7 +38,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.FileChangesListener;
+import org.elasticsearch.watcher.FileWatcher;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -69,15 +72,6 @@ class S3Service implements Closeable {
         TimeValue.timeValueHours(24),
         Setting.Property.NodeScope
     );
-
-    static final Setting<TimeValue> WEB_IDENTITY_TOKEN_REFRESH_CREDENTIALS_SETTING = Setting.timeSetting(
-        "repository_s3.web_identity_token_refresh_credentials_interval",
-        // The default duration of security credentials is 1 hour:
-        // https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
-        TimeValue.timeValueHours(1),
-        Setting.Property.NodeScope
-    );
-
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
     /**
@@ -99,14 +93,13 @@ class S3Service implements Closeable {
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
 
-    S3Service(Environment environment, Settings nodeSettings, ThreadPool threadPool) {
+    S3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
             System::getProperty,
             Clock.systemUTC(),
-            threadPool,
-            WEB_IDENTITY_TOKEN_REFRESH_CREDENTIALS_SETTING.get(nodeSettings)
+            resourceWatcherService
         );
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
@@ -345,8 +338,7 @@ class S3Service implements Closeable {
             SystemEnvironment systemEnvironment,
             JvmEnvironment jvmEnvironment,
             Clock clock,
-            ThreadPool threadPool,
-            TimeValue credentialsRefreshInterval
+            ResourceWatcherService resourceWatcherService
         ) {
             // Check whether the original environment variable exists. If it doesn't,
             // the system doesn't support AWS web identity tokens
@@ -408,13 +400,21 @@ class S3Service implements Closeable {
                     roleSessionName,
                     webIdentityTokenFileSymlink.toString()
                 ).withStsClient(stsClient).build();
-                // Proactively refresh credentials periodically to make sure we pick up a new web identity token.
-                // By default, the token gets rotated every 24 hours
-                threadPool.scheduleWithFixedDelay(
-                    credentialsProvider::refresh,
-                    credentialsRefreshInterval,
-                    threadPool.executor(ThreadPool.Names.SNAPSHOT)
-                );
+                var watcher = new FileWatcher(webIdentityTokenFileSymlink);
+                watcher.addListener(new FileChangesListener() {
+
+                    @Override
+                    public void onFileChanged(Path file) {
+                        if (file.equals(webIdentityTokenFileSymlink)) {
+                            credentialsProvider.refresh();
+                        }
+                    }
+                });
+                try {
+                    resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
+                } catch (IOException e) {
+                    throw new ElasticsearchException("failed to start watching service_tokens file [{}]", e, webIdentityTokenFileSymlink);
+                }
             } catch (Exception e) {
                 stsClient.shutdown();
                 throw e;

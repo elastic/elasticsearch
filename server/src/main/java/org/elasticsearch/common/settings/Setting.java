@@ -2083,12 +2083,16 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     *  Same as above but also matches the fallback prefix in addition to the prefix of the setting.
+     * Same as above but also matches the fallback prefix in addition to the prefix of the setting.
+     * @param nsDelegateFactory instantiate a setting given the namespace and the qualified key
      */
-    public static <T> AffixSetting<T> prefixKeySetting(String prefix, String fallbackPrefix, Function<String, Setting<T>> delegateFactory) {
-        BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
-        Setting<T> delegate = delegateFactoryWithNamespace.apply("_na_", "_na_");
-        return new AffixSetting<>(new AffixKey(prefix, null, fallbackPrefix), delegate, delegateFactoryWithNamespace);
+    public static <T> AffixSetting<T> prefixKeySetting(
+        String prefix,
+        String fallbackPrefix,
+        BiFunction<String, String, Setting<T>> nsDelegateFactory
+    ) {
+        Setting<T> delegate = nsDelegateFactory.apply("_na_", "_na_");
+        return new AffixSetting<>(new AffixKey(prefix, null, fallbackPrefix), delegate, nsDelegateFactory);
     }
 
     /**

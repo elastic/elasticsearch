@@ -807,7 +807,7 @@ public class SettingTests extends ESTestCase {
         Setting.AffixSetting<Boolean> setting = Setting.prefixKeySetting(
             "foo.",
             "bar.",
-            (key) -> Setting.boolSetting(key, false, Property.NodeScope)
+            (ns, key) -> Setting.boolSetting(key, false, Property.NodeScope)
         );
 
         assertTrue(setting.match("foo.bar"));
@@ -846,7 +846,7 @@ public class SettingTests extends ESTestCase {
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            () -> Setting.prefixKeySetting("foo.", "bar", (key) -> Setting.boolSetting(key, false, Property.NodeScope))
+            () -> Setting.prefixKeySetting("foo.", "bar", (ns, key) -> Setting.boolSetting(key, false, Property.NodeScope))
         );
         assertEquals("prefix must end with a '.'", exc.getMessage());
 
@@ -1432,7 +1432,7 @@ public class SettingTests extends ESTestCase {
         Setting.AffixSetting<Boolean> setting = Setting.prefixKeySetting(
             "foo.",
             "bar.",
-            (key) -> Setting.boolSetting(key, false, Property.NodeScope)
+            (ns, key) -> Setting.boolSetting(key, false, Property.NodeScope)
         );
         setting.checkDeprecation(Settings.builder().put("bar.a.1", true).put("bar.b.q.do", false).build());
         assertWarnings(

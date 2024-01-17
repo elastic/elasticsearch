@@ -550,7 +550,7 @@ public class ScopedSettingsTests extends ESTestCase {
         Setting.AffixSetting<Boolean> fallbackSetting = Setting.prefixKeySetting(
             "baz.",
             "bar.",
-            (k) -> Setting.boolSetting(k, false, Property.Dynamic, Property.NodeScope)
+            (ns, k) -> Setting.boolSetting(k, false, Property.Dynamic, Property.NodeScope)
         );
         AbstractScopedSettings service = new ClusterSettings(
             Settings.EMPTY,

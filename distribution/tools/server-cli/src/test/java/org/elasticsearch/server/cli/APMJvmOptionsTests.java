@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -75,18 +76,22 @@ public class APMJvmOptionsTests extends ESTestCase {
     }
 
     public void testExtractSettings() throws UserException {
-        Settings settings;
-        for (String prefix : List.of("tracing.apm.agent.", "telemetry.agent.")) {
-            settings = Settings.builder()
-                .put("tracing.apm.enabled", true)
-                .put(prefix + "server_url", "https://myurl:443")
-                .put(prefix + "service_node_name", "instance-0000000001")
-                .put(prefix + "global_labels.deployment_id", "123")
-                .put(prefix + "global_labels.deployment_name", "APM Tracing")
-                .put(prefix + "global_labels.organization_id", "456")
-                .build();
+        Function<String, Settings.Builder> buildSettings = (prefix) -> Settings.builder()
+            .put("tracing.apm.enabled", true)
+            .put(prefix + "server_url", "https://myurl:443")
+            .put(prefix + "service_node_name", "instance-0000000001");
 
-            var extracted = APMJvmOptions.extractApmSettings(settings);
+        for (String prefix : List.of("tracing.apm.agent.", "telemetry.agent.")) {
+            var name = "APM Tracing";
+            var deploy = "123";
+            var org = "456";
+            var extracted = APMJvmOptions.extractApmSettings(
+                buildSettings.apply(prefix)
+                    .put(prefix + "global_labels.deployment_name", name)
+                    .put(prefix + "global_labels.deployment_id", deploy)
+                    .put(prefix + "global_labels.organization_id", org)
+                    .build()
+            );
 
             assertThat(
                 extracted,
@@ -99,21 +104,20 @@ public class APMJvmOptionsTests extends ESTestCase {
             );
 
             List<String> labels = Arrays.stream(extracted.get("global_labels").split(",")).toList();
-
             assertThat(labels, hasSize(3));
-            assertThat(labels, containsInAnyOrder("deployment_name=APM Tracing", "organization_id=456", "deployment_id=123"));
+            assertThat(labels, containsInAnyOrder("deployment_name=APM Tracing", "organization_id=" + org, "deployment_id=" + deploy));
 
-            settings = Settings.builder()
-                .put("tracing.apm.enabled", true)
-                .put(prefix + "server_url", "https://myurl:443")
-                .put(prefix + "service_node_name", "instance-0000000001")
-                .put(prefix + "global_labels.deployment_id", "")
-                .put(prefix + "global_labels.deployment_name", "APM=Tracing")
-                .put(prefix + "global_labels.organization_id", ",456")
-                .build();
-
-            extracted = APMJvmOptions.extractApmSettings(settings);
-
+            // test replacing with underscores and skipping empty
+            name = "APM=Tracing";
+            deploy = "";
+            org = ",456";
+            extracted = APMJvmOptions.extractApmSettings(
+                buildSettings.apply(prefix)
+                    .put(prefix + "global_labels.deployment_name", name)
+                    .put(prefix + "global_labels.deployment_id", deploy)
+                    .put(prefix + "global_labels.organization_id", org)
+                    .build()
+            );
             labels = Arrays.stream(extracted.get("global_labels").split(",")).toList();
             assertThat(labels, hasSize(2));
             assertThat(labels, containsInAnyOrder("deployment_name=APM_Tracing", "organization_id=_456"));

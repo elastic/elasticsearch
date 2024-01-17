@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -441,10 +442,14 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
      */
-    private boolean isDeprecated() {
+    protected boolean isDeprecated() {
         return properties.contains(Property.Deprecated)
             || properties.contains(Property.DeprecatedWarning)
             || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
+    }
+
+    protected Stream<Tuple<String, String>> deprecatedKeyStream(Settings settings) {
+        return Stream.empty();
     }
 
     private boolean isDeprecatedWarningOnly() {
@@ -649,6 +654,10 @@ public class Setting<T> implements ToXContentObject {
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
             }
         }
+        String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release, use [{}] instead";
+        deprecatedKeyStream(settings).forEach(deprecatedReplacement -> {
+            Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, deprecatedReplacement.v1(), message, deprecatedReplacement.v1(), deprecatedReplacement.v2());
+        });
     }
 
     /**
@@ -1076,6 +1085,17 @@ public class Setting<T> implements ToXContentObject {
                 map.put(namespace, concreteSetting.get(settings));
             });
             return Collections.unmodifiableMap(map);
+        }
+
+        @Override
+        protected Stream<Tuple<String, String>> deprecatedKeyStream(Settings settings) {
+            if (key.hasFallback() == false) {
+                return super.deprecatedKeyStream(settings);
+            }
+            return Stream.concat(
+                super.deprecatedKeyStream(settings),
+                settings.keySet().stream().map(key::maybeFallback).flatMap(Optional::stream)
+            );
         }
     }
 
@@ -2168,8 +2188,8 @@ public class Setting<T> implements ToXContentObject {
      */
     public static final class AffixKey implements Key {
         private final Pattern pattern;
+        private final Pattern fallbackPattern;
         private final String prefix;
-        private final String fallbackPrefix;
         private final String suffix;
 
         private final String keyString;
@@ -2182,14 +2202,16 @@ public class Setting<T> implements ToXContentObject {
             if (prefix.endsWith(".") == false) {
                 throw new IllegalArgumentException("prefix must end with a '.'");
             }
-            this.fallbackPrefix = fallbackPrefix;
+
             String prefixPattern;
             if (fallbackPrefix != null) {
                 if (fallbackPrefix.endsWith(".") == false) {
                     throw new IllegalArgumentException("prefix must end with a '.'");
                 }
+                fallbackPattern = Pattern.compile("(" + Pattern.quote(fallbackPrefix) + ")" + "((?:[-\\w]+[.])*[-\\w]+$)");
                 prefixPattern = "(" + Pattern.quote(prefix) + "|" + Pattern.quote(fallbackPrefix) + ")";
             } else {
+                fallbackPattern = null;
                 prefixPattern = "(" + Pattern.quote(prefix) + ")";
             }
             this.suffix = suffix;
@@ -2214,6 +2236,19 @@ public class Setting<T> implements ToXContentObject {
             return pattern.matcher(key).matches();
         }
 
+        // package private for testing
+        Optional<Tuple<String, String>> maybeFallback(String key) {
+            Matcher m = fallbackPattern.matcher(key);
+            if (m.matches() == false) {
+                return Optional.empty();
+            }
+            return Optional.of(new Tuple<>(key, m.replaceFirst(prefix + "$2")));
+        }
+
+        private boolean hasFallback() {
+            return fallbackPattern != null;
+        }
+
         /**
          * Returns a string representation of the concrete setting key
          */
@@ -2226,12 +2261,12 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * Returns a string representation of the concrete setting key
+         * Returns a string representation of the namespace, without prefix and suffix, of the affix key
          */
         String getNamespace(String key) {
             Matcher matcher = pattern.matcher(key);
             if (matcher.matches() == false) {
-                throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
+                throw new IllegalStateException("can't get namespace for key " + key + " key doesn't match");
             }
             return Settings.internKeyOrValue(matcher.group(3));
         }

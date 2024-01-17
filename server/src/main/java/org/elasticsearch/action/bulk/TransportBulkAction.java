@@ -1180,7 +1180,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
          * Mark the document at the given slot in the bulk request as having failed in the ingest service. The document will be redirected
          * to a data stream's failure store.
          * @param slot the slot in the bulk request to redirect.
-         * @param targetIndexName the index that the document was targetting at the time of failure.
+         * @param targetIndexName the index that the document was targeting at the time of failure.
          * @param e the failure encountered.
          */
         public void markItemForFailureStore(int slot, String targetIndexName, Exception e) {
@@ -1188,27 +1188,48 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 markItemAsFailed(slot, e);
             } else {
                 IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-                try {
-                    IndexRequest errorDocument = FailureStoreDocument.transformFailedRequest(indexRequest, e, targetIndexName);
-                    // This is a fresh index request! We need to do some preprocessing on it. If we do not, when this is returned to
-                    // the bulk action, the action will see that it hasn't been processed by ingest yet and attempt to ingest it again.
-                    errorDocument.isPipelineResolved(true);
-                    errorDocument.setPipeline(IngestService.NOOP_PIPELINE_NAME);
-                    errorDocument.setFinalPipeline(IngestService.NOOP_PIPELINE_NAME);
-                    bulkRequest.requests.set(slot, errorDocument);
-                } catch (IOException ioException) {
-                    // This is unlikely to happen because the conversion is so simple, but be defensive and attempt to report about it if
-                    // we need the info later.
-                    e.addSuppressed(ioException); // Prefer to return the original exception to the end user instead of this new one.
-                    logger.debug(
-                        () -> "Encountered exception while attempting to redirect a failed ingest operation: index ["
+                if (indexRequest == null) {
+                    // This is unlikely to happen ever since only index and update operations are considered for ingest, but if it does
+                    // happen, attempt to trip an assertion. If running in production, be defensive: Mark it as failed as normal, and log
+                    // the info for later debugging if needed.
+                    assert false
+                        : "Attempting to mark invalid write request type for failure store. Only IndexRequest or UpdateRequest allowed. "
+                            + "type: ["
+                            + bulkRequest.requests().get(slot).getClass().getName()
+                            + "], index: ["
                             + targetIndexName
-                            + "], source: ["
-                            + indexRequest.source().utf8ToString()
-                            + "]",
-                        ioException
-                    );
+                            + "]";
                     markItemAsFailed(slot, e);
+                    logger.debug(
+                        () -> "Attempted to redirect an invalid write operation after ingest failure - type: ["
+                            + bulkRequest.requests().get(slot).getClass().getName()
+                            + "], index: ["
+                            + targetIndexName
+                            + "]"
+                    );
+                } else {
+                    try {
+                        IndexRequest errorDocument = FailureStoreDocument.transformFailedRequest(indexRequest, e, targetIndexName);
+                        // This is a fresh index request! We need to do some preprocessing on it. If we do not, when this is returned to
+                        // the bulk action, the action will see that it hasn't been processed by ingest yet and attempt to ingest it again.
+                        errorDocument.isPipelineResolved(true);
+                        errorDocument.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+                        errorDocument.setFinalPipeline(IngestService.NOOP_PIPELINE_NAME);
+                        bulkRequest.requests.set(slot, errorDocument);
+                    } catch (IOException ioException) {
+                        // This is unlikely to happen because the conversion is so simple, but be defensive and attempt to report about it
+                        // if we need the info later.
+                        e.addSuppressed(ioException); // Prefer to return the original exception to the end user instead of this new one.
+                        logger.debug(
+                            () -> "Encountered exception while attempting to redirect a failed ingest operation: index ["
+                                + targetIndexName
+                                + "], source: ["
+                                + indexRequest.source().utf8ToString()
+                                + "]",
+                            ioException
+                        );
+                        markItemAsFailed(slot, e);
+                    }
                 }
             }
         }

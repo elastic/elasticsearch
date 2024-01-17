@@ -20,7 +20,7 @@ public class SearchResponseTookMetrics {
     public SearchResponseTookMetrics(MeterRegistry meterRegistry) {
         this(
             meterRegistry.registerLongCounter(
-                "es.search_response.took_measurements.count",
+                "es.search_response.took_measurements.total",
                 "The total number of times that SearchResponse.took measurements were recorded, "
                     + "expressed as a counter. Used for calculating averages.",
                 "count"

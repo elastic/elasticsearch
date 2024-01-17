@@ -219,8 +219,8 @@ setup:
 ---
 "Test start deployment fails while model download in progress":
   - skip:
-    cluster_features: fips_140
-    reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/104414"
+      features: fips_140
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/104414"
   - do:
       ml.put_trained_model:
         model_id: .elser_model_2

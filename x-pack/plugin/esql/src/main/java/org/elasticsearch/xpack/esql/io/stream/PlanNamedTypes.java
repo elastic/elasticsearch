@@ -12,10 +12,13 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -41,10 +44,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Great
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -168,7 +173,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -341,6 +345,8 @@ public final class PlanNamedTypes {
             of(ESQL_UNARY_SCLR_CLS, ToDatetime.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToDegrees.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToDouble.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ESQL_UNARY_SCLR_CLS, ToGeoShape.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ESQL_UNARY_SCLR_CLS, ToCartesianShape.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToGeoPoint.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToIP.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, ToInteger.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
@@ -490,15 +496,25 @@ public final class PlanNamedTypes {
     }
 
     static EnrichExec readEnrichExec(PlanStreamInput in) throws IOException {
-        return new EnrichExec(
-            in.readSource(),
-            in.readPhysicalPlanNode(),
-            in.readNamedExpression(),
-            in.readString(),
-            in.readString(),
-            readEsIndex(in),
-            readNamedExpressions(in)
-        );
+        final Source source = in.readSource();
+        final PhysicalPlan child = in.readPhysicalPlanNode();
+        final NamedExpression matchField = in.readNamedExpression();
+        final String policyName = in.readString();
+        final String policyMatchField = in.readString();
+        final Map<String, String> concreteIndices;
+        final Enrich.Mode mode;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+            mode = in.readEnum(Enrich.Mode.class);
+            concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            mode = Enrich.Mode.ANY;
+            EsIndex esIndex = readEsIndex(in);
+            if (esIndex.concreteIndices().size() != 1) {
+                throw new IllegalStateException("expected a single concrete enrich index; got " + esIndex.concreteIndices());
+            }
+            concreteIndices = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
+        }
+        return new EnrichExec(source, child, mode, matchField, policyName, policyMatchField, concreteIndices, readNamedExpressions(in));
     }
 
     static void writeEnrichExec(PlanStreamOutput out, EnrichExec enrich) throws IOException {
@@ -507,7 +523,17 @@ public final class PlanNamedTypes {
         out.writeNamedExpression(enrich.matchField());
         out.writeString(enrich.policyName());
         out.writeString(enrich.policyMatchField());
-        writeEsIndex(out, enrich.enrichIndex());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+            out.writeEnum(enrich.mode());
+            out.writeMap(enrich.concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            if (enrich.concreteIndices().keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
+                String concreteIndex = enrich.concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                writeEsIndex(out, new EsIndex(concreteIndex, Map.of(), Set.of(concreteIndex)));
+            } else {
+                throw new IllegalStateException("expected a single concrete enrich index; got " + enrich.concreteIndices());
+            }
+        }
         writeNamedExpressions(out, enrich.enrichFields());
     }
 
@@ -733,19 +759,29 @@ public final class PlanNamedTypes {
     }
 
     static Enrich readEnrich(PlanStreamInput in) throws IOException {
-        Enrich.Mode m = Enrich.Mode.ANY;
+        Enrich.Mode mode = Enrich.Mode.ANY;
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQ_MODE)) {
-            m = in.readEnum(Enrich.Mode.class);
+            mode = in.readEnum(Enrich.Mode.class);
         }
-        return new Enrich(
-            in.readSource(),
-            in.readLogicalPlanNode(),
-            m,
-            in.readExpression(),
-            in.readNamedExpression(),
-            new EnrichPolicyResolution(in.readString(), new EnrichPolicy(in), IndexResolution.valid(readEsIndex(in))),
-            readNamedExpressions(in)
-        );
+        final Source source = in.readSource();
+        final LogicalPlan child = in.readLogicalPlanNode();
+        final Expression policyName = in.readExpression();
+        final NamedExpression matchField = in.readNamedExpression();
+        if (in.getTransportVersion().before(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+            in.readString(); // discard the old policy name
+        }
+        final EnrichPolicy policy = new EnrichPolicy(in);
+        final Map<String, String> concreteIndices;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+            concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            EsIndex esIndex = readEsIndex(in);
+            if (esIndex.concreteIndices().size() > 1) {
+                throw new IllegalStateException("expected a single enrich index; got " + esIndex);
+            }
+            concreteIndices = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
+        }
+        return new Enrich(source, child, mode, policyName, matchField, policy, concreteIndices, readNamedExpressions(in));
     }
 
     static void writeEnrich(PlanStreamOutput out, Enrich enrich) throws IOException {
@@ -757,9 +793,22 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(enrich.child());
         out.writeExpression(enrich.policyName());
         out.writeNamedExpression(enrich.matchField());
-        out.writeString(enrich.policy().policyName());
-        enrich.policy().policy().writeTo(out);
-        writeEsIndex(out, enrich.policy().index().get());
+        if (out.getTransportVersion().before(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+            out.writeString(BytesRefs.toString(enrich.policyName().fold())); // old policy name
+        }
+        enrich.policy().writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+            out.writeMap(enrich.concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            Map<String, String> concreteIndices = enrich.concreteIndices();
+            if (concreteIndices.keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
+                String enrichIndex = concreteIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                EsIndex esIndex = new EsIndex(enrichIndex, Map.of(), Set.of(enrichIndex));
+                writeEsIndex(out, esIndex);
+            } else {
+                throw new IllegalStateException("expected a single enrich index; got " + concreteIndices);
+            }
+        }
         writeNamedExpressions(out, enrich.enrichFields());
     }
 
@@ -1202,6 +1251,8 @@ public final class PlanNamedTypes {
         entry(name(ToDatetime.class), ToDatetime::new),
         entry(name(ToDegrees.class), ToDegrees::new),
         entry(name(ToDouble.class), ToDouble::new),
+        entry(name(ToGeoShape.class), ToGeoShape::new),
+        entry(name(ToCartesianShape.class), ToCartesianShape::new),
         entry(name(ToGeoPoint.class), ToGeoPoint::new),
         entry(name(ToIP.class), ToIP::new),
         entry(name(ToInteger.class), ToInteger::new),

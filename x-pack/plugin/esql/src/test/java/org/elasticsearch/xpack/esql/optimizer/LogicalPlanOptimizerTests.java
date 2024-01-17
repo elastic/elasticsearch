@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -82,7 +80,6 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -128,19 +125,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        EnrichPolicyResolution policy = AnalyzerTestUtils.loadEnrichPolicyResolution(
+        var enrichResolution = AnalyzerTestUtils.loadEnrichPolicyResolution(
             "languages_idx",
             "id",
             "languages_idx",
             "mapping-languages.json"
         );
         analyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResult,
-                new EnrichResolution(Set.of(policy), Set.of("languages_idx", "something"))
-            ),
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
             TEST_VERIFIER
         );
     }

@@ -1263,25 +1263,25 @@ public class SearchResponseMergerTests extends ESTestCase {
                         new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                             .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
                     ),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
-            )
-        ) {
-            searchResponseMerger.add(searchResponsePartialAggs);
-            searchResponseMerger.add(searchResponseRemote1);
-            SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
-            try {
-                SearchHits hits = mergedResponse.getHits();
-                assertThat(hits.getTotalHits().value, equalTo(2L)); // should be 2 hits from remote1
-                SearchHit hit1 = hits.getHits()[0];
-                String expectedHit1 = """
-                    {
-                      "_index" : "remote1:foo_idx",
-                      "_score" : 2.0,
-                      "sort" : [
-                        2.0
-                      ]
-                    }""";
-                assertEquals(hit1.toString(), expectedHit1);
+                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                )
+            ) {
+                searchResponseMerger.add(searchResponsePartialAggs);
+                searchResponseMerger.add(searchResponseRemote1);
+                SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    assertThat(hits.getTotalHits().value, equalTo(2L)); // should be 2 hits from remote1
+                    SearchHit hit1 = hits.getHits()[0];
+                    String expectedHit1 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit1.toString(), expectedHit1);
 
                     SearchHit hit2 = hits.getHits()[1];
                     String expectedHit2 = """
@@ -1384,24 +1384,24 @@ public class SearchResponseMergerTests extends ESTestCase {
                         new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                             .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
                     ),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
-            )
-        ) {
-            searchResponseMerger.add(searchResponseRemote2);
-            searchResponseMerger.add(searchResponseRemote1);
-            SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
-            try {
-                SearchHits hits = mergedResponse.getHits();
-                SearchHit hit1 = hits.getHits()[0];
-                String expectedHit1 = """
-                    {
-                      "_index" : "remote1:foo_idx",
-                      "_score" : 2.0,
-                      "sort" : [
-                        2.0
-                      ]
-                    }""";
-                assertEquals(hit1.toString(), expectedHit1);
+                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                )
+            ) {
+                searchResponseMerger.add(searchResponseRemote2);
+                searchResponseMerger.add(searchResponseRemote1);
+                SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    SearchHit hit1 = hits.getHits()[0];
+                    String expectedHit1 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit1.toString(), expectedHit1);
 
                     SearchHit hit2 = hits.getHits()[1];
                     String expectedHit2 = """

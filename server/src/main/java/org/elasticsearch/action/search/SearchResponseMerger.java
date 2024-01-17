@@ -219,21 +219,21 @@ public final class SearchResponseMerger implements Releasable {
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);
             return new SearchResponse(
-            mergedSearchHits,
-            reducedAggs,
-            suggest,
-            topDocsStats.timedOut,
-            topDocsStats.terminatedEarly,
-            profileShardResults,
-            numReducePhases,
-            null,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            searchResponseTookMetrics.record(searchTimeProvider.buildTookInMillis()),
-            shardFailures,
-            clusters,
-            null
+                mergedSearchHits,
+                reducedAggs,
+                suggest,
+                topDocsStats.timedOut,
+                topDocsStats.terminatedEarly,
+                profileShardResults,
+                numReducePhases,
+                null,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                searchResponseTookMetrics.record(searchTimeProvider.buildTookInMillis()),
+                shardFailures,
+                clusters,
+                null
             );
         } finally {
             mergedSearchHits.decRef();

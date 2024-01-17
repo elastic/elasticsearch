@@ -2111,6 +2111,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 
+    /*
+     * Assert.assertThat (inherited from LuceneTestCase superclass) has been deprecated.
+     * So make sure that all assertThat references use the non-deprecated version.
+     */
     public static <T> void assertThat(T actual, Matcher<? super T> matcher) {
         MatcherAssert.assertThat(actual, matcher);
     }

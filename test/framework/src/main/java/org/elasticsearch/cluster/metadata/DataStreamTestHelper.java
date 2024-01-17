@@ -539,7 +539,7 @@ public final class DataStreamTestHelper {
         AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
         when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        MappingLookup mappingLookup = null;
+        MappingLookup mappingLookup = MappingLookup.EMPTY;
         if (dataStream != null) {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
@@ -616,6 +616,7 @@ public final class DataStreamTestHelper {
             DocumentMapper documentMapper = mock(DocumentMapper.class);
             when(documentMapper.mapping()).thenReturn(mapping);
             when(documentMapper.mappingSource()).thenReturn(mapping.toCompressedXContent());
+            when(documentMapper.mappers()).thenReturn(mappingLookup);
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);
             when(documentMapper.routingFieldMapper()).thenReturn(routingFieldMapper);

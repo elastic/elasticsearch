@@ -40,6 +40,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -82,6 +83,8 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
+        Map<String, Set<String>> fieldsForModels = randomFieldsForModels(true);
+
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
             .creationDate(randomLong())
@@ -105,6 +108,7 @@ public class IndexMetadataTests extends ESTestCase {
             .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
+            .fieldsForModels(fieldsForModels)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -138,6 +142,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getStats(), fromXContentMeta.getStats());
         assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
         assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
+        assertEquals(metadata.getFieldsForModels(), fromXContentMeta.getFieldsForModels());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -159,8 +164,9 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
             assertEquals(metadata.getStats(), deserialized.getStats());
-            assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
-            assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
+            assertEquals(metadata.getForecastedWriteLoad(), deserialized.getForecastedWriteLoad());
+            assertEquals(metadata.getForecastedShardSizeInBytes(), deserialized.getForecastedShardSizeInBytes());
+            assertEquals(metadata.getFieldsForModels(), deserialized.getFieldsForModels());
         }
     }
 
@@ -544,8 +550,35 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
+    public void testFieldsForModels() {
+        Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
+        IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
+        assertThat(idxMeta1.getFieldsForModels(), equalTo(Map.of()));
+
+        Map<String, Set<String>> fieldsForModels = randomFieldsForModels(false);
+        IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).fieldsForModels(fieldsForModels).build();
+        assertThat(idxMeta2.getFieldsForModels(), equalTo(fieldsForModels));
+    }
+
     private static Settings indexSettingsWithDataTier(String dataTier) {
         return indexSettings(IndexVersion.current(), 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
+    }
+
+    private static Map<String, Set<String>> randomFieldsForModels(boolean allowNull) {
+        if (allowNull && randomBoolean()) {
+            return null;
+        }
+
+        Map<String, Set<String>> fieldsForModels = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(0, 5); i++) {
+            Set<String> fields = new HashSet<>();
+            for (int j = 0; j < randomIntBetween(1, 4); j++) {
+                fields.add(randomAlphaOfLengthBetween(4, 10));
+            }
+            fieldsForModels.put(randomAlphaOfLengthBetween(4, 10), fields);
+        }
+
+        return fieldsForModels;
     }
 
     private IndexMetadataStats randomIndexStats(int numberOfShards) {

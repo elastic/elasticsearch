@@ -78,6 +78,7 @@ import java.util.OptionalDouble;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.elasticsearch.cluster.metadata.Metadata.DEDUPLICATED_MAPPINGS_PARAM;
@@ -540,6 +541,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String KEY_SHARD_SIZE_FORECAST = "shard_size_forecast";
 
+    public static final String KEY_FIELDS_FOR_MODELS = "fields_for_models";
+
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
     static final TransportVersion SYSTEM_INDEX_FLAG_ADDED = TransportVersions.V_7_10_0;
@@ -629,6 +632,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Double writeLoadForecast;
     @Nullable
     private final Long shardSizeInBytesForecast;
+    // Key: model ID, Value: Fields that use model
+    private final ImmutableOpenMap<String, Set<String>> fieldsForModels;
 
     private IndexMetadata(
         final Index index,
@@ -674,7 +679,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final IndexVersion indexCompatibilityVersion,
         @Nullable final IndexMetadataStats stats,
         @Nullable final Double writeLoadForecast,
-        @Nullable Long shardSizeInBytesForecast
+        @Nullable Long shardSizeInBytesForecast,
+        final ImmutableOpenMap<String, Set<String>> fieldsForModels
     ) {
         this.index = index;
         this.version = version;
@@ -730,6 +736,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.writeLoadForecast = writeLoadForecast;
         this.shardSizeInBytesForecast = shardSizeInBytesForecast;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
+        this.fieldsForModels = Objects.requireNonNull(fieldsForModels);
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
@@ -780,7 +787,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.fieldsForModels
         );
     }
 
@@ -838,7 +846,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.fieldsForModels
         );
     }
 
@@ -894,7 +903,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.fieldsForModels
         );
     }
 
@@ -950,7 +960,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.fieldsForModels
         );
     }
 
@@ -1002,7 +1013,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.fieldsForModels
         );
     }
 
@@ -1206,6 +1218,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return shardSizeInBytesForecast == null ? OptionalLong.empty() : OptionalLong.of(shardSizeInBytesForecast);
     }
 
+    public Map<String, Set<String>> getFieldsForModels() {
+        return fieldsForModels;
+    }
+
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
     public static final String INDEX_RESIZE_SOURCE_NAME_KEY = "index.resize.source.name";
     public static final Setting<String> INDEX_RESIZE_SOURCE_UUID = Setting.simpleString(INDEX_RESIZE_SOURCE_UUID_KEY);
@@ -1404,6 +1420,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (rolloverInfos.equals(that.rolloverInfos) == false) {
             return false;
         }
+        if (fieldsForModels.equals(that.fieldsForModels) == false) {
+            return false;
+        }
         if (isSystem != that.isSystem) {
             return false;
         }
@@ -1424,6 +1443,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + Arrays.hashCode(primaryTerms);
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + rolloverInfos.hashCode();
+        result = 31 * result + fieldsForModels.hashCode();
         result = 31 * result + Boolean.hashCode(isSystem);
         return result;
     }
@@ -1479,6 +1499,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final IndexMetadataStats stats;
         private final Double indexWriteLoadForecast;
         private final Long shardSizeInBytesForecast;
+        private final Diff<Map<String, Set<String>>> fieldsForModels;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1515,6 +1536,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             stats = after.stats;
             indexWriteLoadForecast = after.writeLoadForecast;
             shardSizeInBytesForecast = after.shardSizeInBytesForecast;
+            fieldsForModels = DiffableUtils.diff(
+                before.fieldsForModels,
+                after.fieldsForModels,
+                DiffableUtils.getStringKeySerializer(),
+                DiffableUtils.StringSetValueSerializer.getInstance()
+            );
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -1574,6 +1601,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexWriteLoadForecast = null;
                 shardSizeInBytesForecast = null;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+                fieldsForModels = DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    DiffableUtils.StringSetValueSerializer.getInstance()
+                );
+            } else {
+                fieldsForModels = DiffableUtils.emptyDiff();
+            }
         }
 
         @Override
@@ -1609,6 +1645,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+                fieldsForModels.writeTo(out);
+            }
         }
 
         @Override
@@ -1638,6 +1677,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
+            builder.fieldsForModels(fieldsForModels.apply(part.fieldsForModels));
             return builder.build(true);
         }
     }
@@ -1705,6 +1745,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            builder.fieldsForModels(
+                in.readImmutableMap(StreamInput::readString, i -> i.readCollectionAsImmutableSet(StreamInput::readString))
+            );
+        }
         return builder.build(true);
     }
 
@@ -1750,6 +1795,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalWriteable(stats);
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            out.writeMap(fieldsForModels, StreamOutput::writeStringCollection);
         }
     }
 
@@ -1800,6 +1848,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;
         private Long shardSizeInBytesForecast = null;
+        private final ImmutableOpenMap.Builder<String, Set<String>> fieldsForModels;
 
         public Builder(String index) {
             this.index = index;
@@ -1807,6 +1856,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.customMetadata = ImmutableOpenMap.builder();
             this.inSyncAllocationIds = new HashMap<>();
             this.rolloverInfos = ImmutableOpenMap.builder();
+            this.fieldsForModels = ImmutableOpenMap.builder();
             this.isSystem = false;
         }
 
@@ -1831,6 +1881,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats = indexMetadata.stats;
             this.indexWriteLoadForecast = indexMetadata.writeLoadForecast;
             this.shardSizeInBytesForecast = indexMetadata.shardSizeInBytesForecast;
+            this.fieldsForModels = ImmutableOpenMap.builder(indexMetadata.fieldsForModels);
         }
 
         public Builder index(String index) {
@@ -2060,6 +2111,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
+        public Builder fieldsForModels(Map<String, Set<String>> fieldsForModels) {
+            processFieldsForModels(this.fieldsForModels, fieldsForModels);
+            return this;
+        }
+
         public IndexMetadata build() {
             return build(false);
         }
@@ -2254,7 +2310,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 SETTING_INDEX_VERSION_COMPATIBILITY.get(settings),
                 stats,
                 indexWriteLoadForecast,
-                shardSizeInBytesForecast
+                shardSizeInBytesForecast,
+                fieldsForModels.build()
             );
         }
 
@@ -2380,6 +2437,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.field(KEY_SHARD_SIZE_FORECAST, indexMetadata.shardSizeInBytesForecast);
             }
 
+            if (indexMetadata.fieldsForModels.isEmpty() == false) {
+                builder.field(KEY_FIELDS_FOR_MODELS, indexMetadata.fieldsForModels);
+            }
+
             builder.endObject();
         }
 
@@ -2456,6 +2517,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             break;
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));
+                            break;
+                        case KEY_FIELDS_FOR_MODELS:
+                            // TODO: Could probably make this more efficient
+                            Map<String, Set<String>> fieldsForModels = parser.map(HashMap::new, XContentParser::list)
+                                .entrySet()
+                                .stream()
+                                .collect(
+                                    Collectors.toMap(
+                                        Map.Entry::getKey,
+                                        v -> v.getValue().stream().map(Object::toString).collect(Collectors.toUnmodifiableSet())
+                                    )
+                                );
+                            builder.fieldsForModels(fieldsForModels);
                             break;
                         default:
                             // assume it's custom index metadata
@@ -2651,6 +2725,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(new MappingMetadata(mappingType, mapping));
             } else if (mapping.size() > 1) {
                 builder.putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping));
+            }
+        }
+
+        private static void processFieldsForModels(
+            ImmutableOpenMap.Builder<String, Set<String>> builder,
+            Map<String, Set<String>> fieldsForModels
+        ) {
+            builder.clear();
+            if (fieldsForModels != null) {
+                // Ensure that all field sets contained in the processed map are immutable
+                fieldsForModels.forEach((k, v) -> builder.put(k, Set.copyOf(v)));
             }
         }
     }

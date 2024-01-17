@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -121,6 +122,8 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());
         assertFalse(mappingLookup.fieldMappers().iterator().hasNext());
         assertEquals(0, mappingLookup.getMatchingFieldNames("*").size());
+        assertNotNull(mappingLookup.getFieldsForModels());
+        assertTrue(mappingLookup.getFieldsForModels().isEmpty());
     }
 
     public void testValidateDoesNotShadow() {
@@ -186,6 +189,22 @@ public class MappingLookupTests extends ESTestCase {
                     : "Field [metric] attempted to shadow a time_series_metric"
             )
         );
+    }
+
+    public void testFieldsForModels() {
+        MockInferenceModelFieldType fieldType = new MockInferenceModelFieldType("test_field_name", "test_model_id");
+        MappingLookup mappingLookup = createMappingLookup(
+            Collections.singletonList(new MockFieldMapper(fieldType)),
+            emptyList(),
+            emptyList()
+        );
+        assertEquals(1, size(mappingLookup.fieldMappers()));
+        assertEquals(fieldType, mappingLookup.getFieldType("test_field_name"));
+
+        Map<String, Set<String>> fieldsForModels = mappingLookup.getFieldsForModels();
+        assertNotNull(fieldsForModels);
+        assertEquals(1, fieldsForModels.size());
+        assertEquals(Collections.singleton("test_field_name"), fieldsForModels.get("test_model_id"));
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

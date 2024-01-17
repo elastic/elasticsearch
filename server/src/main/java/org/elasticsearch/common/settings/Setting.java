@@ -656,7 +656,13 @@ public class Setting<T> implements ToXContentObject {
         }
         String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release, use [{}] instead";
         deprecatedKeyStream(settings).forEach(deprecatedReplacement -> {
-            Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, deprecatedReplacement.v1(), message, deprecatedReplacement.v1(), deprecatedReplacement.v2());
+            Settings.DeprecationLoggerHolder.deprecationLogger.warn(
+                DeprecationCategory.SETTINGS,
+                deprecatedReplacement.v1(),
+                message,
+                deprecatedReplacement.v1(),
+                deprecatedReplacement.v2()
+            );
         });
     }
 

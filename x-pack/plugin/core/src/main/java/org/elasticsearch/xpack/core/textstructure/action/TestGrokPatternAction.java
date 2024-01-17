@@ -40,46 +40,46 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
     public static class Request extends ActionRequest {
 
         public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
-        public static final ParseField TEXTS = new ParseField("texts");
+        public static final ParseField TEXT = new ParseField("text");
 
         private static final ObjectParser<Request.Builder, Void> PARSER = createParser();
 
         private static ObjectParser<Request.Builder, Void> createParser() {
             ObjectParser<Request.Builder, Void> parser = new ObjectParser<>("textstructure/testgrokpattern", false, Request.Builder::new);
             parser.declareString(Request.Builder::grokPattern, GROK_PATTERN);
-            parser.declareStringArray(Request.Builder::texts, TEXTS);
+            parser.declareStringArray(Request.Builder::texts, TEXT);
             return parser;
         }
 
         public static class Builder {
             private String grokPattern;
-            private List<String> texts;
+            private List<String> text;
 
             public void grokPattern(String grokPattern) {
                 this.grokPattern = grokPattern;
             }
 
-            public void texts(List<String> texts) {
-                this.texts = texts;
+            public void texts(List<String> text) {
+                this.text = text;
             }
 
             public Request build() {
-                return new Request(grokPattern, texts);
+                return new Request(grokPattern, text);
             }
         }
 
         private final String grokPattern;
-        private final List<String> texts;
+        private final List<String> text;
 
-        private Request(String grokPattern, List<String> texts) {
+        private Request(String grokPattern, List<String> text) {
             this.grokPattern = grokPattern;
-            this.texts = texts;
+            this.text = text;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             grokPattern = in.readString();
-            texts = in.readStringCollectionAsList();
+            text = in.readStringCollectionAsList();
         }
 
         public static Request parseRequest(XContentParser parser) throws IOException {
@@ -90,15 +90,15 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(grokPattern);
-            out.writeStringCollection(texts);
+            out.writeStringCollection(text);
         }
 
         public String getGrokPattern() {
             return grokPattern;
         }
 
-        public List<String> getTexts() {
-            return texts;
+        public List<String> getText() {
+            return text;
         }
 
         @Override
@@ -107,8 +107,8 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
             if (grokPattern == null) {
                 validationException = addValidationError("[" + GROK_PATTERN.getPreferredName() + "] missing", validationException);
             }
-            if (texts == null) {
-                validationException = addValidationError("[" + TEXTS.getPreferredName() + "] missing", validationException);
+            if (text == null) {
+                validationException = addValidationError("[" + TEXT.getPreferredName() + "] missing", validationException);
             }
             return validationException;
         }
@@ -118,17 +118,17 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(grokPattern, request.grokPattern) && Objects.equals(texts, request.texts);
+            return Objects.equals(grokPattern, request.grokPattern) && Objects.equals(text, request.text);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(grokPattern, texts);
+            return Objects.hash(grokPattern, text);
         }
 
         @Override
         public String toString() {
-            return "Request{" + "grokPattern='" + grokPattern + '\'' + ", texts=" + texts + '}';
+            return "Request{" + "grokPattern='" + grokPattern + '\'' + ", text=" + text + '}';
         }
     }
 
@@ -150,10 +150,10 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
             builder.startObject();
             builder.startArray("matches");
             for (Map<String, Object> ranges : ranges) {
-                if (ranges == null) {
-                    builder.nullValue();
-                } else {
-                    builder.startObject();
+                builder.startObject();
+                builder.field("matched", ranges != null);
+                if (ranges != null) {
+                    builder.startObject("fields");
                     for (Map.Entry<String, Object> rangeOrList : ranges.entrySet()) {
                         if (rangeOrList.getValue() instanceof GrokCaptureExtracter.Range) {
                             GrokCaptureExtracter.Range range = (GrokCaptureExtracter.Range) rangeOrList.getValue();
@@ -177,6 +177,7 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
                     }
                     builder.endObject();
                 }
+                builder.endObject();
             }
             builder.endArray();
             builder.endObject();

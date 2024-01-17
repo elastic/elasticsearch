@@ -345,6 +345,7 @@ public class JwtRestIT extends ESRestTestCase {
                 assertMap(response, User.Fields.AUTHENTICATION_REALM),
                 hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
             );
+
             assertThat(description, assertList(response, User.Fields.ROLES), contains("abc"));
             assertThat(description, assertMap(response, User.Fields.METADATA), hasEntry("jwt_token_type", "id_token"));
 

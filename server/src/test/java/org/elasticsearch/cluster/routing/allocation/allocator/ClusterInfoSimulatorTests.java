@@ -197,14 +197,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var fromNodeId = "node-0";
         var toNodeId = "node-1";
 
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            toNodeId,
-            fromNodeId,
-            true,
-            INITIALIZING,
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
+        var shard = aShardRouting(new ShardId("my-index", "_na_", 0), toNodeId, true, INITIALIZING).withRelocatingNodeId(fromNodeId)
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
             .withNode(fromNodeId, new DiskUsageBuilder(1000, 900))
@@ -236,14 +231,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var fromNodeId = "node-0";
         var toNodeId = "node-1";
 
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            toNodeId,
-            fromNodeId,
-            true,
-            INITIALIZING,
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
+        var shard = aShardRouting(new ShardId("my-index", "_na_", 0), toNodeId, true, INITIALIZING).withRelocatingNodeId(fromNodeId)
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
             .withNode(fromNodeId, new DiskUsageBuilder("/data-1", 1000, 500), new DiskUsageBuilder("/data-2", 1000, 750))
@@ -378,14 +368,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var fromNodeId = "node-0";
         var toNodeId = "node-1";
 
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            toNodeId,
-            fromNodeId,
-            true,
-            INITIALIZING,
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
+        var shard = aShardRouting(new ShardId("my-index", "_na_", 0), toNodeId, true, INITIALIZING).withRelocatingNodeId(fromNodeId)
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
             .withNode(fromNodeId, new DiskUsageBuilder(1000, 1000))
@@ -466,14 +451,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var shard1 = newShardRouting("index-1", 0, "node-0", null, true, STARTED);
         addIndex(metadataBuilder, routingTableBuilder, shard1);
 
-        var shard2 = newShardRouting(
-            new ShardId("index-2", "_na_", 0),
-            "node-0",
-            "node-1",
-            true,
-            INITIALIZING,
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
+        var shard2 = aShardRouting(new ShardId("index-2", "_na_", 0), "node-0", true, INITIALIZING).withRelocatingNodeId("node-1")
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
         addIndex(metadataBuilder, routingTableBuilder, shard2);
 
         var shard3 = newShardRouting("index-3", 0, "node-1", null, true, STARTED);
@@ -540,14 +520,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var shard1 = newShardRouting("index-1", 0, "node-0", null, true, STARTED);
         addIndex(metadataBuilder, routingTableBuilder, shard1);
 
-        var shard2 = newShardRouting(
-            new ShardId("index-2", "_na_", 0),
-            "node-0",
-            "node-1",
-            true,
-            INITIALIZING,
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
+        var shard2 = aShardRouting(new ShardId("index-2", "_na_", 0), "node-0", true, INITIALIZING).withRelocatingNodeId("node-1")
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
         addIndex(metadataBuilder, routingTableBuilder, shard2);
 
         var shard3 = newShardRouting("index-3", 0, "node-1", null, true, STARTED);

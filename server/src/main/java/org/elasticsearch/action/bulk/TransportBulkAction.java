@@ -969,6 +969,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         );
     }
 
+    /**
+     * Determines if an index name is associated with either an existing data stream or a template
+     * for one that has the failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @param epochMillis A timestamp to use when resolving date math in the index name.
+     * @return true if the given index name corresponds to a data stream with a failure store,
+     * or if it matches a template that has a data stream failure store enabled.
+     */
     static boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis) {
         return DataStream.isFailureStoreEnabled()
             && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
@@ -976,6 +985,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             ).orElse(false);
     }
 
+    /**
+     * Determines if an index name is associated with an existing data stream that has a failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @param epochMillis A timestamp to use when resolving date math in the index name.
+     * @return true if the given index name corresponds to an existing data stream with a failure store enabled.
+     */
     private static Optional<Boolean> resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
         if (indexName == null) {
             return Optional.empty();
@@ -1002,6 +1018,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return Optional.of(targetDataStream != null && targetDataStream.isFailureStore());
     }
 
+    /**
+     * Determines if an index name is associated with an index template that has a data stream failure store enabled.
+     * @param indexName The index name to check.
+     * @param metadata Cluster state metadata.
+     * @return true if the given index name corresponds to an index template with a data stream failure store enabled.
+     */
     private static Optional<Boolean> resolveFailureStoreFromTemplate(String indexName, Metadata metadata) {
         if (indexName == null) {
             return Optional.empty();
@@ -1023,6 +1045,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return Optional.empty();
     }
 
+    /**
+     * Manages mutations to a bulk request that arise from the application of ingest pipelines. The modifier acts as an iterator over the
+     * documents of a bulk request, keeping a record of all dropped and failed write requests in the overall bulk operation.
+     * Once all pipelines have been applied, the modifier is used to create a new bulk request that will be used for executing the
+     * remaining writes. When this final bulk operation is completed, the modifier is used to combine the results with those from the
+     * ingest service to create the final bulk response.
+     */
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
 
         final BulkRequest bulkRequest;
@@ -1049,6 +1078,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return (currentSlot + 1) < bulkRequest.requests().size();
         }
 
+        /**
+         * Creates a new bulk request containing all documents from the original bulk request that have not been marked as failed
+         * or dropped. Any failed or dropped documents are tracked as a side effect of this call so that they may be reflected in the
+         * final bulk response.
+         *
+         * @return A new bulk request without the write operations removed during any ingest pipeline executions.
+         */
         BulkRequest getBulkRequest() {
             if (itemResponses.isEmpty()) {
                 return bulkRequest;
@@ -1071,6 +1107,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
+        /**
+         * If documents were dropped or failed in ingest, this method wraps the action listener that will be notified when the
+         * updated bulk operation is completed. The wrapped listener combines the dropped and failed document results from the ingest
+         * service with the results returned from running the remaining write operations.
+         *
+         * @param ingestTookInMillis Time elapsed for ingestion to be passed to final result.
+         * @param actionListener The action listener that expects the final bulk response.
+         * @return An action listener that combines ingest failure results with the results from writing the remaining documents.
+         */
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
                 return actionListener.map(
@@ -1091,6 +1136,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
+        /**
+         * Mark the document at the given slot in the bulk request as having been dropped by the ingest service.
+         * @param slot the slot in the bulk request to mark as dropped.
+         */
         synchronized void markItemAsDropped(int slot) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             failedSlots.set(slot);
@@ -1111,6 +1160,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             );
         }
 
+        /**
+         * Mark the document at the given slot in the bulk request as having failed in the ingest service.
+         * @param slot the slot in the bulk request to mark as failed.
+         * @param e the failure encountered.
+         */
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             // We hit a error during preprocessing a request, so we:
@@ -1122,6 +1176,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             itemResponses.add(BulkItemResponse.failure(slot, indexRequest.opType(), failure));
         }
 
+        /**
+         * Mark the document at the given slot in the bulk request as having failed in the ingest service. The document will be redirected
+         * to a data stream's failure store.
+         * @param slot the slot in the bulk request to redirect.
+         * @param targetIndexName the index that the document was targetting at the time of failure.
+         * @param e the failure encountered.
+         */
         public void markItemForFailureStore(int slot, String targetIndexName, Exception e) {
             if (DataStream.isFailureStoreEnabled() == false) {
                 markItemAsFailed(slot, e);

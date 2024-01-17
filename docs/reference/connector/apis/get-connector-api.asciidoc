@@ -1,9 +1,10 @@
 [[get-connector-api]]
 === Get connector API
-preview::[]
 ++++
 <titleabbrev>Get connector</titleabbrev>
 ++++
+
+preview::[]
 
 Retrieves the details about a connector.
 

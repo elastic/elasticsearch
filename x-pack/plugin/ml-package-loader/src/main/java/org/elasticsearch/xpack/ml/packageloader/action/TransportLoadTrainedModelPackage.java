@@ -106,6 +106,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         } catch (Exception e) {
             taskManager.unregister(downloadTask);
             listener.onFailure(e);
+            return;
         }
 
         if (request.isWaitForCompletion() == false) {

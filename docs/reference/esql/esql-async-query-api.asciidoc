@@ -93,8 +93,9 @@ parameters:
 Timeout duration to wait for the request to finish. Defaults to a 1 second,
 meaning the request waits for 1 second for the query results.
 
-If this parameter is specified and the request completes during this period,
-complete results are returned.
+If the query completes during this period then results will be
+returned. Otherwise, a query `id` is returned that can later be used to
+retrieve the results.
 
 If the request does not complete during this period, a query
 <<esql-async-query-api-response-body-query-id,id>> is returned.

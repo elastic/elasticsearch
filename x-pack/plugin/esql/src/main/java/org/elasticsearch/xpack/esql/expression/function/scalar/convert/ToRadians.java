@@ -39,8 +39,8 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
         )
     );
 
-    @FunctionInfo(returnType = "double")
-    public ToRadians(Source source, @Param(name = "v", type = { "double", "long", "unsigned_long", "integer" }) Expression field) {
+    @FunctionInfo(returnType = "double", description = "Converts a number in degrees to radians.")
+    public ToRadians(Source source, @Param(name = "v", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 

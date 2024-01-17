@@ -59,22 +59,23 @@ public class PassThroughObjectMapper extends ObjectMapper {
         }
     }
 
-    private final Explicit<Boolean> containsDimensions;
+    // If set, its subfields are marked as time-series dimensions (for the types supporting this).
+    private final Explicit<Boolean> timeSeriesDimensionSubFields;
 
     PassThroughObjectMapper(
         String name,
         Explicit<Boolean> enabled,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
-        Explicit<Boolean> containsDimensions
+        Explicit<Boolean> timeSeriesDimensionSubFields
     ) {
         // Subobjects are not currently supported.
         super(name, name, enabled, Explicit.IMPLICIT_FALSE, dynamic, mappers);
-        this.containsDimensions = containsDimensions;
+        this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
     }
 
     public boolean containsDimensions() {
-        return containsDimensions.value();
+        return timeSeriesDimensionSubFields.value();
     }
 
     @Override
@@ -82,7 +83,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(name());
         builder.enabled = enabled;
         builder.dynamic = dynamic;
-        builder.containsDimensions = containsDimensions;
+        builder.containsDimensions = timeSeriesDimensionSubFields;
         return builder;
     }
 
@@ -91,9 +92,9 @@ public class PassThroughObjectMapper extends ObjectMapper {
         final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
         PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
 
-        final Explicit<Boolean> containsDimensions = (mergeWithObject.containsDimensions.explicit())
-            ? mergeWithObject.containsDimensions
-            : this.containsDimensions;
+        final Explicit<Boolean> containsDimensions = (mergeWithObject.timeSeriesDimensionSubFields.explicit())
+            ? mergeWithObject.timeSeriesDimensionSubFields
+            : this.timeSeriesDimensionSubFields;
 
         return new PassThroughObjectMapper(
             simpleName(),
@@ -108,8 +109,8 @@ public class PassThroughObjectMapper extends ObjectMapper {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName());
         builder.field("type", CONTENT_TYPE);
-        if (containsDimensions.explicit()) {
-            builder.field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, containsDimensions.value());
+        if (timeSeriesDimensionSubFields.explicit()) {
+            builder.field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, timeSeriesDimensionSubFields.value());
         }
         if (dynamic != null) {
             builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));

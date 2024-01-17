@@ -159,9 +159,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
             Map<String, DocumentField> searchHitFields = new HashMap<>();
             scoreDocs[i] = docBuilder.apply(docId, score);
-            var h = new SearchHit(docId, Integer.toString(i));
-            hits[i] = h.asUnpooled();
-            h.decRef();
+            hits[i] = SearchHit.unpooled(docId, Integer.toString(i));
             hits[i].addDocumentFields(searchHitFields, Collections.emptyMap());
             hits[i].score(score);
         }
@@ -287,9 +285,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
     public void testGetProperty() {
         // Create a SearchHit containing: { "foo": 1000.0 } and use it to initialize an InternalTopHits instance.
-        var pooledHit = new SearchHit(0);
-        SearchHit hit = pooledHit.asUnpooled();
-        pooledHit.decRef();
+        SearchHit hit = SearchHit.unpooled(0);
         hit = hit.sourceRef(Source.fromMap(Map.of("foo", 1000.0), XContentType.YAML).internalSourceRef());
         hit.sortValues(new Object[] { 10.0 }, new DocValueFormat[] { DocValueFormat.RAW });
         hit.score(1.0f);
@@ -309,13 +305,9 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("_sort")));
 
         // Two SearchHit instances are not allowed, only the first will be used without assertion.
-        var hits2 = new SearchHits(new SearchHit[] { hit, hit }, null, 0);
-        try {
-            InternalTopHits internalTopHits3 = new InternalTopHits("test", 0, 0, null, hits2, null);
-            expectThrows(IllegalArgumentException.class, () -> internalTopHits3.getProperty(List.of("foo")));
-        } finally {
-            hits2.decRef();
-        }
+        hits = SearchHits.unpooled(new SearchHit[] { hit, hit }, null, 0);
+        InternalTopHits internalTopHits3 = new InternalTopHits("test", 0, 0, null, hits, null);
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits3.getProperty(List.of("foo")));
     }
 
     @Override
@@ -427,7 +419,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
                     searchHits.getTotalHits().value + between(1, 100),
                     randomFrom(TotalHits.Relation.values())
                 );
-                searchHits = SearchHits.unpooled(searchHits.asUnpooled().getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
+                searchHits = SearchHits.unpooled(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
             }
             case 5 -> {
                 if (metadata == null) {

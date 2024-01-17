@@ -272,12 +272,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    var h = SearchHit.readFrom(in);
-                    try {
-                        this.hit = h.asUnpooled();
-                    } finally {
-                        h.decRef();
-                    }
+                    this.hit = SearchHit.readFrom(in, false);
                 }
                 int contextSize = in.readInt();
                 this.contexts = Maps.newLinkedHashMapWithExpectedSize(contextSize);
@@ -401,9 +396,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 }
                 CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(-1, text, score, contexts);
                 option.setHit(hit);
-                if (hit != null) {
-                    hit.decRef();
-                }
                 return option;
             }
 

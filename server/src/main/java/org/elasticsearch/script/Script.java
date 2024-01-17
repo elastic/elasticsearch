@@ -556,9 +556,9 @@ public final class Script implements ToXContentObject, Writeable {
         this.lang = in.readOptionalString();
         this.idOrCode = in.readString();
         @SuppressWarnings("unchecked")
-        Map<String, String> options = (Map<String, String>) (Map) in.readMap();
+        Map<String, String> options = (Map<String, String>) (Map) in.readGenericMap();
         this.options = options;
-        this.params = in.readMap();
+        this.params = in.readGenericMap();
     }
 
     @Override

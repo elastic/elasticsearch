@@ -555,9 +555,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         SearchHit[] hits = new SearchHit[(int) totalHits];
-        var h = new SearchHit(1);
-        Arrays.fill(hits, h.asUnpooled());
-        h.decRef();
+        Arrays.fill(hits, SearchHit.unpooled(1));
         SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 

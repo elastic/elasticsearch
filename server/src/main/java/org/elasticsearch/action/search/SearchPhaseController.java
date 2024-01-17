@@ -398,7 +398,7 @@ public final class SearchPhaseController {
                 final int index = fetchResult.counterGetAndIncrement();
                 assert index < fetchResult.hits().getHits().length
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
-                SearchHit hit = fetchResult.hits().getAt(index);
+                SearchHit hit = fetchResult.hits().getHits()[index];
                 CompletionSuggestion.Entry.Option suggestOption = suggestionOptions.get(scoreDocIndex - currentOffset);
                 hit.score(shardDoc.score);
                 hit.shard(fetchResult.getSearchShardTarget());
@@ -451,7 +451,7 @@ public final class SearchPhaseController {
                 final int index = fetchResult.counterGetAndIncrement();
                 assert index < fetchResult.hits().getHits().length
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
-                final SearchHit searchHit = fetchResult.hits().getAt(index);
+                SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (reducedQueryPhase.rankCoordinatorContext != null) {
                     assert shardDoc instanceof RankDoc;

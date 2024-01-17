@@ -50,16 +50,17 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testShortcutQueryAndFetchOptimization() {
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            1,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                1,
+                exc -> {}
+            )
+        ) {
             boolean hasHits = randomBoolean();
             boolean profiled = hasHits && randomBoolean();
             final int numHits;
@@ -78,16 +79,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 try {
                     fetchResult.setSearchShardTarget(queryResult.getSearchShardTarget());
-                    SearchHits hits = new SearchHits(
-                        new SearchHit[] { new SearchHit(42) },
+                    SearchHits hits = SearchHits.unpooled(
+                        new SearchHit[] { SearchHit.unpooled(42) },
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                         1.0F
                     );
-                    try {
-                        fetchResult.shardResult(hits, fetchProfile(profiled));
-                    } finally {
-                        hits.decRef();
-                    }
+                    fetchResult.shardResult(hits, fetchProfile(profiled));
                     QueryFetchSearchResult fetchSearchResult = QueryFetchSearchResult.of(queryResult, fetchResult);
                     try {
                         fetchSearchResult.setShardIndex(0);
@@ -130,7 +127,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
@@ -148,16 +144,17 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFetchTwoDocument() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            2,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
             int resultSetSize = randomIntBetween(2, 10);
             boolean profiled = randomBoolean();
 
@@ -213,25 +210,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         SearchHits hits;
                         if (request.contextId().equals(ctx2)) {
                             fetchResult.setSearchShardTarget(shard2Target);
-                            hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(84) },
+                            hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(84) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
                         } else {
                             assertEquals(ctx1, request.contextId());
                             fetchResult.setSearchShardTarget(shard1Target);
-                            hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(42) },
+                            hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(42) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 1.0F
                             );
                         }
-                        try {
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
-                        } finally {
-                            hits.decRef();
-                        }
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
                         listener.onResponse(fetchResult);
                     } finally {
                         fetchResult.decRef();
@@ -266,23 +259,23 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
     public void testFailFetchOneDoc() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            2,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
             int resultSetSize = randomIntBetween(2, 10);
             boolean profiled = randomBoolean();
 
@@ -335,16 +328,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         FetchSearchResult fetchResult = new FetchSearchResult();
                         try {
                             fetchResult.setSearchShardTarget(shard1Target);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(84) },
+                            SearchHits hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(84) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
-                            try {
-                                fetchResult.shardResult(hits, fetchProfile(profiled));
-                            } finally {
-                                hits.decRef();
-                            }
+                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(fetchResult);
                         } finally {
                             fetchResult.decRef();
@@ -398,7 +387,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
@@ -409,16 +397,17 @@ public class FetchSearchPhaseTests extends ESTestCase {
         boolean profiled = randomBoolean();
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            numHits,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                numHits,
+                exc -> {}
+            )
+        ) {
             SearchShardTarget[] shardTargets = new SearchShardTarget[numHits];
             for (int i = 0; i < numHits; i++) {
                 shardTargets[i] = new SearchShardTarget("node1", new ShardId("test", "na", i), null);
@@ -451,16 +440,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         FetchSearchResult fetchResult = new FetchSearchResult();
                         try {
                             fetchResult.setSearchShardTarget(shardTargets[(int) request.contextId().getId()]);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit((int) (request.contextId().getId() + 1)) },
+                            SearchHits hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled((int) (request.contextId().getId() + 1)) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 100F
                             );
-                            try {
-                                fetchResult.shardResult(hits, fetchProfile(profiled));
-                            } finally {
-                                hits.decRef();
-                            }
+                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(fetchResult);
                         } finally {
                             fetchResult.decRef();
@@ -521,23 +506,23 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
     public void testExceptionFailsPhase() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            2,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
             int resultSetSize = randomIntBetween(2, 10);
             boolean profiled = randomBoolean();
 
@@ -594,22 +579,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         SearchHits hits;
                         if (request.contextId().getId() == 321) {
                             fetchResult.setSearchShardTarget(shard2Target);
-                            hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(84) },
+                            hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(84) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
                         } else {
                             fetchResult.setSearchShardTarget(shard1Target);
                             assertEquals(request, 123);
-                            hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(42) },
+                            hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(42) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 1.0F
                             );
                         }
                         fetchResult.shardResult(hits, fetchProfile(profiled));
-                        hits.decRef();
                         listener.onResponse(fetchResult);
                     } finally {
                         fetchResult.decRef();
@@ -637,23 +621,23 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
     }
 
     public void testCleanupIrrelevantContexts() { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            mockSearchPhaseContext.getRequest(),
-            2,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                2,
+                exc -> {}
+            )
+        ) {
             int resultSetSize = 1;
             boolean profiled = randomBoolean();
 
@@ -706,16 +690,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     try {
                         if (request.contextId().getId() == 321) {
                             fetchResult.setSearchShardTarget(shard1Target);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(84) },
+                            SearchHits hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(84) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
-                            try {
-                                fetchResult.shardResult(hits, fetchProfile(profiled));
-                            } finally {
-                                hits.decRef();
-                            }
+                            fetchResult.shardResult(hits, fetchProfile(profiled));
                         } else {
                             fail("requestID 123 should not be fetched but was");
                         }
@@ -761,7 +741,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
-            results.decRef();
         }
 
     }

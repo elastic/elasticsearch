@@ -20,7 +20,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -197,14 +197,14 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     }
                 }
             }""";
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("id2");
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("index_*"))
                 .template(new Template(null, CompressedXContent.fromJSON(mapping), null, null))
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
 
         String indexWithOldOriginationDate = "index_old";
         long originTimeMillis = System.currentTimeMillis() - TimeValue.timeValueDays(365).millis();
@@ -861,7 +861,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
@@ -870,7 +870,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     static void updateLifecycle(String dataStreamName, TimeValue dataRetention) {

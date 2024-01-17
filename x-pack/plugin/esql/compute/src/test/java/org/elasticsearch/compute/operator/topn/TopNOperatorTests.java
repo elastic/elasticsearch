@@ -69,6 +69,7 @@ import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
+import static org.elasticsearch.compute.operator.topn.TopNEncoderTests.randomPointAsWKB;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -174,15 +175,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                 .toArray(),
             equalTo(topN)
         );
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        /*
-         * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker.
-         */
-        return ByteSizeValue.ofBytes(775);
     }
 
     public void testRamBytesUsed() {
@@ -954,6 +946,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         Set<TopNOperator.SortOrder> uniqueOrders = new LinkedHashSet<>(sortingByColumns);
         List<List<List<Object>>> expectedValues = new ArrayList<>(rows);
         List<Block> blocks = new ArrayList<>(blocksCount);
+        boolean[] validSortKeys = new boolean[blocksCount];
         List<ElementType> elementTypes = new ArrayList<>(blocksCount);
         List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
 
@@ -967,22 +960,31 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
+            validSortKeys[type] = true;
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
                 List<Object> previousValue = null;
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
                 if (e == BYTES_REF) {
                     if (rarely()) {
-                        if (randomBoolean()) {
-                            // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
-                            randomValueSupplier = (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-                            // use the right BytesRef encoder (don't touch the bytes)
-                            encoders.add(TopNEncoder.IP);
-                        } else {
-                            // create a valid Version
-                            randomValueSupplier = (blockType) -> randomVersion().toBytesRef();
-                            // use the right BytesRef encoder (don't touch the bytes)
-                            encoders.add(TopNEncoder.VERSION);
-                        }
+                        randomValueSupplier = switch (randomInt(2)) {
+                            case 0 -> {
+                                // Simulate ips
+                                encoders.add(TopNEncoder.IP);
+                                yield (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            }
+                            case 1 -> {
+                                // Simulate version fields
+                                encoders.add(TopNEncoder.VERSION);
+                                yield (blockType) -> randomVersion().toBytesRef();
+                            }
+                            case 2 -> {
+                                // Simulate geo_shape and geo_point
+                                encoders.add(DEFAULT_UNSORTABLE);
+                                validSortKeys[type] = false;
+                                yield (blockType) -> randomPointAsWKB();
+                            }
+                            default -> throw new UnsupportedOperationException();
+                        };
                     } else {
                         encoders.add(UTF8);
                     }
@@ -1031,10 +1033,16 @@ public class TopNOperatorTests extends OperatorTestCase {
             }
         }
 
-        // simulate the LogicalPlanOptimizer.PruneRedundantSortClauses by eliminating duplicate sorting columns (same column, same asc/desc,
-        // same "nulls" handling)
-        while (uniqueOrders.size() < sortingByColumns) {
-            int column = randomIntBetween(0, blocksCount - 1);
+        /*
+         * Build sort keys, making sure not to include duplicates. This could
+         * build fewer than the desired sort columns, but it's more important
+         * to make sure that we don't include dups
+         * (to simulate LogicalPlanOptimizer.PruneRedundantSortClauses) and
+         * not to include sort keys that simulate geo objects. Those aren't
+         * sortable at all.
+         */
+        for (int i = 0; i < sortingByColumns; i++) {
+            int column = randomValueOtherThanMany(c -> false == validSortKeys[c], () -> randomIntBetween(0, blocksCount - 1));
             uniqueOrders.add(new TopNOperator.SortOrder(column, randomBoolean(), randomBoolean()));
         }
 

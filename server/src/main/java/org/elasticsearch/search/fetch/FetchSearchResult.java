@@ -47,7 +47,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public FetchSearchResult(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);
-        hits = SearchHits.readFrom(in);
+        hits = SearchHits.readFrom(in, true);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
     }
 

@@ -149,9 +149,9 @@ public class DataFrameDataExtractor {
             client,
             TransportSearchAction.TYPE,
             searchRequestBuilder.request(),
-            ActionListener.wrap(searchResponse -> {
+            listener.delegateFailureAndWrap((delegate, searchResponse) -> {
                 if (searchResponse.getHits().getHits().length == 0) {
-                    listener.onResponse(Collections.emptyList());
+                    delegate.onResponse(Collections.emptyList());
                     return;
                 }
 
@@ -161,8 +161,8 @@ public class DataFrameDataExtractor {
                     String[] extractedValues = extractValues(unpooled);
                     rows.add(extractedValues == null ? new Row(null, unpooled, true) : new Row(extractedValues, unpooled, false));
                 }
-                listener.onResponse(rows);
-            }, listener::onFailure)
+                delegate.onResponse(rows);
+            })
         );
     }
 
@@ -395,11 +395,8 @@ public class DataFrameDataExtractor {
             client,
             TransportSearchAction.TYPE,
             searchRequestBuilder.request(),
-            ActionListener.wrap(
-                searchResponse -> dataSummaryActionListener.onResponse(
-                    new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields)
-                ),
-                dataSummaryActionListener::onFailure
+            dataSummaryActionListener.delegateFailureAndWrap(
+                (l, searchResponse) -> l.onResponse(new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields))
             )
         );
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -173,6 +174,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     @Override
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -215,7 +217,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
                 new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
                 new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
-                new ActionHandler<>(SLMGetExpiredSnapshotsAction.INSTANCE, SLMGetExpiredSnapshotsAction.LocalAction.class),
+                new ActionHandler<>(TransportSLMGetExpiredSnapshotsAction.INSTANCE, TransportSLMGetExpiredSnapshotsAction.class),
                 new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
                 new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
                 new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)

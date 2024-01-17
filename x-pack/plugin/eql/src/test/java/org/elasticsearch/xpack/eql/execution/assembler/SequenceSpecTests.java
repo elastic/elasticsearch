@@ -188,10 +188,9 @@ public class SequenceSpecTests extends ESTestCase {
                 Map<String, DocumentField> documentFields = new HashMap<>();
                 documentFields.put(KEY_FIELD_NAME, new DocumentField(KEY_FIELD_NAME, Collections.singletonList(value.v1())));
                 // save the timestamp both as docId (int) and as id (string)
-                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString());
+                SearchHit searchHit = SearchHit.unpooled(entry.getKey(), entry.getKey().toString());
                 searchHit.addDocumentFields(documentFields, Map.of());
-                hits.add(searchHit.asUnpooled());
-                searchHit.decRef();
+                hits.add(searchHit);
             }
         }
 
@@ -216,19 +215,15 @@ public class SequenceSpecTests extends ESTestCase {
             Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? events.get(ordinal) : emptyMap();
 
             EventsAsHits eah = new EventsAsHits(evs);
-            SearchHits searchHits = new SearchHits(
+            SearchHits searchHits = SearchHits.unpooled(
                 eah.hits.toArray(SearchHits.EMPTY),
                 new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
                 0.0f
             );
-            try {
-                ActionListener.respondAndRelease(
-                    l,
-                    new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
-                );
-            } finally {
-                searchHits.decRef();
-            }
+            ActionListener.respondAndRelease(
+                l,
+                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
+            );
         }
 
         @Override
@@ -237,9 +232,7 @@ public class SequenceSpecTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    var h = new SearchHit(-1, hitRef.id());
-                    hits.add(h.asUnpooled());
-                    h.decRef();
+                    hits.add(SearchHit.unpooled(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }

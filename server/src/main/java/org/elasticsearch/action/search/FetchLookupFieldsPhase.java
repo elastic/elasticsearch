@@ -40,8 +40,6 @@ final class FetchLookupFieldsPhase extends SearchPhase {
         super("fetch_lookup_fields");
         this.context = context;
         this.searchResponse = searchResponse;
-        this.searchResponse.incRef();
-        context.addReleasable(searchResponse::decRef);
         this.queryResults = queryResults;
     }
 

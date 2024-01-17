@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Poolable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.transport.LeakTracker;
@@ -36,7 +35,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Poolable<SearchHits>, Iterable<SearchHit> {
+public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
     public static final SearchHits EMPTY_WITH_TOTAL_HITS = SearchHits.empty(new TotalHits(0, Relation.EQUAL_TO), 0);
@@ -120,19 +119,18 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         @Nullable String collapseField,
         @Nullable Object[] collapseValues
     ) {
-        final SearchHit[] unpooledHits;
-        if (hits.length == 0) {
-            unpooledHits = EMPTY;
-        } else {
-            unpooledHits = new SearchHit[hits.length];
-            for (int i = 0; i < hits.length; i++) {
-                unpooledHits[i] = hits[i].asUnpooled();
-            }
-        }
-        return new SearchHits(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues, ALWAYS_REFERENCED);
+        assert assertUnpooled(hits);
+        return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues, ALWAYS_REFERENCED);
     }
 
-    public static SearchHits readFrom(StreamInput in) throws IOException {
+    private static boolean assertUnpooled(SearchHit[] searchHits) {
+        for (SearchHit searchHit : searchHits) {
+            assert searchHit.isPooled() == false : "hit was pooled [" + searchHit + "]";
+        }
+        return true;
+    }
+
+    public static SearchHits readFrom(StreamInput in, boolean pooled) throws IOException {
         final TotalHits totalHits;
         if (in.readBoolean()) {
             totalHits = Lucene.readTotalHits(in);
@@ -148,13 +146,17 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = SearchHit.readFrom(in);
+                hits[i] = SearchHit.readFrom(in, pooled);
             }
         }
         var sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
         var collapseField = in.readOptionalString();
         var collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
-        return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        if (pooled) {
+            return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        } else {
+            return unpooled(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        }
     }
 
     @Override
@@ -255,18 +257,16 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return refCounted.hasReferences();
     }
 
-    @Override
     public SearchHits asUnpooled() {
         assert hasReferences();
-        if (isPooled() == false) {
+        if (refCounted == ALWAYS_REFERENCED) {
             return this;
         }
-        return unpooled(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
-    }
-
-    @Override
-    public boolean isPooled() {
-        return refCounted != ALWAYS_REFERENCED;
+        final SearchHit[] unpooledHits = new SearchHit[hits.length];
+        for (int i = 0; i < hits.length; i++) {
+            unpooledHits[i] = hits[i].asUnpooled();
+        }
+        return unpooled(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues);
     }
 
     public static final class Fields {
@@ -341,7 +341,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
                 }
             }
         }
-        return new SearchHits(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
+        return SearchHits.unpooled(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     @Override

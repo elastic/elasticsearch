@@ -190,10 +190,13 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 1.0f
             );
             var sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1);
-            FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
-            sections.decRef();
-            searchHits.decRef();
-            phase.run();
+            try {
+                FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
+                phase.run();
+            } finally {
+                sections.decRef();
+                searchHits.decRef();
+            }
             assertTrue(requestSent.get());
             searchPhaseContext.assertNoFailure();
             assertNotNull(searchPhaseContext.searchResponse.get());

@@ -11,6 +11,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -172,7 +173,8 @@ public final class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        return SearchHits.unpooled(hits, context.getTotalHits(), context.getMaxScore());
+        TotalHits totalHits = context.getTotalHits();
+        return SearchHits.unpooled(hits, totalHits, context.getMaxScore());
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
@@ -246,16 +248,12 @@ public final class FetchPhase {
 
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            SearchHit hit = new SearchHit(docId, null);
+            // TODO: can we use pooled buffers here as well?
+            SearchHit hit = SearchHit.unpooled(docId, null);
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
-            try {
-                return new HitContext(hit.asUnpooled(), subReaderContext, subDocId, Map.of(), source);
-            } finally {
-                // TODO: no need to copy here, lets do this smarter at some point
-                hit.decRef();
-            }
+            return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
         } else {
-            SearchHit hit = new SearchHit(docId, id);
+            SearchHit hit = SearchHit.unpooled(docId, id);
             Source source;
             if (requiresSource) {
                 Timer timer = profiler.startLoadingSource();
@@ -269,12 +267,7 @@ public final class FetchPhase {
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             }
-            try {
-                // TODO: no need to copy here, lets do this smarter at some point
-                return new HitContext(hit.asUnpooled(), subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source);
-            } finally {
-                hit.decRef();
-            }
+            return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source);
         }
     }
 
@@ -337,12 +330,8 @@ public final class FetchPhase {
         assert nestedIdentity != null;
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
-        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
-        try {
-            return new HitContext(hit.asUnpooled(), subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
-        } finally {
-            hit.decRef();
-        }
+        SearchHit hit = SearchHit.unpooled(topDocId, rootId, nestedIdentity);
+        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
     }
 
     interface Profiler {

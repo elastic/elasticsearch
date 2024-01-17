@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -303,7 +304,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
                         .createParser(
                             NamedXContentRegistry.EMPTY,
                             DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                            searchResponse.getHits().getAt(0).getSourceRef().streamInput()
+                            searchResponse.getHits().getHits()[0].getSourceRef().streamInput()
                         )
                 ) {
                     forecastRequestStats.set(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
@@ -322,7 +323,8 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
                         .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
                 ),
             searchResponse -> {
-                for (SearchHit hit : searchResponse.getHits()) {
+                SearchHits hits = searchResponse.getHits();
+                for (SearchHit hit : hits) {
                     try (
                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                             .createParser(
@@ -366,7 +368,8 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
                 )
                 .addSort(SortBuilders.fieldSort(Result.TIMESTAMP.getPreferredName()).order(SortOrder.ASC)),
             searchResponse -> {
-                for (SearchHit hit : searchResponse.getHits()) {
+                SearchHits hits = searchResponse.getHits();
+                for (SearchHit hit : hits) {
                     try (
                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                             .createParser(

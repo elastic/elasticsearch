@@ -37,8 +37,6 @@ final class ExpandSearchPhase extends SearchPhase {
         super("expand");
         this.context = context;
         this.searchHits = searchHits;
-        searchHits.mustIncRef();
-        this.context.addReleasable(searchHits::decRef);
         this.nextPhase = nextPhase;
     }
 

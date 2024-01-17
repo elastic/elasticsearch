@@ -232,9 +232,9 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             String indexOrAlias = AnomalyDetectorsIndex.jobStateIndexWriteAlias();
             StoredProgress previous = null;
             if (searchResponse.getHits().getHits().length > 0) {
-                indexOrAlias = searchResponse.getHits().getAt(0).getIndex();
+                indexOrAlias = searchResponse.getHits().getHits()[0].getIndex();
                 try {
-                    previous = MlParserUtils.parse(searchResponse.getHits().getAt(0), StoredProgress.PARSER);
+                    previous = MlParserUtils.parse(searchResponse.getHits().getHits()[0], StoredProgress.PARSER);
                 } catch (Exception ex) {
                     LOGGER.warn(() -> "[" + jobId + "] failed to parse previously stored progress", ex);
                 }

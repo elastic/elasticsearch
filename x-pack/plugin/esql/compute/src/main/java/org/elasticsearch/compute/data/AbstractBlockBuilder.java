@@ -165,7 +165,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     }
 
     protected void adjustBreaker(long deltaBytes) {
-        blockFactory.adjustBreaker(deltaBytes, false);
+        blockFactory.adjustBreaker(deltaBytes);
         estimatedBytes += deltaBytes;
         assert estimatedBytes >= 0;
     }

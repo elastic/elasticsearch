@@ -277,7 +277,7 @@ public class ProfileService {
                         final SearchHits searchHits = searchResponse.getHits();
                         final SearchHit[] hits = searchHits.getHits();
                         final SuggestProfilesResponse.ProfileHit[] profileHits;
-                        if (searchHits.getHits().length == 0) {
+                        if (hits.length == 0) {
                             profileHits = new SuggestProfilesResponse.ProfileHit[0];
                         } else {
                             profileHits = new SuggestProfilesResponse.ProfileHit[hits.length];

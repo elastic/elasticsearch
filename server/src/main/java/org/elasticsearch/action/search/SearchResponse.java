@@ -93,7 +93,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
-        this.hits = SearchHits.readFrom(in);
+        this.hits = SearchHits.readFrom(in, true);
         this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
         this.timedOut = in.readBoolean();
@@ -526,27 +526,24 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
         }
-        try {
-            return new SearchResponse(
-                hits,
-                aggs,
-                suggest,
-                timedOut,
-                terminatedEarly,
-                profile,
-                numReducePhases,
-                scrollId,
-                totalShards,
-                successfulShards,
-                skippedShards,
-                tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-                clusters,
-                searchContextId
-            );
-        } finally {
-            hits.decRef();
-        }
+
+        return new SearchResponse(
+            hits,
+            aggs,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profile,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+            clusters,
+            searchContextId
+        );
     }
 
     @Override

@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Poolable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -76,7 +75,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  * @see SearchHits
  */
-public final class SearchHit implements Writeable, ToXContentObject, Poolable<SearchHit>, RefCounted {
+public final class SearchHit implements Writeable, ToXContentObject, RefCounted {
 
     private final transient int docId;
 
@@ -132,6 +131,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
     }
 
     public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
+        this(nestedTopDocId, id, nestedIdentity, null);
+    }
+
+    private SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity, @Nullable RefCounted refCounted) {
         this(
             nestedTopDocId,
             DEFAULT_SCORE,
@@ -153,7 +156,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
             null,
             new HashMap<>(),
             new HashMap<>(),
-            null
+            refCounted
         );
     }
 
@@ -217,7 +220,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         }) : ALWAYS_REFERENCED;
     }
 
-    public static SearchHit readFrom(StreamInput in) throws IOException {
+    public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
         final float score = in.readFloat();
         final int rank;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
@@ -233,7 +236,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         final long version = in.readLong();
         final long seqNo = in.readZLong();
         final long primaryTerm = in.readVLong();
-        BytesReference source = in.readBytesReference();
+        BytesReference source = pooled ? in.readReleasableBytesReference() : in.readBytesReference();
         if (source.length() == 0) {
             source = null;
         }
@@ -272,7 +275,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         if (size > 0) {
             innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
-                innerHits.put(in.readString(), SearchHits.readFrom(in));
+                innerHits.put(in.readString(), SearchHits.readFrom(in, pooled));
             }
         } else {
             innerHits = null;
@@ -298,7 +301,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
             innerHits,
             documentFields,
             metaFields,
-            null
+            pooled ? null : ALWAYS_REFERENCED
         );
     }
 
@@ -307,12 +310,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
     }
 
     public static SearchHit unpooled(int docId, String id) {
-        final var res = new SearchHit(docId, id);
-        try {
-            return res.asUnpooled();
-        } finally {
-            res.decRef();
-        }
+        return unpooled(docId, id, null);
+    }
+
+    public static SearchHit unpooled(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
+        return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED);
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
@@ -732,7 +734,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         return refCounted.hasReferences();
     }
 
-    @Override
     public SearchHit asUnpooled() {
         assert hasReferences();
         if (isPooled() == false) {
@@ -765,7 +766,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         );
     }
 
-    @Override
     public boolean isPooled() {
         return refCounted != ALWAYS_REFERENCED;
     }
@@ -1087,7 +1087,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
             get(Fields.INNER_HITS, values, null),
             get(DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(METADATA_FIELDS, values, Collections.emptyMap()),
-            null
+            ALWAYS_REFERENCED // TODO: do we ever want pooling here?
         );
     }
 
@@ -1130,8 +1130,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
             String name = parser.currentName();
             ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), SearchHits.Fields.HITS);
-            var hits = SearchHits.fromXContent(parser);
-            innerHits.put(name, hits);
+            innerHits.put(name, SearchHits.fromXContent(parser));
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
         return innerHits;

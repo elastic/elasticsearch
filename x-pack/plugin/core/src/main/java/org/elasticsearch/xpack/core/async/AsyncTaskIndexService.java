@@ -586,10 +586,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
+        final StreamInput input;
         if (version.onOrAfter(TransportVersions.V_7_15_0)) {
-            encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
+            input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
+        } else {
+            input = new InputStreamStreamInput(encodedIn);
         }
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(input, registry)) {
             in.setTransportVersion(version);
             return reader.read(in);
         }

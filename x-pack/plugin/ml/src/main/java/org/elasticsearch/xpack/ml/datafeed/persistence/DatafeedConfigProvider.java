@@ -227,7 +227,9 @@ public class DatafeedConfigProvider {
                 Set<String> datafeedIds = new HashSet<>();
                 // There cannot be more than one datafeed per job
                 assert response.getHits().getTotalHits().value <= jobIds.size();
-                for (SearchHit hit : response.getHits().getHits()) {
+                SearchHit[] hits = response.getHits().getHits();
+
+                for (SearchHit hit : hits) {
                     datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
                 }
 
@@ -258,7 +260,8 @@ public class DatafeedConfigProvider {
                 Map<String, DatafeedConfig.Builder> datafeedsByJobId = new HashMap<>();
                 // There cannot be more than one datafeed per job
                 assert response.getHits().getTotalHits().value <= jobIds.size();
-                for (SearchHit hit : response.getHits().getHits()) {
+                SearchHit[] hits = response.getHits().getHits();
+                for (SearchHit hit : hits) {
                     DatafeedConfig.Builder builder = parseLenientlyFromSource(hit.getSourceRef());
                     datafeedsByJobId.put(builder.getJobId(), builder);
                 }
@@ -439,7 +442,8 @@ public class DatafeedConfigProvider {
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
                 SortedSet<String> datafeedIds = new TreeSet<>();
-                for (SearchHit hit : response.getHits().getHits()) {
+                SearchHit[] hits = response.getHits().getHits();
+                for (SearchHit hit : hits) {
                     datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
                 }
                 if (allowMissingConfigs) {
@@ -501,7 +505,8 @@ public class DatafeedConfigProvider {
             ActionListener.<SearchResponse>wrap(response -> {
                 List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
                 Set<String> datafeedIds = new HashSet<>();
-                for (SearchHit hit : response.getHits().getHits()) {
+                SearchHit[] hits = response.getHits().getHits();
+                for (SearchHit hit : hits) {
                     try {
                         BytesReference source = hit.getSourceRef();
                         DatafeedConfig.Builder datafeed = parseLenientlyFromSource(source);

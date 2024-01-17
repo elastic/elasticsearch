@@ -78,54 +78,40 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
     public void testStringTimeFieldValue() {
         long millis = randomLong();
         SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
-        try {
-            TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
-            assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
-        } finally {
-            hit.decRef();
-        }
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
+        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }
 
     public void testPre6xTimeFieldValue() {
         // Prior to 6.x, timestamps were simply `long` milliseconds-past-the-epoch values
         long millis = randomLong();
         SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
-        try {
-            TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
-            assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
-        } finally {
-            hit.decRef();
-        }
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
+        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }
 
     public void testTimeFieldValueGivenEmptyArray() {
         SearchHit hit = new SearchHitBuilder(1).addField("time", Collections.emptyList()).build();
-        try {
-            TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
-            expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
-        } finally {
-            hit.decRef();
-        }
+
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
+
+        expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
     }
 
     public void testTimeFieldValueGivenValueHasTwoElements() {
         SearchHit hit = new SearchHitBuilder(1).addField("time", Arrays.asList(1L, 2L)).build();
-        try {
-            TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
-            expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
-        } finally {
-            hit.decRef();
-        }
+
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
+
+        expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
     }
 
     public void testTimeFieldValueGivenValueIsString() {
         SearchHit hit = new SearchHitBuilder(1).addField("time", "a string").build();
-        try {
-            TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
-            expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
-        } finally {
-            hit.decRef();
-        }
+
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
+
+        expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
     }
 
     public void testBuildGivenMixtureOfTypes() {

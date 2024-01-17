@@ -150,8 +150,6 @@ import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportFieldUsageAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
@@ -166,7 +164,6 @@ import org.elasticsearch.action.admin.indices.template.post.SimulateTemplateActi
 import org.elasticsearch.action.admin.indices.template.post.TransportSimulateIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.post.TransportSimulateTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
@@ -235,6 +232,7 @@ import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -449,6 +447,7 @@ public class ActionModule extends AbstractModule {
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
@@ -469,6 +468,7 @@ public class ActionModule extends AbstractModule {
     public ActionModule(
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        NamedWriteableRegistry namedWriteableRegistry,
         IndexScopedSettings indexScopedSettings,
         ClusterSettings clusterSettings,
         SettingsFilter settingsFilter,
@@ -486,6 +486,7 @@ public class ActionModule extends AbstractModule {
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
@@ -694,10 +695,10 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportDeleteIndexTemplateAction.TYPE, TransportDeleteIndexTemplateAction.class);
         actions.register(PutComponentTemplateAction.INSTANCE, TransportPutComponentTemplateAction.class);
         actions.register(GetComponentTemplateAction.INSTANCE, TransportGetComponentTemplateAction.class);
-        actions.register(DeleteComponentTemplateAction.INSTANCE, TransportDeleteComponentTemplateAction.class);
-        actions.register(PutComposableIndexTemplateAction.INSTANCE, TransportPutComposableIndexTemplateAction.class);
+        actions.register(TransportDeleteComponentTemplateAction.TYPE, TransportDeleteComponentTemplateAction.class);
+        actions.register(TransportPutComposableIndexTemplateAction.TYPE, TransportPutComposableIndexTemplateAction.class);
         actions.register(GetComposableIndexTemplateAction.INSTANCE, TransportGetComposableIndexTemplateAction.class);
-        actions.register(DeleteComposableIndexTemplateAction.INSTANCE, TransportDeleteComposableIndexTemplateAction.class);
+        actions.register(TransportDeleteComposableIndexTemplateAction.TYPE, TransportDeleteComposableIndexTemplateAction.class);
         actions.register(SimulateIndexTemplateAction.INSTANCE, TransportSimulateIndexTemplateAction.class);
         actions.register(SimulateTemplateAction.INSTANCE, TransportSimulateTemplateAction.class);
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
@@ -932,12 +933,12 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestBulkAction(settings));
         registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder()));
+        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry));
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
         registerHandler.accept(new RestOpenPointInTimeAction());
         registerHandler.accept(new RestClosePointInTimeAction());
-        registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder()));
+        registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), namedWriteableRegistry));
         registerHandler.accept(new RestKnnSearchAction());
 
         registerHandler.accept(new RestValidateQueryAction());
@@ -1010,6 +1011,7 @@ public class ActionModule extends AbstractModule {
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(
                 settings,
+                namedWriteableRegistry,
                 restController,
                 clusterSettings,
                 indexScopedSettings,

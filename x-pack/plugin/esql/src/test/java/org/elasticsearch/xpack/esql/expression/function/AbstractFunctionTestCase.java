@@ -28,6 +28,8 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +37,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
@@ -125,8 +128,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
-            case "geo_point" -> GEO.pointAsLong(randomGeoPoint());
-            case "cartesian_point" -> CARTESIAN.pointAsLong(randomCartesianPoint());
+            case "geo_point" -> GEO.asWkb(GeometryTestUtils.randomPoint());
+            case "cartesian_point" -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
             case "null" -> null;
             case "_source" -> {
                 try {
@@ -468,9 +471,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             // Note: the null-in-fast-null-out handling prevents any exception from being thrown, so the warnings provided in some test
             // cases won't actually be registered. This isn't an issue for unary functions, but could be an issue for n-ary ones, if
             // function processing of the first parameter(s) could raise an exception/warning. (But hasn't been the case so far.)
-            // For n-ary functions, dealing with one multivalue (before hitting the null parameter injected above) will now trigger
+            // N-ary non-MV functions dealing with one multivalue (before hitting the null parameter injected above) will now trigger
             // a warning ("SV-function encountered a MV") that thus needs to be checked.
-            if (simpleData.stream().anyMatch(List.class::isInstance) && testCase.getExpectedWarnings() != null) {
+            if (this instanceof AbstractMultivalueFunctionTestCase == false
+                && simpleData.stream().anyMatch(List.class::isInstance)
+                && testCase.getExpectedWarnings() != null) {
                 assertWarnings(testCase.getExpectedWarnings());
             }
         }
@@ -536,17 +541,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         assertFalse(expression.typeResolved().unresolved());
-        expression = new FoldNull().rule(expression);
-        assertThat(expression.dataType(), equalTo(testCase.expectedType));
-        assertTrue(expression.foldable());
-        Object result = expression.fold();
-        // Decode unsigned longs into BigIntegers
-        if (testCase.expectedType == DataTypes.UNSIGNED_LONG && result != null) {
-            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
-        }
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
+        Expression nullOptimized = new FoldNull().rule(expression);
+        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType));
+        assertTrue(nullOptimized.foldable());
+        if (testCase.foldingExceptionClass() == null) {
+            Object result = nullOptimized.fold();
+            // Decode unsigned longs into BigIntegers
+            if (testCase.expectedType == DataTypes.UNSIGNED_LONG && result != null) {
+                result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+            }
+            assertThat(result, testCase.getMatcher());
+            if (testCase.getExpectedWarnings() != null) {
+                assertWarnings(testCase.getExpectedWarnings());
+            }
+        } else {
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), nullOptimized::fold);
+            assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
         }
     }
 
@@ -586,6 +596,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
+        assertTrue("expect description to be defined", description.description() != null && description.description().length() > 0);
+
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new HashSet<>();
         for (int i = 0; i < args.size(); i++) {
@@ -601,21 +613,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         for (int i = 0; i < args.size(); i++) {
             Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toCollection(() -> new TreeSet<>()));
-            if (annotationTypes.equals(Set.of("?"))) {
-                continue; // TODO remove this eventually, so that all the functions will have to provide signature info
-            }
             Set<String> signatureTypes = typesFromSignature.get(i);
             if (signatureTypes.isEmpty()) {
                 continue;
             }
-            assertEquals(annotationTypes, signatureTypes);
+            assertEquals(signatureTypes, annotationTypes);
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(() -> new TreeSet<>()));
-        if (returnTypes.equals(Set.of("?")) == false) {
-            // TODO remove this eventually, so that all the functions will have to provide signature info
-            assertEquals(returnTypes, returnFromSignature);
-        }
+        assertEquals(returnFromSignature, returnTypes);
+
     }
 
     /**
@@ -901,21 +908,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
-        Map.entry(
-            Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.UNSIGNED_LONG, DataTypes.NULL),
-            "geo_point or long or string or unsigned_long"
-        ),
-        Map.entry(
-            Set.of(
-                EsqlDataTypes.CARTESIAN_POINT,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
-            ),
-            "cartesian_point or long or string or unsigned_long"
-        )
+        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
+        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?

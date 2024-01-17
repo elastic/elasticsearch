@@ -86,12 +86,8 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
             ForecastRequestStats.STATUS.getPreferredName(),
             new DocumentField(ForecastRequestStats.STATUS.getPreferredName(), Collections.singletonList(status.toString()))
         );
-        SearchHit hit = new SearchHit(0, "");
+        SearchHit hit = SearchHit.unpooled(0, "");
         hit.addDocumentFields(documentFields, Map.of());
-        try {
-            return hit.asUnpooled();
-        } finally {
-            hit.decRef();
-        }
+        return hit;
     }
 }

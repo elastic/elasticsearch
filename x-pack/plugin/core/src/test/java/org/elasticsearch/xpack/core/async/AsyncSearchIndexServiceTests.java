@@ -113,13 +113,11 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void incRef() {
-
-        }
+        public void incRef() {}
 
         @Override
         public boolean tryIncRef() {
-            return false;
+            return true;
         }
 
         @Override
@@ -129,7 +127,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public boolean hasReferences() {
-            return false;
+            return true;
         }
     }
 

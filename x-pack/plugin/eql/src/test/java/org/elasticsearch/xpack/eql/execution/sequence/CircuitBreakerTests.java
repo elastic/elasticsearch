@@ -107,19 +107,15 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void query(QueryRequest r, ActionListener<SearchResponse> l) {
             int ordinal = r.searchSource().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
-            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            try {
-                ActionListener.respondAndRelease(
-                    l,
-                    new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
-                );
-            } finally {
-                searchHits.decRef();
-            }
+            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            ActionListener.respondAndRelease(
+                l,
+                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
+            );
         }
 
         @Override
@@ -128,19 +124,11 @@ public class CircuitBreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id()));
+                    hits.add(SearchHit.unpooled(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
-            try {
-                listener.onResponse(searchHits);
-            } finally {
-                for (List<SearchHit> lst : searchHits) {
-                    for (SearchHit h : lst) {
-                        h.decRef();
-                    }
-                }
-            }
+            listener.onResponse(searchHits);
         }
     }
 
@@ -437,41 +425,37 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
 
-            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            try {
-                SearchResponse response = new SearchResponse(
-                    searchHits,
-                    null,
-                    null,
-                    false,
-                    false,
-                    null,
-                    0,
-                    null,
-                    2,
-                    0,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY,
-                    searchRequest.pointInTimeBuilder().getEncodedId()
-                );
+            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            SearchResponse response = new SearchResponse(
+                searchHits,
+                null,
+                null,
+                false,
+                false,
+                null,
+                0,
+                null,
+                2,
+                0,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY,
+                searchRequest.pointInTimeBuilder().getEncodedId()
+            );
 
-                if (searchRequestsRemainingCount() == 1) {
-                    assertEquals(0, circuitBreaker.getUsed()); // this is the first response, so no memory usage so far
-                } else {
-                    assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
-                }
-
-                ActionListener.respondAndRelease(listener, (Response) response);
-            } finally {
-                searchHits.decRef();
+            if (searchRequestsRemainingCount() == 1) {
+                assertEquals(0, circuitBreaker.getUsed()); // this is the first response, so no memory usage so far
+            } else {
+                assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
             }
+
+            ActionListener.respondAndRelease(listener, (Response) response);
         }
     }
 
@@ -493,35 +477,31 @@ public class CircuitBreakerTests extends ESTestCase {
                 assertEquals(0, circuitBreaker.getUsed());
 
                 int ordinal = searchRequest.source().terminateAfter();
-                SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
+                SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
                 searchHit.sortValues(
                     new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
                 );
-                SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-                try {
-                    ActionListener.respondAndRelease(
-                        listener,
-                        (Response) new SearchResponse(
-                            searchHits,
-                            null,
-                            null,
-                            false,
-                            false,
-                            null,
-                            0,
-                            null,
-                            2,
-                            0,
-                            0,
-                            0,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY,
-                            searchRequest.pointInTimeBuilder().getEncodedId()
-                        )
-                    );
-                } finally {
-                    searchHits.decRef();
-                }
+                SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+                ActionListener.respondAndRelease(
+                    listener,
+                    (Response) new SearchResponse(
+                        searchHits,
+                        null,
+                        null,
+                        false,
+                        false,
+                        null,
+                        0,
+                        null,
+                        2,
+                        0,
+                        0,
+                        0,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY,
+                        searchRequest.pointInTimeBuilder().getEncodedId()
+                    )
+                );
             } else {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
                 ShardSearchFailure[] failures = new ShardSearchFailure[] {
@@ -536,31 +516,30 @@ public class CircuitBreakerTests extends ESTestCase {
                 } else {
                     // or a partial shard failure
                     // this should still be caught and the exception handled properly and circuit breaker cleared
-                    var hits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
-                    try {
-                        ActionListener.respondAndRelease(
-                            listener,
-                            (Response) new SearchResponse(
-                                hits,
-                                null,
-                                new Suggest(Collections.emptyList()),
-                                false,
-                                false,
-                                new SearchProfileResults(Collections.emptyMap()),
-                                1,
-                                null,
-                                2,
-                                1,
-                                0,
-                                0,
-                                failures,
-                                SearchResponse.Clusters.EMPTY,
-                                searchRequest.pointInTimeBuilder().getEncodedId()
-                            )
-                        );
-                    } finally {
-                        hits.decRef();
-                    }
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(1) },
+                                new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
+                                1.0f
+                            ),
+                            null,
+                            new Suggest(Collections.emptyList()),
+                            false,
+                            false,
+                            new SearchProfileResults(Collections.emptyMap()),
+                            1,
+                            null,
+                            2,
+                            1,
+                            0,
+                            0,
+                            failures,
+                            SearchResponse.Clusters.EMPTY,
+                            searchRequest.pointInTimeBuilder().getEncodedId()
+                        )
+                    );
                 }
             }
         }

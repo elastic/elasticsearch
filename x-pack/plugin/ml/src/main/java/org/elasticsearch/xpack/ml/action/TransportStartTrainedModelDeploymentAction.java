@@ -33,18 +33,19 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -221,6 +222,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             );
         }, listener::onFailure);
 
+        GetTrainedModelsAction.Request getModelWithDeploymentId = new GetTrainedModelsAction.Request(request.getDeploymentId());
+
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             if (getModelResponse.getResources().results().size() > 1) {
                 listener.onFailure(
@@ -253,44 +256,60 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return;
             }
 
-            // If the model id isn't the same id as the deployment id
-            // check there isn't another model with deployment id
-            if (request.getModelId().equals(request.getDeploymentId()) == false) {
-                GetTrainedModelsAction.Request getModelWithDeploymentId = new GetTrainedModelsAction.Request(request.getDeploymentId());
-                client.execute(
-                    GetTrainedModelsAction.INSTANCE,
-                    getModelWithDeploymentId,
-                    ActionListener.wrap(
-                        response -> listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "Deployment id [{}] is the same as an another model which is not the model being deployed. "
-                                    + "Deployment id can be the same as the model being deployed but cannot match a different model",
-                                request.getDeploymentId(),
-                                request.getModelId()
-                            )
-                        ),
-                        error -> {
-                            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
-                                // no name clash, continue with the deployment
-                                checkFullModelDefinitionIsPresent(
-                                    client,
-                                    trainedModelConfig,
-                                    true,
-                                    request.getTimeout(),
-                                    modelSizeListener
-                                );
-                            } else {
-                                listener.onFailure(error);
-                            }
-                        }
+            ActionListener<GetTrainedModelsAction.Response> checkDeploymentIdDoesntAlreadyExist = ActionListener.wrap(
+                response -> listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "Deployment id [{}] is the same as an another model which is not the model being deployed. "
+                            + "Deployment id can be the same as the model being deployed but cannot match a different model",
+                        request.getDeploymentId(),
+                        request.getModelId()
                     )
-                );
+                ),
+                error -> {
+                    if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                        // no name clash, continue with the deployment
+                        checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, request.getTimeout(), modelSizeListener);
+                    } else {
+                        listener.onFailure(error);
+                    }
+                }
+            );
+
+            // If the model id isn't the same id as the deployment id
+            // check there isn't another model with that deployment id
+            if (request.getModelId().equals(request.getDeploymentId()) == false) {
+                client.execute(GetTrainedModelsAction.INSTANCE, getModelWithDeploymentId, checkDeploymentIdDoesntAlreadyExist);
             } else {
                 checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, request.getTimeout(), modelSizeListener);
             }
 
         }, listener::onFailure);
 
+        ActionListener<GetInferenceModelAction.Response> getInferenceModelListener = ActionListener.wrap((getInferenceModelResponse) -> {
+            if (getInferenceModelResponse.getModels().isEmpty() == false) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
+                );
+            } else {
+                getTrainedModelRequestExecution(request, getModelListener);
+            }
+        }, error -> {
+            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                // no name clash, continue with the deployment
+                getTrainedModelRequestExecution(request, getModelListener);
+            } else {
+                listener.onFailure(error);
+            }
+        });
+
+        GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(request.getModelId(), TaskType.ANY);
+        client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, getInferenceModelListener);
+    }
+
+    private void getTrainedModelRequestExecution(
+        StartTrainedModelDeploymentAction.Request request,
+        ActionListener<GetTrainedModelsAction.Response> getModelListener
+    ) {
         GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
     }
@@ -415,8 +434,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         String modelId
     ) {
         return ActionListener.wrap(response -> {
-            SearchHits hits = response.getHits();
-            if (hits.getHits().length == 0) {
+            SearchHit[] hits = response.getHits().getHits();
+            if (hits.length == 0) {
                 failOrRespondWith0(
                     () -> new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)),
                     errorIfDefinitionIsMissing,
@@ -427,14 +446,14 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             }
 
             long firstTotalLength;
-            DocumentField firstTotalLengthField = hits.getAt(0).field(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+            DocumentField firstTotalLengthField = hits[0].field(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
             if (firstTotalLengthField != null && firstTotalLengthField.getValue() instanceof Long firstTotalDefinitionLength) {
                 firstTotalLength = firstTotalDefinitionLength;
             } else {
                 failOrRespondWith0(
                     () -> missingFieldsError(
                         modelId,
-                        hits.getAt(0).getId(),
+                        hits[0].getId(),
                         List.of(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())
                     ),
                     errorIfDefinitionIsMissing,
@@ -483,7 +502,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                             finalTotalLength,
                             TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
                             firstTotalLength,
-                            TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hits.getAt(0).getId()))
+                            TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hits[0].getId()))
                         ),
                         errorIfDefinitionIsMissing,
                         modelId,
@@ -558,21 +577,29 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         String modelId,
         ActionListener<Runnable> nextStepListener
     ) {
-        TaskRetriever.getDownloadTaskInfo(mlOriginClient, modelId, timeout != null, ActionListener.wrap(taskInfo -> {
-            if (taskInfo == null) {
-                nextStepListener.onResponse(null);
-            } else {
-                failOrRespondWith0(
-                    () -> new ElasticsearchStatusException(
-                        Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
-                        RestStatus.REQUEST_TIMEOUT
-                    ),
-                    errorIfDefinitionIsMissing,
-                    modelId,
-                    failureListener
-                );
-            }
-        }, failureListener::onFailure), timeout);
+        // check task is present, do not wait for completion
+        TaskRetriever.getDownloadTaskInfo(
+            mlOriginClient,
+            modelId,
+            timeout != null,
+            timeout,
+            () -> Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
+            ActionListener.wrap(taskInfo -> {
+                if (taskInfo == null) {
+                    nextStepListener.onResponse(null);
+                } else {
+                    failOrRespondWith0(
+                        () -> new ElasticsearchStatusException(
+                            Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
+                            RestStatus.REQUEST_TIMEOUT
+                        ),
+                        errorIfDefinitionIsMissing,
+                        modelId,
+                        failureListener
+                    );
+                }
+            }, failureListener::onFailure)
+        );
     }
 
     private static void failOrRespondWith0(

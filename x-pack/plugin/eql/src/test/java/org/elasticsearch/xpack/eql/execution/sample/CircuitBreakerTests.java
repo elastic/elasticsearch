@@ -294,7 +294,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     }
 
                     @Override
-                    public Map<String, Object> readMap() throws IOException {
+                    public Map<String, Object> readGenericMap() throws IOException {
                         return emptyMap();
                     }
                 });

@@ -155,7 +155,7 @@ public final class GrokCaptureConfig {
                 if (region.beg[number] >= 0) {
                     int matchOffset = offset + region.beg[number];
                     int matchLength = region.end[number] - region.beg[number];
-                    String match = new String(utf8Bytes, matchOffset, matchLength);
+                    String match = new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8);
                     emit.accept(new GrokCaptureExtracter.Range(match, matchOffset, matchLength));
                 }
             }

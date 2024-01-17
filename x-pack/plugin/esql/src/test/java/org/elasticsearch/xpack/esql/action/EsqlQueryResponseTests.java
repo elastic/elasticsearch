@@ -152,6 +152,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case "geo_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
                 case "cartesian_point" -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
+                case "geo_shape" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                    GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()))
+                );
+                case "cartesian_shape" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                    CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
+                );
                 case "null" -> builder.appendNull();
                 case "_source" -> {
                     try {

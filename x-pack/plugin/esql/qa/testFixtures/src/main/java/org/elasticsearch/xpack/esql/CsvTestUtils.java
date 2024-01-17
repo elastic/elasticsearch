@@ -118,7 +118,9 @@ public final class CsvTestUtils {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
-                if (stringValue.contains(",")) {// multi-value field
+                if (stringValue.startsWith("\"") && stringValue.endsWith("\"")) { // string value
+                    stringValue = stringValue.substring(1, stringValue.length() - 1).replace(ESCAPED_COMMA_SEQUENCE, ",");
+                } else if (stringValue.contains(",")) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
 
                     String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");

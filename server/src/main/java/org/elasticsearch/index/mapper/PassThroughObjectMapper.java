@@ -32,7 +32,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
     public static class Builder extends ObjectMapper.Builder {
 
         // Controls whether subfields are configured as time-series dimensions.
-        protected Explicit<Boolean> containsDimensions = Explicit.IMPLICIT_FALSE;
+        protected Explicit<Boolean> timeSeriesDimensionSubFields = Explicit.IMPLICIT_FALSE;
 
         public Builder(String name) {
             // Subobjects are not currently supported.
@@ -41,7 +41,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
         @Override
         public PassThroughObjectMapper.Builder add(Mapper.Builder builder) {
-            if (containsDimensions.value() && builder instanceof KeywordFieldMapper.Builder keywordBuilder) {
+            if (timeSeriesDimensionSubFields.value() && builder instanceof KeywordFieldMapper.Builder keywordBuilder) {
                 keywordBuilder.dimension(true);
             }
             super.add(builder);
@@ -49,13 +49,19 @@ public class PassThroughObjectMapper extends ObjectMapper {
         }
 
         public PassThroughObjectMapper.Builder setContainsDimensions() {
-            containsDimensions = Explicit.EXPLICIT_TRUE;
+            timeSeriesDimensionSubFields = Explicit.EXPLICIT_TRUE;
             return this;
         }
 
         @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
-            return new PassThroughObjectMapper(name, enabled, dynamic, buildMappers(context.createChildContext(name)), containsDimensions);
+            return new PassThroughObjectMapper(
+                name,
+                enabled,
+                dynamic,
+                buildMappers(context.createChildContext(name)),
+                timeSeriesDimensionSubFields
+            );
         }
     }
 
@@ -83,7 +89,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(name());
         builder.enabled = enabled;
         builder.dynamic = dynamic;
-        builder.containsDimensions = timeSeriesDimensionSubFields;
+        builder.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         return builder;
     }
 
@@ -135,7 +141,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         protected static void parsePassthrough(String name, Map<String, Object> node, PassThroughObjectMapper.Builder builder) {
             Object fieldNode = node.get(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM);
             if (fieldNode != null) {
-                builder.containsDimensions = Explicit.explicitBoolean(
+                builder.timeSeriesDimensionSubFields = Explicit.explicitBoolean(
                     nodeBooleanValue(fieldNode, name + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM)
                 );
                 node.remove(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM);

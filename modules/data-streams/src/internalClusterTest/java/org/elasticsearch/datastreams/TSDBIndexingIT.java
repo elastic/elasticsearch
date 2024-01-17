@@ -456,7 +456,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             Instant time = Instant.now();
             for (int i = 0; i < numBulkRequests; i++) {
-                try (BulkRequest bulkRequest = new BulkRequest()) {
+                try (BulkRequest bulkRequest = new BulkRequest(dataStreamName)) {
                     for (int j = 0; j < numDocsPerBulk; j++) {
                         var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
                         indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);

@@ -716,7 +716,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .addAlias(new Alias("alias4").filter(termQuery("field", "value")))
             .get();
 
-        client().prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON).get();
+        prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON).get();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             BulkResponse response = bulkRequestBuilder.add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
             assertThat(response.hasFailures(), is(false));

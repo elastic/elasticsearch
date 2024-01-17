@@ -12,12 +12,12 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-public class SearchResponseTookMetrics {
+public class SearchResponseMetrics {
     private final LongCounter tookMeasurementsNumCount;
     private final LongCounter tookDurationTotalMillisCount;
     private final LongHistogram tookDurationTotalMillisHistogram;
 
-    public SearchResponseTookMetrics(MeterRegistry meterRegistry) {
+    public SearchResponseMetrics(MeterRegistry meterRegistry) {
         this(
             meterRegistry.registerLongCounter(
                 "es.search_response.took_measurements.total",
@@ -38,7 +38,7 @@ public class SearchResponseTookMetrics {
         );
     }
 
-    SearchResponseTookMetrics(
+    SearchResponseMetrics(
         LongCounter tookMeasurementsNumCount,
         LongCounter tookDurationTotalMillisCount,
         LongHistogram tookDurationTotalMillisHistogram
@@ -48,7 +48,7 @@ public class SearchResponseTookMetrics {
         this.tookDurationTotalMillisHistogram = tookDurationTotalMillisHistogram;
     }
 
-    public long record(long tookTime) {
+    public long recordTookTime(long tookTime) {
         tookMeasurementsNumCount.increment();
         tookDurationTotalMillisCount.incrementBy(tookTime);
         tookDurationTotalMillisHistogram.record(tookTime);

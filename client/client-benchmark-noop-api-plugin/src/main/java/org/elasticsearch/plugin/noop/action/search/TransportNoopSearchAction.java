@@ -41,7 +41,7 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         listener.onResponse(
-            new SearchResponse(
+            SearchResponse.newWithoutMetrics(
                 SearchHits.EMPTY_WITH_TOTAL_HITS,
                 InternalAggregations.EMPTY,
                 new Suggest(Collections.emptyList()),

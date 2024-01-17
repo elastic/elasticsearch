@@ -543,7 +543,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 } else {
                     ActionListener.respondAndRelease(
                         listener,
-                        (Response) new SearchResponse(
+                        (Response) SearchResponse.newWithoutMetrics(
                             SearchHits.unpooled(
                                 new SearchHit[] { SearchHit.unpooled(1) },
                                 new TotalHits(1L, TotalHits.Relation.EQUAL_TO),

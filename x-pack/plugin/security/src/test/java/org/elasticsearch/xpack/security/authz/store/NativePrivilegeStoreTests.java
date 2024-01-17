@@ -820,7 +820,22 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     private static SearchResponse buildSearchResponse(SearchHit[] hits) {
         var searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f);
         try {
-            return new SearchResponse(searchHits.asUnpooled(), null, null, false, false, null, 1, "_scrollId1", 1, 1, 0, 1, null, null);
+            return SearchResponse.newWithoutMetrics(
+                searchHits.asUnpooled(),
+                null,
+                null,
+                false,
+                false,
+                null,
+                1,
+                "_scrollId1",
+                1,
+                1,
+                0,
+                1,
+                null,
+                null
+            );
         } finally {
             searchHits.decRef();
         }

@@ -86,7 +86,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         ShardSearchFailure.EMPTY_ARRAY,
         null
     );
-    public static final SearchResponse SEARCH_RESPONSE_FAILURE = new SearchResponse(
+    public static final SearchResponse SEARCH_RESPONSE_FAILURE = SearchResponse.newWithoutMetrics(
         SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
         null,
         null,

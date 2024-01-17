@@ -115,7 +115,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
      * Test that the explicit and wildcard IDs are requested.
      */
     public void testGetPipelinesByExplicitAndWildcardIds() {
-        SearchResponse searchResponse = new SearchResponse(
+        SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             prepareSearchHits(),
             null,
             null,

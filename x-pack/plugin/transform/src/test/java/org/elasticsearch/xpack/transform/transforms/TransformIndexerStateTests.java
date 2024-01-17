@@ -77,7 +77,7 @@ import static org.mockito.Mockito.mock;
 
 public class TransformIndexerStateTests extends ESTestCase {
 
-    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = new SearchResponse(
+    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = SearchResponse.newWithoutMetrics(
         new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
         // Simulate completely null aggs
         null,

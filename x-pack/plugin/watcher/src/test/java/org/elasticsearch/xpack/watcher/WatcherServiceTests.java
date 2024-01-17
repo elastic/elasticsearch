@@ -217,7 +217,7 @@ public class WatcherServiceTests extends ESTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     searchHits,
                     null,
                     null,

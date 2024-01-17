@@ -240,7 +240,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 hit.sourceRef(source);
                 ActionListener.respondAndRelease(
                     listener,
-                    new SearchResponse(
+                    SearchResponse.newWithoutMetrics(
                         SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f),
                         null,
                         null,

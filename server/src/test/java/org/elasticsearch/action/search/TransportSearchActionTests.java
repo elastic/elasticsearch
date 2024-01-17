@@ -59,7 +59,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHits;
@@ -527,7 +527,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 threadPool,
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l)),
-                new SearchResponseTookMetrics(MeterRegistry.NOOP)
+                new SearchResponseMetrics(MeterRegistry.NOOP)
             );
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -601,7 +601,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     threadPool,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
-                    new SearchResponseTookMetrics(MeterRegistry.NOOP)
+                    new SearchResponseMetrics(MeterRegistry.NOOP)
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -659,7 +659,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     threadPool,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
-                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                    new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -743,7 +743,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     threadPool,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
-                    new SearchResponseTookMetrics(MeterRegistry.NOOP)
+                    new SearchResponseMetrics(MeterRegistry.NOOP)
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -838,7 +838,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     threadPool,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
-                    new SearchResponseTookMetrics(MeterRegistry.NOOP)
+                    new SearchResponseMetrics(MeterRegistry.NOOP)
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -891,7 +891,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     threadPool,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
-                    new SearchResponseTookMetrics(MeterRegistry.NOOP)
+                    new SearchResponseMetrics(MeterRegistry.NOOP)
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -966,7 +966,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     threadPool,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
-                    new SearchResponseTookMetrics(MeterRegistry.NOOP)
+                    new SearchResponseMetrics(MeterRegistry.NOOP)
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1005,7 +1005,7 @@ public class TransportSearchActionTests extends ESTestCase {
     private static void resolveWithEmptySearchResponse(Tuple<SearchRequest, ActionListener<SearchResponse>> tuple) {
         ActionListener.respondAndRelease(
             tuple.v2(),
-            new SearchResponse(
+            SearchResponse.newWithoutMetrics(
                 SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                 InternalAggregations.EMPTY,
                 null,
@@ -1247,7 +1247,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     source,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                    new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1264,7 +1264,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                    new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1285,7 +1285,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     source,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                    new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                 )
             ) {
                 assertEquals(0, source.from());
@@ -1747,7 +1747,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 null,
                 new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             );
 
             CountDownLatch latch = new CountDownLatch(1);

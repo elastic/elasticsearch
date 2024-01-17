@@ -60,7 +60,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -148,7 +148,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final ExecutorSelector executorSelector;
     private final int defaultPreFilterShardSize;
     private final boolean ccsCheckCompatibility;
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportSearchAction(
@@ -164,7 +164,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         ExecutorSelector executorSelector,
         SearchTransportAPMMetrics searchTransportMetrics,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -181,7 +181,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.executorSelector = executorSelector;
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -387,7 +387,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchContext,
                             searchPhaseProvider.apply(l)
                         ),
-                        searchResponseTookMetrics
+                        searchResponseMetrics
                     );
                 } else {
                     SearchResponse.Clusters clusters = new SearchResponse.Clusters(
@@ -514,7 +514,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ThreadPool threadPool,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (localIndices == null && remoteIndices.size() == 1) {
@@ -549,7 +549,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
                     ActionListener.respondAndRelease(
                         listener,
-                        new SearchResponse(
+                        SearchResponse.newWithMetrics(
                             searchResponse.getHits(),
                             searchResponse.getAggregations(),
                             searchResponse.getSuggest(),
@@ -561,10 +561,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getTotalShards(),
                             searchResponse.getSuccessfulShards(),
                             searchResponse.getSkippedShards(),
-                            searchResponseTookMetrics.record(timeProvider.buildTookInMillis()),
+                            timeProvider.buildTookInMillis(),
                             searchResponse.getShardFailures(),
                             clusters,
-                            searchResponse.pointInTimeId()
+                            searchResponse.pointInTimeId(),
+                            searchResponseMetrics
                         )
                     );
                 }
@@ -586,10 +587,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.source(),
                 timeProvider,
                 aggReduceContextBuilder,
-                searchResponseTookMetrics
+                searchResponseMetrics
             );
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder, searchResponseTookMetrics)
+                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder, searchResponseMetrics)
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
@@ -651,7 +652,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         final int from;
         final int size;
@@ -670,7 +671,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder, searchResponseTookMetrics);
+        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder, searchResponseMetrics);
     }
 
     /**
@@ -1357,7 +1358,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusterState,
                         task,
                         clusters,
-                        searchResponseTookMetrics
+                        searchResponseMetrics
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -1377,7 +1378,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusterState,
                         task,
                         clusters,
-                        searchResponseTookMetrics
+                        searchResponseMetrics
                     );
                 }
             }

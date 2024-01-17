@@ -173,7 +173,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 assertTrue(executedMultiSearch.compareAndSet(false, true));
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     collapsedHits,
                     null,
                     null,

@@ -21,7 +21,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -92,7 +92,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new NoOpClient(threadPool),
             threadPool,
             (t) -> () -> null,
-            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         );
     }
 
@@ -113,7 +113,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new NoOpClient(threadPool),
             threadPool,
             (t) -> () -> null,
-            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         );
         assertEquals("""
             async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], source\
@@ -134,7 +134,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new NoOpClient(threadPool),
             threadPool,
             (t) -> () -> null,
-            new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
         );
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
@@ -409,7 +409,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int skippedShards,
         ShardSearchFailure... failures
     ) {
-        return new SearchResponse(
+        return SearchResponse.newWithoutMetrics(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             InternalAggregations.EMPTY,
             null,

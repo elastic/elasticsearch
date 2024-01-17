@@ -47,7 +47,7 @@ public enum SearchResponseUtils {
         ShardSearchFailure[] shardFailures,
         SearchResponse.Clusters clusters
     ) {
-        return new SearchResponse(
+        return SearchResponse.newWithoutMetrics(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             null,
             null,

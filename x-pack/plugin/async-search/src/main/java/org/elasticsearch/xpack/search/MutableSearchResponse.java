@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -80,7 +80,7 @@ class MutableSearchResponse implements Releasable {
      */
     private boolean frozen;
 
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     /**
      * Creates a new mutable search response.
@@ -95,13 +95,13 @@ class MutableSearchResponse implements Releasable {
         int skippedShards,
         Clusters clusters,
         ThreadContext threadContext,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
 
         this.clusters = clusters;
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
         this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
@@ -210,7 +210,7 @@ class MutableSearchResponse implements Releasable {
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
         long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis();
-        return new SearchResponse(
+        return SearchResponse.newWithMetrics(
             SearchHits.empty(totalHits, Float.NaN),
             reducedAggs,
             null,
@@ -222,9 +222,10 @@ class MutableSearchResponse implements Releasable {
             totalShards,
             successfulShards,
             skippedShards,
-            searchResponseTookMetrics.record(TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis()),
+            TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis(),
             buildQueryFailures(),
-            clusters
+            clusters,
+            searchResponseMetrics
         );
     }
 

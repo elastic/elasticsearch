@@ -92,7 +92,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchRequest::new,
                 (request, channel, task) -> channel.sendResponse(
-                    new SearchResponse(
+                    SearchResponse.newWithoutMetrics(
                         SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                         InternalAggregations.EMPTY,
                         null,

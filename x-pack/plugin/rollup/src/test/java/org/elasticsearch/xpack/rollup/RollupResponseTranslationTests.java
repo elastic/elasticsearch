@@ -562,7 +562,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         // TODO SearchResponse.Clusters is not public, using null for now. Should fix upstream.
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(
-            new SearchResponse(
+            SearchResponse.newWithoutMetrics(
                 SearchHits.EMPTY_WITH_TOTAL_HITS,
                 InternalAggregations.from(Collections.singletonList(responses.get(0))),
                 null,
@@ -581,7 +581,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             null
         );
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(
-            new SearchResponse(
+            SearchResponse.newWithoutMetrics(
                 SearchHits.EMPTY_WITH_TOTAL_HITS,
                 InternalAggregations.from(Collections.singletonList(responses.get(1))),
                 null,

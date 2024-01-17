@@ -257,7 +257,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                     requestCounter[0]++;
                     ActionListener.respondAndRelease(
                         listener,
-                        (Response) new SearchResponse(
+                        (Response) SearchResponse.newWithoutMetrics(
                             SearchHits.EMPTY_WITH_TOTAL_HITS,
                             InternalAggregations.EMPTY,
                             new Suggest(Collections.emptyList()),

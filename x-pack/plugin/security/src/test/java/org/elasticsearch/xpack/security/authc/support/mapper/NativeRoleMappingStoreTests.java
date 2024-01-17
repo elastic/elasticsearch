@@ -356,7 +356,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), randomFloat()),
                     null,
                     null,

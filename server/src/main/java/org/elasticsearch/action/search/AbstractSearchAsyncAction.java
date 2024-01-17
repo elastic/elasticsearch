@@ -29,7 +29,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -105,7 +105,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private final List<Releasable> releasables = new ArrayList<>();
 
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     AbstractSearchAsyncAction(
         String name,
@@ -125,7 +125,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -178,7 +178,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // at the end of the search
         addReleasable(resultConsumer);
         this.clusters = clusters;
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     protected void notifyListShards(
@@ -672,16 +672,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
-        return new SearchResponse(
+        return SearchResponse.newWithMetrics(
             internalSearchResponse,
             scrollId,
             getNumShards(),
             numSuccess,
             skippedOps.get(),
-            searchResponseTookMetrics.record(buildTookInMillis()),
+            buildTookInMillis(),
             failures,
             clusters,
-            searchContextId
+            searchContextId,
+            searchResponseMetrics
         );
     }
 

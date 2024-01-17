@@ -86,7 +86,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
         String searchContextId = getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
         var existing = searchResponse.getAndSet(
-            new SearchResponse(
+            SearchResponse.newWithoutMetrics(
                 internalSearchResponse,
                 scrollId,
                 numShards,

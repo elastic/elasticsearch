@@ -224,7 +224,7 @@ public class CircuitBreakerTests extends ESTestCase {
             Aggregations aggs = new Aggregations(List.of(newInternalComposite()));
             ActionListener.respondAndRelease(
                 listener,
-                (Response) new SearchResponse(
+                (Response) SearchResponse.newWithoutMetrics(
                     SearchHits.EMPTY_WITH_TOTAL_HITS,
                     aggs,
                     null,

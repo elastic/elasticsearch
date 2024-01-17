@@ -29,7 +29,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -66,7 +66,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportOpenPointInTimeAction(
@@ -76,7 +76,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService,
         NamedWriteableRegistry namedWriteableRegistry,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -84,7 +84,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -168,7 +168,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                             aliasFilter,
                             concreteIndexBoosts,
                             clusters,
-                            searchResponseTookMetrics
+                            searchResponseMetrics
                         ).start()
                     )
                 );
@@ -184,7 +184,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     aliasFilter,
                     concreteIndexBoosts,
                     clusters,
-                    searchResponseTookMetrics
+                    searchResponseMetrics
                 );
             }
         }
@@ -200,7 +200,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             Map<String, AliasFilter> aliasFilter,
             Map<String, Float> concreteIndexBoosts,
             SearchResponse.Clusters clusters,
-            SearchResponseTookMetrics searchResponseTookMetrics
+            SearchResponseMetrics searchResponseMetrics
         ) {
             assert searchRequest.getMaxConcurrentShardRequests() == pitRequest.maxConcurrentShardRequests()
                 : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
@@ -222,7 +222,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 new ArraySearchPhaseResults<>(shardIterators.size()),
                 searchRequest.getMaxConcurrentShardRequests(),
                 clusters,
-                searchResponseTookMetrics
+                searchResponseMetrics
             ) {
                 @Override
                 protected void executePhaseOnShard(

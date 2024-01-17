@@ -87,7 +87,7 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     SearchHits.unpooled(
                         new SearchHit[] { SearchHit.unpooled(1), SearchHit.unpooled(2) },
                         new TotalHits(3, TotalHits.Relation.EQUAL_TO),

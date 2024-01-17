@@ -168,7 +168,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        return new SearchResponse(
+        return SearchResponse.newWithoutMetrics(
             hits,
             null,
             null,

@@ -145,7 +145,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                                 .filter(a -> GRID_FIELD.equals(a.getName()) == false && BOUNDS_FIELD.equals(a.getName()) == false)
                                 .collect(Collectors.toList())
                         );
-                    final SearchResponse meta = new SearchResponse(
+                    final SearchResponse meta = SearchResponse.newWithoutMetrics(
                         // remove actual hits
                         SearchHits.empty(searchResponse.getHits().getTotalHits(), searchResponse.getHits().getMaxScore()),
                         aggsWithoutGridAndBounds,

@@ -112,7 +112,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         });
         Aggregations aggs = new Aggregations(Collections.singletonList(composite));
 
-        SearchResponse response = new SearchResponse(
+        SearchResponse response = SearchResponse.newWithoutMetrics(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
             null,

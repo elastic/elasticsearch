@@ -16,7 +16,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -66,7 +66,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 dummyListener(),
                 request,
                 null,
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             ) {
             @Override
             protected void executeInitialPhase(
@@ -171,7 +171,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 listener,
                 request,
                 null,
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             ) {
             @Override
             protected void executeInitialPhase(
@@ -252,7 +252,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 dummyListener(),
                 request,
                 null,
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             ) {
             @Override
             protected void executeInitialPhase(
@@ -345,7 +345,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 dummyListener(),
                 request,
                 null,
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             ) {
             @Override
             protected void executeInitialPhase(
@@ -456,7 +456,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 listener,
                 request,
                 null,
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             ) {
             @Override
             protected void executeInitialPhase(

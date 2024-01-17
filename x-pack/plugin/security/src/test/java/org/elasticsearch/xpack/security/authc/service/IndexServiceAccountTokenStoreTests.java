@@ -271,7 +271,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                     .toArray(SearchHit[]::new);
                 ActionListener.respondAndRelease(
                     l,
-                    new SearchResponse(
+                    SearchResponse.newWithoutMetrics(
                         SearchHits.unpooled(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null),
                         null,
                         null,

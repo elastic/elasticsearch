@@ -26,6 +26,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -118,7 +119,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         pointInTimeId = in.readOptionalString();
     }
 
-    public SearchResponse(
+    public static SearchResponse newWithMetrics(
         SearchHits hits,
         Aggregations aggregations,
         Suggest suggest,
@@ -132,9 +133,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int skippedShards,
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
-        Clusters clusters
+        Clusters clusters,
+        SearchResponseMetrics searchResponseMetrics
     ) {
-        this(
+        searchResponseMetrics.recordTookTime(tookInMillis);
+        return new SearchResponse(
             hits,
             aggregations,
             suggest,
@@ -153,7 +156,42 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         );
     }
 
-    public SearchResponse(
+    public static SearchResponse newWithoutMetrics(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters
+    ) {
+        return new SearchResponse(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            null
+        );
+    }
+
+    public static SearchResponse newWithMetrics(
         SearchResponseSections searchResponseSections,
         String scrollId,
         int totalShards,
@@ -162,9 +200,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
-        String pointInTimeId
+        String pointInTimeId,
+        SearchResponseMetrics searchResponseMetrics
     ) {
-        this(
+        searchResponseMetrics.recordTookTime(tookInMillis);
+        return new SearchResponse(
             searchResponseSections.hits,
             searchResponseSections.aggregations,
             searchResponseSections.suggest,
@@ -183,7 +223,38 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         );
     }
 
-    public SearchResponse(
+    public static SearchResponse newWithoutMetrics(
+        SearchResponseSections searchResponseSections,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
+        return new SearchResponse(
+            searchResponseSections.hits,
+            searchResponseSections.aggregations,
+            searchResponseSections.suggest,
+            searchResponseSections.timedOut,
+            searchResponseSections.terminatedEarly,
+            searchResponseSections.profileResults,
+            searchResponseSections.numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId
+        );
+    }
+
+    protected SearchResponse(
+        // only
         SearchHits hits,
         Aggregations aggregations,
         Suggest suggest,
@@ -219,6 +290,80 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
+    }
+
+    public static SearchResponse newWithMetrics(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId,
+        SearchResponseMetrics searchResponseMetrics
+    ) {
+        searchResponseMetrics.recordTookTime(tookInMillis);
+        return new SearchResponse(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId
+        );
+    }
+
+    public static SearchResponse newWithoutMetrics(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
+        return new SearchResponse(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId
+        );
     }
 
     @Override

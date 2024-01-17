@@ -242,7 +242,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
             );
 
             SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
-            SearchResponse response = new SearchResponse(
+            SearchResponse response = SearchResponse.newWithoutMetrics(
                 searchHits,
                 null,
                 null,

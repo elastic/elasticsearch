@@ -201,7 +201,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     try {
                         ActionListener.respondAndRelease(
                             listener,
-                            (Response) new SearchResponse(
+                            (Response) SearchResponse.newWithoutMetrics(
                                 searchHits,
                                 null,
                                 null,
@@ -225,7 +225,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
                     ActionListener.respondAndRelease(
                         listener,
-                        (Response) new SearchResponse(
+                        (Response) SearchResponse.newWithoutMetrics(
                             SearchHits.EMPTY_WITH_TOTAL_HITS,
                             null,
                             null,

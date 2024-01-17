@@ -115,7 +115,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
             ActionListener.respondAndRelease(
                 nextPhase,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     SearchHits.EMPTY_WITH_TOTAL_HITS,
                     null,
                     null,
@@ -266,7 +266,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
             ActionListener.respondAndRelease(
                 nextPhase,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     SearchHits.EMPTY_WITH_TOTAL_HITS,
                     null,
                     null,

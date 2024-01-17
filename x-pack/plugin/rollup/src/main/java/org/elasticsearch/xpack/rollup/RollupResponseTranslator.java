@@ -341,7 +341,7 @@ public class RollupResponseTranslator {
             numReducePhases += liveResponse.getNumReducePhases();
         }
         // Shard failures are ignored atm, so returning an empty array is fine
-        return new SearchResponse(
+        return SearchResponse.newWithoutMetrics(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
             null,

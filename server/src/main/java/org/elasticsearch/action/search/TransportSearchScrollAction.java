@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -32,7 +32,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private static final Logger logger = LogManager.getLogger(TransportSearchScrollAction.class);
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportSearchScrollAction(
@@ -40,12 +40,12 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         ClusterService clusterService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     @Override
@@ -74,7 +74,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     (SearchTask) task,
                     scrollId,
                     loggingListener,
-                    searchResponseTookMetrics
+                    searchResponseMetrics
                 );
                 case QUERY_AND_FETCH_TYPE -> // TODO can we get rid of this?
                     new SearchScrollQueryAndFetchAsyncAction(
@@ -85,7 +85,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         (SearchTask) task,
                         scrollId,
                         loggingListener,
-                        searchResponseTookMetrics
+                        searchResponseMetrics
                     );
                 default -> throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             };

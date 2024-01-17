@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -50,7 +50,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     protected SearchScrollAsyncAction(
         ParsedScrollId scrollId,
@@ -59,9 +59,9 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         ActionListener<SearchResponse> listener,
         SearchScrollRequest request,
         SearchTransportService searchTransportService,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
         this.startTime = System.currentTimeMillis();
         this.scrollId = scrollId;
         this.successfulOps = new AtomicInteger(scrollId.getContext().length);
@@ -253,16 +253,17 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             try {
                 ActionListener.respondAndRelease(
                     listener,
-                    new SearchResponse(
+                    SearchResponse.newWithMetrics(
                         sections,
                         scrollId,
                         this.scrollId.getContext().length,
                         successfulOps.get(),
                         0,
-                        searchResponseTookMetrics.record(buildTookInMillis()),
+                        buildTookInMillis(),
                         buildShardFailures(),
                         SearchResponse.Clusters.EMPTY,
-                        null
+                        null,
+                        searchResponseMetrics
                     )
                 );
             } finally {

@@ -57,7 +57,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -822,7 +822,7 @@ public class SecurityTests extends ESTestCase {
                 null,
                 List.of(),
                 RestExtension.allowAll(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             );
             actionModule.initRestHandlers(null, null);
 

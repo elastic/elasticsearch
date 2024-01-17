@@ -223,7 +223,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
             ActionListener.respondAndRelease(
                 responseListener,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     SearchHits.EMPTY_WITH_TOTAL_HITS,
                     // Simulate completely null aggs
                     null,
@@ -372,7 +372,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null,
             null
         );
-        SearchResponse searchResponse = new SearchResponse(
+        SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             // Simulate completely null aggs
             null,
@@ -512,7 +512,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = new SearchResponse(
+        final SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
             // Simulate completely null aggs
             null,
@@ -605,7 +605,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = new SearchResponse(
+        final SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
             // Simulate completely null aggs
             null,
@@ -701,7 +701,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = new SearchResponse(
+        final SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
             // Simulate completely null aggs
             null,

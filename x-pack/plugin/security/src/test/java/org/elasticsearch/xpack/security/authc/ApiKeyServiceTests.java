@@ -412,7 +412,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     SearchHits.unpooled(
                         new SearchHit[] { searchHit },
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -757,7 +757,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     SearchHits.unpooled(
                         searchHits.toArray(SearchHit[]::new),
                         new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),

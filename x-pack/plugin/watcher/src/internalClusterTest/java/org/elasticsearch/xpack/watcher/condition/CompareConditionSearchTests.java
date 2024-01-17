@@ -104,7 +104,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchResponse response = new SearchResponse(
+        SearchResponse response = SearchResponse.newWithoutMetrics(
             SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),
             null,
             null,

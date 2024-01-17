@@ -18,7 +18,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -108,7 +108,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -146,7 +146,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             PriorityQueue<Tuple<SearchShardTarget, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(
@@ -219,7 +219,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
@@ -281,7 +281,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             List<ShardSearchFailure> expectedFailures = new ArrayList<>();
@@ -331,14 +331,14 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             Map<String, SearchProfileShardResult> expectedProfile = new HashMap<>();
             for (int i = 0; i < numResponses; i++) {
                 SearchProfileResults profile = SearchProfileResultsTests.createTestItem();
                 expectedProfile.putAll(profile.getShardResults());
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                     null,
                     null,
@@ -388,7 +388,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -417,7 +417,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
                 SearchHits searchHits = SearchHits.empty(null, Float.NaN);
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     searchHits,
                     null,
                     suggest,
@@ -475,7 +475,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -503,7 +503,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     SearchHits.empty(null, Float.NaN),
                     null,
                     suggest,
@@ -580,12 +580,12 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
                 emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1"))),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             for (Max max : Arrays.asList(max1, max2)) {
                 InternalAggregations aggs = InternalAggregations.from(Arrays.asList(max));
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     SearchHits.empty(null, Float.NaN),
                     aggs,
                     null,
@@ -631,7 +631,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                         .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
                 ),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             int totalCount = 0;
@@ -654,7 +654,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 );
                 InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
                 InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     SearchHits.empty(null, Float.NaN),
                     aggs,
                     null,
@@ -744,7 +744,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 trackTotalHitsUpTo,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
 
@@ -818,7 +818,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 Boolean terminatedEarly = frequently() ? null : true;
                 expectedTerminatedEarly = expectedTerminatedEarly == null ? terminatedEarly : expectedTerminatedEarly;
 
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     searchHits,
                     null,
                     null,
@@ -914,7 +914,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 Integer.MAX_VALUE,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
@@ -955,7 +955,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 Integer.MAX_VALUE,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
@@ -984,7 +984,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     null,
                     null
                 );
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     searchHits,
                     null,
                     null,
@@ -1008,7 +1008,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 }
             }
             {
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                     null,
                     null,
@@ -1061,7 +1061,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 trackTotalHitsUpTo,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             )
         ) {
             int numResponses = randomIntBetween(1, 5);
@@ -1073,7 +1073,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value;
                     expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value, trackTotalHitsUpTo), totalHitsRelation);
                 }
-                SearchResponse searchResponse = new SearchResponse(
+                SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                     SearchHits.empty(totalHits, Float.NaN),
                     null,
                     null,
@@ -1174,7 +1174,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         // partial aggs from local cluster (no search hits)
         double value = 33.33;
         int count = 33;
-        SearchResponse searchResponsePartialAggs = new SearchResponse(
+        SearchResponse searchResponsePartialAggs = SearchResponse.newWithoutMetrics(
             SearchHits.empty(new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), Float.NaN),
             createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
             null,
@@ -1199,7 +1199,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         int successful = 2;
         int skipped = 1;
         Index[] indices = new Index[] { new Index("foo_idx", "1bba9f5b-c5a1-4664-be1b-26be590c1aff") };
-        final SearchResponse searchResponseRemote1 = new SearchResponse(
+        final SearchResponse searchResponseRemote1 = SearchResponse.newWithoutMetrics(
             createSimpleDeterministicSearchHits(clusterAlias, indices),
             createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
             null,
@@ -1224,7 +1224,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         successful = 2;
         skipped = 1;
         indices = new Index[] { new Index("foo_idx", "ae024679-097a-4a27-abf8-403f1e9189de") };
-        SearchResponse searchResponseRemote2 = new SearchResponse(
+        SearchResponse searchResponseRemote2 = SearchResponse.newWithoutMetrics(
             createSimpleDeterministicSearchHits(clusterAlias, indices),
             createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
             null,
@@ -1263,7 +1263,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                         new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                             .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
                     ),
-                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                    new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                 )
             ) {
                 searchResponseMerger.add(searchResponsePartialAggs);
@@ -1384,7 +1384,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                         new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                             .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
                     ),
-                    new SearchResponseTookMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                    new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                 )
             ) {
                 searchResponseMerger.add(searchResponseRemote2);

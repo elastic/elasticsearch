@@ -573,7 +573,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        SearchResponse searchResponse = new SearchResponse(
+        SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             hits,
             null,
             null,

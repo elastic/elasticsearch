@@ -119,7 +119,7 @@ public class SearchResponseTests extends ESTestCase {
                 InternalAggregations aggregations = aggregationsTests.createTestInstance();
                 Suggest suggest = SuggestTests.createTestItem();
                 SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
-                return new SearchResponse(
+                return SearchResponse.newWithoutMetrics(
                     hits,
                     aggregations,
                     suggest,
@@ -387,7 +387,7 @@ public class SearchResponseTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[] { hit };
         var sHits = new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f);
         {
-            SearchResponse response = new SearchResponse(
+            SearchResponse response = SearchResponse.newWithoutMetrics(
                 sHits,
                 null,
                 null,
@@ -429,7 +429,7 @@ public class SearchResponseTests extends ESTestCase {
             }
         }
         {
-            SearchResponse response = new SearchResponse(
+            SearchResponse response = SearchResponse.newWithoutMetrics(
                 sHits,
                 null,
                 null,
@@ -479,7 +479,7 @@ public class SearchResponseTests extends ESTestCase {
             }
         }
         {
-            SearchResponse response = new SearchResponse(
+            SearchResponse response = SearchResponse.newWithoutMetrics(
                 sHits,
                 null,
                 null,

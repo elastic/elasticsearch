@@ -351,7 +351,7 @@ public class PivotTests extends ESTestCase {
     }
 
     private static SearchResponse searchResponseFromAggs(Aggregations aggs) {
-        return new SearchResponse(
+        return SearchResponse.newWithoutMetrics(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
             null,
@@ -397,7 +397,7 @@ public class PivotTests extends ESTestCase {
                 }
                 ActionListener.respondAndRelease(
                     listener,
-                    (Response) new SearchResponse(
+                    (Response) SearchResponse.newWithoutMetrics(
                         SearchHits.EMPTY_WITH_TOTAL_HITS,
                         null,
                         null,

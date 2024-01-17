@@ -1149,7 +1149,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
                     channel.sendResponse(
-                        new SearchResponse(
+                        SearchResponse.newWithoutMetrics(
                             SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                             InternalAggregations.EMPTY,
                             null,

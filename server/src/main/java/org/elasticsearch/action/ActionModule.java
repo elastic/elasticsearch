@@ -404,7 +404,7 @@ import org.elasticsearch.rest.action.search.RestKnnSearchAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymRuleAction;
@@ -466,7 +466,7 @@ public class ActionModule extends AbstractModule {
     private final ReservedClusterStateService reservedClusterStateService;
     private final RestExtension restExtension;
 
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     public ActionModule(
         Settings settings,
@@ -486,7 +486,7 @@ public class ActionModule extends AbstractModule {
         RerouteService rerouteService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
         RestExtension restExtension,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -534,7 +534,7 @@ public class ActionModule extends AbstractModule {
         }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, rerouteService, reservedStateHandlers);
         this.restExtension = restExtension;
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     private static <T> T getRestServerComponent(
@@ -939,7 +939,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpdateAction());
 
         registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry));
-        registerHandler.accept(new RestSearchScrollAction(searchResponseTookMetrics));
+        registerHandler.accept(new RestSearchScrollAction(searchResponseMetrics));
         registerHandler.accept(new RestClearScrollAction());
         registerHandler.accept(new RestOpenPointInTimeAction());
         registerHandler.accept(new RestClosePointInTimeAction());

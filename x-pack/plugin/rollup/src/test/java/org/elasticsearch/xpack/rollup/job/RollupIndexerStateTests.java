@@ -105,7 +105,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             }));
             ActionListener.respondAndRelease(
                 nextPhase,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     SearchHits.EMPTY_WITH_TOTAL_HITS,
                     aggs,
                     null,
@@ -479,7 +479,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     }));
                     ActionListener.respondAndRelease(
                         nextPhase,
-                        new SearchResponse(
+                        SearchResponse.newWithoutMetrics(
                             SearchHits.EMPTY_WITH_TOTAL_HITS,
                             aggs,
                             null,
@@ -696,7 +696,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            return new SearchResponse(
+            return SearchResponse.newWithoutMetrics(
                 SearchHits.EMPTY_WITH_TOTAL_HITS,
                 aggs,
                 null,
@@ -826,7 +826,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            return new SearchResponse(
+            return SearchResponse.newWithoutMetrics(
                 SearchHits.EMPTY_WITH_TOTAL_HITS,
                 aggs,
                 null,
@@ -1005,7 +1005,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            return new SearchResponse(
+            return SearchResponse.newWithoutMetrics(
                 SearchHits.EMPTY_WITH_TOTAL_HITS,
                 aggs,
                 null,

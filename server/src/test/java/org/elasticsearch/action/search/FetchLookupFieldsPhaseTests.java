@@ -109,7 +109,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                             searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
                         }
                         responses[i] = new MultiSearchResponse.Item(
-                            new SearchResponse(
+                            SearchResponse.newWithoutMetrics(
                                 searchHits,
                                 null,
                                 null,

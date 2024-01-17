@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -48,7 +48,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         ClusterState clusterState,
         SearchTask task,
         SearchResponse.Clusters clusters,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(
             "dfs",
@@ -68,7 +68,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             new ArraySearchPhaseResults<>(shardsIts.size()),
             request.getMaxConcurrentShardRequests(),
             clusters,
-            searchResponseTookMetrics
+            searchResponseMetrics
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         addReleasable(queryPhaseResultConsumer);

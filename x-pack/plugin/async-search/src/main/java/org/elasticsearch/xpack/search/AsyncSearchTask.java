@@ -27,7 +27,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -76,7 +76,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     private final SetOnce<MutableSearchResponse> searchResponse = new SetOnce<>();
 
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -91,7 +91,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * @param threadPool                      The threadPool to schedule runnable.
      * @param aggReduceContextSupplierFactory A factory that creates as supplier to create final reduce contexts, we need a factory in
      *                                        order to inject the task itself to the reduce context.
-     * @param searchResponseTookMetrics
+     * @param searchResponseMetrics
      */
     AsyncSearchTask(
         long id,
@@ -106,7 +106,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         Client client,
         ThreadPool threadPool,
         Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
@@ -115,7 +115,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         this.client = client;
         this.threadPool = threadPool;
         this.aggReduceContextSupplier = aggReduceContextSupplierFactory.apply(this::isCancelled);
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
         this.progressListener = new Listener();
         setProgressListener(progressListener);
     }
@@ -465,7 +465,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                     skipped.size(),
                     clusters,
                     threadPool.getThreadContext(),
-                    searchResponseTookMetrics
+                    searchResponseMetrics
                 )
             );
             executeInitListeners();
@@ -533,7 +533,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         @Override
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
-            var r = new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext(), searchResponseTookMetrics);
+            var r = new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext(), searchResponseMetrics);
             if (searchResponse.trySet(r) == false) {
                 r.close();
             }

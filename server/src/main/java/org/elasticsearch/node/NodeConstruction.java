@@ -168,7 +168,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -795,7 +795,7 @@ class NodeConstruction {
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
-        final SearchResponseTookMetrics searchResponseTookMetrics = new SearchResponseTookMetrics(telemetryProvider.getMeterRegistry());
+        final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
@@ -821,7 +821,7 @@ class NodeConstruction {
                 metadataCreateIndexService
             ),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
-            searchResponseTookMetrics
+            searchResponseMetrics
         );
         modules.add(actionModule);
 
@@ -1054,7 +1054,7 @@ class NodeConstruction {
             b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
             b.bind(SearchService.class).toInstance(searchService);
             b.bind(SearchTransportAPMMetrics.class).toInstance(searchTransportAPMMetrics);
-            b.bind(SearchResponseTookMetrics.class).toInstance(searchResponseTookMetrics);
+            b.bind(SearchResponseMetrics.class).toInstance(searchResponseMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
             b.bind(Transport.class).toInstance(transport);

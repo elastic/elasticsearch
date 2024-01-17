@@ -208,7 +208,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long expectedCompletionTime = startTimeMillis + took;
 
         SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
-        SearchResponse searchResponse = new SearchResponse(
+        SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             hits,
             null,
             null,
@@ -321,7 +321,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
         SearchResponse.Clusters clusters = createCCSClusterObjects(3, 3, true);
 
-        SearchResponse searchResponse = new SearchResponse(
+        SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             hits,
             null,
             null,
@@ -547,7 +547,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         );
         assertNotNull("Set cluster failed for cluster " + cluster2.getClusterAlias(), updated);
 
-        SearchResponse searchResponse = new SearchResponse(
+        SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             hits,
             null,
             null,
@@ -689,7 +689,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long took = 22968L;
 
         SearchHits hits = SearchHits.EMPTY_WITHOUT_TOTAL_HITS;
-        SearchResponse searchResponse = new SearchResponse(
+        SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             hits,
             null,
             null,

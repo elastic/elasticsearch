@@ -171,7 +171,7 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
     }
 
     private static SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
-        return new SearchResponse(
+        return SearchResponse.newWithoutMetrics(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             new Aggregations(Arrays.asList(minTimestamp, maxTimestamp)),
             null,

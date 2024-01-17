@@ -22,7 +22,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -73,7 +73,7 @@ public final class SearchResponseMerger implements Releasable {
     private final SearchTimeProvider searchTimeProvider;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     private final Releasable releasable = LeakTracker.wrap(() -> {
         for (SearchResponse searchResponse : searchResponses) {
@@ -87,14 +87,14 @@ public final class SearchResponseMerger implements Releasable {
         int trackTotalHitsUpTo,
         SearchTimeProvider searchTimeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
         this.aggReduceContextBuilder = aggReduceContextBuilder; // might be null if there are no aggregations
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     /**
@@ -123,7 +123,7 @@ public final class SearchResponseMerger implements Releasable {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.isEmpty()) {
-            return SearchResponse.empty(() -> searchResponseTookMetrics.record(searchTimeProvider.buildTookInMillis()), clusters);
+            return SearchResponse.empty(() -> searchResponseMetrics.recordTookTime(searchTimeProvider.buildTookInMillis()), clusters);
         }
         int totalShards = 0;
         int skippedShards = 0;
@@ -218,7 +218,7 @@ public final class SearchResponseMerger implements Releasable {
             SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);
-            return new SearchResponse(
+            return SearchResponse.newWithMetrics(
                 mergedSearchHits,
                 reducedAggs,
                 suggest,
@@ -230,10 +230,11 @@ public final class SearchResponseMerger implements Releasable {
                 totalShards,
                 successfulShards,
                 skippedShards,
-                searchResponseTookMetrics.record(searchTimeProvider.buildTookInMillis()),
+                searchTimeProvider.buildTookInMillis(),
                 shardFailures,
                 clusters,
-                null
+                null,
+                searchResponseMetrics
             );
         } finally {
             mergedSearchHits.decRef();

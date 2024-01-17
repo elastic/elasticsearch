@@ -342,7 +342,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
     }
 
     private static SearchResponse newSearchResponse(long totalHits) {
-        return new SearchResponse(
+        return SearchResponse.newWithoutMetrics(
             SearchHits.empty(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0),
             null,
             null,

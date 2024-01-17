@@ -186,7 +186,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
 
-        SearchResponse searchResponse = new SearchResponse(
+        SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
             new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
             null,
             null,

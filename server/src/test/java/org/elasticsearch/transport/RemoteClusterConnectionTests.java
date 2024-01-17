@@ -155,7 +155,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     } else {
                         searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    SearchResponse searchResponse = new SearchResponse(
+                    SearchResponse searchResponse = SearchResponse.newWithoutMetrics(
                         searchHits,
                         InternalAggregations.EMPTY,
                         null,

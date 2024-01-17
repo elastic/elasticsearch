@@ -868,7 +868,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
+                SearchResponse.newWithoutMetrics(
                     SearchHits.EMPTY_WITH_TOTAL_HITS,
                     new Aggregations(Collections.singletonList(result)),
                     null,

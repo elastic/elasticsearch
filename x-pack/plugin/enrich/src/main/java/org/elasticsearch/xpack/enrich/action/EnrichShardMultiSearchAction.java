@@ -304,7 +304,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
     private static SearchResponse createSearchResponse(TopDocs topDocs, SearchHit[] hits) {
         SearchHits searchHits = new SearchHits(hits, topDocs.totalHits, 0);
         try {
-            return new SearchResponse(
+            return SearchResponse.newWithoutMetrics(
                 searchHits,
                 null,
                 null,

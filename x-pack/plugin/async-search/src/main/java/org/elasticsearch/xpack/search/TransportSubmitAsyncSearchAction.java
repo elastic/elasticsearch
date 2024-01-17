@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.action.search.SearchResponseTookMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -46,7 +46,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private final TransportSearchAction searchAction;
     private final ThreadContext threadContext;
     private final AsyncTaskIndexService<AsyncSearchResponse> store;
-    private final SearchResponseTookMetrics searchResponseTookMetrics;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportSubmitAsyncSearchAction(
@@ -59,7 +59,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         SearchService searchService,
         TransportSearchAction searchAction,
         BigArrays bigArrays,
-        SearchResponseTookMetrics searchResponseTookMetrics
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(
             SubmitAsyncSearchAction.NAME,
@@ -73,7 +73,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.searchService = searchService;
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
-        this.searchResponseTookMetrics = searchResponseTookMetrics;
+        this.searchResponseMetrics = searchResponseMetrics;
         this.store = new AsyncTaskIndexService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
             clusterService,
@@ -198,7 +198,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                     nodeClient.threadPool(),
                     isCancelled -> () -> searchService.aggReduceContextBuilder(isCancelled, originalSearchRequest.source().aggregations())
                         .forFinalReduction(),
-                    searchResponseTookMetrics
+                    searchResponseMetrics
                 );
             }
         };

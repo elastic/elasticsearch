@@ -71,6 +71,7 @@ import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class TranslogReplicator extends AbstractLifecycleComponent {
@@ -130,7 +131,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 return Long.MIN_VALUE;
             }
             return index.primaryTerm(shardId.getId());
-        }, () -> indicesService.lifecycleState());
+        }, indicesService::lifecycleState);
     }
 
     public TranslogReplicator(
@@ -352,6 +353,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final CompoundTranslog translog;
         private final RefCounted bytesToClose;
+        private int uploadTryNumber = 0;
         private volatile boolean isUploaded = false;
 
         private UploadTranslogTask(CompoundTranslog translog, ActionListener<Void> listener) {
@@ -375,14 +377,28 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void tryAction(ActionListener<Void> listener) {
+            ++uploadTryNumber;
             // Retain the bytes to ensure that a cancel call does not corrupt them before upload
             if (bytesToClose.tryIncRef()) {
                 objectStoreService.uploadTranslogFile(
                     translog.metadata().name(),
                     translog.bytes().data(),
-                    ActionListener.releaseAfter(listener.delegateFailureAndWrap((l, v) -> {
+                    ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         isUploaded = true;
-                        l.onResponse(null);
+                        listener.onResponse(unused);
+
+                    }, e -> {
+                        org.apache.logging.log4j.util.Supplier<Object> messageSupplier = () -> format(
+                            "failed attempt [%s] to upload translog file [%s] to object store, will retry",
+                            uploadTryNumber,
+                            translog.metadata().name()
+                        );
+                        if (uploadTryNumber == 5) {
+                            logger.warn(messageSupplier, e);
+                        } else {
+                            logger.info(messageSupplier, e);
+                        }
+                        listener.onFailure(e);
 
                     }), bytesToClose::decRef)
                 );
@@ -418,7 +434,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             @Override
             public void onFailure(Exception e) {
                 // We only fully fail when the translog replicator is shutting down
-                logger.error(
+                logger.info(
                     () -> "Failed to upload translog file [" + translog.metadata().name() + "] due to translog replicator shutdown",
                     e
                 );

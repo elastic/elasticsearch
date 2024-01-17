@@ -12,10 +12,19 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
 import java.util.Map;
+import java.util.Set;
 
 public class EsqlFeatures implements FeatureSpecification {
+
+    public static final NodeFeature ASYNC_API_SUPPORTED = new NodeFeature("esql.async_api_supported");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0);
+    }
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(ASYNC_API_SUPPORTED);
     }
 }

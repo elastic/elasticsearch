@@ -44,6 +44,9 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
+    // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_API_SUPPORTED.id() here
+    protected static final String ASYNC_API_SUPPORTED_FEATURE_ID = "esql.async_api_supported";
+
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
@@ -93,7 +96,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean supportsAsync() {
-        return Version.CURRENT.onOrAfter(Version.V_8_13_0); // the Async API was introduced in 8.13.0
+        return clusterHasFeature(ASYNC_API_SUPPORTED_FEATURE_ID); // the Async API was introduced in 8.13.0
     }
 
     @AfterClass

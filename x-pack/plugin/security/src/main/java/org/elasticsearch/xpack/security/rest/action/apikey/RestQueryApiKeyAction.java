@@ -98,6 +98,7 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
             final Payload payload = PARSER.parse(request.contentOrSourceParamParser(), null);
             queryApiKeyRequest = new QueryApiKeyRequest(
                 payload.queryBuilder,
+                null,
                 payload.from,
                 payload.size,
                 payload.fieldSortBuilders,
@@ -105,7 +106,7 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
                 withLimitedBy
             );
         } else {
-            queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, withLimitedBy);
+            queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, null, withLimitedBy);
         }
         return channel -> client.execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest, new RestToXContentListener<>(channel));
     }

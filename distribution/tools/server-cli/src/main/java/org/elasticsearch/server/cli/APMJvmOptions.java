@@ -218,16 +218,22 @@ class APMJvmOptions {
 
         // tracing.apm.agent. is deprecated by telemetry.agent.
         final String telemetryAgentPrefix = "telemetry.agent.";
-        final String tracingAgentPrefix = "tracing.apm.agent.";
+        final String deprecatedTelemetryAgentPrefix = "tracing.apm.agent.";
 
         final Settings telemetryAgentSettings = settings.getByPrefix(telemetryAgentPrefix);
         telemetryAgentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(telemetryAgentSettings.get(key))));
 
-        final Settings apmAgentSettings = settings.getByPrefix(tracingAgentPrefix);
+        final Settings apmAgentSettings = settings.getByPrefix(deprecatedTelemetryAgentPrefix);
         for (String key : apmAgentSettings.keySet()) {
             if (propertiesMap.containsKey(key)) {
                 throw new IllegalStateException(
-                    Strings.format("Duplicate telemetry setting: [%s%s] and [%s%s]", telemetryAgentPrefix, key, tracingAgentPrefix, key)
+                    Strings.format(
+                        "Duplicate telemetry setting: [%s%s] and [%s%s]",
+                        telemetryAgentPrefix,
+                        key,
+                        deprecatedTelemetryAgentPrefix,
+                        key
+                    )
                 );
             }
             propertiesMap.put(key, String.valueOf(apmAgentSettings.get(key)));
@@ -235,9 +241,9 @@ class APMJvmOptions {
 
         StringJoiner globalLabels = extractGlobalLabels(telemetryAgentPrefix, propertiesMap, settings);
         if (globalLabels.length() == 0) {
-            globalLabels = extractGlobalLabels(tracingAgentPrefix, propertiesMap, settings);
+            globalLabels = extractGlobalLabels(deprecatedTelemetryAgentPrefix, propertiesMap, settings);
         } else {
-            StringJoiner tracingGlobalLabels = extractGlobalLabels(tracingAgentPrefix, propertiesMap, settings);
+            StringJoiner tracingGlobalLabels = extractGlobalLabels(deprecatedTelemetryAgentPrefix, propertiesMap, settings);
             if (tracingGlobalLabels.length() != 0) {
                 throw new IllegalArgumentException(
                     "Cannot have global labels using tracing.agent prefix ["

@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static java.util.Objects.requireNonNullElseGet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.aShardRouting;
 import static org.hamcrest.Matchers.containsString;
 
 public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRouting> {
@@ -358,49 +359,25 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     break;
                 case 5:
                     // change primary flag
-                    otherRouting = TestShardRouting.newShardRouting(
-                        otherRouting.getIndexName(),
-                        otherRouting.id(),
-                        otherRouting.currentNodeId(),
-                        otherRouting.relocatingNodeId(),
-                        otherRouting.primary() == false,
-                        otherRouting.state(),
-                        otherRouting.unassignedInfo()
-                    );
+                    otherRouting = aShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.primary() == false, otherRouting.state()).withRelocatingNodeId(otherRouting.relocatingNodeId()).withUnassignedInfo(otherRouting.unassignedInfo()).build();
                     break;
                 case 6:
                     // change state
                     ShardRoutingState newState = randomValueOtherThan(otherRouting.state(), () -> randomFrom(ShardRoutingState.values()));
-                    otherRouting = TestShardRouting.newShardRouting(
-                        otherRouting.getIndexName(),
-                        otherRouting.id(),
-                        newState == ShardRoutingState.UNASSIGNED ? null : Objects.requireNonNullElse(otherRouting.currentNodeId(), "1"),
-                        newState == ShardRoutingState.RELOCATING ? "2" : null,
-                        otherRouting.primary(),
-                        newState,
-                        newState == ShardRoutingState.UNASSIGNED || newState == ShardRoutingState.INITIALIZING
-                            ? Objects.requireNonNullElse(
-                                otherRouting.unassignedInfo(),
-                                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
-                            )
-                            : null
-                    );
+                    otherRouting = aShardRouting(otherRouting.getIndexName(), otherRouting.id(), newState == ShardRoutingState.UNASSIGNED ? null : Objects.requireNonNullElse(otherRouting.currentNodeId(), "1"), otherRouting.primary(), newState).withRelocatingNodeId(newState == ShardRoutingState.RELOCATING ? "2" : null).withUnassignedInfo(newState == ShardRoutingState.UNASSIGNED || newState == ShardRoutingState.INITIALIZING
+                        ? Objects.requireNonNullElse(
+                            otherRouting.unassignedInfo(),
+                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
+                        )
+                        : null).build();
                     break;
             }
 
             if (randomBoolean() && otherRouting.state() == ShardRoutingState.UNASSIGNED) {
                 // change unassigned info
-                otherRouting = TestShardRouting.newShardRouting(
-                    otherRouting.getIndexName(),
-                    otherRouting.id(),
-                    otherRouting.currentNodeId(),
-                    otherRouting.relocatingNodeId(),
-                    otherRouting.primary(),
-                    otherRouting.state(),
-                    otherRouting.unassignedInfo() == null
-                        ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
-                        : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().getMessage() + "_1")
-                );
+                otherRouting = aShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.primary(), otherRouting.state()).withRelocatingNodeId(otherRouting.relocatingNodeId()).withUnassignedInfo(otherRouting.unassignedInfo() == null
+                    ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
+                    : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().getMessage() + "_1")).build();
             }
 
             if (unchanged == false) {

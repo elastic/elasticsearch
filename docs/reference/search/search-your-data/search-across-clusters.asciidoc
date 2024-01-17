@@ -491,13 +491,13 @@ still running, you will see an update in the `_clusters` and `_shards` section o
 the response as each cluster finishes its search.
 
 If you set `ccs_minimize_roundtrips=false`, then you will also see partial aggregation
-results from clusters that have finished, but no results are shown in "hits" section
-until the search has completed.
+results from shards (from any cluster) that have finished, but no results are shown in
+"hits" section until the search has completed.
 
 If you set `ccs_minimize_roundtrips=true`, then you will also see partial results
 in the "hits" and "aggregations" section of the response from all clusters that have
-completed so far. (Note: you can also see aggregations from the local cluster even
-before it finishes.) The example below shows the `ccs_minimize_roundtrips=true` case.
+completed so far. (Note: you can also see partial aggregation results from the local cluster
+even before it finishes.) The example below shows the `ccs_minimize_roundtrips=true` case.
 
 
 [source,console]
@@ -579,9 +579,9 @@ Response:
 // TEST[skip: hard to reproduce intermediate results]
 
 
-<1> All the local cluster and `cluster_one` shards have completed.
+<1> Searches on all shards of the local cluster and remote `cluster_one` cluster have completed.
 <2> Since two clusters have completed the search, the "successful" clusters entry
-is set to 2 and "running" clusters entry reduced to 1. The `_clusters` response metadata
+is set to 2 and "running" clusters entry is reduced to 1. The `_clusters` response metadata
 will be updated as each cluster finishes.
 <3> Number of hits from the completed searches so far. Final hits are not shown
 until searches on all clusters have been completed and merged. Thus, the "hits"
@@ -1252,14 +1252,15 @@ being searched have high network latency (e.g., distant geographic regions).
 
 . When doing an async {ccs}, the `GET _async_search/<search_id>` endpoint will provide both
 top hits and aggregations from all clusters that have reported back results even while the search
-is still running. In other words, it provides "incremental" partial results as the search progresses.
-Note that if the local cluster is included in the search, it has special handling in that it can show
-partial aggregations (but not partial top hits) while the search on the local cluster is still running.
+is still running on other clusters. In other words, it provides "incremental" partial results as
+the search progresses. Note that if the local cluster is included in the search, it has special
+handling in that it can show partial aggregations (but not partial top hits) while the search
+on the local cluster is still running.
 
 
-Not minimizing roundtrips allows you to get back incremental results of
-any aggregations in your query when using async-search while the search is still
-running, but not top hits.
+Not minimizing roundtrips when using async-search allows you to get back incremental results of
+any aggregations in your query as individual shards complete (rather than whole clusters) while
+the search is still running, but top hits are not shown until the search has completed on all clusters.
 
 By default, synchronous searches minimize roundtrips, while asynchronous searches
 do not. You can override the default by using the `ccs_minimize_roundtrips` parameter,

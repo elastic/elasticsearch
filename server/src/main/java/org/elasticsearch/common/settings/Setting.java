@@ -2197,7 +2197,7 @@ public class Setting<T> implements ToXContentObject {
         private final Pattern fallbackPattern;
         private final String prefix;
         private final String suffix;
-
+        private final String fallbackPrefix;
         private final String keyString;
 
         AffixKey(String prefix, String suffix, String fallbackPrefix) {
@@ -2210,6 +2210,7 @@ public class Setting<T> implements ToXContentObject {
             }
 
             String prefixPattern;
+            this.fallbackPrefix = fallbackPrefix;
             if (fallbackPrefix != null) {
                 if (fallbackPrefix.endsWith(".") == false) {
                     throw new IllegalArgumentException("prefix must end with a '.'");
@@ -2300,12 +2301,14 @@ public class Setting<T> implements ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AffixKey that = (AffixKey) o;
-            return Objects.equals(prefix, that.prefix) && Objects.equals(suffix, that.suffix);
+            return Objects.equals(prefix, that.prefix)
+                && Objects.equals(suffix, that.suffix)
+                && Objects.equals(fallbackPrefix, that.fallbackPrefix);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(prefix, suffix);
+            return Objects.hash(prefix, suffix, fallbackPrefix);
         }
     }
 }

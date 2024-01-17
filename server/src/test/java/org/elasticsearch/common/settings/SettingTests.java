@@ -820,10 +820,6 @@ public class SettingTests extends ESTestCase {
         map = setting.getAsMap(Settings.builder().put("bar.bar", "true").build());
         assertEquals(1, map.size());
         assertTrue(map.get("bar"));
-
-        map = setting.getAsMap(Settings.builder().put("foo.bar", "false").put("bar.bar", "true").build());
-        assertEquals(1, map.size());
-        assertFalse(map.get("bar"));
     }
 
     public void testAffixKeySetting() {

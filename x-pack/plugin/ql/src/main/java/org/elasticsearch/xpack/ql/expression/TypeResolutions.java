@@ -170,7 +170,7 @@ public final class TypeResolutions {
             );
     }
 
-    private static String acceptedTypesForErrorMsg(String... acceptedTypes) {
+    public static String acceptedTypesForErrorMsg(String... acceptedTypes) {
         StringJoiner sj = new StringJoiner(", ");
         for (int i = 0; i < acceptedTypes.length - 1; i++) {
             sj.add(acceptedTypes[i]);

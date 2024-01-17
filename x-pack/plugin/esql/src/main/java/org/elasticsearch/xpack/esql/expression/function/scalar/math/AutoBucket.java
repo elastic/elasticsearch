@@ -30,13 +30,19 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.Expressions.name;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.acceptedTypesForErrorMsg;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
@@ -113,8 +119,8 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         int b = ((Number) buckets.fold()).intValue();
 
         if (field.dataType() == DataTypes.DATETIME) {
-            long f = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) from.fold()).utf8ToString());
-            long t = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) to.fold()).utf8ToString());
+            long f = convertToLong(from, sourceText(), THIRD);
+            long t = convertToLong(to, sourceText(), FOURTH);;
             return DateTrunc.evaluator(
                 source(),
                 toEvaluator.apply(field),
@@ -180,7 +186,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         }
 
         if (field.dataType() == DataTypes.DATETIME) {
-            return resolveType((e, o) -> isString(e, sourceText(), o));
+            return resolveType((e, o) -> isStringOrDate(e, sourceText(), o));
         }
         if (field.dataType().isNumeric()) {
             return resolveType((e, o) -> isNumeric(e, sourceText(), o));
@@ -214,6 +220,36 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         return isFoldable(to, sourceText(), FOURTH);
     }
 
+    private TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        TypeResolution resolution = isDate(e, operationName, paramOrd);
+        resolution = resolution.unresolved() ? isString(e, operationName, paramOrd) : resolution;
+        if (resolution.unresolved()) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    acceptedTypesForErrorMsg("string", "datetime"),
+                    name(e),
+                    e.dataType().typeName()
+                )
+            );
+        }
+        return resolution;
+    }
+    private long convertToLong(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        long v = 0;
+        TypeResolution resolution = isDate(e, operationName, paramOrd);
+        if (resolution.resolved()) {
+            v = ((Number) e.fold()).longValue();
+        } else {
+            resolution = isString(e, operationName, paramOrd);
+            if (resolution.resolved())
+                v = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) e.fold()).utf8ToString());
+        }
+        return v;
+    }
     @Override
     public DataType dataType() {
         if (field.dataType().isNumeric()) {

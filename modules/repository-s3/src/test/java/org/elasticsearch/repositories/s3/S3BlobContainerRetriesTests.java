@@ -509,6 +509,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertEquals(blobSize, bytesReceived.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104436")
     public void testReadRetriesAfterMeaningfulProgress() throws Exception {
         final int maxRetries = between(0, 5);
         final int bufferSizeBytes = scaledRandomIntBetween(

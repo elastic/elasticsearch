@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.stack;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -41,9 +40,6 @@ import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATE
 @Deprecated(since = "8.12.0", forRemoval = true)
 public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(LegacyStackTemplateRegistry.class);
-
-    // Current version of the registry requires all nodes to be at least 8.9.0.
-    public static final Version MIN_NODE_VERSION = Version.V_8_9_0;
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.

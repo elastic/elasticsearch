@@ -815,9 +815,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
-        List<DataType> types) {
+        List<DataType> types
+    ) {
         return typeErrorSupplier(includeOrdinal, validPerPosition, types, AbstractFunctionTestCase::typeErrorMessage);
     }
+
     /**
      * Build a test case that asserts that the combination of parameter types is an error.
      */

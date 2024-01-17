@@ -44,6 +44,16 @@ public class APMPluginTests extends ESTestCase {
         apmPlugin = new APMPlugin(Settings.builder().put(XPackSettings.APM_DATA_ENABLED.getKey(), true).build());
     }
 
+    private void createComponents() {
+        Environment mockEnvironment = mock(Environment.class);
+        when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
+        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
+        when(services.clusterService()).thenReturn(clusterService);
+        when(services.threadPool()).thenReturn(threadPool);
+        when(services.environment()).thenReturn(mockEnvironment);
+        apmPlugin.createComponents(services);
+    }
+
     @After
     @Override
     public void tearDown() throws Exception {
@@ -53,13 +63,7 @@ public class APMPluginTests extends ESTestCase {
     }
 
     public void testRegistryEnabledSetting() throws Exception {
-        Environment mockEnvironment = mock(Environment.class);
-        when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
-        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
-        when(services.clusterService()).thenReturn(clusterService);
-        when(services.threadPool()).thenReturn(threadPool);
-        when(services.environment()).thenReturn(mockEnvironment);
-        apmPlugin.createComponents(services);
+        createComponents();
 
         // By default, the registry is enabled.
         assertTrue(apmPlugin.registry.get().isEnabled());
@@ -67,6 +71,19 @@ public class APMPluginTests extends ESTestCase {
         // The registry can be disabled/enabled dynamically.
         clusterService.getClusterSettings()
             .applySettings(Settings.builder().put(APMPlugin.APM_DATA_REGISTRY_ENABLED.getKey(), false).build());
+        assertFalse(apmPlugin.registry.get().isEnabled());
+    }
+
+    public void testDisablingPluginDisablesRegistry() throws Exception {
+        apmPlugin = new APMPlugin(Settings.builder().put(XPackSettings.APM_DATA_ENABLED.getKey(), false).build());
+        createComponents();
+
+        // The plugin is disabled, so the registry is disabled too.
+        assertFalse(apmPlugin.registry.get().isEnabled());
+
+        // The registry can not be enabled dynamically when the plugin is disabled.
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(APMPlugin.APM_DATA_REGISTRY_ENABLED.getKey(), true).build());
         assertFalse(apmPlugin.registry.get().isEnabled());
     }
 }

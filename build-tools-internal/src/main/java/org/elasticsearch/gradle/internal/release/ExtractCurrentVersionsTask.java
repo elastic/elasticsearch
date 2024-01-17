@@ -62,7 +62,7 @@ public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
         output.add(INDEX_VERSION_TYPE + ":" + indexVersion);
 
         LOGGER.lifecycle("Writing version information to {}", outputFile);
-        Files.write(outputFile, output, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+        Files.write(outputFile, output, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
     }
 
     static class FieldIdExtractor implements Consumer<FieldDeclaration> {

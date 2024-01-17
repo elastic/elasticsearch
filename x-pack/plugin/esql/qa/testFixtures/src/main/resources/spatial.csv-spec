@@ -86,10 +86,10 @@ FROM airports
 // end::st_centroid-airports[]
 ;
 
-// tag::st_centroid-airports-results[]
+// tag::st_centroid-airports-result[]
 centroid:geo_point
 POINT(-0.030548143003023033 24.37553649504829)
-// end::st_centroid-airports-results[]
+// end::st_centroid-airports-result[]
 ;
 
 centroidFromAirportsCount#[skip:-8.12.99, reason:st_centroid added in 8.13]

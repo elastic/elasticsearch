@@ -34,9 +34,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.createRepository;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -325,8 +325,9 @@ public class StatelessRestoreIT extends AbstractStatelessIntegTestCase {
     }
 
     private static void assertDocCount(String indexName, long numDocs) {
-        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+        });
     }
 }

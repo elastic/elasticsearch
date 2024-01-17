@@ -65,6 +65,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -76,6 +77,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,6 +85,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -93,6 +96,8 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_U
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -236,12 +241,12 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         flush(indexName);
         assertEquals(
             docIds.size(),
-            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value
+            SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()))
         );
 
         deleteDocsById(indexName, docIds);
         flushAndRefresh(indexName);
-        assertEquals(0, client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value);
+        assertEquals(0, SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())));
 
         Set<String> newDocIds = indexDocsWithRefreshAndGetIds(indexName, randomIntBetween(1, 100));
         flush(indexName);
@@ -374,12 +379,14 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 }
             }
 
-            var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-            assertNoFailures(searchResponse);
-            assertEquals(
-                "Failed search hit count refresh test for bulk refresh policy: " + refreshPolicy,
-                totalDocs,
-                searchResponse.getHits().getTotalHits().value
+            final int finalTotalDocs = totalDocs;
+            assertNoFailuresAndResponse(
+                prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
+                searchResponse -> assertEquals(
+                    "Failed search hit count refresh test for bulk refresh policy: " + refreshPolicy,
+                    finalTotalDocs,
+                    searchResponse.getHits().getTotalHits().value
+                )
             );
         }
     }
@@ -405,9 +412,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
         ensureGreen(indexName);
 
-        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
+            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value)
+        );
     }
 
     public void testForcedRefreshIsVisibleOnNewSearchShard() throws Exception {
@@ -423,9 +431,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
         ensureGreen(indexName);
 
-        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
+            searchResponse -> assertEquals(numDocs, searchResponse.getHits().getTotalHits().value)
+        );
     }
 
     public void testUnpromotableRefreshFailure() {
@@ -460,9 +469,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertThat(beforeShardAllocationId, not(shardAllocationId(indexName)));
         assertThat(beforeShardSearchNode, equalTo(shardSearchNodeName(indexName)));
 
-        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
+            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value)
+        );
     }
 
     public void testScrollingSearchNotInterruptedByNewCommit() throws Exception {
@@ -483,16 +493,16 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         long docsDeleted = 0;
         int scrolls = (int) Math.ceil((float) bulk1DocsToIndex / scrollSize);
         // The scrolling search should only see docs from the first bulk
-        SearchResponse scrollSearchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(scrollSize)
-            .setScroll(TimeValue.timeValueMinutes(2))
-            .get();
-        assertNoFailures(scrollSearchResponse);
-        assertThat(scrollSearchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
-        Set<String> scrollSearchDocsSeen = Arrays.stream(scrollSearchResponse.getHits().getHits())
-            .map(SearchHit::getId)
-            .collect(Collectors.toSet());
+        Set<String> scrollSearchDocsSeen = new HashSet<>();
+        final AtomicReference<String> currentScrollId = new AtomicReference<>();
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setSize(scrollSize).setScroll(TimeValue.timeValueMinutes(2)),
+            scrollSearchResponse -> {
+                assertThat(scrollSearchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
+                Arrays.stream(scrollSearchResponse.getHits().getHits()).map(SearchHit::getId).forEach(scrollSearchDocsSeen::add);
+                currentScrollId.set(scrollSearchResponse.getScrollId());
+            }
+        );
         try {
             for (int i = 1; i < scrolls; i++) {
                 if (randomBoolean()) {
@@ -506,22 +516,26 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 lastBulkIds = indexDocsWithRefreshAndGetIds(indexName, docsToIndex);
                 docsIndexed += docsToIndex;
                 // make sure new docs are visible to new searches
-                var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-                assertNoFailures(searchResponse);
-                assertEquals(docsIndexed - docsDeleted, searchResponse.getHits().getTotalHits().value);
+                final long expectedDocs = docsIndexed - docsDeleted;
+                assertNoFailuresAndResponse(
+                    prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
+                    searchResponse -> assertEquals(expectedDocs, searchResponse.getHits().getTotalHits().value)
+                );
                 // fetch next scroll
-                scrollSearchResponse = client().prepareSearchScroll(scrollSearchResponse.getScrollId())
-                    .setScroll(TimeValue.timeValueMinutes(2))
-                    .get();
-                assertNoFailures(scrollSearchResponse);
-                assertThat(scrollSearchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
-                scrollSearchDocsSeen.addAll(
-                    Arrays.stream(scrollSearchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet())
+                assertNoFailuresAndResponse(
+                    client().prepareSearchScroll(currentScrollId.get()).setScroll(TimeValue.timeValueMinutes(2)),
+                    scrollSearchResponse -> {
+                        assertThat(scrollSearchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
+                        scrollSearchDocsSeen.addAll(
+                            Arrays.stream(scrollSearchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet())
+                        );
+                        currentScrollId.set(scrollSearchResponse.getScrollId());
+                    }
                 );
             }
             assertThat(scrollSearchDocsSeen, equalTo(bulk1DocIds));
         } finally {
-            clearScroll(scrollSearchResponse.getScrollId());
+            clearScroll(currentScrollId.get());
         }
     }
 
@@ -550,9 +564,11 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, 100);
         flushAndRefresh(indexName);
 
-        var firstScroll = client().prepareSearch().setScroll(TimeValue.timeValueHours(1L)).get();
-        assertNoFailures(firstScroll);
-        assertThat(firstScroll.getHits().getTotalHits().value, equalTo(100L));
+        final AtomicReference<String> firstScrollId = new AtomicReference<>();
+        assertNoFailuresAndResponse(prepareSearch().setScroll(TimeValue.timeValueHours(1L)), firstScroll -> {
+            assertThat(firstScroll.getHits().getTotalHits().value, equalTo(100L));
+            firstScrollId.set(firstScroll.getScrollId());
+        });
 
         var firstScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
         assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(firstScrollPrimaryTermAndGeneration));
@@ -560,9 +576,11 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, 100);
         flushAndRefresh(indexName);
 
-        var secondScroll = client().prepareSearch().setScroll(TimeValue.timeValueHours(1L)).get();
-        assertNoFailures(secondScroll);
-        assertThat(secondScroll.getHits().getTotalHits().value, equalTo(200L));
+        final AtomicReference<String> secondScrollId = new AtomicReference<>();
+        assertNoFailuresAndResponse(prepareSearch().setScroll(TimeValue.timeValueHours(1L)), secondScroll -> {
+            assertThat(secondScroll.getHits().getTotalHits().value, equalTo(200L));
+            secondScrollId.set(secondScroll.getScrollId());
+        });
 
         var secondScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
         assertThat(
@@ -570,35 +588,34 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             containsInAnyOrder(firstScrollPrimaryTermAndGeneration, secondScrollPrimaryTermAndGeneration)
         );
 
-        clearScroll(firstScroll.getScrollId());
+        clearScroll(firstScrollId.get());
 
         assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(secondScrollPrimaryTermAndGeneration));
 
         indexDocs(indexName, 100);
         flushAndRefresh(indexName);
 
-        var thirdScroll = client().prepareSearch().setScroll(TimeValue.timeValueHours(1L)).get();
-        assertNoFailures(thirdScroll);
-        assertThat(thirdScroll.getHits().getTotalHits().value, equalTo(300L));
+        assertNoFailuresAndResponse(prepareSearch().setScroll(TimeValue.timeValueHours(1L)), thirdScroll -> {
+            assertThat(thirdScroll.getHits().getTotalHits().value, equalTo(300L));
 
-        var thirdScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
-        assertThat(
-            searchEngine.getAcquiredPrimaryTermAndGenerations(),
-            containsInAnyOrder(secondScrollPrimaryTermAndGeneration, thirdScrollPrimaryTermAndGeneration)
-        );
+            var thirdScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
+            assertThat(
+                searchEngine.getAcquiredPrimaryTermAndGenerations(),
+                containsInAnyOrder(secondScrollPrimaryTermAndGeneration, thirdScrollPrimaryTermAndGeneration)
+            );
 
-        clearScroll(thirdScroll.getScrollId());
+            clearScroll(thirdScroll.getScrollId());
+            indexDocs(indexName, 1);
+            flushAndRefresh(indexName);
 
-        indexDocs(indexName, 1);
-        flushAndRefresh(indexName);
+            assertThat(thirdScrollPrimaryTermAndGeneration, not(equalTo(latestPrimaryTermAndGeneration.get())));
+            assertThat(
+                searchEngine.getAcquiredPrimaryTermAndGenerations(),
+                containsInAnyOrder(secondScrollPrimaryTermAndGeneration, latestPrimaryTermAndGeneration.get())
+            );
+        });
 
-        assertThat(thirdScrollPrimaryTermAndGeneration, not(equalTo(latestPrimaryTermAndGeneration.get())));
-        assertThat(
-            searchEngine.getAcquiredPrimaryTermAndGenerations(),
-            containsInAnyOrder(secondScrollPrimaryTermAndGeneration, latestPrimaryTermAndGeneration.get())
-        );
-
-        clearScroll(secondScroll.getScrollId());
+        clearScroll(secondScrollId.get());
 
         assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(latestPrimaryTermAndGeneration.get()));
     }
@@ -651,13 +668,15 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         int bulk2DocsToIndex = randomIntBetween(10, 100);
         indexDocsAndRefresh(indexName, bulk2DocsToIndex);
         // Verify that new docs are visible to new searches
-        var search2Response = client(coordinatingSearchNode).prepareSearch(indexName)
-            .setSize(0)  // Avoid a FETCH phase
-            .setQuery(QueryBuilders.matchAllQuery())
-            .get();
-        assertNoFailures(search2Response);
-        assertEquals(bulk1DocsToIndex + bulk2DocsToIndex, search2Response.getHits().getTotalHits().value);
-        secondBulkIndexed.countDown();
+        assertNoFailuresAndResponse(
+            client(coordinatingSearchNode).prepareSearch(indexName)
+                .setSize(0)  // Avoid a FETCH phase
+                .setQuery(QueryBuilders.matchAllQuery()),
+            search2Response -> {
+                assertEquals(bulk1DocsToIndex + bulk2DocsToIndex, search2Response.getHits().getTotalHits().value);
+                secondBulkIndexed.countDown();
+            }
+        );
         searchFinished.await();
     }
 
@@ -687,14 +706,22 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         int min = Collections.min(data);
         int max = Collections.max(data);
         var cacheMiss = countDocsInRange(client, indexName, min, max);
-        assertThat(cacheMiss.getHits().getTotalHits().value, equalTo((long) data.size()));
+        try {
+            assertThat(cacheMiss.getHits().getTotalHits().value, equalTo((long) data.size()));
+        } finally {
+            cacheMiss.decRef();
+        }
         assertRequestCacheStats(client, indexName, greaterThan(0L), 0, 1);
 
         int nbSearchesWithCacheHits = randomIntBetween(1, 10);
         for (int i = 0; i < nbSearchesWithCacheHits; i++) {
             var cacheHit = countDocsInRange(client, indexName, min, max);
-            assertThat(cacheHit.getHits().getTotalHits().value, equalTo((long) data.size()));
-            assertRequestCacheStats(client, indexName, greaterThan(0L), i + 1, 1);
+            try {
+                assertThat(cacheHit.getHits().getTotalHits().value, equalTo((long) data.size()));
+                assertRequestCacheStats(client, indexName, greaterThan(0L), i + 1, 1);
+            } finally {
+                cacheHit.decRef();
+            }
         }
 
         List<Integer> moreData = randomList(4, 64, () -> randomIntBetween(min, max));
@@ -706,7 +733,11 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         refresh(indexName);
 
         var cacheMissDueRefresh = countDocsInRange(client, indexName, min, max);
-        assertThat(cacheMissDueRefresh.getHits().getTotalHits().value, equalTo((long) (data.size() + moreData.size())));
+        try {
+            assertThat(cacheMissDueRefresh.getHits().getTotalHits().value, equalTo((long) (data.size() + moreData.size())));
+        } finally {
+            cacheMissDueRefresh.decRef();
+        }
         assertRequestCacheStats(client, indexName, greaterThan(0L), nbSearchesWithCacheHits, 2);
 
         // Verify that the request cache evicts the closed index
@@ -749,49 +780,51 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
 
-        SearchResponse searchResponse = client().prepareSearch(indexName)
-            .setSource(new SearchSourceBuilder().sort("rank"))
-            .setSize(1)
-            .get();
-        assertHitCount(searchResponse, 8L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+        assertResponse(prepareSearch(indexName).setSource(new SearchSourceBuilder().sort("rank")).setSize(1), searchResponse -> {
+            assertHitCount(searchResponse, 8L);
+            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+            assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+        });
 
-        searchResponse = client().prepareSearch(indexName)
-            .setSource(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("rank").from(0)).sort("rank"))
-            .setTrackTotalHits(false)
-            .setSize(1)
-            .get();
-        assertThat(searchResponse.getHits().getTotalHits(), nullValue());
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+        assertResponse(
+            prepareSearch(indexName).setSource(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("rank").from(0)).sort("rank"))
+                .setTrackTotalHits(false)
+                .setSize(1),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits(), nullValue());
+                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+                assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+            }
+        );
 
         assertNoFailures(client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get());
         refresh(indexName);
 
-        searchResponse = client().prepareSearch(indexName).setSource(new SearchSourceBuilder().sort("_doc")).get();
-        assertHitCount(searchResponse, 8L);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(8));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("4"));
-        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(3).getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(4).getId(), equalTo("7"));
-        assertThat(searchResponse.getHits().getAt(5).getId(), equalTo("6"));
-        assertThat(searchResponse.getHits().getAt(6).getId(), equalTo("8"));
-        assertThat(searchResponse.getHits().getAt(7).getId(), equalTo("5"));
+        assertResponse(prepareSearch(indexName).setSource(new SearchSourceBuilder().sort("_doc")), searchResponse -> {
+            assertHitCount(searchResponse, 8L);
+            assertThat(searchResponse.getHits().getHits().length, equalTo(8));
+            assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+            assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("4"));
+            assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+            assertThat(searchResponse.getHits().getAt(3).getId(), equalTo("1"));
+            assertThat(searchResponse.getHits().getAt(4).getId(), equalTo("7"));
+            assertThat(searchResponse.getHits().getAt(5).getId(), equalTo("6"));
+            assertThat(searchResponse.getHits().getAt(6).getId(), equalTo("8"));
+            assertThat(searchResponse.getHits().getAt(7).getId(), equalTo("5"));
+        });
 
-        searchResponse = client().prepareSearch(indexName)
-            .setSource(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("rank").from(0)).sort("rank"))
-            .setTrackTotalHits(false)
-            .setSize(3)
-            .get();
-
-        assertThat(searchResponse.getHits().getTotalHits(), nullValue());
-        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("4"));
-        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+        assertResponse(
+            prepareSearch(indexName).setSource(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("rank").from(0)).sort("rank"))
+                .setTrackTotalHits(false)
+                .setSize(3),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits(), nullValue());
+                assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+                assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+                assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("4"));
+                assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+            }
+        );
 
         var exception = expectThrows(
             ActionRequestValidationException.class,
@@ -801,6 +834,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 .setScroll(TimeValue.timeValueMinutes(1))
                 .setSize(3)
                 .get()
+                .decRef()
         );
         assertThat(exception.getMessage(), containsString("disabling [track_total_hits] is not allowed in a scroll context"));
     }
@@ -834,8 +868,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         if (refreshBefore == false) {
             refresh(indexName);
         }
-        final SearchResponse response = searchFuture.get();
-        assertHitCount(response, docCount);
+        assertHitCount(searchFuture, docCount);
     }
 
     public void testFastRefreshSearch() throws Exception {
@@ -857,9 +890,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             });
         }
 
-        final var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertNoFailures(searchResponse);
-        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
+            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value)
+        );
     }
 
     public void testFastRefreshGetAndMGet() {

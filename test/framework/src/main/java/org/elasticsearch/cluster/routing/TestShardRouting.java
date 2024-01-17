@@ -354,10 +354,6 @@ public class TestShardRouting {
         );
     }
 
-    public static ShardRouting relocate(ShardRouting shardRouting, String relocatingNodeId, long expectedShardSize) {
-        return shardRouting.relocate(relocatingNodeId, expectedShardSize);
-    }
-
     public static RecoverySource buildRecoverySource(boolean primary, ShardRoutingState state) {
         return switch (state) {
             case UNASSIGNED, INITIALIZING -> primary

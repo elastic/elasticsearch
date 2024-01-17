@@ -100,7 +100,11 @@ public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
                 assertThat(feature, aMapWithSize(4));
                 assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toString()));
-                if (getOldClusterVersion().before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
+
+                boolean migrationNeeded = parseLegacyVersion(getOldClusterVersion()).map(
+                    v -> v.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)
+                ).orElse(false);
+                if (migrationNeeded) {
                     assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));
                 } else {
                     assertThat(feature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));

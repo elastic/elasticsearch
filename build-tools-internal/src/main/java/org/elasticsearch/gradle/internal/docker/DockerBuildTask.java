@@ -205,7 +205,7 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
 
-                if(parameters.getPush().get()) {
+                if(parameters.getPush().getOrElse(false)) {
                     spec.args("--push");
                 }
             });

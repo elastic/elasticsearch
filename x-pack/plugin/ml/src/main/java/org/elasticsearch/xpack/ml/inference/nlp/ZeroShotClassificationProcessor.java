@@ -136,10 +136,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
             if (chunkResult) {
-                throw new ElasticsearchStatusException(
-                    "Document chunking is not supported by the [" + TaskType.NER + "] task",
-                    RestStatus.BAD_REQUEST
-                );
+                throw chunkingNotSupportedException(TaskType.NER);
             }
 
             if (pyTorchResult.getInferenceResult().length < 1) {

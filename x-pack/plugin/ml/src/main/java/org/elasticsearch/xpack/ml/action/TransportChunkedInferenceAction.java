@@ -15,7 +15,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -77,7 +76,7 @@ public class TransportChunkedInferenceAction extends HandledTransportAction<
             configUpdate,
             request.getInputs(),
             true,
-            TimeValue.timeValueSeconds(10)
+            request.getTimeout()
         );
         // The chunked action is only used at ingest
         inferModelRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);

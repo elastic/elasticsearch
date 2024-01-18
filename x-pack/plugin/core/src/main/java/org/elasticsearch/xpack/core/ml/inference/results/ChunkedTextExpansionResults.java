@@ -55,7 +55,7 @@ public class ChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
             var map = new HashMap<String, Object>();
             map.put("text", matchedText);
             map.put(
-                "tokens",
+                "inference",
                 weightedTokens.stream()
                     .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight))
             );

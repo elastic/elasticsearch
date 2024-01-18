@@ -98,10 +98,7 @@ public class FillMaskProcessor extends NlpTask.Processor {
             throw new ElasticsearchStatusException("tokenization is empty", RestStatus.INTERNAL_SERVER_ERROR);
         }
         if (chunkResults) {
-            throw new ElasticsearchStatusException(
-                "Document chunking is not supported by the [" + TaskType.FILL_MASK + "] task",
-                RestStatus.BAD_REQUEST
-            );
+            throw chunkingNotSupportedException(TaskType.NER);
         }
 
         if (tokenizer.getMaskTokenId().isEmpty()) {

@@ -45,6 +45,10 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
 
     @Override
     protected ChunkedTextEmbeddingResults mutateInstance(ChunkedTextEmbeddingResults instance) throws IOException {
-        return null;
+        return switch (randomIntBetween(0, 1)) {
+            case 0 -> new ChunkedTextEmbeddingResults(instance.getResultsField() + "foo", instance.getChunks(), instance.isTruncated);
+            case 1 -> new ChunkedTextEmbeddingResults(instance.getResultsField(), instance.getChunks(), instance.isTruncated == false);
+            default -> throw new IllegalArgumentException("unexpected case");
+        };
     }
 }

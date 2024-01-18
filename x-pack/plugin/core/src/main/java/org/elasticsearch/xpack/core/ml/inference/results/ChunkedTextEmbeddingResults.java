@@ -14,9 +14,11 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class ChunkedTextEmbeddingResults extends ChunkedNlpInferenceResults {
@@ -47,6 +49,26 @@ public class ChunkedTextEmbeddingResults extends ChunkedNlpInferenceResults {
             map.put("text", matchedText);
             map.put("inference", embedding);
             return map;
+        }
+
+        /**
+         * It appears the default equals function for a record
+         * does not call Arrays.equals() for the embedding array.
+         */
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            EmbeddingChunk that = (EmbeddingChunk) o;
+            return Objects.equals(matchedText, that.matchedText) && Arrays.equals(embedding, that.embedding);
+        }
+
+        /**
+         * Use Arrays.hashCode() on the embedding array
+         */
+        @Override
+        public int hashCode() {
+            return Objects.hash(matchedText, Arrays.hashCode(embedding));
         }
     }
 
@@ -104,5 +126,20 @@ public class ChunkedTextEmbeddingResults extends ChunkedNlpInferenceResults {
     @Override
     void addMapFields(Map<String, Object> map) {
         map.put(resultsField, chunks.stream().map(EmbeddingChunk::asMap).collect(Collectors.toList()));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        ChunkedTextEmbeddingResults that = (ChunkedTextEmbeddingResults) o;
+        return Objects.equals(resultsField, that.resultsField) && Objects.equals(chunks, that.chunks);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), resultsField, chunks);
     }
 }

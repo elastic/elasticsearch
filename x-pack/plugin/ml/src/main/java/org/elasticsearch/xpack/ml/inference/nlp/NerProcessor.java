@@ -185,10 +185,7 @@ public class NerProcessor extends NlpTask.Processor {
             }
             // TODO - process all results in the batch
             if (chunkResult) {
-                throw new ElasticsearchStatusException(
-                    "Document chunking is not supported by the [" + TaskType.NER + "] task",
-                    RestStatus.BAD_REQUEST
-                );
+                throw chunkingNotSupportedException(TaskType.NER);
             }
 
             // TODO It might be best to do the soft max after averaging scores for

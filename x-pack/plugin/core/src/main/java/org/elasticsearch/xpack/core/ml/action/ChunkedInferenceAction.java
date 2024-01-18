@@ -99,7 +99,7 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
         @Override
         public ActionRequestValidationException validate() {
             if (windowSize == null || span == null) {
-                // need both field for validation
+                // need both fields for validation
                 return null;
             }
 
@@ -131,12 +131,16 @@ public class ChunkedInferenceAction extends ActionType<ChunkedInferenceAction.Re
             return inputs;
         }
 
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return span == request.span
+            return Objects.equals(span, request.span)
                 && Objects.equals(modelId, request.modelId)
                 && Objects.equals(inputs, request.inputs)
                 && Objects.equals(windowSize, request.windowSize)

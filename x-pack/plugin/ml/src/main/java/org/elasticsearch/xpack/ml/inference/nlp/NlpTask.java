@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Releasable;
@@ -73,6 +74,10 @@ public class NlpTask {
         public abstract RequestBuilder getRequestBuilder(NlpConfig config);
 
         public abstract ResultProcessor getResultProcessor(NlpConfig config);
+
+        static ElasticsearchException chunkingNotSupportedException(TaskType taskType) {
+            throw chunkingNotSupportedException(TaskType.NER);
+        }
     }
 
     public record Request(TokenizationResult tokenization, BytesReference processInput) {

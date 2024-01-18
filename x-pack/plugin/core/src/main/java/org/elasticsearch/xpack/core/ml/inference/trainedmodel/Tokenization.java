@@ -52,7 +52,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         }
     }
 
-    record SpanSettings(@Nullable Integer maxSequenceLength, int span) implements Writeable {
+    public record SpanSettings(@Nullable Integer maxSequenceLength, int span) implements Writeable {
 
         SpanSettings(StreamInput in) throws IOException {
             this(in.readOptionalVInt(), in.readVInt());

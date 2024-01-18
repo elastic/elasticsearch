@@ -28,8 +28,6 @@ public class TextExpansionProcessor extends NlpTask.Processor {
     private final NlpTask.RequestBuilder requestBuilder;
     private Map<Integer, String> replacementVocab;
 
-    private boolean chunkResults = true;
-
     public TextExpansionProcessor(NlpTokenizer tokenizer) {
         super(tokenizer);
         this.requestBuilder = tokenizer.requestBuilder();

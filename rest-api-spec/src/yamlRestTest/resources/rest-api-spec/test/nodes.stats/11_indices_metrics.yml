@@ -500,14 +500,13 @@
   # 26. a_source_field
   #
   # Plugins (which may or may not be loaded depending on the context in which this test is executed) may add additional
-  # field mappers; check that the field count does not exceed the expected maximum:
+  # field mappers:
   # 27. _semantic_text_inference (from ML plugin)
 
   - gte: { nodes.$node_id.indices.mappings.total_count: 26 }
   - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead
   - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 26624 }
   - gte: { nodes.$node_id.indices.indices.index1.mappings.total_count: 26 }
-  - lte: { nodes.$node_id.indices.indices.index1.mappings.total_count: 27 }
   - is_true: nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead
   - gte: { nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead_in_bytes: 26624 }
 

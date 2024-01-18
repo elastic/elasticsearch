@@ -65,7 +65,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.inference.InferenceProvider;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -74,7 +73,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -83,9 +81,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -112,11 +110,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
-    private final InferenceProvider inferenceProvider;
-
-    public static final String ROOT_RESULT_FIELD = "_ml_inference";
-    public static final String INFERENCE_FIELD = "result";
-    public static final String TEXT_FIELD = "text";
+    private final BulkShardRequestInferenceProvider bulkShardRequestInferenceProvider;
 
     @Inject
     public TransportBulkAction(
@@ -204,7 +198,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         Objects.requireNonNull(inferenceProvider);
-        this.inferenceProvider = inferenceProvider;
+        this.bulkShardRequestInferenceProvider = new BulkShardRequestInferenceProvider(inferenceProvider);
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -736,7 +730,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 // Allow memory for bulk shard request items to be reclaimed before all items have been completed
                 bulkRequest = null;
             };
-
             try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onBulkItemsComplete)) {
                 for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                     final ShardId shardId = entry.getKey();
@@ -754,187 +747,41 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         bulkShardRequest.setParentTask(nodeId, task.getId());
                     }
 
-                    performInferenceAndExecute(bulkShardRequest, clusterState, bulkItemRequestCompleteRefCount.acquire());
+                    Releasable ref = bulkItemRequestCompleteRefCount.acquire();
+                    bulkShardRequestInferenceProvider.processBulkShardRequest(
+                        bulkShardRequest,
+                        clusterState,
+                        (bulkShardRequest1, request, e) -> onBulkItemInferenceFailure(bulkShardRequest1, request, e, ref),
+                        bsr -> executeBulkShardRequest(bsr, b -> ref.close())
+                    );
+
                 }
             }
         }
 
-        private void performInferenceAndExecute(BulkShardRequest bulkShardRequest, ClusterState clusterState, Releasable releaseOnFinish) {
-
-            Map<String, Set<String>> fieldsForModels = clusterState.metadata()
-                .index(bulkShardRequest.shardId().getIndex())
-                .getFieldsForModels();
-            // No inference fields? Just execute the request
-            if (fieldsForModels.isEmpty()) {
-                executeBulkShardRequest(bulkShardRequest, releaseOnFinish);
-                return;
-            }
-
-            Runnable onInferenceComplete = () -> {
-                // We need to remove items that have had an inference error, as the response will have been updated already
-                // and we don't need to process them further
-                BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
-                    bulkShardRequest.shardId(),
-                    bulkRequest.getRefreshPolicy(),
-                    Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
-                );
-                executeBulkShardRequest(errorsFilteredShardRequest, releaseOnFinish);
-            };
-
-            try (var bulkItemReqRef = new RefCountingRunnable(onInferenceComplete)) {
-                for (BulkItemRequest request : bulkShardRequest.items()) {
-                    performInferenceOnBulkItemRequest(bulkShardRequest, request, fieldsForModels, bulkItemReqRef.acquire());
-                }
-            }
-        }
-
-        private void performInferenceOnBulkItemRequest(
+        private void onBulkItemInferenceFailure(
             BulkShardRequest bulkShardRequest,
             BulkItemRequest request,
-            Map<String, Set<String>> fieldsForModels,
-            Releasable releaseOnFinish
+            Exception e,
+            Releasable refCount
         ) {
-            if (inferenceProvider.performsInference() == false) {
-                releaseOnFinish.close();
-                return;
-            }
+            markBulkItemRequestFailed(request, new IllegalArgumentException("Inference failed: " + e.getMessage(), e));
+            // make sure the request gets never processed again
+            bulkShardRequest.items()[request.id()] = null;
+            refCount.close();
+        }
+
+        private void markBulkItemRequestFailed(BulkItemRequest request, Exception e) {
+            final String indexName = request.index();
 
             DocWriteRequest<?> docWriteRequest = request.request();
-            Map<String, Object> sourceMap = null;
-            if (docWriteRequest instanceof IndexRequest indexRequest) {
-                sourceMap = indexRequest.sourceAsMap();
-            } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
-                sourceMap = updateRequest.docAsUpsert() ? updateRequest.upsertRequest().sourceAsMap() : updateRequest.doc().sourceAsMap();
-            }
-            if (sourceMap == null || sourceMap.isEmpty()) {
-                releaseOnFinish.close();
-                return;
-            }
-            final Map<String, Object> docMap = new ConcurrentHashMap<>(sourceMap);
-
-            // When a document completes processing, update the source with the inference
-            try (var docRef = new RefCountingRunnable(() -> {
-                if (docWriteRequest instanceof IndexRequest indexRequest) {
-                    indexRequest.source(docMap);
-                } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
-                    if (updateRequest.docAsUpsert()) {
-                        updateRequest.upsertRequest().source(docMap);
-                    } else {
-                        updateRequest.doc().source(docMap);
-                    }
-                }
-                releaseOnFinish.close();
-            })) {
-
-                for (Map.Entry<String, Set<String>> fieldModelsEntrySet : fieldsForModels.entrySet()) {
-                    String modelId = fieldModelsEntrySet.getKey();
-
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> rootInferenceFieldMap = (Map<String, Object>) docMap.computeIfAbsent(
-                        ROOT_RESULT_FIELD,
-                        k -> new HashMap<String, Object>()
-                    );
-
-                    List<String> inferenceFieldNames = getFieldNamesForInference(fieldModelsEntrySet, docMap);
-
-                    if (inferenceFieldNames.isEmpty()) {
-                        continue;
-                    }
-
-                    docRef.acquire();
-
-                    inferenceProvider.textInference(
-                        modelId,
-                        inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
-                        new ActionListener<>() {
-
-                            @Override
-                            public void onResponse(List<InferenceResults> results) {
-
-                                if (results == null) {
-                                    throw new IllegalArgumentException(
-                                        "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
-                                    );
-                                }
-
-                                int i = 0;
-                                for (InferenceResults inferenceResults : results) {
-                                    String fieldName = inferenceFieldNames.get(i++);
-                                    @SuppressWarnings("unchecked")
-                                    Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(
-                                        fieldName,
-                                        k -> new HashMap<String, Object>()
-                                    );
-
-                                    inferenceFieldMap.put(INFERENCE_FIELD, inferenceResults.asMap("output").get("output"));
-                                    inferenceFieldMap.put(TEXT_FIELD, docMap.get(fieldName));
-                                }
-
-                                docRef.close();
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-
-                                final String indexName = request.index();
-                                DocWriteRequest<?> docWriteRequest = request.request();
-                                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
-                                    indexName,
-                                    docWriteRequest.id(),
-                                    new IllegalArgumentException("Error performing inference: " + e.getMessage(), e)
-                                );
-                                responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
-                                // make sure the request gets never processed again
-                                bulkShardRequest.items()[request.id()] = null;
-
-                                docRef.close();
-                            }
-                        }
-                    );
-                }
-            }
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
+            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
         }
 
-        private static List<String> getFieldNamesForInference(
-            Map.Entry<String, Set<String>> fieldModelsEntrySet,
-            Map<String, Object> docMap
-        ) {
-            List<String> inferenceFieldNames = new ArrayList<>();
-            for (String inferenceField : fieldModelsEntrySet.getValue()) {
-                Object fieldValue = docMap.get(inferenceField);
-
-                // Perform inference on string, non-null values
-                if (fieldValue instanceof String) {
-                    inferenceFieldNames.add(inferenceField);
-                }
-            }
-            return inferenceFieldNames;
-        }
-
-        @SuppressWarnings("unchecked")
-        private static String findMapValue(Map<String, Object> map, String... path) {
-            Map<String, Object> currentMap = map;
-            for (int i = 0; i < path.length - 1; i++) {
-                Object value = currentMap.get(path[i]);
-
-                if (value instanceof Map) {
-                    currentMap = (Map<String, Object>) value;
-                } else {
-                    // Invalid path or non-Map value encountered
-                    return null;
-                }
-            }
-
-            // Retrieve the final value in the map, if it's a String
-            Object finalValue = currentMap.get(path[path.length - 1]);
-
-            return (finalValue instanceof String) ? (String) finalValue : null;
-        }
-
-        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
+        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Consumer<BulkShardRequest> onComplete) {
             if (bulkShardRequest.items().length == 0) {
                 // No requests to execute due to previous errors, terminate early
-                releaseOnFinish.close();
                 return;
             }
 
@@ -948,19 +795,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         }
                         responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
-                    releaseOnFinish.close();
+                    onComplete.accept(bulkShardRequest);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     // create failures for all relevant requests
                     for (BulkItemRequest request : bulkShardRequest.items()) {
-                        final String indexName = request.index();
-                        DocWriteRequest<?> docWriteRequest = request.request();
-                        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
-                        responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                        markBulkItemRequestFailed(request, e);
                     }
-                    releaseOnFinish.close();
+                    onComplete.accept(bulkShardRequest);
                 }
             });
         }

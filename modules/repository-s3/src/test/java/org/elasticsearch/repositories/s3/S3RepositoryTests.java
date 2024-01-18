@@ -22,6 +22,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
@@ -45,8 +46,8 @@ public class S3RepositoryTests extends ESTestCase {
 
     private static class DummyS3Service extends S3Service {
 
-        DummyS3Service(Environment environment) {
-            super(environment, Settings.EMPTY);
+        DummyS3Service(Environment environment, ResourceWatcherService resourceWatcherService) {
+            super(environment, Settings.EMPTY, resourceWatcherService);
         }
 
         @Override
@@ -125,7 +126,7 @@ public class S3RepositoryTests extends ESTestCase {
         return new S3Repository(
             metadata,
             NamedXContentRegistry.EMPTY,
-            new DummyS3Service(Mockito.mock(Environment.class)),
+            new DummyS3Service(Mockito.mock(Environment.class), Mockito.mock(ResourceWatcherService.class)),
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),

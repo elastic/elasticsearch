@@ -48,6 +48,9 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
         project.getTasks()
             .register("updateVersions", UpdateVersionsTask.class, t -> project.getTasks().named("spotlessApply").get().mustRunAfter(t));
 
+        project.getTasks().register("extractCurrentVersions", ExtractCurrentVersionsTask.class);
+        project.getTasks().register("tagVersions", TagVersionsTask.class);  // no-op, nothing to tag
+
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()
             .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));

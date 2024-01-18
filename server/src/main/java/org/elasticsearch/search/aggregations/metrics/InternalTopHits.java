@@ -52,7 +52,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
-        this.searchHits = searchHits;
+        this.searchHits = searchHits.asUnpooled();
     }
 
     /**
@@ -63,7 +63,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
-        searchHits = new SearchHits(in);
+        searchHits = SearchHits.readFrom(in, false);
     }
 
     @Override
@@ -152,8 +152,9 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 position = tracker[shardIndex]++;
             } while (topDocsForShard.scoreDocs[position] != scoreDoc);
             hits[i] = ((InternalTopHits) aggregations.get(shardIndex)).searchHits.getAt(position);
+            assert hits[i].isPooled() == false;
         }
-        return new SearchHits(hits, reducedTopDocs.totalHits, maxScore);
+        return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore);
     }
 
     private static float reduceAndFindMaxScore(List<InternalAggregation> aggregations, TopDocs[] shardDocs) {

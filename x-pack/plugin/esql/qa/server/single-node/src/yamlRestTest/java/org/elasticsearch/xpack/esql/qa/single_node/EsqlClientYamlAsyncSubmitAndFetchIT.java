@@ -87,9 +87,16 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
                 /*
                  * Ok, we didn't finish before the timeout. Fine, let's fetch the result.
                  */
+                Map<String, String> params = new HashMap<>();
+                params.put("wait_for_completion_timeout", "30m");
+                params.put("id", id);
+                String dropNullColumns = original.getApiCallSection().getParams().get("drop_null_columns");
+                if (dropNullColumns != null) {
+                    params.put("drop_null_columns", dropNullColumns);
+                }
                 ClientYamlTestResponse fetchResponse = executionContext.callApi(
                     "esql.async_query_get",
-                    Map.of("wait_for_completion_timeout", "30m", "id", id),
+                    params,
                     List.of(),
                     original.getApiCallSection().getHeaders(),
                     original.getApiCallSection().getNodeSelector()

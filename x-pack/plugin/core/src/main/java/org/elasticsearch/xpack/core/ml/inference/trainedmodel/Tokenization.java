@@ -52,16 +52,16 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         }
     }
 
-    public record SpanSettings(@Nullable Integer maxSequenceLength, int span) implements Writeable {
+    public record SpanSettings(@Nullable Integer maxSequenceLength, @Nullable Integer span) implements Writeable {
 
         SpanSettings(StreamInput in) throws IOException {
-            this(in.readOptionalVInt(), in.readVInt());
+            this(in.readOptionalVInt(), in.readOptionalVInt());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(maxSequenceLength);
-            out.writeVInt(span);
+            out.writeOptionalVInt(span);
         }
     };
 

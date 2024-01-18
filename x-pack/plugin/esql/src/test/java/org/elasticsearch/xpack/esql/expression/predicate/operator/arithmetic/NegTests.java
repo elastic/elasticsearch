@@ -14,11 +14,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -26,7 +24,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -42,16 +39,18 @@ public class NegTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryInt(suppliers,
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
             "NegIntsEvaluator[v=Attribute[channel=0]]",
             DataTypes.INTEGER,
             Math::negateExact,
             Integer.MIN_VALUE + 1,
             Integer.MAX_VALUE,
             List.of()
-            );
+        );
         // out of bounds integer
-        TestCaseSupplier.forUnaryInt(suppliers,
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
             "NegIntsEvaluator[v=Attribute[channel=0]]",
             DataTypes.INTEGER,
             z -> null,
@@ -73,7 +72,7 @@ public class NegTests extends AbstractFunctionTestCase {
         );
         // out of bounds long
         TestCaseSupplier.forUnaryLong(
-           suppliers,
+            suppliers,
             "NegLongsEvaluator[v=Attribute[channel=0]]",
             DataTypes.LONG,
             z -> null,
@@ -96,8 +95,7 @@ public class NegTests extends AbstractFunctionTestCase {
         );
 
         // TODO: Wire up edge case generation functions for these
-        suppliers.addAll(List.of(
-           new TestCaseSupplier("Duration", List.of(EsqlDataTypes.TIME_DURATION),() -> {
+        suppliers.addAll(List.of(new TestCaseSupplier("Duration", List.of(EsqlDataTypes.TIME_DURATION), () -> {
             Duration arg = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.TIME_DURATION, "arg")),
@@ -105,7 +103,7 @@ public class NegTests extends AbstractFunctionTestCase {
                 EsqlDataTypes.TIME_DURATION,
                 equalTo(arg.negated())
             );
-        }), new TestCaseSupplier("Period", List.of(EsqlDataTypes.DATE_PERIOD),() -> {
+        }), new TestCaseSupplier("Period", List.of(EsqlDataTypes.DATE_PERIOD), () -> {
             Period arg = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.DATE_PERIOD, "arg")),

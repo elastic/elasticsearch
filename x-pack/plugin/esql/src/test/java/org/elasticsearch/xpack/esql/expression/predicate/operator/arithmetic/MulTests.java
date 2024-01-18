@@ -16,12 +16,9 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.math.BigInteger;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MulTests extends AbstractFunctionTestCase {

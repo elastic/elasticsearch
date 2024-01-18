@@ -16,7 +16,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -27,7 +26,6 @@ import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
 
 import java.io.IOException;
@@ -39,7 +37,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.Mockito.when;
 
 public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     private Directory directory = newDirectory();
@@ -51,11 +48,11 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneCountOperator.Factory simple(BigArrays bigArrays) {
-        return simple(bigArrays, randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
+    protected LuceneCountOperator.Factory simple() {
+        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 
-    private LuceneCountOperator.Factory simple(BigArrays bigArrays, DataPartitioning dataPartitioning, int numDocs, int limit) {
+    private LuceneCountOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit) {
         boolean enableShortcut = randomBoolean();
         int commitEvery = Math.max(1, numDocs / 10);
         try (
@@ -83,8 +80,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        SearchContext ctx = LuceneSourceOperatorTests.mockSearchContext(reader, 0);
-        when(ctx.getSearchExecutionContext().getIndexReader()).thenReturn(reader);
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         final Query query;
         if (enableShortcut && randomBoolean()) {
             query = new MatchAllDocsQuery();
@@ -150,7 +146,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
 
     private void testCount(Supplier<DriverContext> contexts, int size, int limit) {
         DataPartitioning dataPartitioning = randomFrom(DataPartitioning.values());
-        LuceneCountOperator.Factory factory = simple(contexts.get().bigArrays(), dataPartitioning, size, limit);
+        LuceneCountOperator.Factory factory = simple(dataPartitioning, size, limit);
         List<Page> results = new CopyOnWriteArrayList<>();
         List<Driver> drivers = new ArrayList<>();
         int taskConcurrency = between(1, 8);

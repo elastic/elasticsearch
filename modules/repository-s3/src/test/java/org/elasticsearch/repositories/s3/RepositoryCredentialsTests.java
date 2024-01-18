@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.security.AccessController;
@@ -274,8 +275,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        S3Service s3Service(Environment environment, Settings nodeSettings) {
-            return new ProxyS3Service(environment, nodeSettings);
+        S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+            return new ProxyS3Service(environment, nodeSettings, resourceWatcherService);
         }
 
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
@@ -291,8 +292,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
-            ProxyS3Service(Environment environment, Settings nodeSettings) {
-                super(environment, nodeSettings);
+            ProxyS3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+                super(environment, nodeSettings, resourceWatcherService);
             }
 
             @Override

@@ -404,7 +404,8 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
                 false,
                 true,
                 true,
-                true
+                true,
+                false
             );
         } else {
             fail("client called with unexpected request:" + request.toString());

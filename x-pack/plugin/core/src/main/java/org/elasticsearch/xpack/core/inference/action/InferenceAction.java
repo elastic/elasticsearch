@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -66,12 +67,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final String modelId;
         private final List<String> input;
         private final Map<String, Object> taskSettings;
+        private final InputType inputType;
 
-        public Request(TaskType taskType, String modelId, List<String> input, Map<String, Object> taskSettings) {
+        public Request(TaskType taskType, String modelId, List<String> input, Map<String, Object> taskSettings, InputType inputType) {
             this.taskType = taskType;
             this.modelId = modelId;
             this.input = input;
             this.taskSettings = taskSettings;
+            this.inputType = inputType;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -83,7 +86,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 this.input = List.of(in.readString());
             }
-            this.taskSettings = in.readMap();
+            this.taskSettings = in.readGenericMap();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+                this.inputType = InputType.fromStream(in);
+            } else {
+                this.inputType = InputType.INGEST;
+            }
         }
 
         public TaskType getTaskType() {
@@ -100,6 +108,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public Map<String, Object> getTaskSettings() {
             return taskSettings;
+        }
+
+        public InputType getInputType() {
+            return inputType;
         }
 
         @Override
@@ -128,6 +140,9 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeString(input.get(0));
             }
             out.writeGenericMap(taskSettings);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+                inputType.writeTo(out);
+            }
         }
 
         @Override
@@ -138,12 +153,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return taskType == request.taskType
                 && Objects.equals(modelId, request.modelId)
                 && Objects.equals(input, request.input)
-                && Objects.equals(taskSettings, request.taskSettings);
+                && Objects.equals(taskSettings, request.taskSettings)
+                && Objects.equals(inputType, request.inputType);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, modelId, input, taskSettings);
+            return Objects.hash(taskType, modelId, input, taskSettings, inputType);
         }
 
         public static class Builder {
@@ -181,7 +197,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             public Request build() {
-                return new Request(taskType, modelId, input, taskSettings);
+                return new Request(taskType, modelId, input, taskSettings, InputType.INGEST);
             }
         }
     }

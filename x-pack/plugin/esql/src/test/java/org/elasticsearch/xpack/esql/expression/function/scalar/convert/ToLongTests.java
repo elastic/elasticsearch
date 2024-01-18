@@ -40,9 +40,6 @@ public class ToLongTests extends AbstractFunctionTestCase {
 
         TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataTypes.LONG, b -> b ? 1L : 0L, List.of());
 
-        // geo types
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, read, DataTypes.LONG, i -> i, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, read, DataTypes.LONG, i -> i, List.of());
         // datetimes
         TestCaseSupplier.forUnaryDatetime(suppliers, read, DataTypes.LONG, Instant::toEpochMilli, List.of());
         // random strings that don't look like a long

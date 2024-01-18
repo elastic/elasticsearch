@@ -9,8 +9,8 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -54,9 +54,9 @@ public class FlushIT extends ESIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
             for (int j = 0; j < 10; j++) {
-                indicesAdmin().prepareFlush("test").execute(new ActionListener<FlushResponse>() {
+                indicesAdmin().prepareFlush("test").execute(new ActionListener<>() {
                     @Override
-                    public void onResponse(FlushResponse flushResponse) {
+                    public void onResponse(BroadcastResponse flushResponse) {
                         try {
                             // don't use assertAllSuccessful it uses a randomized context that belongs to a different thread
                             assertThat(

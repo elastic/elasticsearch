@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotA
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheRequest;
-import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
@@ -121,11 +121,11 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
     }
 
     public void testClearCacheRequiresLicense() throws ExecutionException, InterruptedException {
-        final ActionFuture<ClearSearchableSnapshotsCacheResponse> future = client().execute(
+        final ActionFuture<BroadcastResponse> future = client().execute(
             ClearSearchableSnapshotsCacheAction.INSTANCE,
             new ClearSearchableSnapshotsCacheRequest(indexName)
         );
-        final ClearSearchableSnapshotsCacheResponse response = future.get();
+        final BroadcastResponse response = future.get();
         assertThat(response.getTotalShards(), greaterThan(0));
         assertThat(response.getSuccessfulShards(), equalTo(0));
         for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {

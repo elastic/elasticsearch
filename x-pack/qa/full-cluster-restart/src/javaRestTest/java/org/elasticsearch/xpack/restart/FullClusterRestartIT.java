@@ -52,6 +52,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -988,6 +990,66 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             indices.get(0).get("index_name")
         );
         assertNumHits("ds", 1, 1);
+    }
+
+    /**
+     * Tests that a single document survives. Super basic smoke test.
+     */
+    public void testDisableFieldNameField() throws IOException {
+        assumeTrue("can only disable field names field before 8.0", Version.fromString(getOldClusterVersion()).before(Version.V_8_0_0));
+        String docLocation = "/nofnf/_doc/1";
+        String doc = """
+            {
+              "dv": "test",
+              "no_dv": "test"
+            }""";
+
+        if (isRunningAgainstOldCluster()) {
+            Request createIndex = new Request("PUT", "/nofnf");
+            createIndex.setJsonEntity("""
+                {
+                  "settings": {
+                    "index": {
+                      "number_of_replicas": 0
+                    }
+                  },
+                  "mappings": {
+                    "_field_names": { "enabled": false },
+                    "properties": {
+                      "dv": { "type": "keyword" },
+                      "no_dv": { "type": "keyword", "doc_values": false }
+                    }
+                  }
+                }""");
+            createIndex.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> switch (warnings.size()) {
+                case 0 -> false;  // old versions don't return a warning
+                case 1 -> false == warnings.get(0).contains("_field_names");
+                default -> true;
+            }));
+            client().performRequest(createIndex);
+
+            Request createDoc = new Request("PUT", docLocation);
+            createDoc.addParameter("refresh", "true");
+            createDoc.setJsonEntity(doc);
+            client().performRequest(createDoc);
+        }
+
+        Request getRequest = new Request("GET", docLocation);
+        assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
+
+        if (isRunningAgainstOldCluster() == false) {
+            Request esql = new Request("POST", "_query");
+            esql.setJsonEntity("""
+                {
+                  "query": "FROM nofnf | LIMIT 1"
+                }""");
+            // {"columns":[{"name":"dv","type":"keyword"},{"name":"no_dv","type":"keyword"}],"values":[["test",null]]}
+            assertMap(
+                entityAsMap(client().performRequest(esql)),
+                matchesMap().entry("columns", List.of(Map.of("name", "dv", "type", "keyword"), Map.of("name", "no_dv", "type", "keyword")))
+                    .entry("values", List.of(List.of("test", "test")))
+            );
+        }
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {

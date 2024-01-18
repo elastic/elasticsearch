@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -48,6 +49,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
@@ -149,12 +151,16 @@ public class PlannerUtils {
 
     /**
      * Extracts the ES query provided by the filter parameter
+     * @param plan
+     * @param hasIdenticalDelegate a lambda that given a field attribute sayis if it has
+     *                             a synthetic source delegate with the exact same value
+     * @return
      */
-    public static QueryBuilder requestFilter(PhysicalPlan plan) {
-        return detectFilter(plan, "@timestamp");
+    public static QueryBuilder requestFilter(PhysicalPlan plan, Predicate<FieldAttribute> hasIdenticalDelegate) {
+        return detectFilter(plan, "@timestamp", hasIdenticalDelegate);
     }
 
-    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName) {
+    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, Predicate<FieldAttribute> hasIdenticalDelegate) {
         // first position is the REST filter, the second the query filter
         var requestFilter = new QueryBuilder[] { null, null };
 
@@ -175,7 +181,7 @@ public class PlannerUtils {
                         boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
+                        if (matchesField && refs.isEmpty() && canPushToSource(exp, hasIdenticalDelegate)) {
                             matches.add(exp);
                         }
                     }
@@ -191,11 +197,10 @@ public class PlannerUtils {
 
     /**
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
-     * This specifically excludes GEO_POINT and CARTESIAN_POINT, which are backed by DataType.LONG
-     * but are not themselves sortable (the long can be sorted, but the sort order is not usually useful).
+     * This specifically excludes spatial data types, which are not themselves sortable.
      */
     public static ElementType toSortableElementType(DataType dataType) {
-        if (dataType == EsqlDataTypes.GEO_POINT || dataType == EsqlDataTypes.CARTESIAN_POINT) {
+        if (EsqlDataTypes.isSpatial(dataType)) {
             return ElementType.UNKNOWN;
         }
         return toElementType(dataType);
@@ -232,11 +237,8 @@ public class PlannerUtils {
         if (dataType == EsQueryExec.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
-        if (dataType == EsqlDataTypes.GEO_POINT) {
-            return ElementType.LONG;
-        }
-        if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
-            return ElementType.LONG;
+        if (EsqlDataTypes.isSpatial(dataType)) {
+            return ElementType.BYTES_REF;
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }

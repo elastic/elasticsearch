@@ -219,7 +219,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         indexBoosts = in.readCollectionAsList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
         } else {
             QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -260,7 +260,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
-        runtimeMappings = in.readMap();
+        runtimeMappings = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
@@ -289,7 +289,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeCollection(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeCollection(subSearchSourceBuilders);
         } else if (out.getTransportVersion().before(TransportVersions.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
             throw new IllegalArgumentException("cannot serialize [sub_searches] to version [" + out.getTransportVersion() + "]");

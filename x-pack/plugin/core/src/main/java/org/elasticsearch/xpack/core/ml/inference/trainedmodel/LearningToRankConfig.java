@@ -98,7 +98,7 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
     public LearningToRankConfig(StreamInput in) throws IOException {
         super(in);
         this.featureExtractorBuilders = in.readNamedWriteableCollectionAsList(LearningToRankFeatureExtractorBuilder.class);
-        this.paramsDefaults = in.readMap();
+        this.paramsDefaults = in.readGenericMap();
     }
 
     public List<LearningToRankFeatureExtractorBuilder> getFeatureExtractorBuilders() {

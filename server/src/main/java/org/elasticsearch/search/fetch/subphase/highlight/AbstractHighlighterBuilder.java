@@ -158,7 +158,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         noMatchSize(in.readOptionalVInt());
         phraseLimit(in.readOptionalVInt());
         if (in.readBoolean()) {
-            options(in.readMap());
+            options(in.readGenericMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
         maxAnalyzedOffset(in.readOptionalInt());

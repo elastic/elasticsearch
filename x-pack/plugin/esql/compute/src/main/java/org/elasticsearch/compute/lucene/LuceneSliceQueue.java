@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,24 +47,23 @@ public final class LuceneSliceQueue {
     }
 
     public static LuceneSliceQueue create(
-        List<SearchContext> searchContexts,
-        Function<SearchContext, Weight> weightFunction,
+        List<? extends ShardContext> contexts,
+        Function<ShardContext, Weight> weightFunction,
         DataPartitioning dataPartitioning,
         int taskConcurrency
     ) {
         final List<LuceneSlice> slices = new ArrayList<>();
-        for (int shardIndex = 0; shardIndex < searchContexts.size(); shardIndex++) {
-            final SearchContext searchContext = searchContexts.get(shardIndex);
-            final List<LeafReaderContext> leafContexts = searchContext.searcher().getLeafContexts();
+        for (ShardContext ctx : contexts) {
+            final List<LeafReaderContext> leafContexts = ctx.searcher().getLeafContexts();
             List<List<PartialLeafReaderContext>> groups = switch (dataPartitioning) {
                 case SHARD -> Collections.singletonList(leafContexts.stream().map(PartialLeafReaderContext::new).toList());
                 case SEGMENT -> segmentSlices(leafContexts);
-                case DOC -> docSlices(searchContext.searcher().getIndexReader(), taskConcurrency);
+                case DOC -> docSlices(ctx.searcher().getIndexReader(), taskConcurrency);
             };
             final Weight[] cachedWeight = new Weight[1];
             final Supplier<Weight> weight = () -> {
                 if (cachedWeight[0] == null) {
-                    cachedWeight[0] = weightFunction.apply(searchContext);
+                    cachedWeight[0] = weightFunction.apply(ctx);
                 }
                 return cachedWeight[0];
             };
@@ -73,7 +71,7 @@ public final class LuceneSliceQueue {
                 weight.get(); // eagerly build Weight once
             }
             for (List<PartialLeafReaderContext> group : groups) {
-                slices.add(new LuceneSlice(shardIndex, searchContext, group, weight));
+                slices.add(new LuceneSlice(ctx, group, weight));
             }
         }
         return new LuceneSliceQueue(slices);

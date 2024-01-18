@@ -43,7 +43,7 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
         }
 
         public Request(StreamInput in) throws IOException {
-            this.settings = in.readMap();
+            this.settings = in.readGenericMap();
         }
 
         @Override

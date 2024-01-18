@@ -541,26 +541,32 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     && "the_pit_id+++".equals(searchRequest.pointInTimeBuilder().getEncodedId())) {
                     listener.onFailure(new SearchContextMissingException(new ShardSearchContextId("sc_missing", 42)));
                 } else {
-                    SearchResponse response = new SearchResponse(
-                        new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                        // Simulate completely null aggs
-                        null,
-                        new Suggest(Collections.emptyList()),
-                        false,
-                        false,
-                        new SearchProfileResults(Collections.emptyMap()),
-                        1,
-                        null,
-                        1,
-                        1,
-                        0,
-                        0,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY,
-                        // copy the pit from the request
-                        searchRequest.pointInTimeBuilder() != null ? searchRequest.pointInTimeBuilder().getEncodedId() + "+" : null
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(1) },
+                                new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
+                                1.0f
+                            ),
+                            // Simulate completely null aggs
+                            null,
+                            new Suggest(Collections.emptyList()),
+                            false,
+                            false,
+                            new SearchProfileResults(Collections.emptyMap()),
+                            1,
+                            null,
+                            1,
+                            1,
+                            0,
+                            0,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY,
+                            // copy the pit from the request
+                            searchRequest.pointInTimeBuilder() != null ? searchRequest.pointInTimeBuilder().getEncodedId() + "+" : null
+                        )
                     );
-                    listener.onResponse((Response) response);
 
                 }
                 return;

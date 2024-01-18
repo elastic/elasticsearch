@@ -26,7 +26,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNodeAction<DeleteLicenseRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("cluster:admin/xpack/license/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/xpack/license/delete");
     private final MutableLicenseService licenseService;
 
     @Inject

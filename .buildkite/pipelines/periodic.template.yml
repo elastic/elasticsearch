@@ -174,7 +174,7 @@ steps:
   - label: Upload Snyk Dependency Graph
     command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
     env:
-      USE_SNYK_CREDENTIALS: "true"
+      USE_PROD_DOCKER_CREDENTIALS: "true"
     timeout_in_minutes: 20
     agents:
       provider: gcp

@@ -30,12 +30,12 @@ public final class ReleasableRef<T extends RefCounted> implements Releasable {
         closeResource.close();
     }
 
-    public static <T extends RefCounted> ReleasableRef<T> of(T value) {
-        return new ReleasableRef<>(value);
+    public static <T extends RefCounted> ReleasableRef<T> of(T resource) {
+        return new ReleasableRef<>(resource);
     }
 
     public T get() {
-        assert resource.hasReferences();
+        assert resource.hasReferences() : resource + " is closed";
         return resource;
     }
 

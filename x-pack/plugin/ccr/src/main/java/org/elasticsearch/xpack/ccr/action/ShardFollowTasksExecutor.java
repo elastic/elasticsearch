@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -244,9 +245,11 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                     }
                 };
                 try {
-                    remoteClient(params).admin()
-                        .cluster()
-                        .state(CcrRequests.metadataRequest(leaderIndex.getName()), ActionListener.wrap(onResponse, errorHandler));
+                    remoteClient(params).execute(
+                        ClusterStateAction.INSTANCE,
+                        CcrRequests.metadataRequest(leaderIndex.getName()),
+                        ActionListener.wrap(onResponse, errorHandler)
+                    );
                 } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
@@ -371,9 +374,11 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 };
 
                 try {
-                    remoteClient(params).admin()
-                        .cluster()
-                        .state(CcrRequests.metadataRequest(leaderIndex.getName()), ActionListener.wrap(onResponse, errorHandler));
+                    remoteClient(params).execute(
+                        ClusterStateAction.INSTANCE,
+                        CcrRequests.metadataRequest(leaderIndex.getName()),
+                        ActionListener.wrap(onResponse, errorHandler)
+                    );
                 } catch (final NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }

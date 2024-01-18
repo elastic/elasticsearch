@@ -260,9 +260,7 @@ public class NestedObjectMapper extends ObjectMapper {
         if (mapperBuilderContext instanceof NestedMapperBuilderContext == false) {
             parentIncludedInRoot |= this.includeInParent.value();
         }
-        return mapperMergeContext.createChildContext(
-            new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot)
-        );
+        return MapperMergeContext.from(new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot));
     }
 
     @Override

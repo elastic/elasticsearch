@@ -17,10 +17,18 @@ public final class MapperMergeContext {
 
     private final MapperBuilderContext mapperBuilderContext;
 
+    /**
+     * The root context, to be used when merging a tree of mappers
+     */
     public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream) {
         return new MapperMergeContext(MapperBuilderContext.root(isSourceSynthetic, isDataStream));
     }
 
+    /**
+     * Creates a new {@link MapperMergeContext} from a {@link MapperBuilderContext}
+     * @param mapperBuilderContext the {@link MapperBuilderContext} for this {@link MapperMergeContext}
+     * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
+     */
     public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext) {
         return new MapperMergeContext(mapperBuilderContext);
     }
@@ -29,15 +37,16 @@ public final class MapperMergeContext {
         this.mapperBuilderContext = mapperBuilderContext;
     }
 
+    /**
+     * Creates a new {@link MapperMergeContext} that is a child of this context
+     * @param name the name of the child context
+     * @return a new {@link MapperMergeContext} with this context as its parent
+     */
     public MapperMergeContext createChildContext(String name) {
-        return createChildContext(mapperBuilderContext.createChildContext(name));
+        return new MapperMergeContext(mapperBuilderContext.createChildContext(name));
     }
 
-    public MapperMergeContext createChildContext(MapperBuilderContext childContext) {
-        return new MapperMergeContext(childContext);
-    }
-
-    public MapperBuilderContext getMapperBuilderContext() {
+    MapperBuilderContext getMapperBuilderContext() {
         return mapperBuilderContext;
     }
 }

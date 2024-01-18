@@ -72,19 +72,19 @@ POINT(39.58327988510707 20.619513023697994)
 simpleLoad#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
 FROM airports | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
 
-abbrev:keyword | location:geo_point                        | name:text                   | scalerank:i | type:k     
-CJJ            | POINT(127.495916124681 36.7220227766673)  | Cheongju Int'l              | 9           | major
-HOD            | POINT(42.97109630194 14.7552534413725)    | Hodeidah Int'l              | 9           | mid
-IDR            | POINT(75.8092915005895 22.727749187571)   | Devi Ahilyabai Holkar Int'l | 9           | mid
-IXC            | POINT(76.8017261105242 30.6707248949667)  | Chandigarh Int'l            | 9           | [major, military]
-LYP            | POINT(72.9878190922305 31.3627435480862)  | Faisalabad Int'l            | 9           | [mid, military]
-MLG            | POINT(112.711418617258 -7.92998002840567) | Abdul Rachman Saleh         | 9           | [mid, military]
-OMS            | POINT(73.3163595376585 54.9576482934059)  | Omsk Tsentralny             | 9           | mid
-OVB            | POINT(82.6671524525865 55.0095847136264)  | Novosibirsk Tolmachev       | 9           | mid
-OZH            | POINT(35.3018728575279 47.8732635579023)  | Zaporozhye Int'l            | 9           | [mid, military]
-TRZ            | POINT(78.7089578747476 10.7603571306554)  | Tiruchirappalli             | 9           | mid
-WIIT           | POINT(105.176060419161 -5.242566777132)   | Radin Inten II              | 9           | mid
-ZAH            | POINT(60.900708564915 29.4752941956573)   | Zahedan Int'l               | 9           | mid
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k   
+CJJ             |  Cheongju        |  POINT(127.4833 36.6333) |  South Korea      |  POINT(127.495916124681 36.7220227766673)   |  Cheongju Int'l               |  9            |  major 
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid   
+IDR             |  Indore          |  POINT(75.8472 22.7167)  |  India            |  POINT(75.8092915005895 22.727749187571)    |  Devi Ahilyabai Holkar Int'l  |  9            |  mid   
+IXC             |  Chandīgarh      |  POINT(76.78 30.75)      |  India            |  POINT(76.8017261105242 30.6707248949667)   |  Chandigarh Int'l             |  9            |  [major, military] 
+LYP             |  Faisalabad      |  POINT(73.0911 31.4167)  |  Pakistan         |  POINT(72.9878190922305 31.3627435480862)   |  Faisalabad Int'l             |  9            |  [mid, military]   
+MLG             |  Malang          |  POINT(112.62 -7.98)     |  Indonesia        |  POINT(112.711418617258 -7.92998002840567)  |  Abdul Rachman Saleh          |  9            |  [mid, military] 
+OMS             |  Omsk            |  POINT(73.3833 54.9667)  |  Russia           |  POINT(73.3163595376585 54.9576482934059)   |  Omsk Tsentralny              |  9            |  mid 
+OVB             |  Novosibirsk     |  POINT(82.9167 55.0333)  |  Russia           |  POINT(82.6671524525865 55.0095847136264)   |  Novosibirsk Tolmachev        |  9            |  mid 
+OZH             |  Zaporizhzhia    |  POINT(35.1175 47.85)    |  Ukraine          |  POINT(35.3018728575279 47.8732635579023)   |  Zaporozhye Int'l             |  9            |  [mid, military] 
+TRZ             |  Trichinopoly    |  POINT(78.7047 10.7903)  |  India            |  POINT(78.7089578747476 10.7603571306554)   |  Tiruchirappalli              |  9            |  mid 
+WIIT            |  Bandar Lampung  |  POINT(105.2667 -5.45)   |  Indonesia        |  POINT(105.176060419161 -5.242566777132)    |  Radin Inten II               |  9            |  mid 
+ZAH             |  Zāhedān         |  POINT(60.8628 29.4964)  |  Iran             |  POINT(60.900708564915 29.4752941956573)    |  Zahedan Int'l                |  9            |  mid 
 ;
 
 centroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
@@ -153,6 +153,53 @@ FROM airports
 
 centroid:geo_point                           | count:long
 POINT (7.572387259169772 26.836561792945492) | 891
+;
+
+centroidFromAirportsCountGroupedCountry#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY country
+| SORT count DESC, country ASC
+| WHERE count >= 10
+;
+
+centroid:geo_point                             | count:long | country:k
+POINT (-97.35314010599151 38.10878461129357)   | 129        | United States
+POINT (78.43924137242138 21.906680814921856)   | 50         | India
+POINT (-102.41375148668885 24.23349200747907)  | 45         | Mexico
+POINT (112.93269384584231 32.99003028708351)   | 41         | China
+POINT (-94.40011690723131 50.75939727154233)   | 37         | Canada
+POINT (-47.34247903940418 -15.810676516754732) | 31         | Brazil
+POINT (57.28701195536325 55.03344970809009)    | 26         | Russia
+POINT (-65.68080904207339 35.86510977242142)   | 19         | null
+POINT (140.737684309373 -27.673816219081772)   | 17         | Australia
+POINT (-2.597342072712148 54.33551226578214)   | 17         | United Kingdom
+POINT (-64.15348685991306 -35.02440824352492)  | 13         | Argentina
+POINT (3.68175775045529 46.86421629041433)     | 12         | France
+POINT (107.92402815073729 -4.501702389679849)  | 12         | Indonesia
+POINT (10.194075193933465 50.67810644691979)   | 11         | Germany
+POINT (10.991480831395496 43.04759993387217)   | 11         | Italy
+POINT (6.675785548815673 9.213554792698812)    | 11         | Nigeria
+POINT (70.84053024463356 30.708189841825515)   | 10         | Pakistan
+;
+
+centroidFromAirportsFilteredCountry#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| WHERE country == "United States"
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:geo_point                             | count:long
+POINT (-97.35314010599151 38.10878461129357)   | 129
+;
+
+centroidFromAirportsCountGroupedCountryCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(location), count=COUNT() BY country
+| STATS centroid=ST_CENTROID(centroid), count=SUM(count)
+;
+
+centroid:geo_point                           | count:long
+POINT (17.156217780496547 18.2549303325852)  | 891
 ;
 
 centroidFromAirportsFilteredAndSorted#[skip:-8.12.99, reason:st_centroid added in 8.13]

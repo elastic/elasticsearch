@@ -207,16 +207,16 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperBuilderContext parentBuilderContext) {
+    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperMergeContext parentMergeContext) {
         if ((mergeWith instanceof NestedObjectMapper) == false) {
             MapperErrors.throwNestedMappingConflictError(mergeWith.name());
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-        return merge(mergeWithObject, reason, parentBuilderContext);
+        return merge(mergeWithObject, reason, parentMergeContext);
     }
 
-    ObjectMapper merge(NestedObjectMapper mergeWithObject, MapperService.MergeReason reason, MapperBuilderContext parentBuilderContext) {
-        var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentBuilderContext);
+    ObjectMapper merge(NestedObjectMapper mergeWithObject, MapperService.MergeReason reason, MapperMergeContext parentMergeContext) {
+        var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentMergeContext);
         Explicit<Boolean> incInParent = this.includeInParent;
         Explicit<Boolean> incInRoot = this.includeInRoot;
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
@@ -234,6 +234,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
             }
         }
+        MapperBuilderContext parentBuilderContext = parentMergeContext.getMapperBuilderContext();
         if (parentBuilderContext instanceof NestedMapperBuilderContext nc) {
             if (nc.parentIncludedInRoot && incInParent.value()) {
                 incInRoot = Explicit.IMPLICIT_FALSE;
@@ -257,12 +258,13 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        MapperBuilderContext mapperBuilderContext = mapperMergeContext.getMapperBuilderContext();
         boolean parentIncludedInRoot = this.includeInRoot.value();
         if (mapperBuilderContext instanceof NestedMapperBuilderContext == false) {
             parentIncludedInRoot |= this.includeInParent.value();
         }
-        return new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot);
+        return MapperMergeContext.from(new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot));
     }
 
     @Override

@@ -162,7 +162,7 @@ public class ObjectMapper extends Mapper {
                     // This can also happen due to multiple index templates being merged into a single mappings definition using
                     // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
                     // mix of object notation and dot notation.
-                    mapper = existing.merge(mapper, mapperBuilderContext);
+                    mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext));
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
@@ -443,8 +443,8 @@ public class ObjectMapper extends Mapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
-        return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperBuilderContext);
+    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
+        return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperMergeContext);
     }
 
     @Override
@@ -454,11 +454,11 @@ public class ObjectMapper extends Mapper {
         }
     }
 
-    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
-        return mapperBuilderContext.createChildContext(name);
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        return mapperMergeContext.createChildContext(name);
     }
 
-    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
         if (mergeWith instanceof ObjectMapper == false) {
             MapperErrors.throwObjectMappingConflictError(mergeWith.name());
         }
@@ -466,11 +466,11 @@ public class ObjectMapper extends Mapper {
             // TODO stop NestedObjectMapper extending ObjectMapper?
             MapperErrors.throwNestedMappingConflictError(mergeWith.name());
         }
-        return merge((ObjectMapper) mergeWith, reason, parentBuilderContext);
+        return merge((ObjectMapper) mergeWith, reason, parentMergeContext);
     }
 
-    ObjectMapper merge(ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
-        var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+    ObjectMapper merge(ObjectMapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
+        var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
         return new ObjectMapper(
             simpleName(),
             fullPath,
@@ -491,7 +491,7 @@ public class ObjectMapper extends Mapper {
             ObjectMapper existing,
             ObjectMapper mergeWithObject,
             MergeReason reason,
-            MapperBuilderContext parentBuilderContext
+            MapperMergeContext parentMergeContext
         ) {
             final Explicit<Boolean> enabled;
             if (mergeWithObject.enabled.explicit()) {
@@ -519,8 +519,8 @@ public class ObjectMapper extends Mapper {
             } else {
                 subObjects = existing.subobjects;
             }
-            MapperBuilderContext objectBuilderContext = existing.createChildContext(parentBuilderContext, existing.simpleName());
-            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, reason, objectBuilderContext);
+            MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.simpleName());
+            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, reason, objectMergeContext);
             return new MergeResult(
                 enabled,
                 subObjects,
@@ -533,7 +533,7 @@ public class ObjectMapper extends Mapper {
             ObjectMapper existing,
             ObjectMapper mergeWithObject,
             MergeReason reason,
-            MapperBuilderContext objectBuilderContext
+            MapperMergeContext objectMergeContext
         ) {
             Map<String, Mapper> mergedMappers = null;
             for (Mapper mergeWithMapper : mergeWithObject) {
@@ -543,7 +543,7 @@ public class ObjectMapper extends Mapper {
                 if (mergeIntoMapper == null) {
                     merged = mergeWithMapper;
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                    merged = objectMapper.merge(mergeWithMapper, reason, objectBuilderContext);
+                    merged = objectMapper.merge(mergeWithMapper, reason, objectMergeContext);
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                     if (mergeWithMapper instanceof NestedObjectMapper) {
@@ -557,7 +557,7 @@ public class ObjectMapper extends Mapper {
                     if (reason == MergeReason.INDEX_TEMPLATE) {
                         merged = mergeWithMapper;
                     } else {
-                        merged = mergeIntoMapper.merge(mergeWithMapper, objectBuilderContext);
+                        merged = mergeIntoMapper.merge(mergeWithMapper, objectMergeContext);
                     }
                 }
                 if (mergedMappers == null) {

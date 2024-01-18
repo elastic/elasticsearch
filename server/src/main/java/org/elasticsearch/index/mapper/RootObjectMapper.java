@@ -192,21 +192,21 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
-        assert Objects.equals(mapperBuilderContext.buildFullName("foo"), "foo");
-        return mapperBuilderContext;
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
+        return mapperMergeContext;
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
         if (mergeWith instanceof RootObjectMapper == false) {
             MapperErrors.throwObjectMappingConflictError(mergeWith.name());
         }
-        return merge((RootObjectMapper) mergeWith, reason, parentBuilderContext);
+        return merge((RootObjectMapper) mergeWith, reason, parentMergeContext);
     }
 
-    RootObjectMapper merge(RootObjectMapper mergeWithObject, MergeReason reason, MapperBuilderContext parentBuilderContext) {
-        final var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentBuilderContext);
+    RootObjectMapper merge(RootObjectMapper mergeWithObject, MergeReason reason, MapperMergeContext parentMergeContext) {
+        final var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentMergeContext);
         final Explicit<Boolean> numericDetection;
         if (mergeWithObject.numericDetection.explicit()) {
             numericDetection = mergeWithObject.numericDetection;

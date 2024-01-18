@@ -439,23 +439,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         for (String fieldWithType : dataTypes) {
             for (String trueComparison : trueForSingleValuesComparisons) {
-                var query = builder().query(fromIndex() + " | where " + fieldWithType + trueComparison);
+                var query = builder().query(
+                    LoggerMessageFormat.format(null, "from {} | where {} {}", testIndexName(), fieldWithType, trueComparison)
+                );
                 var result = runEsql(query);
 
                 var values = (ArrayList) result.get("values");
                 assertThat(
-                    "Comparison [" + fieldWithType + trueComparison + "] should return all rows with single values.",
+                    LoggerMessageFormat.format(
+                        null,
+                        "Comparison [{} {}] should return all rows with single values.",
+                        fieldWithType,
+                        trueComparison
+                    ),
                     values.size(),
                     is(NUM_SINGLE_VALUE_ROWS)
                 );
             }
 
             for (String falseComparison : alwaysFalseComparisons) {
-                var query = builder().query(fromIndex() + " | where " + fieldWithType + falseComparison);
+                var query = builder().query(
+                    LoggerMessageFormat.format(null, "from {} | where {} {}", testIndexName(), fieldWithType, falseComparison)
+                );
                 var result = runEsql(query);
 
                 var values = (ArrayList) result.get("values");
-                assertThat("Comparison [" + fieldWithType + falseComparison + "] should return no rows.", values.size(), is(0));
+                assertThat(
+                    LoggerMessageFormat.format(null, "Comparison [{} {}] should return no rows.", fieldWithType, falseComparison),
+                    values.size(),
+                    is(0)
+                );
             }
         }
     }

@@ -284,3 +284,7 @@ movies:
   - is_false: values.8.1
   - match: { values.9.0: 1 }
   - is_false: values.9.1
+
+  - do:
+      enrich.delete_policy:
+        name: movies

@@ -525,9 +525,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      * @param region    the region of the blob to fetch
      * @param blobLength the length of the blob from which the region is fetched (used to compute the size of the ending region)
      * @param writer    a writer that handles writing of newly downloaded data to the shared cache
-     * @param listener  a listener that is completed with {@code true} if the current thread triggered the fetching of the region. The
-     *                  listener is completed with {@code false} if the region to write is already available in cache or is pending
-     *                  fetching via  another thread.
+     * @param listener  a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in which
+     *                  case the data is available in cache. The listener is completed with {@code false} in every other cases: if the
+     *                  region to write is already available in cache, if the region is pending fetching via another thread or if there is
+     *                  not enough free pages to fetch the region.
      */
     public void maybeFetchRegion(
         final KeyType cacheKey,

@@ -958,6 +958,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 progressUpdater.accept(length);
             }, taskQueue.getThreadPool().generic(), future1);
 
+            assertThat(future1.isDone(), is(false));
             assertThat(taskQueue.hasRunnableTasks(), is(true));
 
             // start populating the second region
@@ -976,8 +977,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 progressUpdater.accept(length);
             }, taskQueue.getThreadPool().generic(), future3);
 
-            var written = future3.get(10L, TimeUnit.SECONDS);
             assertThat(future3.isDone(), is(true));
+            var written = future3.get(10L, TimeUnit.SECONDS);
             assertThat(written, is(false));
 
             taskQueue.runAllRunnableTasks();

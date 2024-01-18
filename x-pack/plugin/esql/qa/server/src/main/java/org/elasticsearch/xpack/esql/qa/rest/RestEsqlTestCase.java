@@ -18,6 +18,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -46,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.IntFunction;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -75,7 +77,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         {
           "mappings": {
             "properties" : {
-              "alias-integer": {
+              "alias_integer": {
                 "type": "alias",
                 "path": "integer"
               },
@@ -137,11 +139,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }""";
 
     private static final String DOCUMENT_TEMPLATE = """
-        {"index":{"_id":"%s"}}
-        {"boolean": %b, "byte": %s, "date": %s, "double": %f, "float": %f, "half_float": %f, "scaled_float": %f, "integer": %s,""" + """
-        "ip": "127.0.0.%s", "keyword": "keyword%s", "long": %s, "unsigned_long": %s, "short": %s, "text": "text%s",""" + """
-         "version": "1.2.%s", "wildcard": "wildcard%s"}
+        {"index":{"_id":"{}"}}
+        {"boolean": {}, "byte": {}, "date": {}, "double": {}, "float": {}, "half_float": {}, "scaled_float": {}, "integer": {},""" + """
+        "ip": "127.0.0.{}", "keyword": "keyword{}", "long": {}, "unsigned_long": {}, "short": {}, "text": "text{}",""" + """
+         "version": "1.2.{}", "wildcard": "wildcard{}"}
         """;
+
+    // larger than any (unsigned) long
+    private static final String HUMONGOUS_DOUBLE = "1E300";
+    private static final String INFTY = "1.0/0.0";
+    private static final String NAN = "0.0/0.0";
 
     public static boolean shouldLog() {
         return false;
@@ -367,70 +374,89 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals("keyword0,0\r\n", actual);
     }
 
-    private record ImplicitCastCase(String datatype, String expression) {}
+    public void testOutOfRangeComparisons() throws IOException {
+        final int NUM_SINGLE_VALUE_ROWS = 100;
+        bulkLoadTestData(NUM_SINGLE_VALUE_ROWS);
+        bulkLoadTestData(10, NUM_SINGLE_VALUE_ROWS, false, RestEsqlTestCase::createDocumentWithMVs);
+        bulkLoadTestData(5, NUM_SINGLE_VALUE_ROWS + 10, false, RestEsqlTestCase::createDocumentWithNulls);
 
-    // Regression test for issue
-    // https://github.com/elastic/elasticsearch/issues/99960
-    public void testFilterWithImplicitConversion() throws IOException {
-        bulkLoadTestData(1);
-
-        String sign = randomBoolean() ? "" : "-";
-
-        Set<String> intLongDouble = Set.of("integer", "long", "double");
-        Set<String> longDouble = Set.of("long", "double");
-
-        // TODO: Parametrize instead of using so much randomness
-        String toIntLongOrDouble = "to_" + randomSubsetOf(1, intLongDouble).get(0);
-        String toLongOrDouble = "to_" + randomSubsetOf(1, longDouble).get(0);
-
-        List<ImplicitCastCase> casts = List.of(
-            // Aliases
-            new ImplicitCastCase("`alias-integer`", toIntLongOrDouble + "(" + sign + "1)"),
-            new ImplicitCastCase("`alias-integer`", toLongOrDouble + "(" + sign + "1000000000000)"),
-            // Exact numerical types
-            // Byte - in range
-            new ImplicitCastCase("byte", toIntLongOrDouble + "(2147483647)"),
-            new ImplicitCastCase("byte", toIntLongOrDouble + "(-2147483648)"),
-            // Byte - out of range; Bytes are treated as ints by Lucene, so out of range = out of int range
-            new ImplicitCastCase("byte", toLongOrDouble + "(" + sign + "1000000000000)"),
-            // Short - in range
-            new ImplicitCastCase("short", toIntLongOrDouble + "(2147483647)"),
-            new ImplicitCastCase("short", toIntLongOrDouble + "(-2147483648)"),
-            // Short - out of range; Shorts are treated the same as ints by Lucene
-            new ImplicitCastCase("short", toLongOrDouble + "(" + sign + "1000000000000)"),
-            // Integer
-            new ImplicitCastCase("integer", toIntLongOrDouble + "(2147483647)"),
-            new ImplicitCastCase("integer", toIntLongOrDouble + "(-2147483648)"),
-            new ImplicitCastCase("integer", toLongOrDouble + "(" + sign + "1000000000000)"),
-            // Long
-            new ImplicitCastCase("long", toIntLongOrDouble + "(" + sign + "1)"),
-            new ImplicitCastCase("long", toIntLongOrDouble + "(" + sign + "1)"),
-            new ImplicitCastCase("long", sign + "(to_double(9223372036854775807) + 2.0)"),
-            // Unsigned Long
-            new ImplicitCastCase("unsigned_long", "to_ul(9223372036854775808)"),
-            // Floating point types
-            // Half Float - in range
-            // TODO: add scaled floats
-            new ImplicitCastCase("half_float", toIntLongOrDouble + "(" + sign + "65505)"),
-            // https://github.com/elastic/elasticsearch/issues/100130
-            new ImplicitCastCase("half_float", toLongOrDouble + "(" + sign + "1000000000000)"),
-            new ImplicitCastCase("float", toIntLongOrDouble + "(" + sign + "1.0)"),
-            new ImplicitCastCase("float", "to_double(" + sign + "3.4028235) * pow(10.0, 38)"),
-            new ImplicitCastCase("float", "to_double(" + sign + "1.797693134862315) * pow(10.0, 307)"),
-            new ImplicitCastCase("double", toIntLongOrDouble + "(" + sign + "1)"),
-            new ImplicitCastCase("double", "(" + sign + "0.0)/0.0"),
-            new ImplicitCastCase("double", "(" + sign + "1.0)/0.0"),
-            // Multi-valued literals
-            new ImplicitCastCase("double", "[1.0, 2.1]"),
-            // Other types
-            new ImplicitCastCase("text", "\"foo\""),
-            new ImplicitCastCase("wildcard", "\"foo\"")
+        List<String> dataTypes = List.of(
+            "alias_integer",
+            "byte",
+            "short",
+            "integer",
+            "long",
+            // TODO: https://github.com/elastic/elasticsearch/issues/102935
+            // "unsigned_long",
+            // TODO: https://github.com/elastic/elasticsearch/issues/100130
+            // "half_float",
+            // "float",
+            "double",
+            "scaled_float"
         );
 
-        // TODO: use random sign
-        for (ImplicitCastCase c : casts) {
-            var query = builder().query(fromIndex() + " | where " + c.datatype + " < " + c.expression + " | keep " + c.datatype);
-            runEsql(query);
+        List<String> trueForSingleValuesComparisons = List.of(
+            " < " + HUMONGOUS_DOUBLE,
+            " <= " + HUMONGOUS_DOUBLE,
+            " > -" + HUMONGOUS_DOUBLE,
+            " >= -" + HUMONGOUS_DOUBLE,
+            " != " + HUMONGOUS_DOUBLE,
+            " != -" + HUMONGOUS_DOUBLE,
+            " < " + INFTY,
+            " <= " + INFTY,
+            " > -" + INFTY,
+            " >= -" + INFTY,
+            " != " + INFTY,
+            " != -" + INFTY,
+            " != " + NAN
+
+        );
+        List<String> alwaysFalseComparisons = List.of(
+            " < -" + HUMONGOUS_DOUBLE,
+            " <= -" + HUMONGOUS_DOUBLE,
+            " > " + HUMONGOUS_DOUBLE,
+            " >= " + HUMONGOUS_DOUBLE,
+            " == " + HUMONGOUS_DOUBLE,
+            " == -" + HUMONGOUS_DOUBLE,
+            " < -" + INFTY,
+            " <= -" + INFTY,
+            " > " + INFTY,
+            " >= " + INFTY,
+            " == " + INFTY,
+            " == -" + INFTY,
+            " < " + NAN,
+            " <= " + NAN,
+            " > " + NAN,
+            " >= " + NAN,
+            " == " + NAN,
+            " < to_double(null)",
+            " <= to_double(null)",
+            " > to_double(null)",
+            " >= to_double(null)",
+            " == to_double(null)",
+            " != to_double(null)"
+        );
+
+        for (String fieldWithType : dataTypes) {
+            for (String trueComparison : trueForSingleValuesComparisons) {
+                var query = builder().query(fromIndex() + " | where " + fieldWithType + trueComparison);
+                var result = runEsql(query);
+
+                var values = (ArrayList) result.get("values");
+                assertThat(
+                    "Comparison [" + fieldWithType + trueComparison + "] should return all rows with single values.",
+                    values.size(),
+                    is(NUM_SINGLE_VALUE_ROWS)
+                );
+            }
+
+            for (String falseComparison : alwaysFalseComparisons) {
+                var query = builder().query(fromIndex() + " | where " + fieldWithType + falseComparison);
+                var result = runEsql(query);
+
+                var values = (ArrayList) result.get("values");
+                assertThat("Comparison [" + fieldWithType + falseComparison + "] should return no rows.", values.size(), is(0));
+            }
         }
     }
 
@@ -859,9 +885,17 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static void bulkLoadTestData(int count) throws IOException {
-        Request request = new Request("PUT", "/" + testIndexName());
-        request.setJsonEntity(MAPPING_ALL_TYPES);
-        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        bulkLoadTestData(count, 0, true, RestEsqlTestCase::createDocument);
+    }
+
+    private static void bulkLoadTestData(int count, int firstIndex, boolean createIndex, IntFunction<String> createDocument)
+        throws IOException {
+        Request request;
+        if (createIndex) {
+            request = new Request("PUT", "/" + testIndexName());
+            request.setJsonEntity(MAPPING_ALL_TYPES);
+            assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        }
 
         if (count > 0) {
             request = new Request("POST", "/" + testIndexName() + "/_bulk");
@@ -869,7 +903,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
             StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < count; i++) {
-                bulk.append(createDocument(i));
+                bulk.append(createDocument.apply(i + firstIndex));
             }
             request.setJsonEntity(bulk.toString());
             assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
@@ -877,7 +911,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static String createDocument(int i) {
-        return org.elasticsearch.core.Strings.format(
+        return LoggerMessageFormat.format(
             DOCUMENT_TEMPLATE,
             i,
             ((i & 1) == 0),
@@ -897,6 +931,40 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             i,
             i
         );
+    }
+
+    private static String createDocumentWithMVs(int i) {
+        return LoggerMessageFormat.format(
+            DOCUMENT_TEMPLATE,
+            i,
+            repeatValueAsMV((i & 1) == 0),
+            repeatValueAsMV(i % 256),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i + 0.1),
+            repeatValueAsMV(i + 0.1),
+            repeatValueAsMV(i + 0.1),
+            repeatValueAsMV(i + 0.1),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i % 256),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i % Short.MAX_VALUE),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i),
+            repeatValueAsMV(i)
+        );
+    }
+
+    private static String createDocumentWithNulls(int i) {
+        return LoggerMessageFormat.format("""
+            {"index":{"_id":"{}"}}
+            {}
+            """, i);
+    }
+
+    private static String repeatValueAsMV(Object value) {
+        return "[" + value + ", " + value + "]";
     }
 
     private static RequestObjectBuilder builder() throws IOException {

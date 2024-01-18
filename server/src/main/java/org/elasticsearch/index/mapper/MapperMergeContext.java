@@ -11,7 +11,12 @@ package org.elasticsearch.index.mapper;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class MapperMergeContext {
+/**
+ * Holds context used when merging mappings.
+ * As the merge process also involves building merged {@link Mapper.Builder}s,
+ * this also contains a {@link MapperBuilderContext}.
+ */
+public final class MapperMergeContext {
 
     private final MapperBuilderContext mapperBuilderContext;
     private final AtomicLong remainingFieldsUntilLimit;

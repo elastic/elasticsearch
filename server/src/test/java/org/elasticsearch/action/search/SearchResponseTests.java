@@ -115,25 +115,29 @@ public class SearchResponseTests extends ESTestCase {
         }
         if (minimal == false) {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
-            InternalAggregations aggregations = aggregationsTests.createTestInstance();
-            Suggest suggest = SuggestTests.createTestItem();
-            SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
-            return new SearchResponse(
-                hits,
-                aggregations,
-                suggest,
-                timedOut,
-                terminatedEarly,
-                profileResults,
-                numReducePhases,
-                null,
-                totalShards,
-                successfulShards,
-                skippedShards,
-                tookInMillis,
-                shardSearchFailures,
-                clusters
-            );
+            try {
+                InternalAggregations aggregations = aggregationsTests.createTestInstance();
+                Suggest suggest = SuggestTests.createTestItem();
+                SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
+                return new SearchResponse(
+                    hits,
+                    aggregations,
+                    suggest,
+                    timedOut,
+                    terminatedEarly,
+                    profileResults,
+                    numReducePhases,
+                    null,
+                    totalShards,
+                    successfulShards,
+                    skippedShards,
+                    tookInMillis,
+                    shardSearchFailures,
+                    clusters
+                );
+            } finally {
+                hits.decRef();
+            }
         } else {
             return SearchResponseUtils.emptyWithTotalHits(
                 null,
@@ -381,9 +385,10 @@ public class SearchResponseTests extends ESTestCase {
         SearchHit hit = new SearchHit(1, "id1");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
+        var sHits = new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f);
         {
             SearchResponse response = new SearchResponse(
-                new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                sHits,
                 null,
                 null,
                 false,
@@ -425,7 +430,7 @@ public class SearchResponseTests extends ESTestCase {
         }
         {
             SearchResponse response = new SearchResponse(
-                new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                sHits,
                 null,
                 null,
                 false,
@@ -475,7 +480,7 @@ public class SearchResponseTests extends ESTestCase {
         }
         {
             SearchResponse response = new SearchResponse(
-                new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                sHits,
                 null,
                 null,
                 false,
@@ -617,6 +622,7 @@ public class SearchResponseTests extends ESTestCase {
                 response.decRef();
             }
         }
+        sHits.decRef();
     }
 
     public void testSerialization() throws IOException {

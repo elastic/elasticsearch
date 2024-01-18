@@ -147,8 +147,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
                     SearchHits searchHits;
                     if ("null_target".equals(request.preference())) {
-                        searchHits = new SearchHits(
-                            new SearchHit[] { new SearchHit(0) },
+                        searchHits = SearchHits.unpooled(
+                            new SearchHit[] { SearchHit.unpooled(0) },
                             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                             1F
                         );

@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -281,7 +282,7 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testTooManyEval() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyEval(1000));
+        assertCircuitBreaks(() -> manyEval(1500));
     }
 
     private Response manyEval(int evalLines) throws IOException {
@@ -434,8 +435,13 @@ public class HeapAttackIT extends ESRestTestCase {
                     }
                 }
             }
+            if (a == 0) {
+                initIndex("manylongs", bulk.toString());
+            } else {
+                bulk("manylongs", bulk.toString());
+            }
+            bulk.setLength(0);
         }
-        initIndex("manylongs", bulk.toString());
     }
 
     private void initSingleDocIndex() throws IOException {

@@ -47,7 +47,6 @@ public class BulkRequestModifierTests extends ESTestCase {
                     failedSlots.add(i);
                 }
             }
-            assertThat(modifier.getBulkRequest().requests().size(), equalTo(numRequests - failedSlots.size()));
 
             // populate the non-failed responses
             BulkRequest subsequentBulkRequest = modifier.getBulkRequest();

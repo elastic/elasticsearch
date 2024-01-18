@@ -106,7 +106,7 @@ FROM airports
 ;
 
 centroid:geo_point
-POINT(-0.030548143003023033 24.37553649504829)
+POINT (-0.03054810272375508 24.37553651570554)
 ;
 
 centroidFromAirportsCount#[skip:-8.12.99, reason:st_centroid added in 8.13]
@@ -361,7 +361,7 @@ FROM airports_web
 | STATS centroid=ST_CENTROID(TO_CARTESIANPOINT(location));
 
 centroid:cartesian_point
-POINT(-266681.67563861894 3053301.5120195406)
+POINT (-266681.66530554957 3053301.506061676)
 ;
 
 cartesianCentroidFromAirportsCount#[skip:-8.12.99, reason:st_centroid added in 8.13]

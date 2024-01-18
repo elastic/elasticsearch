@@ -440,15 +440,14 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     var changedAggregates = false;
                     for (NamedExpression aggExpr : agg.aggregates()) {
                         if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
-                            // Firstly we tell the aggregation function that it should expect doc-values instead of source values
-                            var changed = as.replaceChild(af.withDocValues());
-                            changedAggregates = true;
-                            if (af.field() instanceof Attribute fieldAttribute) {
+                            if (af.field() instanceof FieldAttribute fieldAttribute) {
+                                // We need to both mark the field to load differently, and change the spatial function to know to use it
                                 foundAttribute.set(fieldAttribute);
+                                changedAggregates = true;
+                                orderedAggregates.add(as.replaceChild(af.withDocValues()));
                             } else {
-                                throw new RuntimeException("Expected field attribute, got " + af.field());
+                                orderedAggregates.add(aggExpr);
                             }
-                            orderedAggregates.add(changed);
                         } else {
                             orderedAggregates.add(aggExpr);
                         }
@@ -458,7 +457,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     }
                 }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {
-                    // Also tell the field extractor that it should extract the field from doc-values instead of source values
+                    // Tell the field extractor that it should extract the field from doc-values instead of source values
                     if (foundAttribute.get() != null && fieldExtractExec.attributesToExtract().contains(foundAttribute.get())) {
                         exec = fieldExtractExec.withForStats(foundAttribute.get());
                     }

@@ -2176,8 +2176,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        // below the exchange (in data node) the aggregation is using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+        // TODO: Change this to expect to useDocValues for correctly nested reference attributes that relate to functions on fields
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         var evalExec = as(agg.child(), EvalExec.class);
         var extract = as(evalExec.child(), FieldExtractExec.class);
         source(extract.child());

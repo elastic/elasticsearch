@@ -49,7 +49,9 @@ public class EsqlQueryTranslators {
         }
 
         static Query translate(BinaryComparison bc, TranslatorHandler handler) {
-            if ((bc.left() instanceof FieldAttribute) == false || bc.right().foldable() == false) {
+            if ((bc.left() instanceof FieldAttribute) == false
+                || bc.left().dataType().isNumeric() == false
+                || bc.right().foldable() == false) {
                 return null;
             }
             FieldAttribute attribute = (FieldAttribute) bc.left();
@@ -66,10 +68,10 @@ public class EsqlQueryTranslators {
             if (valueType == UNSIGNED_LONG && value instanceof Long ul) {
                 value = unsignedLongAsNumber(ul);
             }
-            if ((value instanceof Number) == false || isInRange(attributeDataType, valueType, (Number) value)) {
+            Number num = (Number) value;
+            if (isInRange(attributeDataType, valueType, num)) {
                 return null;
             }
-            Number num = (Number) value;
 
             if (Double.isNaN(((Number) value).doubleValue())) {
                 return new MatchAll(Source.EMPTY).negate(source);

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.cohere;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -18,14 +17,20 @@ import org.elasticsearch.xpack.inference.external.response.cohere.CohereErrorRes
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
-import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
+/**
+ * Defines how to handle various errors returned from the Cohere integration.
+ *
+ * NOTE:
+ * These headers are returned for trial API keys only (they also do not exist within 429 responses)
+ *
+ * <code>
+ * x-endpoint-monthly-call-limit
+ * x-trial-endpoint-call-limit
+ * x-trial-endpoint-call-remaining
+ * </code>
+ */
 public class CohereResponseHandler extends BaseResponseHandler {
-
-    static final String MONTHLY_REQUESTS_LIMIT = "x-endpoint-monthly-call-limit";
-    // TODO determine the production versions of these
-    static final String TRIAL_REQUEST_LIMIT_PER_MINUTE = "x-trial-endpoint-call-limit";
-    static final String TRIAL_REQUESTS_REMAINING = "x-trial-endpoint-call-remaining";
     static final String TEXTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER = "invalid request: total number of texts must be at most";
     static final String TEXTS_ARRAY_ERROR_MESSAGE = "Received a texts array too large response";
 
@@ -58,7 +63,7 @@ public class CohereResponseHandler extends BaseResponseHandler {
         if (statusCode >= 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+            throw new RetryException(true, buildError(RATE_LIMIT, request, result));
         } else if (isTextsArrayTooLarge(result)) {
             throw new RetryException(false, buildError(TEXTS_ARRAY_ERROR_MESSAGE, request, result));
         } else if (statusCode == 401) {
@@ -79,21 +84,5 @@ public class CohereResponseHandler extends BaseResponseHandler {
         }
 
         return false;
-    }
-
-    static String buildRateLimitErrorMessage(HttpResult result) {
-        var response = result.response();
-        var monthlyRequestLimit = getFirstHeaderOrUnknown(response, MONTHLY_REQUESTS_LIMIT);
-        var trialRequestsPerMinute = getFirstHeaderOrUnknown(response, TRIAL_REQUEST_LIMIT_PER_MINUTE);
-        var trialRequestsRemaining = getFirstHeaderOrUnknown(response, TRIAL_REQUESTS_REMAINING);
-
-        var usageMessage = Strings.format(
-            "Monthly request limit [%s], permitted requests per minute [%s], remaining requests [%s]",
-            monthlyRequestLimit,
-            trialRequestsPerMinute,
-            trialRequestsRemaining
-        );
-
-        return RATE_LIMIT + ". " + usageMessage;
     }
 }

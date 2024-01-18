@@ -12,7 +12,6 @@ import org.apache.http.HeaderElement;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -50,7 +49,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received a rate limit status code. Monthly request limit")
+            containsString("Received a rate limit status code for request [null] status [429]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
@@ -96,44 +95,6 @@ public class CohereResponseHandlerTests extends ESTestCase {
             containsString("Unhandled redirection for request [null] status [300]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
-    }
-
-    public void testBuildRateLimitErrorMessage() {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(429);
-        var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
-        var httpResult = new HttpResult(response, new byte[] {});
-
-        when(response.getFirstHeader(CohereResponseHandler.MONTHLY_REQUESTS_LIMIT)).thenReturn(
-            new BasicHeader(CohereResponseHandler.MONTHLY_REQUESTS_LIMIT, "3000")
-        );
-        when(response.getFirstHeader(CohereResponseHandler.TRIAL_REQUEST_LIMIT_PER_MINUTE)).thenReturn(
-            new BasicHeader(CohereResponseHandler.TRIAL_REQUEST_LIMIT_PER_MINUTE, "2999")
-        );
-        when(response.getFirstHeader(CohereResponseHandler.TRIAL_REQUESTS_REMAINING)).thenReturn(
-            new BasicHeader(CohereResponseHandler.TRIAL_REQUESTS_REMAINING, "12")
-        );
-
-        var error = CohereResponseHandler.buildRateLimitErrorMessage(httpResult);
-        MatcherAssert.assertThat(
-            error,
-            containsString("Monthly request limit [3000], permitted requests per minute [2999], remaining requests [12]")
-        );
-    }
-
-    public void testBuildRateLimitErrorMessage_FillsWithUnknown_WhenUnableToFindHeader() {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(429);
-        var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
-        var httpResult = new HttpResult(response, new byte[] {});
-
-        var error = CohereResponseHandler.buildRateLimitErrorMessage(httpResult);
-        MatcherAssert.assertThat(
-            error,
-            containsString("Monthly request limit [unknown], permitted requests per minute [unknown], remaining requests [unknown]")
-        );
     }
 
     private static void callCheckForFailureStatusCode(int statusCode) {

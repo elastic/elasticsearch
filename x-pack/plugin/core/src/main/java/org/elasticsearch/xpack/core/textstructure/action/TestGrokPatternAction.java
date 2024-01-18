@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,8 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Response> {
 
     public static final TestGrokPatternAction INSTANCE = new TestGrokPatternAction();
@@ -42,6 +41,7 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
 
         public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
         public static final ParseField TEXT = new ParseField("text");
+        public static final ParseField ECS_COMPATIBILITY = new ParseField("ecs_compatibility");
 
         private static final ObjectParser<Request.Builder, Void> PARSER = createParser();
 
@@ -55,6 +55,7 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
         public static class Builder {
             private String grokPattern;
             private List<String> text;
+            private String ecsCompatibility;
 
             public Builder grokPattern(String grokPattern) {
                 this.grokPattern = grokPattern;
@@ -66,27 +67,35 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
                 return this;
             }
 
+            public Builder ecsCompatibility(String ecsCompatibility) {
+                this.ecsCompatibility = Strings.isNullOrEmpty(ecsCompatibility) ? null : ecsCompatibility;
+                return this;
+            }
+
             public Request build() {
-                return new Request(grokPattern, text);
+                return new Request(grokPattern, text, ecsCompatibility);
             }
         }
 
         private final String grokPattern;
         private final List<String> text;
+        private final String ecsCompatibility;
 
-        private Request(String grokPattern, List<String> text) {
+        private Request(String grokPattern, List<String> text, String ecsCompatibility) {
             this.grokPattern = ExceptionsHelper.requireNonNull(grokPattern, GROK_PATTERN.getPreferredName());
             this.text = ExceptionsHelper.requireNonNull(text, TEXT.getPreferredName());
+            this.ecsCompatibility = ecsCompatibility;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             grokPattern = in.readString();
             text = in.readStringCollectionAsList();
+            ecsCompatibility = in.readOptionalString();
         }
 
-        public static Request parseRequest(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null).build();
+        public static Request parseRequest(String ecsCompatibility, XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null).ecsCompatibility(ecsCompatibility).build();
         }
 
         @Override
@@ -94,6 +103,7 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
             super.writeTo(out);
             out.writeString(grokPattern);
             out.writeStringCollection(text);
+            out.writeOptionalString(ecsCompatibility);
         }
 
         public String getGrokPattern() {
@@ -102,6 +112,10 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
 
         public List<String> getText() {
             return text;
+        }
+
+        public String getEcsCompatibility() {
+            return ecsCompatibility;
         }
 
         @Override

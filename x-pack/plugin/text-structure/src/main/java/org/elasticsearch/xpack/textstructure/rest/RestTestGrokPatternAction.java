@@ -12,6 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.action.TestGrokPatternAction;
 
 import java.io.IOException;
@@ -36,9 +37,11 @@ public class RestTestGrokPatternAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         TestGrokPatternAction.Request request;
+        String ecsCompatibility = restRequest.param(FindStructureAction.Request.ECS_COMPATIBILITY.getPreferredName());
         try (XContentParser parser = restRequest.contentParser()) {
-            request = TestGrokPatternAction.Request.parseRequest(parser);
+            request = TestGrokPatternAction.Request.parseRequest(ecsCompatibility, parser);
         }
+
         return channel -> client.execute(TestGrokPatternAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

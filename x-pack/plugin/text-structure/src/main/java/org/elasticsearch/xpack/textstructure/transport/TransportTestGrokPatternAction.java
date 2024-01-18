@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_V1;
+
 public class TransportTestGrokPatternAction extends HandledTransportAction<TestGrokPatternAction.Request, TestGrokPatternAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportTestGrokPatternAction.class);
@@ -57,7 +59,8 @@ public class TransportTestGrokPatternAction extends HandledTransportAction<TestG
     }
 
     private TestGrokPatternAction.Response getResponse(TestGrokPatternAction.Request request) {
-        Grok grok = new Grok(GrokBuiltinPatterns.get(true), request.getGrokPattern(), logger::debug);
+        boolean ecsCompatibility = ECS_COMPATIBILITY_V1.equals(request.getEcsCompatibility());
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), request.getGrokPattern(), logger::debug);
         List<Map<String, Object>> ranges = new ArrayList<>();
         for (String text : request.getText()) {
             ranges.add(grok.captureRanges(text));

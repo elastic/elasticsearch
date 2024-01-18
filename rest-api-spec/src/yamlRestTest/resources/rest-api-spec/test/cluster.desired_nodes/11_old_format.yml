@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.2.99"
-      reason: "API added in in 8.1.0 but modified in 8.3"
+      version: " - 8.2.99, 8.12.99 - "
+      reason: "API added in in 8.1.0, modified in 8.3 and then again in 8.13.0"
 ---
 teardown:
   - do:
@@ -10,7 +10,6 @@ teardown:
 ---
 "Test update desired nodes":
   - skip:
-      cluster_features: "desired_node.version_deprecated"
       reason: "contains is a newly added assertion"
       features: contains
   - do:
@@ -62,7 +61,6 @@ teardown:
 ---
 "Test update move to a new history id":
   - skip:
-      cluster_features: "desired_node.version_deprecated"
       reason: "contains is a newly added assertion"
       features: contains
   - do:
@@ -111,10 +109,6 @@ teardown:
   - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 16.0, memory: "128gb", storage: "1tb", node_version: $es_version } }
 ---
 "Test delete desired nodes":
-  - skip:
-      cluster_features: "desired_node.version_deprecated"
-      reason: "legacy request format with node_version field"
-
   - do:
       cluster.state: {}
 
@@ -238,10 +232,6 @@ teardown:
   - match: { replaced_existing_history_id: false }
 ---
 "Test node version must be at least the current master version":
-  - skip:
-      cluster_features: "desired_node.version_deprecated"
-      reason: "legacy request format with node_version field"
-
   - do:
       catch: bad_request
       _internal.update_desired_nodes:
@@ -257,10 +247,6 @@ teardown:
       error.suppressed.0.reason: "/Illegal\\snode\\sversion.+$/"
 ---
 "Test node version is required":
-  - skip:
-      cluster_features: "desired_node.version_deprecated"
-      reason: "legacy request format with node_version field"
-
   - do:
       catch: bad_request
       _internal.update_desired_nodes:
@@ -273,10 +259,6 @@ teardown:
   - match: { error.type: x_content_parse_exception }
 ---
 "Test node version must have content":
-  - skip:
-      cluster_features: "desired_node.version_deprecated"
-      reason: "legacy request format with node_version field"
-
   - do:
       catch: bad_request
       _internal.update_desired_nodes:
@@ -289,10 +271,6 @@ teardown:
   - match: { error.type: x_content_parse_exception }
 ---
 "Test node version can not be null":
-  - skip:
-      cluster_features: "desired_node.version_deprecated"
-      reason: "legacy request format with node_version field"
-
   - do:
       catch: bad_request
       _internal.update_desired_nodes:

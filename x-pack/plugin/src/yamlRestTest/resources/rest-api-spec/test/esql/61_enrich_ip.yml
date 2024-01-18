@@ -73,6 +73,13 @@ setup:
           - { "@timestamp": "2023-06-22", "ip": "10.101.0.107", "message": "network disconnected" }
           - { "index": { } }
           - { "@timestamp": "2023-06-24", "ip": "13.101.0.114", "message": "authentication failed" }
+
+---
+teardown:
+  - do:
+      enrich.delete_policy:
+        name: networks-policy
+
 ---
 "IP strings":
 
@@ -97,8 +104,3 @@ setup:
   - match: { values.1: [ [ "10.100.0.21", "10.101.0.107" ], [ "Production", "QA" ], [ "OPS","Engineering" ], "sending messages" ] }
   - match: { values.2: [ "10.101.0.107" , "QA", "Engineering", "network disconnected" ] }
   - match: { values.3: [ "13.101.0.114" , null, null, "authentication failed" ] }
-
-  - do:
-      enrich.delete_policy:
-        name: networks-policy
-  - is_true: acknowledged

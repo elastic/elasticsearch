@@ -47,6 +47,14 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
             EsqlDataTypes.CARTESIAN_POINT,
             (size, values) -> equalTo(values.reduce((f, s) -> s).get())
         );
+        geoShape(cases, "mv_last", "MvLast", EsqlDataTypes.GEO_SHAPE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
+        cartesianShape(
+            cases,
+            "mv_last",
+            "MvLast",
+            EsqlDataTypes.CARTESIAN_SHAPE,
+            (size, values) -> equalTo(values.reduce((f, s) -> s).get())
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
     }
 

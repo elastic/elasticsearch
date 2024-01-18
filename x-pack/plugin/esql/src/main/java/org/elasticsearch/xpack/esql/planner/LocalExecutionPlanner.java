@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -93,7 +92,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -110,6 +108,7 @@ public class LocalExecutionPlanner {
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
     private final String sessionId;
+    private final String clusterAlias;
     private final CancellableTask parentTask;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
@@ -122,6 +121,7 @@ public class LocalExecutionPlanner {
 
     public LocalExecutionPlanner(
         String sessionId,
+        String clusterAlias,
         CancellableTask parentTask,
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -133,6 +133,7 @@ public class LocalExecutionPlanner {
         PhysicalOperationProviders physicalOperationProviders
     ) {
         this.sessionId = sessionId;
+        this.clusterAlias = clusterAlias;
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
@@ -343,7 +344,7 @@ public class LocalExecutionPlanner {
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
                     "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
-                case "geo_point", "cartesian_point" -> TopNEncoder.DEFAULT_UNSORTABLE;
+                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case "unsupported" -> TopNEncoder.UNSUPPORTED;
                 default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
@@ -456,11 +457,10 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(enrich.enrichFields());
         Layout layout = layoutBuilder.build();
-        Set<String> indices = enrich.enrichIndex().concreteIndices();
-        if (indices.size() != 1) {
-            throw new EsqlIllegalArgumentException("Resolved enrich should have one concrete index; got " + indices);
+        String enrichIndex = enrich.concreteIndices().get(clusterAlias);
+        if (enrichIndex == null) {
+            throw new EsqlIllegalArgumentException("No concrete enrich index for cluster [" + clusterAlias + "]");
         }
-        String enrichIndex = Iterables.get(indices, 0);
         return source.with(
             new EnrichLookupOperator.Factory(
                 sessionId,

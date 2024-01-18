@@ -112,28 +112,14 @@ public final class RestResponse {
         this.status = status;
         ToXContent.Params params = channel.request();
         if (e != null) {
-            Supplier<?> messageSupplier;
-            boolean nodeOrShardUnavailableException = ExceptionsHelper.isNodeOrShardUnavailableTypeException(e);
-            if (nodeOrShardUnavailableException) {
-                messageSupplier = () -> String.format(
-                    Locale.ROOT,
-                    "path: %s, params: %s, status: %d; error: %s %s",
-                    channel.request().rawPath(),
-                    channel.request().params(),
-                    status.getStatus(),
-                    e.getClass(),
-                    e.getMessage()
-                );
-            } else {
-                messageSupplier = () -> String.format(
-                    Locale.ROOT,
-                    "path: %s, params: %s, status: %d",
-                    channel.request().rawPath(),
-                    channel.request().params(),
-                    status.getStatus()
-                );
-            }
-            if (status.getStatus() < 500 || nodeOrShardUnavailableException) {
+            Supplier<?> messageSupplier = () -> String.format(
+                Locale.ROOT,
+                "path: %s, params: %s, status: %d",
+                channel.request().rawPath(),
+                channel.request().params(),
+                status.getStatus()
+            );
+            if (status.getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);

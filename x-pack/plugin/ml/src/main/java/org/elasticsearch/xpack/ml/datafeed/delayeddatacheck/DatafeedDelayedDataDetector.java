@@ -93,6 +93,12 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
             return Collections.emptyList();
         }
 
+        if (datafeedQuery == null) {
+            // In case of an ES|QL datafeed, the query is null and this will fail.
+            // TODO: implement DatafeedDelayedDataDetector for ES|QL datafeeds.
+            return Collections.emptyList();
+        }
+
         List<Bucket> finalizedBuckets = checkBucketEvents(start, end);
         Map<Long, Long> indexedData = checkCurrentBucketEventCount(start, end);
         return finalizedBuckets.stream()

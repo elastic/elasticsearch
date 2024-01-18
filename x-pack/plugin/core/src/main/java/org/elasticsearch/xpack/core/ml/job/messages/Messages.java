@@ -30,7 +30,7 @@ public final class Messages {
         "delayed_data_check_config: check_window [{0}] must be less than 10,000x the bucket_span [{1}]";
     public static final String DATAFEED_CONFIG_QUERY_BAD_FORMAT = "Datafeed query is not parsable";
     public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed aggregations are not parsable";
-
+    public static final String DATAFEED_CONFIG_INCOMPATIBLE_WITH_ESQL = "[{0}] and [esql] are incompatible";
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";
     public static final String DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM = "A date_histogram (or histogram) aggregation is required";

@@ -69,6 +69,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGG
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_INCOMPATIBLE_WITH_ESQL;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION;
@@ -800,7 +801,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 this.indices = null;
             }
             // each of these writables are version aware
-            this.queryProvider = QueryProvider.fromStream(in);
+            this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
             // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
             this.esqlQuery = in.readOptionalString();
@@ -835,7 +836,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
 
             // Each of these writables are version aware
-            queryProvider.writeTo(out); // never null
+            out.writeOptionalWriteable(queryProvider);
             // This writes a boolean to the stream, if true, it sends the stream to the `writeTo` method
             out.writeOptionalWriteable(aggProvider);
             out.writeOptionalString(esqlQuery);
@@ -1051,7 +1052,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(getMessage(INVALID_ID, ID.getPreferredName(), id));
             }
-            if (indices == null || indices.isEmpty() || indices.contains("")) {
+            if (esqlQuery != null && queryProvider != null) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_INCOMPATIBLE_WITH_ESQL, QUERY.getPreferredName()));
+            }
+            if (esqlQuery != null && indices != null && indices.isEmpty() == false) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_INCOMPATIBLE_WITH_ESQL, INDICES.getPreferredName()));
+            }
+            if (esqlQuery == null && (indices == null || indices.isEmpty() || indices.contains(""))) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
 

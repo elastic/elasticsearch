@@ -385,16 +385,14 @@ public class IndexNameExpressionResolver {
                     concreteIndicesResult.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                if (DataStream.isFailureStoreEnabled() == false || context.getDataStreamOptions().includeBackingIndices()) {
+                if (shouldIncludeBackingIndices(context.getDataStreamOptions())) {
                     Index writeIndex = indexAbstraction.getWriteIndex();
                     if (addIndex(writeIndex, null, context)) {
                         concreteIndicesResult.add(writeIndex);
                     }
                 }
                 DataStream dataStream = (DataStream) indexAbstraction;
-                if (DataStream.isFailureStoreEnabled()
-                    && dataStream.isFailureStore()
-                    && context.getDataStreamOptions().includeFailureIndices()) {
+                if (shouldIncludeFailureStoreIndices(context.getDataStreamOptions(), dataStream)) {
                     Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
                     if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
                         concreteIndicesResult.add(failureStoreWriteIndex);
@@ -420,16 +418,14 @@ public class IndexNameExpressionResolver {
 
                 if (indexAbstraction.getType() == Type.DATA_STREAM) {
                     DataStream dataStream = (DataStream) indexAbstraction;
-                    if (DataStream.isFailureStoreEnabled() == false || context.getDataStreamOptions().includeBackingIndices()) {
+                    if (shouldIncludeBackingIndices(context.getDataStreamOptions())) {
                         for (Index index : indexAbstraction.getIndices()) {
                             if (shouldTrackConcreteIndex(context, context.getIndicesOptions(), index)) {
                                 concreteIndicesResult.add(index);
                             }
                         }
                     }
-                    if (DataStream.isFailureStoreEnabled()
-                        && dataStream.isFailureStore()
-                        && context.getDataStreamOptions().includeFailureIndices()) {
+                    if (shouldIncludeFailureStoreIndices(context.getDataStreamOptions(), dataStream)) {
                         for (Index index : dataStream.getFailureIndices()) {
                             if (shouldTrackConcreteIndex(context, context.getIndicesOptions(), index)) {
                                 concreteIndicesResult.add(index);
@@ -457,12 +453,10 @@ public class IndexNameExpressionResolver {
         if (indexAbstraction.getType() == Type.DATA_STREAM) {
             DataStream dataStream = (DataStream) indexAbstraction;
             int count = 0;
-            if (DataStream.isFailureStoreEnabled() == false || context.getDataStreamOptions().includeBackingIndices()) {
+            if (shouldIncludeBackingIndices(context.getDataStreamOptions())) {
                 count += dataStream.getIndices().size();
             }
-            if (DataStream.isFailureStoreEnabled()
-                && dataStream.isFailureStore()
-                && context.getDataStreamOptions().includeFailureIndices()) {
+            if (shouldIncludeFailureStoreIndices(context.getDataStreamOptions(), dataStream)) {
                 count += dataStream.getFailureIndices().size();
             }
             return count > 1;
@@ -1432,7 +1426,18 @@ public class IndexNameExpressionResolver {
                 } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                     return Stream.of(indexAbstraction.getName());
                 } else {
-                    Stream<IndexMetadata> indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
+                    Stream<IndexMetadata> indicesStateStream = Stream.of();
+                    if (shouldIncludeBackingIndices(context.getDataStreamOptions())) {
+                        indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
+                    }
+                    if (indexAbstraction.getType() == Type.DATA_STREAM
+                        && shouldIncludeFailureStoreIndices(context.getDataStreamOptions(), (DataStream) indexAbstraction)) {
+                        DataStream dataStream = (DataStream) indexAbstraction;
+                        indicesStateStream = Stream.concat(
+                            indicesStateStream,
+                            dataStream.getFailureIndices().stream().map(context.state.metadata()::index)
+                        );
+                    }
                     if (excludeState != null) {
                         indicesStateStream = indicesStateStream.filter(indexMeta -> indexMeta.getState() != excludeState);
                     }
@@ -1444,6 +1449,7 @@ public class IndexNameExpressionResolver {
         private static List<String> resolveEmptyOrTrivialWildcard(Context context) {
             final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(
                 context.getIndicesOptions(),
+                context.getDataStreamOptions(),
                 context.getState().metadata()
             );
             if (context.systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
@@ -1476,7 +1482,14 @@ public class IndexNameExpressionResolver {
             }).toList();
         }
 
-        private static String[] resolveEmptyOrTrivialWildcardToAllIndices(IndicesOptions options, Metadata metadata) {
+        private static String[] resolveEmptyOrTrivialWildcardToAllIndices(
+            IndicesOptions options,
+            DataStreamOptions dataStreamOptions,
+            Metadata metadata
+        ) {
+            if (shouldIncludeBackingIndices(dataStreamOptions) == false) {
+                return Strings.EMPTY_ARRAY;
+            }
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
                 return metadata.getConcreteAllIndices();
             } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
@@ -1493,6 +1506,14 @@ public class IndexNameExpressionResolver {
                 return Strings.EMPTY_ARRAY;
             }
         }
+    }
+
+    private static boolean shouldIncludeBackingIndices(DataStreamOptions dataStreamOptions) {
+        return DataStream.isFailureStoreEnabled() == false || dataStreamOptions.includeBackingIndices();
+    }
+
+    private static boolean shouldIncludeFailureStoreIndices(DataStreamOptions dataStreamOptions, DataStream dataStream) {
+        return DataStream.isFailureStoreEnabled() && dataStreamOptions.includeFailureIndices() && dataStream.isFailureStore();
     }
 
     public static final class DateMathExpressionResolver {

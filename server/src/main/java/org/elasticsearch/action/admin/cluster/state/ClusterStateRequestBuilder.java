@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -91,6 +92,11 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
 
     public ClusterStateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
+        return this;
+    }
+
+    public ClusterStateRequestBuilder setDataStreamOptions(DataStreamOptions dataStreamOptions) {
+        request.dataStreamOptions(dataStreamOptions);
         return this;
     }
 

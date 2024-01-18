@@ -124,9 +124,10 @@ public class RestIndicesAction extends AbstractCatAction {
                     .execute(listeners.acquire(indexSettingsRef::set));
 
                 // The other requests just provide additional detail, and wildcards may be resolved differently depending on the type of
-                // request in the presence of security plugins, so set the IndicesOptions for all the sub-requests to be as inclusive as
-                // possible.
+                // request in the presence of security plugins, so set the IndicesOptions and DataStreamOptions for all the sub-requests
+                // to be as inclusive as possible.
                 final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
+                final DataStreamOptions subRequestDataStreamOptions = DataStreamOptions.INCLUDE_FAILURE_STORE;
 
                 client.admin()
                     .cluster()
@@ -136,6 +137,7 @@ public class RestIndicesAction extends AbstractCatAction {
                     .setRoutingTable(true)
                     .setIndices(indices)
                     .setIndicesOptions(subRequestIndicesOptions)
+                    .setDataStreamOptions(subRequestDataStreamOptions)
                     .setMasterNodeTimeout(masterNodeTimeout)
                     .execute(listeners.acquire(clusterStateRef::set));
 
@@ -143,6 +145,7 @@ public class RestIndicesAction extends AbstractCatAction {
                     .indices()
                     .prepareStats(indices)
                     .setIndicesOptions(subRequestIndicesOptions)
+                    .setDataStreamOptions(subRequestDataStreamOptions)
                     .all()
                     .setIncludeUnloadedSegments(includeUnloadedSegments)
                     .execute(listeners.acquire(indicesStatsRef::set));

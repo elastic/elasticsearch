@@ -8,8 +8,10 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -37,6 +39,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private TimeValue waitForTimeout = DEFAULT_WAIT_FOR_NODE_TIMEOUT;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+    private DataStreamOptions dataStreamOptions = DataStreamOptions.EXCLUDE_FAILURE_STORE;
 
     public ClusterStateRequest() {}
 
@@ -51,6 +54,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         waitForTimeout = in.readTimeValue();
         waitForMetadataVersion = in.readOptionalLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
+            dataStreamOptions = DataStreamOptions.read(in);
+        }
     }
 
     @Override
@@ -65,6 +71,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         indicesOptions.writeIndicesOptions(out);
         out.writeTimeValue(waitForTimeout);
         out.writeOptionalLong(waitForMetadataVersion);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
+            dataStreamOptions.writeTo(out);
+        }
     }
 
     @Override
@@ -146,6 +155,16 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     public final ClusterStateRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
+        return this;
+    }
+
+    @Override
+    public DataStreamOptions dataStreamOptions() {
+        return Replaceable.super.dataStreamOptions();
+    }
+
+    public final ClusterStateRequest dataStreamOptions(DataStreamOptions dataStreamOptions) {
+        this.dataStreamOptions = dataStreamOptions;
         return this;
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
@@ -34,6 +35,12 @@ public abstract class BroadcastOperationRequestBuilder<
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
+        return (RequestBuilder) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public final RequestBuilder setDataStreamOptions(DataStreamOptions dataStreamOptions) {
+        request.dataStreamOptions(dataStreamOptions);
         return (RequestBuilder) this;
     }
 

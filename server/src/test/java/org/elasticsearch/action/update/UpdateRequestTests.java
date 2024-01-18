@@ -55,6 +55,7 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -545,6 +546,27 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
         indexRequest.decRef();
         updateRequest.decRef();
+    }
+
+    public void testUpdatingRejectsLongIds() {
+        String id = randomAlphaOfLength(511);
+        UpdateRequest request = new UpdateRequest("index", id);
+        request.doc("{}", XContentType.JSON);
+        ActionRequestValidationException validate = request.validate();
+        assertNull(validate);
+
+        id = randomAlphaOfLength(512);
+        request = new UpdateRequest("index", id);
+        request.doc("{}", XContentType.JSON);
+        validate = request.validate();
+        assertNull(validate);
+
+        id = randomAlphaOfLength(513);
+        request = new UpdateRequest("index", id);
+        request.doc("{}", XContentType.JSON);
+        validate = request.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.getMessage(), containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
     }
 
     public void testValidate() {

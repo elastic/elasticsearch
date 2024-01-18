@@ -406,7 +406,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = new SearchHit(docId, apiKeyId);
+            final var searchHit = SearchHit.unpooled(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(buildApiKeySourceDoc("some_hash".toCharArray()));
                 searchHit.sourceRef(BytesReference.bytes(builder));
@@ -414,7 +414,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             ActionListener.respondAndRelease(
                 listener,
                 new SearchResponse(
-                    new SearchHits(
+                    SearchHits.unpooled(
                         new SearchHit[] { searchHit },
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                         randomFloat(),
@@ -759,7 +759,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             ActionListener.respondAndRelease(
                 listener,
                 new SearchResponse(
-                    new SearchHits(
+                    SearchHits.unpooled(
                         searchHits.toArray(SearchHit[]::new),
                         new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
                         randomFloat(),
@@ -826,7 +826,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         };
         final int docId = randomIntBetween(0, Integer.MAX_VALUE);
         final String apiKeyId = randomAlphaOfLength(20);
-        final var searchHit = new SearchHit(docId, apiKeyId);
+        final var searchHit = SearchHit.unpooled(docId, apiKeyId);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.map(XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.format("""
                 {

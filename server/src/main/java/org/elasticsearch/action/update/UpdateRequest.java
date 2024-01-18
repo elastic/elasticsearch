@@ -191,6 +191,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
+
         if (ifSeqNo != UNASSIGNED_SEQ_NO) {
             if (retryOnConflict > 0) {
                 validationException = addValidationError("compare and write operations can not be retried", validationException);

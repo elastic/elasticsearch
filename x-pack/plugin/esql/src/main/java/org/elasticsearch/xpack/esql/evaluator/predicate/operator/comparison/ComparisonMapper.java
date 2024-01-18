@@ -163,10 +163,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         if (leftType == DataTypes.DATETIME) {
             return longs.apply(bc.source(), leftEval, rightEval);
         }
-        if (leftType == EsqlDataTypes.GEO_POINT) {
-            return geometries.apply(bc.source(), leftEval, rightEval, leftType);
-        }
-        if (leftType == EsqlDataTypes.CARTESIAN_POINT) {
+        if (EsqlDataTypes.isSpatial(leftType)) {
             return geometries.apply(bc.source(), leftEval, rightEval, leftType);
         }
         throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");

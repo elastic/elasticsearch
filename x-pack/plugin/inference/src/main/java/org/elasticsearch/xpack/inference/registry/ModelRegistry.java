@@ -35,6 +35,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -106,8 +107,7 @@ public class ModelRegistry {
                 return;
             }
 
-            var hits = searchResponse.getHits().getHits();
-            delegate.onResponse(UnparsedModel.unparsedModelFromMap(createModelConfigMap(hits, modelId)));
+            delegate.onResponse(UnparsedModel.unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), modelId)));
         });
 
         QueryBuilder queryBuilder = documentIdQuery(modelId);
@@ -133,8 +133,7 @@ public class ModelRegistry {
                 return;
             }
 
-            var hits = searchResponse.getHits().getHits();
-            var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
             assert modelConfigs.size() == 1;
             delegate.onResponse(modelConfigs.get(0));
         });
@@ -163,8 +162,7 @@ public class ModelRegistry {
                 return;
             }
 
-            var hits = searchResponse.getHits().getHits();
-            var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
             delegate.onResponse(modelConfigs);
         });
 
@@ -193,8 +191,7 @@ public class ModelRegistry {
                 return;
             }
 
-            var hits = searchResponse.getHits().getHits();
-            var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
             delegate.onResponse(modelConfigs);
         });
 
@@ -213,7 +210,7 @@ public class ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    private List<ModelConfigMap> parseHitsAsModels(SearchHit[] hits) {
+    private List<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
         var modelConfigs = new ArrayList<ModelConfigMap>();
         for (var hit : hits) {
             modelConfigs.add(new ModelConfigMap(hit.getSourceAsMap(), Map.of()));
@@ -221,8 +218,8 @@ public class ModelRegistry {
         return modelConfigs;
     }
 
-    private ModelConfigMap createModelConfigMap(SearchHit[] hits, String modelId) {
-        Map<String, SearchHit> mappedHits = Arrays.stream(hits).collect(Collectors.toMap(hit -> {
+    private ModelConfigMap createModelConfigMap(SearchHits hits, String modelId) {
+        Map<String, SearchHit> mappedHits = Arrays.stream(hits.getHits()).collect(Collectors.toMap(hit -> {
             if (hit.getIndex().startsWith(InferenceIndex.INDEX_NAME)) {
                 return InferenceIndex.INDEX_NAME;
             }

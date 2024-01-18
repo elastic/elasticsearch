@@ -163,8 +163,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                 try {
                     simulateAutoCreate.accept(index);
                     // If we try to create an index just immediately assume it worked
-                    listener.onResponse(new CreateIndexResponse(true, true, index) {
-                    });
+                    listener.onResponse(new CreateIndexResponse(true, true, index));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }

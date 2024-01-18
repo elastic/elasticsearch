@@ -84,7 +84,6 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         request.scroll(TimeValue.timeValueHours(10L));
 
         String scrollId = randomAlphaOfLength(5);
-        SearchHit[] hits = new SearchHit[] { new SearchHit(1), new SearchHit(2) };
 
         Answer<?> returnResponse = invocation -> {
             @SuppressWarnings("unchecked")
@@ -92,7 +91,11 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
             ActionListener.respondAndRelease(
                 listener,
                 new SearchResponse(
-                    new SearchHits(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1),
+                    SearchHits.unpooled(
+                        new SearchHit[] { SearchHit.unpooled(1), SearchHit.unpooled(2) },
+                        new TotalHits(3, TotalHits.Relation.EQUAL_TO),
+                        1
+                    ),
                     null,
                     null,
                     false,

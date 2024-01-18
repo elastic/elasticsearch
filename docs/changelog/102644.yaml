@@ -1,5 +1,0 @@
-pr: 102644
-summary: Disable parallelism for composite agg against high cardinality fields
-area: Aggregations
-type: enhancement
-issues: []

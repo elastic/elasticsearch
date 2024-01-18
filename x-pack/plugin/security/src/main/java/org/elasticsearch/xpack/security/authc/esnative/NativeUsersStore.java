@@ -20,6 +20,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRespons
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -61,6 +63,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -162,6 +165,40 @@ public class NativeUsersStore {
                     });
                 }
             });
+        }
+    }
+
+    public void queryUsers(SearchRequest searchRequest, ActionListener<QueryUserResponse> listener) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(QueryUserResponse.emptyResponse());
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            securityIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    ActionListener.wrap(searchResponse -> {
+                        final long total = searchResponse.getHits().getTotalHits().value;
+                        if (total == 0) {
+                            logger.debug("No users found for query [{}]", searchRequest.source().query());
+                            listener.onResponse(QueryUserResponse.emptyResponse());
+                            return;
+                        }
+
+                        final List<QueryUserResponse.Item> userItem = Arrays.stream(searchResponse.getHits().getHits()).map(hit -> {
+                            UserAndPassword userAndPassword = transformUser(hit.getId(), hit.getSourceAsMap());
+                            return userAndPassword != null ? new QueryUserResponse.Item(userAndPassword.user(), hit.getSortValues()) : null;
+                        }).filter(Objects::nonNull).toList();
+                        listener.onResponse(new QueryUserResponse(total, userItem));
+                    }, listener::onFailure)
+                )
+            );
         }
     }
 

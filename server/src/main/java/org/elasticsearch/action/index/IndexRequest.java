@@ -47,7 +47,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -81,7 +80,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest>
         Releasable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_500_061;
+    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
 
     /**
      * Max length of the source document to include into string()
@@ -278,17 +277,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest>
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
-            validationException = addValidationError(
-                "id ["
-                    + id
-                    + "] is too long, must be no longer than "
-                    + MAX_DOCUMENT_ID_LENGTH_IN_BYTES
-                    + " bytes but was: "
-                    + id.getBytes(StandardCharsets.UTF_8).length,
-                validationException
-            );
-        }
+        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
 
         if (pipeline != null && pipeline.isEmpty()) {
             validationException = addValidationError("pipeline cannot be an empty string", validationException);

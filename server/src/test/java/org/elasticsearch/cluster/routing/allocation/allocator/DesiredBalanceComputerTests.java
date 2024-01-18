@@ -648,8 +648,29 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
                         )
                     );
+
+                    for (int replica = 0; replica < replicas; replica++) {
+                        var replicaNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
+                        shardSizes.put(shardIdentifierFromRouting(shardId, false), thisShardSize);
+                        totalShardsSize += thisShardSize;
+                        if (replicaNodeId != null) {
+                            dataPath.put(new NodeAndShard(replicaNodeId, shardId), "/data");
+                            usedDiskSpace.compute(replicaNodeId, (k, v) -> v + thisShardSize);
+                        }
+
+                        indexRoutingTableBuilder.addShard(
+                            newShardRouting(
+                                shardId,
+                                replicaNodeId,
+                                null,
+                                false,
+                                replicaNodeId == null ? UNASSIGNED : STARTED,
+                                AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1) + 1 + replica))
+                            )
+                        );
+                    }
                 } else {
-                    var lastAllocatedNodeId = randomValueOtherThan(null, () -> randomFrom(remainingNodeIds));
+                    var lastAllocatedNodeId = randomFrom(remainingNodeIds);
                     dataPath.put(new NodeAndShard(lastAllocatedNodeId, shardId), "/data");
                     usedDiskSpace.compute(lastAllocatedNodeId, (k, v) -> v + thisShardSize);
                     indexRoutingTableBuilder.addShard(
@@ -676,28 +697,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         )
                     );
                 }
-
-                for (int replica = 0; replica < replicas; replica++) {
-                    var replicaNodeId = primaryNodeId == null ? null : pickAndRemoveRandomValueFrom(remainingNodeIds);
-                    shardSizes.put(shardIdentifierFromRouting(shardId, false), thisShardSize);
-                    totalShardsSize += thisShardSize;
-                    if (replicaNodeId != null) {
-                        dataPath.put(new NodeAndShard(replicaNodeId, shardId), "/data");
-                        usedDiskSpace.compute(replicaNodeId, (k, v) -> v + thisShardSize);
-                    }
-
-                    indexRoutingTableBuilder.addShard(
-                        newShardRouting(
-                            shardId,
-                            replicaNodeId,
-                            null,
-                            false,
-                            replicaNodeId == null ? UNASSIGNED : STARTED,
-                            AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1) + 1 + replica))
-                        )
-                    );
-                }
-
             }
             routingTableBuilder.add(indexRoutingTableBuilder);
         }

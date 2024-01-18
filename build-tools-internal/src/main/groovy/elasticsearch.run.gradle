@@ -31,6 +31,16 @@ testClusters.register("runTask") {
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
       numberOfNodes = 1
+
+//      numberOfNodes = 3
+//      def cluster = testClusters.named("runTask").get()
+//      def nodes = cluster.getNodes()
+//      nodes.each { node ->
+//        node.setting('cluster.initial_master_nodes', "runTask-2")
+//      }
+//      nodes.getAt("runTask-0").setting('node.roles', '[master,voting_only]')
+//      nodes.getAt("runTask-1").setting('node.roles', '[data,ingest,master,voting_only]')
+//      nodes.getAt("runTask-2").setting('node.roles', '[master]')
     }
 }
 

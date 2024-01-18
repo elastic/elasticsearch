@@ -81,7 +81,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -638,6 +637,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (handleBlockExceptions(clusterState)) {
                 return;
             }
+            Map<ShardId, List<BulkItemRequest>> requestsByShard = groupRequestsByShards(clusterState);
+            executeBulkRequestsByShard(requestsByShard, clusterState);
+        }
+
+        private Map<ShardId, List<BulkItemRequest>> groupRequestsByShards(ClusterState clusterState) {
             final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
             Metadata metadata = clusterState.metadata();
             // Group the requests by ShardId -> Operations mapping
@@ -656,7 +660,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     continue;
                 }
                 IndexAbstraction ia = null;
-                boolean includeDataStreams = docWriteRequest.opType() == DocWriteRequest.OpType.CREATE;
+                boolean includeDataStreams = docWriteRequest.opType() == OpType.CREATE;
                 try {
                     ia = concreteIndices.resolveIfAbsent(docWriteRequest);
                     if (ia.isDataStreamRelated() && includeDataStreams == false) {
@@ -668,8 +672,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     if (ia.getParentDataStream() != null &&
                     // avoid valid cases when directly indexing into a backing index
                     // (for example when directly indexing into .ds-logs-foobar-000001)
-                        ia.getName().equals(docWriteRequest.index()) == false
-                        && docWriteRequest.opType() != DocWriteRequest.OpType.CREATE) {
+                        ia.getName().equals(docWriteRequest.index()) == false && docWriteRequest.opType() != OpType.CREATE) {
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     }
 
@@ -698,7 +701,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkRequest.requests.set(i, null);
                 }
             }
+            return requestsByShard;
+        }
 
+        private void executeBulkRequestsByShard(Map<ShardId, List<BulkItemRequest>> requestsByShard, ClusterState clusterState) {
             if (requestsByShard.isEmpty()) {
                 listener.onResponse(
                     new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
@@ -706,60 +712,68 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return;
             }
 
-            final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
             String nodeId = clusterService.localNode().getId();
-            for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
-                final ShardId shardId = entry.getKey();
-                final List<BulkItemRequest> requests = entry.getValue();
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                    shardId,
-                    bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0])
+            Runnable onBulkItemsComplete = () -> {
+                listener.onResponse(
+                    new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
                 );
-                bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                bulkShardRequest.timeout(bulkRequest.timeout());
-                bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                if (task != null) {
-                    bulkShardRequest.setParentTask(nodeId, task.getId());
+                // Allow memory for bulk shard request items to be reclaimed before all items have been completed
+                bulkRequest = null;
+            };
+
+            try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onBulkItemsComplete)) {
+                for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+                    final ShardId shardId = entry.getKey();
+                    final List<BulkItemRequest> requests = entry.getValue();
+
+                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                        shardId,
+                        bulkRequest.getRefreshPolicy(),
+                        requests.toArray(new BulkItemRequest[0])
+                    );
+                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+                    bulkShardRequest.timeout(bulkRequest.timeout());
+                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+                    if (task != null) {
+                        bulkShardRequest.setParentTask(nodeId, task.getId());
+                    }
+                    executeBulkShardRequest(bulkShardRequest, bulkItemRequestCompleteRefCount.acquire());
                 }
-                client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
-                    @Override
-                    public void onResponse(BulkShardResponse bulkShardResponse) {
-                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                            // we may have no response if item failed
-                            if (bulkItemResponse.getResponse() != null) {
-                                bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
-                            }
-                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
-                        }
-                        maybeFinishHim();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // create failures for all relevant requests
-                        for (BulkItemRequest request : requests) {
-                            final String indexName = request.index();
-                            DocWriteRequest<?> docWriteRequest = request.request();
-                            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
-                            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
-                        }
-                        maybeFinishHim();
-                    }
-
-                    private void maybeFinishHim() {
-                        if (counter.decrementAndGet() == 0) {
-                            listener.onResponse(
-                                new BulkResponse(
-                                    responses.toArray(new BulkItemResponse[responses.length()]),
-                                    buildTookInMillis(startTimeNanos)
-                                )
-                            );
-                        }
-                    }
-                });
             }
-            bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
+        }
+
+        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
+            if (bulkShardRequest.items().length == 0) {
+                // No requests to execute due to previous errors, terminate early
+                releaseOnFinish.close();
+                return;
+            }
+
+            client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(BulkShardResponse bulkShardResponse) {
+                    for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                        // we may have no response if item failed
+                        if (bulkItemResponse.getResponse() != null) {
+                            bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                        }
+                        responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                    }
+                    releaseOnFinish.close();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // create failures for all relevant requests
+                    for (BulkItemRequest request : bulkShardRequest.items()) {
+                        final String indexName = request.index();
+                        DocWriteRequest<?> docWriteRequest = request.request();
+                        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
+                        responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                    }
+                    releaseOnFinish.close();
+                }
+            });
         }
 
         private boolean handleBlockExceptions(ClusterState state) {

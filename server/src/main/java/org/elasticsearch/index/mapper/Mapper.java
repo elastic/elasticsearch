@@ -73,9 +73,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract String typeName();
 
-    /** Return the merge of {@code mergeWith} into this.
-     *  Both {@code this} and {@code mergeWith} will be left unmodified. */
-    public abstract Mapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext);
+    /**
+     * Return the merge of {@code mergeWith} into this.
+     *  Both {@code this} and {@code mergeWith} will be left unmodified.
+     */
+    public abstract Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext);
 
     /**
      * Validate any cross-field references made by this mapper

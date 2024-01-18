@@ -19,7 +19,6 @@ import static org.hamcrest.Matchers.is;
 public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
 
     public void testThrowsURISyntaxException_ForInvalidUrl() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/104513", inFipsJvm());
         var thrownException = expectThrows(IllegalArgumentException.class, () -> createModel("^^", "secret"));
         assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
     }

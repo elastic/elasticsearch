@@ -192,7 +192,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             )
         ).getSearchResponse();
         try {
-            return searchResponse.getHits().getHits();
+            return searchResponse.getHits().asUnpooled().getHits();
         } finally {
             searchResponse.decRef();
         }

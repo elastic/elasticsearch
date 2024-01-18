@@ -115,7 +115,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
 
     private SearchHits searchHitsOf(Object value) {
         TotalHits totalHits = new TotalHits(10, TotalHits.Relation.EQUAL_TO);
-        SearchHit searchHit = new SearchHit(1, "docId");
+        SearchHit searchHit = SearchHit.unpooled(1, "docId");
         searchHit.addDocumentFields(
             Collections.singletonMap("topHitsAgg", new DocumentField("field", Collections.singletonList(value))),
             Collections.singletonMap(
@@ -123,6 +123,6 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
                 new DocumentField("_ignored", Collections.singletonList(randomValueOtherThan(value, () -> randomAlphaOfLength(5))))
             )
         );
-        return new SearchHits(new SearchHit[] { searchHit }, totalHits, 0.0f);
+        return SearchHits.unpooled(new SearchHit[] { searchHit }, totalHits, 0.0f);
     }
 }

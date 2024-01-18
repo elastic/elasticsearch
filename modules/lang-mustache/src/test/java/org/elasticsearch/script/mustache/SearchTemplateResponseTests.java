@@ -182,12 +182,12 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
     }
 
     public void testSearchResponseToXContent() throws IOException {
-        SearchHit hit = new SearchHit(1, "id");
+        SearchHit hit = SearchHit.unpooled(1, "id");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
 
         SearchResponse searchResponse = new SearchResponse(
-            new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+            SearchHits.unpooled(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
             null,
             null,
             false,

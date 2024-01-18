@@ -54,6 +54,7 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -226,7 +227,7 @@ public class StatementParserTests extends ESTestCase {
                 List.of(
                     new Alias(
                         EMPTY,
-                        "fn(a+1)",
+                        "fn(a + 1)",
                         new UnresolvedFunction(EMPTY, "fn", DEFAULT, List.of(new Add(EMPTY, attribute("a"), integer(1))))
                     )
                 )
@@ -683,6 +684,7 @@ public class StatementParserTests extends ESTestCase {
                 new Literal(EMPTY, "countries", KEYWORD),
                 new EmptyAttribute(EMPTY),
                 null,
+                Map.of(),
                 List.of()
             ),
             processingCommand("enrich countries")
@@ -696,6 +698,7 @@ public class StatementParserTests extends ESTestCase {
                 new Literal(EMPTY, "index-policy", KEYWORD),
                 new UnresolvedAttribute(EMPTY, "field_underscore"),
                 null,
+                Map.of(),
                 List.of()
             ),
             processingCommand("enrich index-policy ON field_underscore")
@@ -710,6 +713,7 @@ public class StatementParserTests extends ESTestCase {
                 new Literal(EMPTY, "countries", KEYWORD),
                 new UnresolvedAttribute(EMPTY, "country_code"),
                 null,
+                Map.of(),
                 List.of()
             ),
             processingCommand("enrich [ccq.mode :" + mode.name() + "] countries ON country_code")

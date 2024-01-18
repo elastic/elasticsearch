@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SharedBlobCacheServiceTests extends ESTestCase {
+public class SharedBlobCacheServiceTests extends ESTestCase { // here
 
     private static long size(long numPages) {
         return numPages * SharedBytes.PAGE_SIZE;

@@ -929,7 +929,7 @@ sum(sal):l | sum(salary + 10000):l | left(first_name, 1):s  | concat(gender,   t
 43370      | 43370                  |  B                    | F2
 ;
 
-groupByNull
+groupByNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
 ROW a = 1, c = null
 | STATS COUNT(a) BY c;
 
@@ -937,7 +937,7 @@ COUNT(a):long | c:null
             1 | null
 ;
 
-groupByNullAndString
+groupByNullAndString#[skip:-8.12.99,reason:bug fixed in 8.13+]
 ROW a = 1, b = "foo", c = null
 | STATS COUNT(a) BY c, b;
 
@@ -945,7 +945,7 @@ COUNT(a):long | c:null | b:keyword
             1 | null   | foo
 ;
 
-groupByStringAndNull
+groupByStringAndNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
 ROW a = 1, b = "foo", c = null
 | STATS COUNT(a) BY b, c;
 
@@ -953,7 +953,7 @@ COUNT(a):long | b:keyword | c:null
             1 | foo       | null
 ;
 
-countNull
+countNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
 ROW a = 1, c = null
 | STATS COUNT(c) BY a;
 

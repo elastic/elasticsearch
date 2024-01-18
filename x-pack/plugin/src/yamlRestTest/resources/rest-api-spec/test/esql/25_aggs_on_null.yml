@@ -43,6 +43,7 @@ group on null:
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "always_null"}
   - match: {columns.1.type: "long"}
+  - length: {values: 2}
   - match: {values.0: [1.5]}
   - match: {values.1: [null]}
 
@@ -51,7 +52,7 @@ group on null, long:
   - do:
       esql.query:
         body:
-          query: 'FROM test | STATS med=median(sometimes_null) BY always_null, never_null | LIMIT 1'
+          query: 'FROM test | STATS med=median(sometimes_null) BY always_null, never_null | SORT always_null, never_null | LIMIT 10'
           columnar: true
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
@@ -59,9 +60,10 @@ group on null, long:
   - match: {columns.1.type: "long"}
   - match: {columns.2.name: "never_null"}
   - match: {columns.2.type: "long"}
-  - match: {values.0: [1.0]}
-  - match: {values.1: [null]}
-  - match: {values.2: [1]}
+  - length: {values: 3}
+  - match: {values.0: [1.0, null]}
+  - match: {values.1: [null, null]}
+  - match: {values.2: [1, 2]}
 
 ---
 agg on null:
@@ -72,6 +74,7 @@ agg on null:
           columnar: true
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
+  - length: {values: 1}
   - match: {values.0: [null]}
 
 ---
@@ -118,6 +121,7 @@ agg on half missing:
           columnar: true
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
+  - length: {values: 1}
   - match: {values.0: [null]}
 
 ---
@@ -148,5 +152,6 @@ group on half missing:
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "missing"}
   - match: {columns.1.type: "long"}
+  - length: {values: 2}
   - match: {values.0: [1.5]}
   - match: {values.1: [null]}

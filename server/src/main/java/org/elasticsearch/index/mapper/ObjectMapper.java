@@ -459,6 +459,17 @@ public class ObjectMapper extends Mapper {
     }
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+        if (mergeWith instanceof ObjectMapper == false) {
+            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+        }
+        if (this instanceof NestedObjectMapper == false && mergeWith instanceof NestedObjectMapper) {
+            // TODO stop NestedObjectMapper extending ObjectMapper?
+            MapperErrors.throwNestedMappingConflictError(mergeWith.name());
+        }
+        return merge((ObjectMapper) mergeWith, reason, parentBuilderContext);
+    }
+
+    ObjectMapper merge(ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
         var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
         return new ObjectMapper(
             simpleName(),
@@ -476,21 +487,12 @@ public class ObjectMapper extends Mapper {
         ObjectMapper.Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
-
-        public static MergeResult build(
+        static MergeResult build(
             ObjectMapper existing,
-            Mapper mergeWith,
+            ObjectMapper mergeWithObject,
             MergeReason reason,
             MapperBuilderContext parentBuilderContext
         ) {
-            if ((mergeWith instanceof ObjectMapper) == false) {
-                MapperErrors.throwObjectMappingConflictError(mergeWith.name());
-            }
-            if (existing instanceof NestedObjectMapper == false && mergeWith instanceof NestedObjectMapper) {
-                // TODO stop NestedObjectMapper extending ObjectMapper?
-                MapperErrors.throwNestedMappingConflictError(mergeWith.name());
-            }
-            ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
             final Explicit<Boolean> enabled;
             if (mergeWithObject.enabled.explicit()) {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
@@ -518,7 +520,7 @@ public class ObjectMapper extends Mapper {
                 subObjects = existing.subobjects;
             }
             MapperBuilderContext objectBuilderContext = existing.createChildContext(parentBuilderContext, existing.simpleName());
-            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWith, reason, objectBuilderContext);
+            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, reason, objectBuilderContext);
             return new MergeResult(
                 enabled,
                 subObjects,
@@ -529,12 +531,12 @@ public class ObjectMapper extends Mapper {
 
         private static Map<String, Mapper> buildMergedMappers(
             ObjectMapper existing,
-            Mapper mergeWith,
+            ObjectMapper mergeWithObject,
             MergeReason reason,
             MapperBuilderContext objectBuilderContext
         ) {
             Map<String, Mapper> mergedMappers = null;
-            for (Mapper mergeWithMapper : mergeWith) {
+            for (Mapper mergeWithMapper : mergeWithObject) {
                 Mapper mergeIntoMapper = (mergedMappers == null ? existing.mappers : mergedMappers).get(mergeWithMapper.simpleName());
 
                 Mapper merged;

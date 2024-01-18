@@ -212,7 +212,11 @@ public class NestedObjectMapper extends ObjectMapper {
             MapperErrors.throwNestedMappingConflictError(mergeWith.name());
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-        var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+        return merge(mergeWithObject, reason, parentBuilderContext);
+    }
+
+    ObjectMapper merge(NestedObjectMapper mergeWithObject, MapperService.MergeReason reason, MapperBuilderContext parentBuilderContext) {
+        var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentBuilderContext);
         Explicit<Boolean> incInParent = this.includeInParent;
         Explicit<Boolean> incInRoot = this.includeInRoot;
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {

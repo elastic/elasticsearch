@@ -65,7 +65,9 @@ public class TagVersionsTask extends AbstractVersionsTask {
 
         LOGGER.lifecycle("Tagging version {} component ids", releaseVersion);
 
-        for (var v : tagVersions.entrySet()) {
+        var versions = expandV7Version(tagVersions);
+
+        for (var v : versions.entrySet()) {
             Path recordFile = switch (v.getKey()) {
                 case TRANSPORT_VERSION_TYPE -> rootDir.resolve(TRANSPORT_VERSIONS_RECORD);
                 case INDEX_VERSION_TYPE -> rootDir.resolve(INDEX_VERSIONS_RECORD);
@@ -86,6 +88,16 @@ public class TagVersionsTask extends AbstractVersionsTask {
                 );
             }
         }
+    }
+
+    /*
+     * V7 just extracts a single Version. If so, this version needs to be applied to transport and index versions.
+     */
+    private static Map<String, Integer> expandV7Version(Map<String, Integer> tagVersions) {
+        Integer v7Version = tagVersions.get("Version");
+        if (v7Version == null) return tagVersions;
+
+        return Map.of(TRANSPORT_VERSION_TYPE, v7Version, INDEX_VERSION_TYPE, v7Version);
     }
 
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");

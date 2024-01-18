@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
 
@@ -121,12 +122,19 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             processor.validateInputs(inputs);
             assert config instanceof NlpConfig;
             NlpConfig nlpConfig = (NlpConfig) config;
+
+            int span = nlpConfig.getTokenization().getSpan();
+            if (chunkResponse && nlpConfig.getTokenization().getSpan() <= 0) {
+                // set to special value that means find and use the default for chunking
+                span = NlpTokenizer.CALC_DEFAULT_SPAN_VALUE;
+            }
+
             NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
                 .buildRequest(
                     inputs,
                     requestIdStr,
                     nlpConfig.getTokenization().getTruncate(),
-                    nlpConfig.getTokenization().getSpan(),
+                    span,
                     nlpConfig.getTokenization().maxSequenceLength()
                 );
             logger.debug(() -> format("handling request [%s]", requestIdStr));

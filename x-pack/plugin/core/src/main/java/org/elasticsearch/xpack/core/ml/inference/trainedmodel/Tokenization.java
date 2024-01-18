@@ -77,6 +77,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     private static final boolean DEFAULT_WITH_SPECIAL_TOKENS = true;
     private static final Truncate DEFAULT_TRUNCATION = Truncate.FIRST;
     private static final int UNSET_SPAN_VALUE = -1;
+    private static final int USE_DEFAULT_SPAN_VALUE = -2;
 
     static <T extends Tokenization> void declareCommonFields(ConstructingObjectParser<T, ?> parser) {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DO_LOWER_CASE);

@@ -170,6 +170,21 @@ public class BertTokenizer extends NlpTokenizer {
     }
 
     @Override
+    int defaultSpanForChunking(int maxWindowSize) {
+        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
+    }
+
+    @Override
+    int getNumExtraTokensForSeqPair() {
+        return 3;
+    }
+
+    @Override
+    int numExtraTokensForSingleSequence() {
+        return 2;
+    }
+
+    @Override
     int clsTokenId() {
         return clsTokenId;
     }
@@ -219,11 +234,6 @@ public class BertTokenizer extends NlpTokenizer {
                 .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId, windowSize).stream())
                 .collect(Collectors.toList())
         ).buildRequest(requestId, truncate);
-    }
-
-    @Override
-    int getNumExtraTokensForSeqPair() {
-        return 3;
     }
 
     @Override

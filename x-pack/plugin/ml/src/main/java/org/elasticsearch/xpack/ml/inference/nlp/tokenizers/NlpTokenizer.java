@@ -33,6 +33,9 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.V
  * Base tokenization class for NLP models
  */
 public abstract class NlpTokenizer implements Releasable {
+
+    public static final int CALC_DEFAULT_SPAN_VALUE = -2;
+
     abstract int clsTokenId();
 
     abstract int sepTokenId();
@@ -41,7 +44,11 @@ public abstract class NlpTokenizer implements Releasable {
 
     abstract boolean isWithSpecialTokens();
 
+    abstract int numExtraTokensForSingleSequence();
+
     abstract int getNumExtraTokensForSeqPair();
+
+    abstract int defaultSpanForChunking(int maxWindowSize);
 
     public abstract TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations);
 
@@ -60,7 +67,7 @@ public abstract class NlpTokenizer implements Releasable {
      * @param windowSize
      * @return A list of {@link Tokenization}
      */
-    public List<TokenizationResult.Tokens> tokenize(
+    public final List<TokenizationResult.Tokens> tokenize(
         String seq,
         Tokenization.Truncate truncate,
         int span,
@@ -73,15 +80,18 @@ public abstract class NlpTokenizer implements Releasable {
         var innerResult = innerTokenize(seq);
         List<? extends DelimitedToken.Encoded> tokenIds = innerResult.tokens();
         List<Integer> tokenPositionMap = innerResult.tokenPositionMap();
-        int numTokens = isWithSpecialTokens() ? tokenIds.size() + 2 : tokenIds.size();
+        int numTokens = isWithSpecialTokens() ? tokenIds.size() + numExtraTokensForSingleSequence() : tokenIds.size();
         boolean isTruncated = false;
 
         if (numTokens > windowSize) {
             switch (truncate) {
                 case FIRST, SECOND -> {
                     isTruncated = true;
-                    tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? windowSize - 2 : windowSize);
-                    tokenPositionMap = tokenPositionMap.subList(0, isWithSpecialTokens() ? windowSize - 2 : windowSize);
+                    tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize);
+                    tokenPositionMap = tokenPositionMap.subList(
+                        0,
+                        isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize
+                    );
                 }
                 case NONE -> {
                     if (span == -1) {
@@ -104,12 +114,19 @@ public abstract class NlpTokenizer implements Releasable {
             );
         }
 
+        if (span == CALC_DEFAULT_SPAN_VALUE) {
+            span = defaultSpanForChunking(windowSize);
+        }
+
         List<TokenizationResult.Tokens> toReturn = new ArrayList<>();
         int splitEndPos = 0;
         int splitStartPos = 0;
         int spanPrev = -1;
         while (splitEndPos < tokenIds.size()) {
-            splitEndPos = Math.min(splitStartPos + (isWithSpecialTokens() ? windowSize - 2 : windowSize), tokenIds.size());
+            splitEndPos = Math.min(
+                splitStartPos + (isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize),
+                tokenIds.size()
+            );
             // Make sure we do not end on a word
             if (splitEndPos != tokenIds.size()) {
                 while (splitEndPos > splitStartPos + 1

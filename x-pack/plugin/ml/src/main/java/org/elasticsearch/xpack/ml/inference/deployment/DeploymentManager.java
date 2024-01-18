@@ -76,6 +76,7 @@ public class DeploymentManager {
 
     private static final Logger logger = LogManager.getLogger(DeploymentManager.class);
     private static final AtomicLong requestIdCounter = new AtomicLong(1);
+    public static final int NUM_START_ATTEMPTS = 3;
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -525,7 +526,7 @@ public class DeploymentManager {
             startTime = Instant.now();
             logger.debug("[{}] process started", task.getDeploymentId());
             try {
-                loadModel(modelLocation, ActionListener.wrap(success -> { // TODO check if load model can be called recursively
+                loadModel(modelLocation, ActionListener.wrap(success -> {
                     if (isStopped) {
                         logger.debug("[{}] model loaded but process is stopped", task.getDeploymentId());
                         killProcessIfPresent();
@@ -550,7 +551,7 @@ public class DeploymentManager {
                 resultProcessor.stop();
                 stateStreamer.cancel();
 
-                if (startsCount.get() < 4) {
+                if (startsCount.get() <= NUM_START_ATTEMPTS) {
                     logger.info("[{}] restarting inference process after [{}] starts", task.getDeploymentId(), startsCount.get());
                     priorityProcessWorker.shutdownNow(); // TODO what to do with these tasks?
                     ActionListener<TrainedModelDeploymentTask> errorListener = ActionListener.wrap((trainedModelDeploymentTask -> {

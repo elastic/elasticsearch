@@ -19,10 +19,8 @@ import java.util.List;
 public class TagVersionsTask extends DefaultTask {
 
     @Option(option = "release", description = "Dummy option")
-    public void release(String version) {
-    }
+    public void release(String version) {}
 
     @Option(option = "tag-version", description = "Dummy option")
-    public void tagVersions(List<String> version) {
-    }
+    public void tagVersions(List<String> version) {}
 }

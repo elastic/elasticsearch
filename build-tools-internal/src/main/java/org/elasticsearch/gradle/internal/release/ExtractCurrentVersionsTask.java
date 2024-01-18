@@ -8,11 +8,9 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.FieldDeclaration;
-
 import com.github.javaparser.ast.expr.IntegerLiteralExpr;
 
 import org.gradle.api.DefaultTask;
@@ -22,13 +20,14 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
 import org.gradle.initialization.layout.BuildLayout;
 
-import javax.inject.Inject;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.function.Consumer;
+
+import javax.inject.Inject;
 
 public class ExtractCurrentVersionsTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(ExtractCurrentVersionsTask.class);
@@ -63,7 +62,13 @@ public class ExtractCurrentVersionsTask extends DefaultTask {
         LOGGER.lifecycle("Version: {}", version);
 
         LOGGER.lifecycle("Writing version information to {}", outputFile);
-        Files.write(outputFile, List.of("Version:" + version), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+        Files.write(
+            outputFile,
+            List.of("Version:" + version),
+            StandardOpenOption.CREATE,
+            StandardOpenOption.WRITE,
+            StandardOpenOption.TRUNCATE_EXISTING
+        );
     }
 
     static class FieldIdExtractor implements Consumer<FieldDeclaration> {

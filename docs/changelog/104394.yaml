@@ -1,5 +1,5 @@
 pr: 104394
-summary: Endpoint to test Grok pattern
+summary: Endpoint to find positions of Grok pattern matches
 area: Machine Learning
 type: enhancement
 issues: []

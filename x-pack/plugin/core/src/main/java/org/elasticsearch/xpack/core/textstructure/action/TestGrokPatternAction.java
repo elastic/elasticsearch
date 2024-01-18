@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,8 +75,8 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
         private final List<String> text;
 
         private Request(String grokPattern, List<String> text) {
-            this.grokPattern = grokPattern;
-            this.text = text;
+            this.grokPattern = ExceptionsHelper.requireNonNull(grokPattern, GROK_PATTERN.getPreferredName());
+            this.text = ExceptionsHelper.requireNonNull(text, TEXT.getPreferredName());
         }
 
         public Request(StreamInput in) throws IOException {
@@ -105,14 +106,7 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (grokPattern == null) {
-                validationException = addValidationError("[" + GROK_PATTERN.getPreferredName() + "] missing", validationException);
-            }
-            if (text == null) {
-                validationException = addValidationError("[" + TEXT.getPreferredName() + "] missing", validationException);
-            }
-            return validationException;
+            return null;
         }
 
         @Override

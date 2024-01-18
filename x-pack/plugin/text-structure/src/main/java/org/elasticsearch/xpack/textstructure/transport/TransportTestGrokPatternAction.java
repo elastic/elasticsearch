@@ -57,7 +57,7 @@ public class TransportTestGrokPatternAction extends HandledTransportAction<TestG
     }
 
     private TestGrokPatternAction.Response getResponse(TestGrokPatternAction.Request request) {
-        Grok grok = new Grok(GrokBuiltinPatterns.get(true), request.getGrokPattern(), logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(true), request.getGrokPattern(), logger::debug);
         List<Map<String, Object>> ranges = new ArrayList<>();
         for (String text : request.getText()) {
             ranges.add(grok.captureRanges(text));

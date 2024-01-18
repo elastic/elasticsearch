@@ -457,11 +457,11 @@ public abstract class Engine implements Closeable {
         private final long term;
         private final long seqNo;
         private final Exception failure;
-        private final SetOnce<Boolean> freeze = new SetOnce<>();
         private final Mapping requiredMappingUpdate;
         private final String id;
         private Translog.Location translogLocation;
-        private long took;
+
+        private long took = -1;
 
         protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo, String id) {
             this.operationType = operationType;
@@ -551,23 +551,19 @@ public abstract class Engine implements Closeable {
         }
 
         void setTranslogLocation(Translog.Location translogLocation) {
-            if (freeze.get() == null) {
-                this.translogLocation = translogLocation;
-            } else {
-                throw new IllegalStateException("result is already frozen");
-            }
+            ensureNotFrozen();
+            this.translogLocation = translogLocation;
         }
 
         void setTook(long took) {
-            if (freeze.get() == null) {
-                this.took = took;
-            } else {
-                throw new IllegalStateException("result is already frozen");
-            }
+            ensureNotFrozen();
+            this.took = took;
         }
 
-        void freeze() {
-            freeze.set(true);
+        private void ensureNotFrozen() {
+            if (this.took >= 0) {
+                throw new IllegalStateException("result is already frozen");
+            }
         }
 
         public enum Type {

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -117,8 +119,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, indexDoc(idleIndex, null, "keyword", randomAlphaOfLength(10)).status());
+        assertEquals(RestStatus.CREATED, indexDoc(activeIndex, null, "keyword", randomAlphaOfLength(10)).status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
@@ -187,8 +189,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, indexDoc(idleIndex, null, "keyword", randomAlphaOfLength(10)).status());
+        assertEquals(RestStatus.CREATED, indexDoc(activeIndex, null, "keyword", randomAlphaOfLength(10)).status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
@@ -254,8 +256,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, indexDoc(idleIndex, null, "keyword", randomAlphaOfLength(10)).status());
+        assertEquals(RestStatus.CREATED, indexDoc(activeIndex, null, "keyword", randomAlphaOfLength(10)).status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
@@ -314,8 +316,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             "type=constant_keyword,value=test2_value"
         );
 
-        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", "value").get().status());
-        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", "value").get().status());
+        assertEquals(RestStatus.CREATED, indexDoc(idleIndex, null, "keyword", "value").status());
+        assertEquals(RestStatus.CREATED, indexDoc(activeIndex, null, "keyword", "value").status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
@@ -378,5 +380,14 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         return service.canMatch(
             new ShardSearchRequest(OriginalIndices.NONE, request, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
         ).canMatch();
+    }
+
+    private DocWriteResponse indexDoc(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

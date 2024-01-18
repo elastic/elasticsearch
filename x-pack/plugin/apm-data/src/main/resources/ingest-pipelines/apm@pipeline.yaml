@@ -14,6 +14,7 @@ processors:
     database_file: GeoLite2-City.mmdb
     field: client.ip
     target_field: client.geo
+    download_database_on_pipeline_creation: false
     ignore_missing: true
     on_failure:
     - remove:

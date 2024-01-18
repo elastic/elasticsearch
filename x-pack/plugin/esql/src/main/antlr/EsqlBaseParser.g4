@@ -111,15 +111,11 @@ evalCommand
     ;
 
 statsCommand
-    : STATS fields? (BY grouping)?
+    : STATS stats=fields? (BY grouping=fields)?
     ;
 
 inlinestatsCommand
-    : INLINESTATS fields (BY grouping)?
-    ;
-
-grouping
-    : qualifiedName (COMMA qualifiedName)*
+    : INLINESTATS stats=fields (BY grouping=fields)?
     ;
 
 fromIdentifier

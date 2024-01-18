@@ -503,7 +503,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(discoveryNodes);
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(transportService.getThreadPool());
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -518,7 +518,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(discoveryNodes);
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(transportService.getThreadPool());
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -531,7 +531,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).build());
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(transportService.getThreadPool());
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -542,7 +542,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).masterNodeId(null).build());
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(transportService.getThreadPool());
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -557,6 +557,11 @@ public class LeaderCheckerTests extends ESTestCase {
 
         TransportException transportException;
         boolean successfulResponseReceived;
+        final ThreadPool threadPool;
+
+        private CapturingTransportResponseHandler(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+        }
 
         @Override
         public void handleResponse(TransportResponse.Empty response) {
@@ -569,7 +574,7 @@ public class LeaderCheckerTests extends ESTestCase {
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return threadPool.generic();
         }
 

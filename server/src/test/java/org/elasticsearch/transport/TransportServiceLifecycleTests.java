@@ -82,8 +82,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                                     }
 
                                     @Override
-                                    public Executor executor(ThreadPool threadPool) {
-                                        return threadPool.executor(executor);
+                                    public Executor executor() {
+                                        return nodeB.transportService.getThreadPool().executor(executor);
                                     }
                                 }
                             );

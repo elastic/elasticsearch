@@ -11,11 +11,11 @@ https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[WKT] fo
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/spatial.csv-spec[tag=to_geoshape-str]
+include::{esql-specs}/spatial_shapes.csv-spec[tag=to_geoshape-str]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/spatial.csv-spec[tag=to_geoshape-str-result]
+include::{esql-specs}/spatial_shapes.csv-spec[tag=to_geoshape-str-result]
 |===
 
 Supported types:

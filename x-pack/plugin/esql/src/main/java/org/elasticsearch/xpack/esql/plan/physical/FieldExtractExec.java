@@ -23,15 +23,15 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     private final Attribute sourceAttribute;
     private final Set<Attribute> forStats;
 
+    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
+        this(source, child, attributesToExtract, new HashSet<>());
+    }
+
     public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract, Set<Attribute> forStats) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
         this.forStats = forStats;
-    }
-
-    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
-        this(source, child, attributesToExtract, new HashSet<>());
     }
 
     public static Attribute extractSourceAttributesFrom(PhysicalPlan plan) {

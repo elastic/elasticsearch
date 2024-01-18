@@ -9,7 +9,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -291,7 +290,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             try {
                 retrieveAndUpdateDatabase(name, metadata);
             } catch (Exception ex) {
-                LOGGER.error((Supplier<?>) () -> "attempt to download database [" + name + "] failed", ex);
+                LOGGER.error(() -> "attempt to download database [" + name + "] failed", ex);
             }
         });
 
@@ -375,7 +374,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 Files.delete(databaseTmpGzFile);
             },
             failure -> {
-                LOGGER.error((Supplier<?>) () -> "failed to retrieve database [" + databaseName + "]", failure);
+                LOGGER.error(() -> "failed to retrieve database [" + databaseName + "]", failure);
                 try {
                     Files.deleteIfExists(databaseTmpFile);
                     Files.deleteIfExists(databaseTmpGzFile);
@@ -421,7 +420,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
             }
             LOGGER.info("successfully loaded geoip database file [{}]", file.getFileName());
         } catch (Exception e) {
-            LOGGER.error((Supplier<?>) () -> "failed to update database [" + databaseFileName + "]", e);
+            LOGGER.error(() -> "failed to update database [" + databaseFileName + "]", e);
         }
     }
 
@@ -433,7 +432,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 assert existing != null;
                 existing.close(true);
             } catch (Exception e) {
-                LOGGER.error((Supplier<?>) () -> "failed to clean database [" + staleEntry + "]", e);
+                LOGGER.error(() -> "failed to clean database [" + staleEntry + "]", e);
             }
         }
     }

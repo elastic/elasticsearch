@@ -61,23 +61,25 @@ public class EsqlQueryTranslators {
                 return new MatchAll(Source.EMPTY).negate(source);
             }
 
-            if (attribute.dataType() == UNSIGNED_LONG && value instanceof Long ul) {
-                value = unsignedLongAsNumber(ul);
-            }
-
             DataType valueType = bc.right().dataType();
             DataType attributeDataType = attribute.dataType();
-
+            if (valueType == UNSIGNED_LONG && value instanceof Long ul) {
+                value = unsignedLongAsNumber(ul);
+            }
             if ((value instanceof Number) == false || isInRange(attributeDataType, valueType, (Number) value)) {
                 return null;
             }
             Number num = (Number) value;
 
+            if (Double.isNaN(((Number) value).doubleValue())) {
+                return new MatchAll(Source.EMPTY).negate(source);
+            }
+
             boolean matchAllOrNone;
             if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
-                matchAllOrNone = isPositive(num) == false;
+                matchAllOrNone = (num.doubleValue() > 0) == false;
             } else if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                matchAllOrNone = isPositive(num);
+                matchAllOrNone = (num.doubleValue() > 0);
             } else if (bc instanceof Equals || bc instanceof NullEquals) {
                 matchAllOrNone = false;
             } else if (bc instanceof NotEquals) {
@@ -139,10 +141,6 @@ public class EsqlQueryTranslators {
             }
 
             return minValue.compareTo(decimalValue) <= 0 && maxValue.compareTo(decimalValue) >= 0;
-        }
-
-        private static boolean isPositive(Number value) {
-            return value.doubleValue() > 0;
         }
     }
 }

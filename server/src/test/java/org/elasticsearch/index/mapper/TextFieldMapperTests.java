@@ -1372,6 +1372,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         testBlockLoaderFromParent(true, randomBoolean());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104158")
     public void testBlockLoaderParentFromRowStrideReader() throws IOException {
         testBlockLoaderFromParent(false, randomBoolean());
     }

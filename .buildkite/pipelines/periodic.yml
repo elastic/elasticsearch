@@ -1323,6 +1323,17 @@ steps:
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
     if: build.branch == "main" || build.branch == "7.17"
+  - label: Build and deploy test fixture docker images
+    command: .ci/scripts/run-gradle.sh buildAndPublishFixtureDockerImages
+    env:
+      USE_PROD_DOCKER_CREDENTIALS: "true"
+    timeout_in_minutes: 60
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: n2-standard-8
+      buildDirectory: /dev/shm/bk
+    #if: build.branch == "main" || build.branch == "debug-saml-tests"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

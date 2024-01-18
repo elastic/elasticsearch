@@ -563,7 +563,7 @@ public class DeploymentManager {
                 resultProcessor.stop();
                 stateStreamer.cancel();
 
-                if (startsCount.get() <= NUM_START_ATTEMPTS) {
+                if (startsCount.get() <= NUM_RESTART_ATTEMPTS) {
                     logger.info("[{}] restarting inference process after [{}] starts", task.getDeploymentId(), startsCount.get());
                     priorityProcessWorker.shutdownNow(); // TODO what to do with these tasks?
                     ActionListener<TrainedModelDeploymentTask> errorListener = ActionListener.wrap((trainedModelDeploymentTask -> {

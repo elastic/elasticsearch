@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -197,14 +198,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.fields()));
-        List<NamedExpression> groupings = visitGrouping(ctx.grouping());
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         if (aggregates.isEmpty() && groupings.isEmpty()) {
             throw new ParsingException(source(ctx), "At least one aggregation or grouping expression required in [{}]", ctx.getText());
         }
         // grouping keys are automatically added as aggregations however the user is not allowed to specify them
         if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
-            var groupNames = Expressions.names(groupings);
+            var groupNames = new LinkedHashSet<>(Expressions.names(Expressions.references(groupings)));
 
             for (NamedExpression aggregate : aggregates) {
                 if (aggregate instanceof Alias a && a.child() instanceof UnresolvedAttribute ua && groupNames.contains(ua.name())) {
@@ -218,8 +219,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.fields()));
-        List<NamedExpression> groupings = visitGrouping(ctx.grouping());
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
         return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
@@ -228,11 +229,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) {
         Expression expression = expression(ctx.booleanExpression());
         return input -> new Filter(source(ctx), input, expression);
-    }
-
-    @Override
-    public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
-        return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
     }
 
     @Override

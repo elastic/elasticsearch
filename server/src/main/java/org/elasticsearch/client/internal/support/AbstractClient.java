@@ -194,7 +194,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -1449,7 +1448,7 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener) {
+        public void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener) {
             execute(ResizeAction.INSTANCE, request, listener);
         }
 

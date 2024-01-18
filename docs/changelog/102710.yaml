@@ -1,5 +1,0 @@
-pr: 102710
-summary: Enable concurrency for multi terms agg
-area: Aggregations
-type: enhancement
-issues: []

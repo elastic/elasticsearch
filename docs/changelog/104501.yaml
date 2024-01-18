@@ -1,5 +1,0 @@
-pr: 104501
-summary: "X-pack/plugin/apm-data: download geoip DB on pipeline creation"
-area: Ingest Node
-type: bug
-issues: []

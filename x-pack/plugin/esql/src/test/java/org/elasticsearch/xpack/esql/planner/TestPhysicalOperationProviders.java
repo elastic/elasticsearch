@@ -352,8 +352,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     int doc = docIndices.getInt(c);
                     int count = bytesRefBlock.getValueCount(doc);
                     int i = bytesRefBlock.getFirstValueIndex(doc);
-                    for (int v = 0; v < count; v++) {
-                        builder.appendLong(encode(bytesRefBlock.getBytesRef(i, scratch)));
+                    if (count == 0) {
+                        builder.appendNull();
+                    } else {
+                        for (int v = 0; v < count; v++) {
+                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i, scratch)));
+                        }
                     }
                 }
                 return builder.build();

@@ -157,49 +157,49 @@ POINT (7.572387259169772 26.836561792945492) | 891
 
 centroidFromAirportsCountGroupedCountry#[skip:-8.12.99, reason:st_centroid added in 8.13]
 FROM airports
-| STATS centroid=ST_CENTROID(location), count=COUNT() BY country
+| STATS centroid=ST_CENTROID(city_location), count=COUNT() BY country
 | SORT count DESC, country ASC
 | WHERE count >= 10
 ;
 
 centroid:geo_point                             | count:long | country:k
-POINT (-97.35314010599151 38.10878461129357)   | 129        | United States
-POINT (78.43924137242138 21.906680814921856)   | 50         | India
-POINT (-102.41375148668885 24.23349200747907)  | 45         | Mexico
-POINT (112.93269384584231 32.99003028708351)   | 41         | China
-POINT (-94.40011690723131 50.75939727154233)   | 37         | Canada
-POINT (-47.34247903940418 -15.810676516754732) | 31         | Brazil
-POINT (57.28701195536325 55.03344970809009)    | 26         | Russia
-POINT (-65.68080904207339 35.86510977242142)   | 19         | null
-POINT (140.737684309373 -27.673816219081772)   | 17         | Australia
-POINT (-2.597342072712148 54.33551226578214)   | 17         | United Kingdom
-POINT (-64.15348685991306 -35.02440824352492)  | 13         | Argentina
-POINT (3.68175775045529 46.86421629041433)     | 12         | France
-POINT (107.92402815073729 -4.501702389679849)  | 12         | Indonesia
-POINT (10.194075193933465 50.67810644691979)   | 11         | Germany
-POINT (10.991480831395496 43.04759993387217)   | 11         | Italy
-POINT (6.675785548815673 9.213554792698812)    | 11         | Nigeria
-POINT (70.84053024463356 30.708189841825515)   | 10         | Pakistan
+POINT (-97.3333946136801 38.07953176370194)    | 129        | United States
+POINT (78.42264595516026 21.91585598140955)    | 50         | India
+POINT (-102.37784670852125 24.268197756260633) | 45         | Mexico
+POINT (112.92023897966052 32.982985347554816)  | 41         | China
+POINT (-94.40291355867443 50.70210267953273)   | 37         | Canada
+POINT (-47.3366032685003 -15.80931615144495)   | 31         | Brazil
+POINT (57.30444226807986 55.01281536452902)    | 26         | Russia
+null                                           | 19         | null
+POINT (140.68777053945644 -27.688147084349218) | 17         | Australia
+POINT (-2.594152985359816 54.359511745107525)  | 17         | United Kingdom
+POINT (-64.19630772720735 -34.977900019058815) | 13         | Argentina
+POINT (3.710366631858051 46.890841646818444)   | 12         | France
+POINT (107.94202494900674 -4.528175020823255)  | 12         | Indonesia
+POINT (10.15085451220247 50.663009069605984)   | 11         | Germany
+POINT (11.015199956230141 43.04051815532148)   | 11         | Italy
+POINT (6.725663595240224 9.201645437966693)    | 11         | Nigeria
+POINT (70.7946499697864 30.69746997440234)     | 10         | Pakistan
 ;
 
 centroidFromAirportsFilteredCountry#[skip:-8.12.99, reason:st_centroid added in 8.13]
 FROM airports
 | WHERE country == "United States"
-| STATS centroid=ST_CENTROID(location), count=COUNT()
+| STATS centroid=ST_CENTROID(city_location), count=COUNT()
 ;
 
-centroid:geo_point                             | count:long
-POINT (-97.35314010599151 38.10878461129357)   | 129
+centroid:geo_point                          | count:long
+POINT (-97.3333946136801 38.07953176370194) | 129
 ;
 
 centroidFromAirportsCountGroupedCountryCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
 FROM airports
-| STATS centroid=ST_CENTROID(location), count=COUNT() BY country
+| STATS centroid=ST_CENTROID(city_location), count=COUNT() BY country
 | STATS centroid=ST_CENTROID(centroid), count=SUM(count)
 ;
 
-centroid:geo_point                           | count:long
-POINT (17.156217780496547 18.2549303325852)  | 891
+centroid:geo_point                            | count:long
+POINT (17.55538044598613 18.185558743854063)  | 891
 ;
 
 centroidFromAirportsFilteredAndSorted#[skip:-8.12.99, reason:st_centroid added in 8.13]

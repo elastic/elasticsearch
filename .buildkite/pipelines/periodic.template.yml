@@ -174,7 +174,7 @@ steps:
   - label: Upload Snyk Dependency Graph
     command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
     env:
-      USE_PROD_DOCKER_CREDENTIALS: "true"
+      USE_SNYK_CREDENTIALS: "true"
     timeout_in_minutes: 20
     agents:
       provider: gcp
@@ -183,16 +183,16 @@ steps:
       buildDirectory: /dev/shm/bk
     if: build.branch == "main" || build.branch == "7.17"
   - label: Build and deploy test fixture docker images
-    command: .ci/scripts/run-gradle.sh buildAndPublishFixtureDockerImages -i
+    command: .ci/scripts/run-gradle.sh buildAndPublishFixtureDockerImages
     env:
-      USE_SNYK_CREDENTIALS: "true"
+      USE_PROD_DOCKER_CREDENTIALS: "true"
     timeout_in_minutes: 60
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-    if: build.branch == "main" || build.branch == "debug-saml-tests"
+    #if: build.branch == "main" || build.branch == "debug-saml-tests"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

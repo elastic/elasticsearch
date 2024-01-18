@@ -180,7 +180,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // directly even if the data type is passed explicitly
                 DataType originalDataType = t.getDataType();
                 if (type != originalDataType) {
-                    t = new WidenedEsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias(), t.getDataType());
+                    t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
                 }
 
                 // primitive branch

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.xpack.esql.analysis.WidenedEsField;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -68,9 +67,6 @@ public class EsqlQueryTranslators {
 
             DataType valueType = bc.right().dataType();
             DataType attributeDataType = attribute.dataType();
-            if (attribute.field() instanceof WidenedEsField w) {
-                attributeDataType = w.getOriginalDataType();
-            }
 
             if ((value instanceof Number) == false || isInRange(attributeDataType, valueType, (Number) value)) {
                 return null;

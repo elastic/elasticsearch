@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -68,6 +70,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
+import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
@@ -756,6 +759,7 @@ public class MachineLearning extends Plugin
     public static final int MAX_LOW_PRIORITY_MODELS_PER_NODE = 100;
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MachineLearning.class);
 
     private final Settings settings;
     private final boolean enabled;
@@ -920,6 +924,15 @@ public class MachineLearning extends Plugin
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
             // both empty if ML is disabled
             return List.of(new JobManagerHolder(), new MachineLearningExtensionHolder());
+        }
+
+        if ("darwin-x86_64".equals(Platforms.PLATFORM_NAME)) {
+            String msg = "The machine learning plugin will be permanently disabled on macOS x86_64 in new minor versions released "
+                + "from December 2024 onwards. To continue to use machine learning functionality on macOS please switch to an arm64 "
+                + "machine (Apple silicon). Alternatively, it will still be possible to run Elasticsearch with machine learning "
+                + "enabled in a Docker container on macOS x86_64.";
+            logger.warn(msg);
+            deprecationLogger.warn(DeprecationCategory.PLUGINS, "ml-darwin-x86_64", msg);
         }
 
         machineLearningExtension.get().configure(environment.settings());

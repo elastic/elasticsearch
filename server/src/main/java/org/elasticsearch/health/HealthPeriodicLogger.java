@@ -374,7 +374,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                 if (metric == null) {
                     metric = LongGaugeMetric.create(
                         this.meterRegistry,
-                        String.format(Locale.ROOT, "es.health.%s.red", metricName),
+                        String.format(Locale.ROOT, "es.health.%s.red.status", metricName),
                         String.format(Locale.ROOT, "%s: Red", metricName),
                         "{cluster}"
                     );

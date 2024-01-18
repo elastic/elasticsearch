@@ -34,8 +34,10 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
@@ -2121,6 +2124,120 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             boolean forStats = extract.forStats(attr);
             return forStats && attr.dataType() == GEO_POINT;
         }));
+    }
+
+    /**
+     * Before local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@b54a93a7{r}#10) AS centroid],FINAL,null]
+     *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@b54a93a7{r}#10) AS centroid]]
+     * \_Eval[[TOGEOPOINT(location{f}#9) AS __centroid_SPATIALCENTROID@b54a93a7]]
+     *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]]]
+     *
+     * After local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],FINAL,50]
+     *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
+     *     \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],PARTIAL,50]
+     *       \_EvalExec[[TOGEOPOINT(location{f}#9) AS __centroid_SPATIALCENTROID@ad2847b6]]
+     *         \_FieldExtractExec[location{f}#9][]
+     *           \_EsQueryExec[airports], query[][_doc{f}#28], limit[], sort[] estimatedRowSize[104]
+     *
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     */
+    public void testSpatialTypesAndStatsUseDocValuesNested() {
+        var plan = physicalPlanAirports("""
+            from airports
+            | stats centroid = st_centroid(to_geopoint(location))
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        // Before optimization the aggregation does not use doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fAgg = as(fragment.fragment(), Aggregate.class);
+        var eval = as(fAgg.child(), Eval.class);
+        var toGeoPoint = as(eval.fields().get(0).child(), ToGeoPoint.class);
+        assertThat("Expected point field", toGeoPoint.field().dataType(), equalTo(GEO_POINT));
+        as(eval.child(), EsRelation.class);
+
+        // Now optimize the plan and assert the aggregation uses doc-values
+        var optimized = optimizedPlan(plan);
+        limit = as(optimized, LimitExec.class);
+        agg = as(limit.child(), AggregateExec.class);
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        // below the exchange (in data node) the aggregation is using doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+        var evalExec = as(agg.child(), EvalExec.class);
+        var extract = as(evalExec.child(), FieldExtractExec.class);
+        source(extract.child());
+        // TODO: update this test when we support nested fields in SpatialDocValuesExtraction
+        // assertTrue("Expect attributes to be forStats", extract.attributesToExtract().stream().allMatch(attr -> {
+        // boolean forStats = extract.forStats(attr);
+        // return forStats && attr.dataType() == GEO_POINT;
+        // }));
+    }
+
+    /**
+     * Before local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ec8dd77e{r}#7) AS centroid],FINAL,null]
+     *   \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ec8dd77e{r}#7) AS centroid],PARTIAL,null]
+     *     \_EvalExec[[[1 1 0 0 0 0 0 30 e2 4c 7c 45 40 0 0 e0 92 b0 82 2d 40][GEO_POINT] AS __centroid_SPATIALCENTROID@ec8dd77e]]
+     *       \_RowExec[[[50 4f 49 4e 54 28 34 32 2e 39 37 31 30 39 36 32 39 39 35 38 38 36 38 20 31 34 2e 37 35 35 32 35 33 34 30 30
+     *       36 35 33 36 29][KEYWORD] AS wkt]]
+     *
+     * After local optimizations we expect no changes because field is extracted:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],FINAL,50]
+     *   \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],PARTIAL,50]
+     *     \_EvalExec[[[1 1 0 0 0 0 0 30 e2 4c 7c 45 40 0 0 e0 92 b0 82 2d 40][GEO_POINT] AS __centroid_SPATIALCENTROID@7ff910a]]
+     *       \_RowExec[[[50 4f 49 4e 54 28 34 32 2e 39 37 31 30 39 36 32 39 39 35 38 38 36 38 20 31 34 2e 37 35 35 32 35 33 34 30 30
+     *       36 35 33 36 29][KEYWORD] AS wkt]]
+     */
+    public void testSpatialTypesAndStatsUseDocValuesNestedLiteral() {
+        var plan = physicalPlanAirports("""
+            row wkt = "POINT(42.97109629958868 14.7552534006536)"
+            | stats centroid = st_centroid(to_geopoint(wkt))
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        agg = as(agg.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        var eval = as(agg.child(), EvalExec.class);
+        as(eval.child(), RowExec.class);
+
+        // Now optimize the plan and assert the same plan again, since no FieldExtractExec is added
+        var optimized = optimizedPlan(plan);
+        limit = as(optimized, LimitExec.class);
+        agg = as(limit.child(), AggregateExec.class);
+        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        agg = as(agg.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        eval = as(agg.child(), EvalExec.class);
+        as(eval.child(), RowExec.class);
     }
 
     /**

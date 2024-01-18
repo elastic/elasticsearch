@@ -115,12 +115,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
-        var fieldExtraction = new Batch<>(
-            "Field extraction",
-            Limiter.ONCE,
-            new InsertFieldExtraction(),
-            new SpatialFromDocValuesExtraction()
-        );
+        var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction(), new SpatialDocValuesExtraction());
         return asList(pushdown, fieldExtraction);
     }
 
@@ -434,7 +429,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return false;
     }
 
-    private static class SpatialFromDocValuesExtraction extends OptimizerRule<AggregateExec> {
+    private static class SpatialDocValuesExtraction extends OptimizerRule<AggregateExec> {
         @Override
         protected PhysicalPlan rule(AggregateExec aggregate) {
             var foundAttribute = new Holder<Attribute>(null);
@@ -445,7 +440,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     var changedAggregates = false;
                     for (NamedExpression aggExpr : agg.aggregates()) {
                         if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
-                            // Firstly we tell the aggregation function that is should expect doc-values instead of source values
+                            // Firstly we tell the aggregation function that it should expect doc-values instead of source values
                             var changed = as.replaceChild(af.withDocValues());
                             changedAggregates = true;
                             if (af.field() instanceof Attribute fieldAttribute) {

@@ -67,7 +67,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -588,7 +587,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
-    void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener);
+    void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied

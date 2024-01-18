@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.apache.http.HttpHeaders;
 import org.apache.lucene.util.SetOnce;
@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -28,8 +29,11 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -45,12 +49,12 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloats;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.Utils.getInvalidModel;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettingsTests.getServiceSettingsMap;
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettingsTests.getServiceSettingsMap;
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -64,7 +68,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class OpenAiServiceTests extends ESTestCase {
+public class CohereServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -84,9 +88,9 @@ public class OpenAiServiceTests extends ESTestCase {
         webServer.close();
     }
 
-    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
+    public void testParseRequestConfig_CreatesACohereEmbeddingsModel() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
@@ -95,27 +99,28 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getServiceSettingsMap("url", "org"),
-                    getTaskSettingsMap("model", "user"),
+                    getServiceSettingsMap("url"),
+                    getTaskSettingsMap("model", InputType.INGEST, CohereEmbeddingType.FLOAT, CohereTruncation.START),
                     getSecretSettingsMap("secret")
                 ),
                 Set.of()
             );
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(
+                embeddingsModel.getTaskSettings(),
+                is(new CohereEmbeddingsTaskSettings("model", InputType.INGEST, CohereEmbeddingType.FLOAT, CohereTruncation.START))
+            );
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
@@ -125,31 +130,26 @@ public class OpenAiServiceTests extends ESTestCase {
                 () -> service.parseRequestConfig(
                     "id",
                     TaskType.SPARSE_EMBEDDING,
-                    getRequestConfigMap(
-                        getServiceSettingsMap("url", "org"),
-                        getTaskSettingsMap("model", "user"),
-                        getSecretSettingsMap("secret")
-                    ),
+                    getRequestConfigMap(getServiceSettingsMap("url"), getTaskSettingsMapEmpty(), getSecretSettingsMap("secret")),
                     Set.of()
                 )
             );
 
-            assertThat(thrownException.getMessage(), is("The [openai] service does not support task type [sparse_embedding]"));
+            MatcherAssert.assertThat(
+                thrownException.getMessage(),
+                is("The [cohere] service does not support task type [sparse_embedding]")
+            );
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var config = getRequestConfigMap(
-                getServiceSettingsMap("url", "org"),
-                getTaskSettingsMap("model", "user"),
-                getSecretSettingsMap("secret")
-            );
+            var config = getRequestConfigMap(getServiceSettingsMap("url"), getTaskSettingsMapEmpty(), getSecretSettingsMap("secret"));
             config.put("extra_key", "value");
 
             var thrownException = expectThrows(
@@ -157,64 +157,68 @@ public class OpenAiServiceTests extends ESTestCase {
                 () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
             );
 
-            assertThat(
+            MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service")
+                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
             );
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettings = getServiceSettingsMap("url", "org");
+            var serviceSettings = getServiceSettingsMap("url");
             serviceSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap("model", "user"), getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(
+                serviceSettings,
+                getTaskSettingsMap("model", null, null, null),
+                getSecretSettingsMap("secret")
+            );
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
             );
 
-            assertThat(
+            MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service")
+                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
             );
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var taskSettingsMap = getTaskSettingsMap("model", "user");
+            var taskSettingsMap = getTaskSettingsMap("model", null, null, null);
             taskSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getServiceSettingsMap("url", "org"), taskSettingsMap, getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(getServiceSettingsMap("url"), taskSettingsMap, getSecretSettingsMap("secret"));
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
             );
 
-            assertThat(
+            MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service")
+                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
             );
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
@@ -222,23 +226,23 @@ public class OpenAiServiceTests extends ESTestCase {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"), secretSettingsMap);
+            var config = getRequestConfigMap(getServiceSettingsMap("url"), getTaskSettingsMapEmpty(), secretSettingsMap);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of())
             );
 
-            assertThat(
+            MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service")
+                is("Model configuration contains settings [{extra_key=value}] unknown to the [cohere] service")
             );
         }
     }
 
-    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
+    public void testParseRequestConfig_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
@@ -246,31 +250,29 @@ public class OpenAiServiceTests extends ESTestCase {
             var model = service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap(null, null), getTaskSettingsMap("model", null), getSecretSettingsMap("secret")),
+                getRequestConfigMap(getServiceSettingsMap(null), getTaskSettingsMapEmpty(), getSecretSettingsMap("secret")),
                 Set.of()
             );
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            var embeddingsModel = (CohereEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().uri());
-            assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertNull(embeddingsModel.getTaskSettings().user());
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModel() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("url"),
+                getTaskSettingsMap("model", null, null, null),
                 getSecretSettingsMap("secret")
             );
 
@@ -281,27 +283,25 @@ public class OpenAiServiceTests extends ESTestCase {
                 persistedConfig.secrets()
             );
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings("model", null, null, null)));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("url"),
+                getTaskSettingsMapEmpty(),
                 getSecretSettingsMap("secret")
             );
 
@@ -315,23 +315,23 @@ public class OpenAiServiceTests extends ESTestCase {
                 )
             );
 
-            assertThat(
+            MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [openai] service, please delete and add the service again")
+                is("Failed to parse stored model [id] for [cohere] service, please delete and add the service again")
             );
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(null, null),
-                getTaskSettingsMap("model", null),
+                getServiceSettingsMap(null),
+                getTaskSettingsMap(null, InputType.INGEST, null, null),
                 getSecretSettingsMap("secret")
             );
 
@@ -342,27 +342,28 @@ public class OpenAiServiceTests extends ESTestCase {
                 persistedConfig.secrets()
             );
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            var embeddingsModel = (CohereEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().uri());
-            assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertNull(embeddingsModel.getTaskSettings().user());
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            MatcherAssert.assertThat(
+                embeddingsModel.getTaskSettings(),
+                is(new CohereEmbeddingsTaskSettings(null, InputType.INGEST, null, null))
+            );
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("url"),
+                getTaskSettingsMap("model", InputType.SEARCH, CohereEmbeddingType.INT8, CohereTruncation.NONE),
                 getSecretSettingsMap("secret")
             );
             persistedConfig.config().put("extra_key", "value");
@@ -374,20 +375,21 @@ public class OpenAiServiceTests extends ESTestCase {
                 persistedConfig.secrets()
             );
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(
+                embeddingsModel.getTaskSettings(),
+                is(new CohereEmbeddingsTaskSettings("model", InputType.SEARCH, CohereEmbeddingType.INT8, CohereTruncation.NONE))
+            );
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
@@ -395,11 +397,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
-                getTaskSettingsMap("model", "user"),
-                secretSettingsMap
-            );
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), getTaskSettingsMapEmpty(), secretSettingsMap);
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -408,27 +406,25 @@ public class OpenAiServiceTests extends ESTestCase {
                 persistedConfig.secrets()
             );
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
-                getTaskSettingsMap("model", "user"),
+                getServiceSettingsMap("url"),
+                getTaskSettingsMap("model", null, null, null),
                 getSecretSettingsMap("secret")
             );
             persistedConfig.secrets.put("extra_key", "value");
@@ -440,32 +436,26 @@ public class OpenAiServiceTests extends ESTestCase {
                 persistedConfig.secrets()
             );
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings("model", null, null, null)));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettingsMap = getServiceSettingsMap("url", "org");
+            var serviceSettingsMap = getServiceSettingsMap("url");
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(
-                serviceSettingsMap,
-                getTaskSettingsMap("model", "user"),
-                getSecretSettingsMap("secret")
-            );
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty(), getSecretSettingsMap("secret"));
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -474,32 +464,26 @@ public class OpenAiServiceTests extends ESTestCase {
                 persistedConfig.secrets()
             );
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var taskSettingsMap = getTaskSettingsMap("model", "user");
+            var taskSettingsMap = getTaskSettingsMap("model", InputType.SEARCH, null, null);
             taskSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url", "org"),
-                taskSettingsMap,
-                getSecretSettingsMap("secret")
-            );
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), taskSettingsMap, getSecretSettingsMap("secret"));
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -508,156 +492,165 @@ public class OpenAiServiceTests extends ESTestCase {
                 persistedConfig.secrets()
             );
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(
+                embeddingsModel.getTaskSettings(),
+                is(new CohereEmbeddingsTaskSettings("model", InputType.SEARCH, null, null))
+            );
+            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
+    public void testParsePersistedConfig_CreatesACohereEmbeddingsModel() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"));
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("url"),
+                getTaskSettingsMap("model", null, null, CohereTruncation.NONE)
+            );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(
+                embeddingsModel.getTaskSettings(),
+                is(new CohereEmbeddingsTaskSettings("model", null, null, CohereTruncation.NONE))
+            );
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), getTaskSettingsMapEmpty());
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
-            assertThat(
+            MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [openai] service, please delete and add the service again")
+                is("Failed to parse stored model [id] for [cohere] service, please delete and add the service again")
             );
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
+    public void testParsePersistedConfig_CreatesAnCohereEmbeddingsModelWithoutUrl() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(null, null), getTaskSettingsMap("model", null));
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap(null),
+                getTaskSettingsMap("model", null, CohereEmbeddingType.FLOAT, null)
+            );
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            var embeddingsModel = (CohereEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().uri());
-            assertNull(embeddingsModel.getServiceSettings().organizationId());
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertNull(embeddingsModel.getTaskSettings().user());
+            MatcherAssert.assertThat(
+                embeddingsModel.getTaskSettings(),
+                is(new CohereEmbeddingsTaskSettings("model", null, CohereEmbeddingType.FLOAT, null))
+            );
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"));
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), getTaskSettingsMapEmpty());
             persistedConfig.config().put("extra_key", "value");
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettingsMap = getServiceSettingsMap("url", "org");
+            var serviceSettingsMap = getServiceSettingsMap("url");
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap("model", "user"));
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap(null, InputType.SEARCH, null, null));
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(
+                embeddingsModel.getTaskSettings(),
+                is(new CohereEmbeddingsTaskSettings(null, InputType.SEARCH, null, null))
+            );
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
-            var service = new OpenAiService(
+            var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var taskSettingsMap = getTaskSettingsMap("model", "user");
+            var taskSettingsMap = getTaskSettingsMap("model", InputType.INGEST, null, null);
             taskSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url", "org"), taskSettingsMap);
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), taskSettingsMap);
 
             var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
-            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+            MatcherAssert.assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
-            var embeddingsModel = (OpenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
-            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
-            assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+            var embeddingsModel = (CohereEmbeddingsModel) model;
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            MatcherAssert.assertThat(
+                embeddingsModel.getTaskSettings(),
+                is(new CohereEmbeddingsTaskSettings("model", InputType.INGEST, null, null))
+            );
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
 
-    public void testInfer_ThrowsErrorWhenModelIsNotOpenAiModel() throws IOException {
+    public void testInfer_ThrowsErrorWhenModelIsNotCohereModel() throws IOException {
         var sender = mock(Sender.class);
 
         var factory = mock(HttpRequestSenderFactory.class);
@@ -665,12 +658,12 @@ public class OpenAiServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(mockModel, List.of(""), new HashMap<>(), listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(
+            MatcherAssert.assertThat(
                 thrownException.getMessage(),
                 is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
             );
@@ -687,112 +680,138 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testInfer_SendsRequest() throws IOException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
-        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
             String responseJson = """
                 {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
+                    "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
+                    "texts": [
+                        "hello"
+                    ],
+                    "embeddings": {
+                        "float": [
+                            [
+                                0.123,
+                                -0.123
+                            ]
+                        ]
+                    },
+                    "meta": {
+                        "api_version": {
+                            "version": "1"
+                        },
+                        "billed_units": {
+                            "input_tokens": 1
+                        }
+                    },
+                    "response_type": "embeddings_by_type"
                 }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+            var model = CohereEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                "secret",
+                new CohereEmbeddingsTaskSettings("model", InputType.INGEST, null, null),
+                1024,
+                1024
+            );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, List.of("abc"), new HashMap<>(), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), Matchers.is(buildExpectationFloats(List.of(List.of(0.0123F, -0.0123F)))));
-            assertThat(webServer.requests(), hasSize(1));
+            MatcherAssert.assertThat(result.asMap(), Matchers.is(buildExpectationFloats(List.of(List.of(0.123F, -0.123F)))));
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaType())
+            );
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(3));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
-            assertThat(requestMap.get("model"), Matchers.is("model"));
-            assertThat(requestMap.get("user"), Matchers.is("user"));
+            MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document")));
         }
     }
 
-    public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
+    public void testCheckModelConfig_UpdatesDimensions() throws IOException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
-        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
             String responseJson = """
                 {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
+                    "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
+                    "texts": [
+                        "hello"
+                    ],
+                    "embeddings": {
+                        "float": [
+                            [
+                                0.123,
+                                -0.123
+                            ]
+                        ]
+                    },
+                    "meta": {
+                        "api_version": {
+                            "version": "1"
+                        },
+                        "billed_units": {
+                            "input_tokens": 1
+                        }
+                    },
+                    "response_type": "embeddings_by_type"
                 }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 1);
+            var model = CohereEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                "secret",
+                CohereEmbeddingsTaskSettings.EMPTY_SETTINGS,
+                10,
+                1
+            );
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
-
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result, is(OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 1, 2)));
+
+            MatcherAssert.assertThat(
+                result,
+                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
+                is(CohereEmbeddingsModelTests.createModel(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, 10, 2))
+            );
         }
     }
 
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
-        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (var service = new CohereService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
             String responseJson = """
                 {
-                    "error": {
-                        "message": "Incorrect API key provided:",
-                        "type": "invalid_request_error",
-                        "param": null,
-                        "code": "invalid_api_key"
-                    }
+                    "message": "invalid api token"
                 }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+            var model = CohereEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                "secret",
+                CohereEmbeddingsTaskSettings.EMPTY_SETTINGS,
+                1024,
+                1024
+            );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, List.of("abc"), new HashMap<>(), listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
-            assertThat(error.getMessage(), containsString("Error message: [Incorrect API key provided:]"));
-            assertThat(webServer.requests(), hasSize(1));
+            MatcherAssert.assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
+            MatcherAssert.assertThat(error.getMessage(), containsString("Error message: [invalid api token]"));
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
         }
     }
 

@@ -214,7 +214,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectation(List.of(List.of(-0.0123F, 0.123F)))));
+            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectationFloats(List.of(List.of(-0.0123F, 0.123F)))));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -331,7 +331,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectation(List.of(List.of(-0.0123F, 0.123F)))));
+            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectationFloats(List.of(List.of(-0.0123F, 0.123F)))));
 
             assertThat(webServer.requests(), hasSize(2));
             {
@@ -389,7 +389,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectation(List.of(List.of(-0.0123F, 0.123F)))));
+            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectationFloats(List.of(List.of(-0.0123F, 0.123F)))));
 
             assertThat(webServer.requests(), hasSize(1));
 

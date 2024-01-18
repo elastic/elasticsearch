@@ -29,6 +29,11 @@ public class FloatValue implements EmbeddingValue {
     }
 
     @Override
+    public String toString() {
+        return value.toString();
+    }
+
+    @Override
     public Number getValue() {
         return value;
     }

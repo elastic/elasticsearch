@@ -12,6 +12,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -53,7 +54,7 @@ public class CohereEmbeddingsModel extends CohereModel {
         super(model, taskSettings);
     }
 
-    private CohereEmbeddingsModel(CohereEmbeddingsModel model, CohereServiceSettings serviceSettings) {
+    public CohereEmbeddingsModel(CohereEmbeddingsModel model, CohereServiceSettings serviceSettings) {
         super(model, serviceSettings);
     }
 
@@ -73,8 +74,8 @@ public class CohereEmbeddingsModel extends CohereModel {
     }
 
     @Override
-    public ExecutableAction accept() {
-        return null;
+    public ExecutableAction accept(CohereActionVisitor visitor, Map<String, Object> taskSettings) {
+        return visitor.create(this, taskSettings);
     }
 
     public CohereEmbeddingsModel overrideWith(Map<String, Object> taskSettings) {

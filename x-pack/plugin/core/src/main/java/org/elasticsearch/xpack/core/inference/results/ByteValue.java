@@ -29,6 +29,11 @@ public class ByteValue implements EmbeddingValue {
     }
 
     @Override
+    public String toString() {
+        return value.toString();
+    }
+
+    @Override
     public Byte getValue() {
         return value;
     }

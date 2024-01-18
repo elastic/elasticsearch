@@ -63,21 +63,12 @@ public class CohereEmbeddingsRequest implements Request {
 
     @Override
     public Request truncate() {
-
         return this;
-        // TODO only do this is the truncate setting is NONE?
-        // var truncatedInput = truncator.truncate(truncationResult.input());
-        //
-        // return new CohereEmbeddingsRequest(truncator, account, truncatedInput, taskSettings);
     }
 
     @Override
     public boolean[] getTruncationInfo() {
         return null;
-    }
-
-    public CohereEmbeddingsTaskSettings getTaskSettings() {
-        return taskSettings;
     }
 
     // default for testing

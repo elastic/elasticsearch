@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -193,90 +192,6 @@ public class ServiceUtils {
         }
 
         return null;
-    }
-
-    public static <T> List<T> extractOptionalListOfEnums(
-        Map<String, Object> map,
-        String settingName,
-        String scope,
-        CheckedFunction<String, T, IllegalArgumentException> converter,
-        T[] validTypes,
-        ValidationException validationException
-    ) {
-        List<?> listField = ServiceUtils.removeAsType(map, settingName, List.class);
-        if (listField == null) {
-            return null;
-        }
-
-        if (listField.isEmpty()) {
-            validationException.addValidationError(ServiceUtils.mustBeNonEmptyList(settingName, scope));
-            return null;
-        }
-
-        var validTypesAsStrings = Arrays.stream(validTypes).map(type -> type.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
-
-        List<T> castedList = new ArrayList<>(listField.size());
-
-        for (Object listEntry : listField) {
-            if (listEntry instanceof String == false) {
-                validationException.addValidationError(
-                    invalidType(
-                        settingName,
-                        scope,
-                        listEntry.getClass().getSimpleName(),
-                        listEntry.toString(),
-                        String.class.getSimpleName()
-                    )
-                );
-                return null;
-            }
-
-            var stringEntry = (String) listEntry;
-            try {
-                castedList.add(converter.apply(stringEntry));
-            } catch (IllegalArgumentException e) {
-                validationException.addValidationError(invalidValue(settingName, scope, stringEntry, validTypesAsStrings));
-                return null;
-            }
-        }
-
-        return castedList;
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T> List<T> extractOptionalListOfType(
-        Map<String, Object> map,
-        String settingName,
-        String scope,
-        Class<T> type,
-        ValidationException validationException
-    ) {
-        List<?> listField = ServiceUtils.removeAsType(map, settingName, List.class);
-
-        if (listField == null) {
-            return null;
-        }
-
-        if (listField.isEmpty()) {
-            validationException.addValidationError(ServiceUtils.mustBeNonEmptyList(settingName, scope));
-            return null;
-        }
-
-        List<T> castedList = new ArrayList<>(listField.size());
-
-        for (Object listEntry : listField) {
-            if (type.isAssignableFrom(listEntry.getClass()) == false) {
-                // TODO should we just throw here like removeAsType
-                validationException.addValidationError(
-                    invalidType(settingName, scope, listEntry.getClass().getSimpleName(), listEntry.toString(), type.getSimpleName())
-                );
-                return null;
-            }
-
-            castedList.add((T) listEntry);
-        }
-
-        return castedList;
     }
 
     public static String extractRequiredString(

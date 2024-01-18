@@ -13,6 +13,9 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionVisitor;
+
+import java.util.Map;
 
 public abstract class CohereModel extends Model {
     public CohereModel(ModelConfigurations configurations, ModelSecrets secrets) {
@@ -27,5 +30,5 @@ public abstract class CohereModel extends Model {
         super(model, serviceSettings);
     }
 
-    public abstract ExecutableAction accept();
+    public abstract ExecutableAction accept(CohereActionVisitor creator, Map<String, Object> taskSettings);
 }

@@ -101,7 +101,7 @@ public class OpenAiEmbeddingsResponseEntity {
         // if there are additional fields within this object, lets skip them, so we can begin parsing the next embedding array
         parser.skipChildren();
 
-        return TextEmbeddingResults.Embedding.of(embeddingValues);
+        return TextEmbeddingResults.Embedding.ofFloats(embeddingValues);
     }
 
     private static float parseEmbeddingList(XContentParser parser) throws IOException {

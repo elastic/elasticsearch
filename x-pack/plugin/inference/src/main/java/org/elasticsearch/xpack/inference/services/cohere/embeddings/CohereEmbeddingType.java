@@ -47,11 +47,11 @@ public enum CohereEmbeddingType implements Writeable {
     }
 
     public static CohereEmbeddingType fromStream(StreamInput in) throws IOException {
-        return in.readEnum(CohereEmbeddingType.class);
+        return in.readOptionalEnum(CohereEmbeddingType.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
+        out.writeOptionalEnum(this);
     }
 }

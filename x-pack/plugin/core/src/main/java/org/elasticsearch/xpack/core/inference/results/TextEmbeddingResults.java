@@ -53,7 +53,10 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     @SuppressWarnings("deprecation")
     TextEmbeddingResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
         this(
-            legacyTextEmbeddingResults.embeddings().stream().map(embedding -> Embedding.of(embedding.values())).collect(Collectors.toList())
+            legacyTextEmbeddingResults.embeddings()
+                .stream()
+                .map(embedding -> Embedding.ofFloats(embedding.values()))
+                .collect(Collectors.toList())
         );
     }
 
@@ -105,8 +108,14 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     public static class Embedding implements Writeable, ToXContentObject {
         public static final String EMBEDDING = "embedding";
 
-        public static Embedding of(List<Float> values) {
+        public static Embedding ofFloats(List<Float> values) {
             return new Embedding(convertFloatsToEmbeddingValues(values));
+        }
+
+        public static Embedding ofBytes(List<Byte> values) {
+            List<EmbeddingValue> convertedValues = values.stream().map(ByteValue::new).collect(Collectors.toList());
+
+            return new Embedding(convertedValues);
         }
 
         private final List<EmbeddingValue> values;
@@ -131,12 +140,15 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
             return values.stream().map(value -> value.getValue().floatValue()).toList();
         }
 
+        public List<EmbeddingValue> values() {
+            return values;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED)) {
                 out.writeNamedWriteableCollection(values);
             } else {
-                // TODO do we need to check that the values are floats here?
                 out.writeCollection(toFloats(), StreamOutput::writeFloat);
             }
         }

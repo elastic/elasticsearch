@@ -22,6 +22,7 @@ public class CohereErrorResponseEntity implements ErrorMessage {
         this.errorMessage = errorMessage;
     }
 
+    @Override
     public String getErrorMessage() {
         return errorMessage;
     }

@@ -29,10 +29,10 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public static CohereEmbeddingsTaskSettings createRandom() {
         var model = randomBoolean() ? randomAlphaOfLength(15) : null;
         var inputType = randomBoolean() ? randomFrom(InputType.values()) : null;
-        var embeddingTypes = randomBoolean() ? List.of(randomFrom(CohereEmbeddingType.values())) : null;
+        var embeddingType = randomBoolean() ? randomFrom(CohereEmbeddingType.values()) : null;
         var truncation = randomBoolean() ? randomFrom(CohereTruncation.values()) : null;
 
-        return new CohereEmbeddingsTaskSettings(model, inputType, embeddingTypes, truncation);
+        return new CohereEmbeddingsTaskSettings(model, inputType, embeddingType, truncation);
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
@@ -51,21 +51,14 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
                         "abc",
                         CohereEmbeddingsTaskSettings.INPUT_TYPE,
                         InputType.INGEST.toString().toLowerCase(Locale.ROOT),
-                        CohereEmbeddingsTaskSettings.EMBEDDING_TYPES,
-                        List.of(CohereEmbeddingType.FLOAT, CohereEmbeddingType.INT8),
+                        CohereEmbeddingsTaskSettings.EMBEDDING_TYPE,
+                        CohereEmbeddingType.INT8,
                         CohereServiceFields.TRUNCATE,
                         CohereTruncation.END.toString().toLowerCase(Locale.ROOT)
                     )
                 )
             ),
-            is(
-                new CohereEmbeddingsTaskSettings(
-                    "abc",
-                    InputType.INGEST,
-                    List.of(CohereEmbeddingType.FLOAT, CohereEmbeddingType.INT8),
-                    CohereTruncation.END
-                )
-            )
+            is(new CohereEmbeddingsTaskSettings("abc", InputType.INGEST, CohereEmbeddingType.INT8, CohereTruncation.END))
         );
     }
 
@@ -84,7 +77,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
         var exception = expectThrows(
             ValidationException.class,
-            () -> CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.EMBEDDING_TYPES, List.of("abc"))))
+            () -> CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.EMBEDDING_TYPE, List.of("abc"))))
         );
 
         MatcherAssert.assertThat(
@@ -133,10 +126,14 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         return null;
     }
 
+    public static Map<String, Object> getTaskSettingsMapEmpty() {
+        return new HashMap<>();
+    }
+
     public static Map<String, Object> getTaskSettingsMap(
         @Nullable String model,
         @Nullable InputType inputType,
-        @Nullable List<String> embeddingTypes,
+        @Nullable CohereEmbeddingType embeddingType,
         @Nullable CohereTruncation truncation
     ) {
         var map = new HashMap<String, Object>();
@@ -146,15 +143,15 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         }
 
         if (inputType != null) {
-            map.put(CohereEmbeddingsTaskSettings.INPUT_TYPE, inputType);
+            map.put(CohereEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString());
         }
 
-        if (embeddingTypes != null) {
-            map.put(CohereEmbeddingsTaskSettings.EMBEDDING_TYPES, embeddingTypes);
+        if (embeddingType != null) {
+            map.put(CohereEmbeddingsTaskSettings.EMBEDDING_TYPE, embeddingType.toString());
         }
 
         if (truncation != null) {
-            map.put(CohereServiceFields.TRUNCATE, truncation);
+            map.put(CohereServiceFields.TRUNCATE, truncation.toString());
         }
 
         return map;

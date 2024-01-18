@@ -20,11 +20,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfEnums;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.MODEL;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.TRUNCATE;
@@ -38,20 +36,20 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFie
  *
  * @param model the id of the model to use in the requests to cohere
  * @param inputType Specifies the type of input you're giving to the model
- * @param embeddingTypes Specifies the types of embeddings you want to get back
+ * @param embeddingType Specifies the type of embeddings you want to get back (we only support retrieving a single type)
  * @param truncation Specifies how the API will handle inputs longer than the maximum token length
  */
 public record CohereEmbeddingsTaskSettings(
     @Nullable String model,
     @Nullable InputType inputType,
-    @Nullable List<CohereEmbeddingType> embeddingTypes,
+    @Nullable CohereEmbeddingType embeddingType,
     @Nullable CohereTruncation truncation
 ) implements TaskSettings {
 
     public static final String NAME = "cohere_embeddings_task_settings";
-    static final CohereEmbeddingsTaskSettings EMPTY_SETTINGS = new CohereEmbeddingsTaskSettings(null, null, null, null);
+    public static final CohereEmbeddingsTaskSettings EMPTY_SETTINGS = new CohereEmbeddingsTaskSettings(null, null, null, null);
     static final String INPUT_TYPE = "input_type";
-    static final String EMBEDDING_TYPES = "embedding_types";
+    static final String EMBEDDING_TYPE = "embedding_type";
 
     public static CohereEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map.isEmpty()) {
@@ -69,9 +67,9 @@ public record CohereEmbeddingsTaskSettings(
             InputType.values(),
             validationException
         );
-        List<CohereEmbeddingType> embeddingTypes = extractOptionalListOfEnums(
+        CohereEmbeddingType embeddingTypes = extractOptionalEnum(
             map,
-            EMBEDDING_TYPES,
+            EMBEDDING_TYPE,
             ModelConfigurations.TASK_SETTINGS,
             CohereEmbeddingType::fromString,
             CohereEmbeddingType.values(),
@@ -94,12 +92,7 @@ public record CohereEmbeddingsTaskSettings(
     }
 
     public CohereEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(
-            in.readOptionalString(),
-            InputType.fromStream(in),
-            in.readOptionalCollectionAsList(CohereEmbeddingType::fromStream),
-            CohereTruncation.fromStream(in)
-        );
+        this(in.readOptionalString(), InputType.fromStream(in), CohereEmbeddingType.fromStream(in), CohereTruncation.fromStream(in));
     }
 
     @Override
@@ -113,8 +106,8 @@ public record CohereEmbeddingsTaskSettings(
             builder.field(INPUT_TYPE, inputType);
         }
 
-        if (embeddingTypes != null) {
-            builder.field(EMBEDDING_TYPES, embeddingTypes);
+        if (embeddingType != null) {
+            builder.field(EMBEDDING_TYPE, embeddingType);
         }
 
         if (truncation != null) {
@@ -138,14 +131,14 @@ public record CohereEmbeddingsTaskSettings(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(model);
         inputType.writeTo(out);
-        out.writeOptionalCollection(embeddingTypes);
+        embeddingType.writeTo(out);
         truncation.writeTo(out);
     }
 
     public CohereEmbeddingsTaskSettings overrideWith(CohereEmbeddingsTaskSettings requestTaskSettings) {
         var modelToUse = requestTaskSettings.model() == null ? model : requestTaskSettings.model();
         var inputTypeToUse = requestTaskSettings.inputType() == null ? inputType : requestTaskSettings.inputType();
-        var embeddingTypesToUse = requestTaskSettings.embeddingTypes() == null ? embeddingTypes : requestTaskSettings.embeddingTypes();
+        var embeddingTypesToUse = requestTaskSettings.embeddingType() == null ? embeddingType : requestTaskSettings.embeddingType();
         var truncationToUse = requestTaskSettings.truncation() == null ? truncation : requestTaskSettings.truncation();
 
         return new CohereEmbeddingsTaskSettings(modelToUse, inputTypeToUse, embeddingTypesToUse, truncationToUse);

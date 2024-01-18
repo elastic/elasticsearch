@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
@@ -25,12 +24,11 @@ import org.elasticsearch.xpack.inference.external.response.cohere.CohereEmbeddin
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 
-import java.net.URI;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.getErrorMessage;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class CohereEmbeddingsAction implements ExecutableAction {
@@ -45,7 +43,7 @@ public class CohereEmbeddingsAction implements ExecutableAction {
     public CohereEmbeddingsAction(Sender sender, CohereEmbeddingsModel model, ServiceComponents serviceComponents) {
         this.model = Objects.requireNonNull(model);
         this.account = new CohereAccount(this.model.getServiceSettings().uri(), this.model.getSecretSettings().apiKey());
-        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri());
+        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri(), "Cohere embeddings");
         this.sender = new RetryingHttpSender(
             Objects.requireNonNull(sender),
             serviceComponents.throttlerManager(),
@@ -55,20 +53,9 @@ public class CohereEmbeddingsAction implements ExecutableAction {
         );
     }
 
-    private static String getErrorMessage(@Nullable URI uri) {
-        if (uri != null) {
-            return format("Failed to send Cohere embeddings request to [%s]", uri.toString());
-        }
-
-        return "Failed to send Cohere embeddings request";
-    }
-
     @Override
     public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
-            // TODO only truncate if the setting is NONE?
-            // var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
-
             CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(account, input, model.getTaskSettings());
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 

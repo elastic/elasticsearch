@@ -37,9 +37,11 @@ public class MvLast extends AbstractMultivalueFunction {
         returnType = {
             "boolean",
             "cartesian_point",
+            "cartesian_shape",
             "date",
             "double",
             "geo_point",
+            "geo_shape",
             "integer",
             "ip",
             "keyword",
@@ -56,9 +58,11 @@ public class MvLast extends AbstractMultivalueFunction {
             type = {
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
                 "double",
                 "geo_point",
+                "geo_shape",
                 "integer",
                 "ip",
                 "keyword",

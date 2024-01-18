@@ -1182,7 +1182,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
     @Deprecated
     private static ClusterInfo createClusterInfo(List<DiskUsage> diskUsages, Map<String, Long> shardSizes) {
-        var diskUsage = diskUsages.stream().collect(toMap(DiskUsage::getNodeId, Function.identity()));
+        var diskUsage = diskUsages.stream().collect(toMap(usage -> usage.nodeId(), Function.identity()));
         return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
     }
 

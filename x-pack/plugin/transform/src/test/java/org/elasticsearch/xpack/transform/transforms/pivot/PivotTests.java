@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -19,6 +20,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHits;
@@ -39,6 +41,8 @@ import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
@@ -239,7 +243,30 @@ public class PivotTests extends ESTestCase {
             SettingsConfigTests.randomSettingsConfig(),
             TransformConfigVersion.CURRENT,
             Collections.emptySet()
-        );
+        ) {
+            @Override
+            public Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
+                SearchResponse searchResponse,
+                String destinationIndex,
+                String destinationPipeline,
+                Map<String, String> fieldTypeMap,
+                TransformIndexerStats stats,
+                TransformProgress progress
+            ) {
+                try {
+                    return super.processSearchResponse(
+                        searchResponse,
+                        destinationIndex,
+                        destinationPipeline,
+                        fieldTypeMap,
+                        stats,
+                        progress
+                    );
+                } finally {
+                    searchResponse.decRef();
+                }
+            }
+        };
 
         Aggregations aggs = null;
         assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
@@ -324,7 +351,22 @@ public class PivotTests extends ESTestCase {
     }
 
     private static SearchResponse searchResponseFromAggs(Aggregations aggs) {
-        return new SearchResponse(null, aggs, null, false, null, null, 1, null, 10, 5, 0, 0, new ShardSearchFailure[0], null);
+        return new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            aggs,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            10,
+            5,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
+        );
     }
 
     private class MyMockClient extends NoOpClient {

@@ -68,7 +68,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             clusters
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
-        addReleasable(queryPhaseResultConsumer::decRef);
+        addReleasable(queryPhaseResultConsumer);
         this.progressListener = task.getProgressListener();
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
@@ -95,7 +95,6 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
         final AggregatedDfs aggregatedDfs = SearchPhaseController.aggregateDfs(dfsSearchResults);
         final List<DfsKnnResults> mergedKnnResults = SearchPhaseController.mergeKnnResults(getRequest(), dfsSearchResults);
-        queryPhaseResultConsumer.incRef();
         return new DfsQueryPhase(
             dfsSearchResults,
             aggregatedDfs,

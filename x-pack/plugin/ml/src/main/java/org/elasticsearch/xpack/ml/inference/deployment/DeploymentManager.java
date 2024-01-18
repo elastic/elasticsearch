@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -545,7 +546,18 @@ public class DeploymentManager {
 
         private Consumer<String> onProcessCrashHandleRestarts(AtomicInteger startsCount) {
             return (reason) -> {
-                logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
+                if (isThisProcessOlderThan1Day()) {
+                    startsCount.set(1);
+                    logger.error(
+                        "[{}] inference process crashed due to reason [{}]. This process was started more than 24 hours ago; "
+                            + "the starts count is reset to 1.",
+                        task.getDeploymentId(),
+                        reason
+                    );
+                } else {
+                    logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
+                }
+
                 processContextByAllocation.remove(task.getId());
                 isStopped = true;
                 resultProcessor.stop();
@@ -557,12 +569,10 @@ public class DeploymentManager {
                     ActionListener<TrainedModelDeploymentTask> errorListener = ActionListener.wrap((trainedModelDeploymentTask -> {
                         logger.debug("Completed restart of inference process, the [{}] start", startsCount);
                     }),
-                        (e) -> {
-                            finishClosingProcess(
-                                startsCount,
-                                "Failed to restart inference process because of error [" + e.getMessage() + "]"
-                            );
-                        }
+                        (e) -> finishClosingProcess(
+                            startsCount,
+                            "Failed to restart inference process because of error [" + e.getMessage() + "]"
+                        )
                     );
 
                     startDeployment(task, startsCount.incrementAndGet(), errorListener);
@@ -570,6 +580,10 @@ public class DeploymentManager {
                     finishClosingProcess(startsCount, reason);
                 }
             };
+        }
+
+        private boolean isThisProcessOlderThan1Day() {
+            return startTime.isBefore(Instant.now().minus(Duration.ofDays(1)));
         }
 
         private void finishClosingProcess(AtomicInteger startsCount, String reason) {

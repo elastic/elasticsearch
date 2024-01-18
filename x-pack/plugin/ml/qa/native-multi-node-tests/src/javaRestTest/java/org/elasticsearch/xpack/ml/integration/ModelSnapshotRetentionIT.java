@@ -51,7 +51,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
@@ -191,8 +190,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
     private List<String> getDocIdsFromSearch(SearchRequest searchRequest) throws Exception {
         List<String> docIds = new ArrayList<>();
         assertResponse(client().execute(TransportSearchAction.TYPE, searchRequest), searchResponse -> {
-            assertThat(searchResponse.getHits(), notNullValue());
-            for (SearchHit searchHit : searchResponse.getHits().getHits()) {
+            for (SearchHit searchHit : searchResponse.getHits()) {
                 docIds.add(searchHit.getId());
             }
         });

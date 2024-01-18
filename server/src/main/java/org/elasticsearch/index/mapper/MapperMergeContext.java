@@ -68,7 +68,7 @@ public final class MapperMergeContext {
         return mapperBuilderContext;
     }
 
-    public void removeRuntimeField(Map<String, RuntimeField> runtimeFields, String name) {
+    void removeRuntimeField(Map<String, RuntimeField> runtimeFields, String name) {
         if (runtimeFields.containsKey(name)) {
             runtimeFields.remove(name);
             if (remainingFieldsUntilLimit.get() != Long.MAX_VALUE) {
@@ -77,7 +77,7 @@ public final class MapperMergeContext {
         }
     }
 
-    public void addRuntimeFieldIfPossible(Map<String, RuntimeField> runtimeFields, RuntimeField runtimeField) {
+    void addRuntimeFieldIfPossible(Map<String, RuntimeField> runtimeFields, RuntimeField runtimeField) {
         if (runtimeFields.containsKey(runtimeField.name())) {
             runtimeFields.put(runtimeField.name(), runtimeField);
         } else if (canAddField(1)) {
@@ -86,7 +86,7 @@ public final class MapperMergeContext {
         }
     }
 
-    public boolean addFieldIfPossible(Map<String, Mapper> mappers, Mapper mapper) {
+    boolean addFieldIfPossible(Map<String, Mapper> mappers, Mapper mapper) {
         if (canAddField(mapper.mapperSize())) {
             remainingFieldsUntilLimit.getAndAdd(mapper.mapperSize() * -1);
             mappers.put(mapper.simpleName(), mapper);
@@ -95,14 +95,14 @@ public final class MapperMergeContext {
         return false;
     }
 
-    public void addFieldIfPossible(Mapper mapper, Runnable addField) {
+    void addFieldIfPossible(Mapper mapper, Runnable addField) {
         if (canAddField(mapper.mapperSize())) {
             remainingFieldsUntilLimit.getAndAdd(mapper.mapperSize() * -1);
             addField.run();
         }
     }
 
-    public boolean canAddField(int fieldSize) {
+    boolean canAddField(int fieldSize) {
         return remainingFieldsUntilLimit.get() >= fieldSize;
     }
 }

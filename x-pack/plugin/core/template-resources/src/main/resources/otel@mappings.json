@@ -51,7 +51,18 @@
             }
           }
         }
-      }
+      },
+      "dynamic_templates": [
+        {
+          "complex_attributes": {
+            "path_match": "*attributes.*",
+            "match_mapping_type": "object",
+            "mapping": {
+              "type": "flattened"
+            }
+          }
+        }
+      ]
     }
   },
   "_meta": {

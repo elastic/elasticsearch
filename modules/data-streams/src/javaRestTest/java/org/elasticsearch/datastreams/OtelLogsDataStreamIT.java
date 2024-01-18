@@ -71,7 +71,14 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                  }
                },
                "attributes": {
-                 "foo": "bar"
+                 "foo": "bar",
+                 "complex.attribute": {
+                   "foo": {
+                     "bar": {
+                       "baz": "qux"
+                     }
+                   }
+                 }
                },
                "trace_flags": 1,
                "span_id": "0102040800000000",
@@ -109,6 +116,10 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                 List.of("resource", "properties", "attributes", "properties", "service.name", "fields", "text", "type")
             ),
             is("match_only_text")
+        );
+        assertThat(
+            getValueFromPath(properties, List.of("attributes", "properties", "complex.attribute", "type")),
+            is("flattened")
         );
     }
 }

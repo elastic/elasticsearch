@@ -15,15 +15,16 @@ import org.elasticsearch.plugins.ExtensionLoader;
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.NavigableMap;
-import java.util.NavigableSet;
 import java.util.ServiceLoader;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.function.IntFunction;
 import java.util.regex.Pattern;
 
@@ -44,55 +45,64 @@ public class ReleaseVersions {
 
         try {
             String versionsFileName = versionContainer.getSimpleName() + ".csv";
-            URL versionsFile = versionContainer.getResource(versionsFileName);
+            InputStream versionsFile = versionContainer.getResourceAsStream(versionsFileName);
             if (versionsFile == null) {
                 throw new FileNotFoundException(Strings.format("Could not find versions file for class [%s]", versionContainer));
             }
 
-            try (
-                BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(versionContainer.getResourceAsStream(versionsFileName), StandardCharsets.UTF_8)
-                )
-            ) {
-                NavigableMap<Integer, NavigableSet<Version>> versions = new TreeMap<>();
+            NavigableMap<Integer, List<Version>> versions = new TreeMap<>();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(versionsFile, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     var matcher = VERSION_LINE.matcher(line);
                     if (matcher.matches() == false) {
-                        throw new IOException(Strings.format("Incorrect format for line [%s] in [%s]", line, versionsFile));
+                        throw new IOException(Strings.format("Incorrect format for line [%s] in [%s]", line, versionsFileName));
                     }
                     try {
                         Integer id = Integer.valueOf(matcher.group(2));
                         Version version = Version.fromString(matcher.group(1));
-                        versions.computeIfAbsent(id, k -> new TreeSet<>()).add(version);
+                        versions.computeIfAbsent(id, k -> new ArrayList<>()).add(version);
                     } catch (IllegalArgumentException e) {
                         // cannot happen??? regex is wrong...
                         assert false : "Regex allowed non-integer id or incorrect version through: " + e;
-                        throw new IOException(Strings.format("Incorrect format for line [%s] in [%s]", line, versionsFile), e);
+                        throw new IOException(Strings.format("Incorrect format for line [%s] in [%s]", line, versionsFileName), e);
                     }
                 }
-
-                return lookupFunction(versions);
             }
+
+            // replace all version lists with the smallest & greatest versions
+            versions.replaceAll((k, v) -> {
+                if (v.size() == 1) {
+                    return List.of(v.get(0));
+                } else {
+                    v.sort(Comparator.naturalOrder());
+                    return List.of(v.get(0), v.get(v.size() - 1));
+                }
+            });
+
+            return lookupFunction(versions);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    private static IntFunction<String> lookupFunction(NavigableMap<Integer, NavigableSet<Version>> versions) {
+    private static IntFunction<String> lookupFunction(NavigableMap<Integer, List<Version>> versions) {
+        assert versions.values().stream().allMatch(vs -> vs.size() == 1 || vs.size() == 2)
+            : "Version ranges have not been properly processed: " + versions;
+
         return id -> {
-            NavigableSet<Version> versionRange = versions.get(id);
+            List<Version> versionRange = versions.get(id);
 
             String lowerBound, upperBound;
             if (versionRange != null) {
-                lowerBound = versionRange.first().toString();
-                upperBound = versionRange.last().toString();
+                lowerBound = versionRange.get(0).toString();
+                upperBound = lastItem(versionRange).toString();
             } else {
                 // infer the bounds from the surrounding entries
                 var lowerRange = versions.lowerEntry(id);
                 if (lowerRange != null) {
                     // the next version is just a guess - might be a newer revision, might be a newer minor or major...
-                    lowerBound = nextVersion(lowerRange.getValue().last()).toString();
+                    lowerBound = nextVersion(lastItem(lowerRange.getValue())).toString();
                 } else {
                     // we know about all preceding versions - how can this version be less than everything else we know about???
                     assert false : "Could not find preceding version for id " + id;
@@ -102,15 +112,19 @@ public class ReleaseVersions {
                 var upperRange = versions.higherEntry(id);
                 if (upperRange != null) {
                     // too hard to guess what version this id might be for using the next version - just use it directly
-                    upperBound = upperRange.getValue().first().toString();
+                    upperBound = upperRange.getValue().get(0).toString();
                 } else {
-                    // likely a version used after this code was released - ok
+                    // likely a version created after the last release tagged version - ok
                     upperBound = "[" + id + "]";
                 }
             }
 
             return lowerBound.equals(upperBound) ? lowerBound : lowerBound + "-" + upperBound;
         };
+    }
+
+    private static <T> T lastItem(List<T> list) {
+        return list.get(list.size() - 1);
     }
 
     private static Version nextVersion(Version version) {

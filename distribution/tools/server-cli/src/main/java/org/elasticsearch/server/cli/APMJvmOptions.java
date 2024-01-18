@@ -246,7 +246,7 @@ class APMJvmOptions {
             StringJoiner tracingGlobalLabels = extractGlobalLabels(deprecatedTelemetryAgentPrefix, propertiesMap, settings);
             if (tracingGlobalLabels.length() != 0) {
                 throw new IllegalArgumentException(
-                    "Cannot have global labels using tracing.agent prefix ["
+                    "Cannot have global labels with tracing.agent prefix ["
                         + globalLabels
                         + "] and telemetry.apm.agent prefix ["
                         + tracingGlobalLabels

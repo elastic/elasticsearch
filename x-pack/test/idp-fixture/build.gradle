@@ -12,11 +12,11 @@ dependencies {
   api "junit:junit:${versions.junit}"
 }
 
-tasks.register("buildFixtursDockerImages", DockerBuildTask) {
+tasks.register("buildAndPublishFixtureDockerImages", DockerBuildTask) {
     dockerContext.fileValue(file("src/main/resources/idp"))
     baseImages = ["openjdk:11.0.16-jre"]
     noCache = BuildParams.isCi
-    tags = ["docker.elastic.co/elasticsearch-dev/idp-fixture:latest"]
+    tags = ["docker.elastic.co/elasticsearch-dev/idp-fixture:1.0"]
     getPush().set(true)
     getPlatforms().addAll( Architecture.values().collect{ it.dockerPlatform } )
 }

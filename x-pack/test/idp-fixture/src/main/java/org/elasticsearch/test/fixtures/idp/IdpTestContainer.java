@@ -16,7 +16,6 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.PullPolicy;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.images.builder.dockerfile.DockerfileBuilder;
-import org.testcontainers.lifecycle.Startable;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -27,8 +26,7 @@ import static org.elasticsearch.test.fixtures.testcontainers.TestContainerUtils.
 
 public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    // private static final String PRE_BAKED_IMAGE = "breskeby/test-fixture-idp:" + getArchTag();
-    private static final String PRE_BAKED_IMAGE = "docker.elastic.co/elasticsearch-dev/idp-fixture/idp-fixture:latest";
+    private static final String PRE_BAKED_IMAGE = "docker.elastic.co/elasticsearch-dev/idp-fixture/idp-fixture:1.0";
     private static final String OPENJDK_BASE_IMAGE = "openjdk:11.0.16-jre";
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -56,11 +54,6 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
         waitingFor(Wait.forListeningPorts(4443));
         addExposedPorts(4443, 8443);
         withCreateContainerCmdModifier(cmd -> cmd.withLinks(Link.parse("openldap:openldap")));
-    }
-
-    public IdpTestContainer dependsOn(Startable... startables) {
-        super.dependsOn(startables);
-        return this;
     }
 
     private static Consumer<DockerfileBuilder> imageBuilder() {

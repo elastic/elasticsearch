@@ -216,6 +216,11 @@ public abstract class DockerBuildTask extends DefaultTask {
             // Fetch the Docker image's hash, and write it to desk as the task's output. Doing this allows us
             // to do proper up-to-date checks in Gradle.
             try {
+                // multi-platform image builds do not end up in local registry, so we need to pull the just build image
+                // first to get the checksum
+                if (parameters.getPlatforms().get().size() > 1 && parameters.getPush().getOrElse(false)) {
+                    pullBaseImage(tags.get(0));
+                }
                 final String checksum = getImageChecksum(tags.get(0));
                 Files.writeString(parameters.getMarkerFile().getAsFile().get().toPath(), checksum + "\n");
             } catch (IOException e) {

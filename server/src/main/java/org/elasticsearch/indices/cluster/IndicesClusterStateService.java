@@ -651,7 +651,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
             if (e.getCause() instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
-                logger.warn(Strings.format("interrupted while creating shard [{}]", shardRouting), e);
+                logger.warn(Strings.format("interrupted while creating shard [%s]", shardRouting), e);
                 listener.onFailure(e);
                 return;
             }

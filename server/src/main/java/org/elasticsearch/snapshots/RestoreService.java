@@ -523,12 +523,12 @@ public final class RestoreService implements ClusterStateApplier {
                         ActionListener.releaseAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(RepositoryData repositoryData) {
-                                logger.debug(() -> format("repository UUID [{}] refresh completed", repositoryName));
+                                logger.debug(() -> format("repository UUID [%s] refresh completed", repositoryName));
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.debug(() -> format("repository UUID [{}] refresh failed", repositoryName), e);
+                                logger.debug(() -> format("repository UUID [%s] refresh failed", repositoryName), e);
                             }
                         }, refs.acquire())
                     );

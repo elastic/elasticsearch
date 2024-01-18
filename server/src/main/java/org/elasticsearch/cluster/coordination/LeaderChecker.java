@@ -164,7 +164,7 @@ public class LeaderChecker {
      */
     void setCurrentNodes(DiscoveryNodes discoveryNodes) {
         // Sorting the nodes for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
-        logger.trace(() -> Strings.format("setCurrentNodes: {}", discoveryNodes.mastersFirstStream().toList()));
+        logger.trace(() -> Strings.format("setCurrentNodes: %s", discoveryNodes.mastersFirstStream().toList()));
         this.discoveryNodes = discoveryNodes;
     }
 

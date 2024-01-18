@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -112,7 +113,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         Aggregations aggs = new Aggregations(Collections.singletonList(composite));
 
         SearchResponse response = new SearchResponse(
-            null,
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
             null,
             false,

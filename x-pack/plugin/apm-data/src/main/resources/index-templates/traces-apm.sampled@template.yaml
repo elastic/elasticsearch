@@ -11,10 +11,12 @@ composed_of:
 - traces@mappings
 - apm@mappings
 - apm@settings
-- apm@custom
+- traces@custom
+- traces-apm.sampled@custom
 - ecs@mappings
 ignore_missing_component_templates:
-- apm@custom
+- traces@custom
+- traces-apm.sampled@custom
 template:
   lifecycle:
     data_retention: 1h

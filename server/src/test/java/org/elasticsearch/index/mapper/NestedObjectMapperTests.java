@@ -1508,14 +1508,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstMapper.merge(secondMapper, MapperBuilderContext.root(false, false))
+            () -> firstMapper.merge(secondMapper, MapperMergeContext.root(false, false))
         );
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
         NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
             secondMapper,
             MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperBuilderContext.root(false, false)
+            MapperMergeContext.root(false, false)
         );
         assertFalse(result.isIncludeInParent());
         assertTrue(result.isIncludeInRoot());

@@ -389,18 +389,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterGrouping(EsqlBaseParser.GroupingContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitGrouping(EsqlBaseParser.GroupingContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx) { }
   /**
    * {@inheritDoc}

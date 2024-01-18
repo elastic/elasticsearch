@@ -11,6 +11,9 @@ package org.elasticsearch.index.codec.zstd;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 
 /** JNA bindings for ZSTD. */
@@ -21,7 +24,13 @@ final class Zstd {
     private static final ZstdLibrary LIBRARY;
 
     static {
-        LIBRARY = Native.load("zstd", ZstdLibrary.class);
+        File zstdPath;
+        try {
+            zstdPath = Native.extractFromResourcePath("zstd");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        LIBRARY = Native.load(zstdPath.getAbsolutePath(), ZstdLibrary.class);
     }
 
     private interface ZstdLibrary extends Library {

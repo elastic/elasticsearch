@@ -372,7 +372,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
-
     @Override
     public void incRef() {
         refCounted.incRef();

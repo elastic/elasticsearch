@@ -14,8 +14,12 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.SingleResultDeduplicator;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ListenerTimeouts;
@@ -100,6 +104,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -150,14 +155,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         this.chunkResponseExecutor = threadPool.generic();
         csDeduplicator = new SingleResultDeduplicator<>(
             threadPool.getThreadContext(),
-            l -> getRemoteClusterClient().admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .setNodes(true)
-                .setMasterNodeTimeout(TimeValue.MAX_VALUE)
-                .execute(l.map(ClusterStateResponse::getState))
+            l -> getRemoteClusterClient().execute(
+                ClusterStateAction.INSTANCE,
+                new ClusterStateRequest().clear().metadata(true).nodes(true).masterNodeTimeout(TimeValue.MAX_VALUE),
+                l.map(ClusterStateResponse::getState)
+            )
         );
     }
 
@@ -208,12 +210,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
-        Client remoteClient = getRemoteClusterClient();
+        var remoteClient = getRemoteClusterClient();
         // We set a single dummy index name to avoid fetching all the index data
-        ClusterStateResponse clusterState = remoteClient.admin()
-            .cluster()
-            .state(CcrRequests.metadataRequest("dummy_index_name"))
-            .actionGet(ccrSettings.getRecoveryActionTimeout());
+        ClusterStateResponse clusterState = PlainActionFuture.get(
+            f -> remoteClient.execute(ClusterStateAction.INSTANCE, CcrRequests.metadataRequest("dummy_index_name"), f),
+            ccrSettings.getRecoveryActionTimeout().millis(),
+            TimeUnit.MILLISECONDS
+        );
         return clusterState.getState().metadata();
     }
 
@@ -221,12 +224,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         String leaderIndex = index.getName();
-        Client remoteClient = getRemoteClusterClient();
+        var remoteClient = getRemoteClusterClient();
 
-        ClusterStateResponse clusterState = remoteClient.admin()
-            .cluster()
-            .state(CcrRequests.metadataRequest(leaderIndex))
-            .actionGet(ccrSettings.getRecoveryActionTimeout());
+        ClusterStateResponse clusterState = PlainActionFuture.get(
+            f -> remoteClient.execute(ClusterStateAction.INSTANCE, CcrRequests.metadataRequest(leaderIndex), f),
+            ccrSettings.getRecoveryActionTimeout().millis(),
+            TimeUnit.MILLISECONDS
+        );
 
         // Validates whether the leader cluster has been configured properly:
         PlainActionFuture<String[]> future = new PlainActionFuture<>();
@@ -371,7 +375,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             final Index leaderIndex = new Index(leaderIndexName, leaderUUID);
             final ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
 
-            final Client remoteClient = getRemoteClusterClient();
+            final var remoteClient = getRemoteClusterClient();
 
             final String retentionLeaseId = retentionLeaseId(localClusterName, shardId.getIndex(), remoteClusterAlias, leaderIndex);
 
@@ -507,12 +511,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId index, ShardId shardId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         final String leaderIndex = index.getName();
-        final IndicesStatsResponse response = getRemoteClusterClient().admin()
-            .indices()
-            .prepareStats(leaderIndex)
-            .clear()
-            .setStore(true)
-            .get(ccrSettings.getRecoveryActionTimeout());
+        final IndicesStatsResponse response = PlainActionFuture.get(
+            f -> getRemoteClusterClient().execute(
+                IndicesStatsAction.INSTANCE,
+                new IndicesStatsRequest().indices(leaderIndex).clear().store(true),
+                f
+            ),
+            ccrSettings.getRecoveryActionTimeout().millis(),
+            TimeUnit.MILLISECONDS
+        );
         for (ShardStats shardStats : response.getIndex(leaderIndex).getShards()) {
             final ShardRouting shardRouting = shardStats.getShardRouting();
             if (shardRouting.shardId().id() == shardId.getId() && shardRouting.primary() && shardRouting.active()) {

@@ -844,6 +844,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
+    public boolean isRequireDataStream() {
+        // Always false because data streams cannot accept update operations
+        return false;
+    }
+
+    @Override
     public void process(IndexRouting indexRouting) {
         // Nothing to do
     }

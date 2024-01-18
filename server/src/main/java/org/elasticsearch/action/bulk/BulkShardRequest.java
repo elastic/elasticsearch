@@ -199,8 +199,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     @Override
     public void close() {
-        boolean closed = decRef();
-        assert closed : "Attempted to close BulkShardRequest but it still has references";
+        decRef();
     }
 
     private static class BulkRequestRefCounted extends AbstractRefCounted {

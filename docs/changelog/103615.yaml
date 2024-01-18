@@ -1,5 +1,0 @@
-pr: 103615
-summary: Fix downsample api by returning a failure in case one or more downsample persistent tasks failed
-area: Downsampling
-type: bug
-issues: []

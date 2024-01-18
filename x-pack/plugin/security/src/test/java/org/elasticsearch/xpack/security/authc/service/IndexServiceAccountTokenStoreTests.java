@@ -263,7 +263,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             if (r instanceof SearchRequest) {
                 final SearchHit[] hits = IntStream.range(0, nhits)
                     .mapToObj(
-                        i -> new SearchHit(
+                        i -> SearchHit.unpooled(
                             randomIntBetween(0, Integer.MAX_VALUE),
                             SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i]
                         )
@@ -272,7 +272,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                 ActionListener.respondAndRelease(
                     l,
                     new SearchResponse(
-                        new SearchHits(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null),
+                        SearchHits.unpooled(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null),
                         null,
                         null,
                         false,

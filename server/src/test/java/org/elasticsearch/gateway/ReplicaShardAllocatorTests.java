@@ -617,9 +617,9 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard)
                             .addShard(
-                                aShardRouting(shardId, node2.getId(), false, ShardRoutingState.INITIALIZING)
-                                    .withUnassignedInfo(unassignedInfo)
-                                    .build()
+                                aShardRouting(shardId, node2.getId(), false, ShardRoutingState.INITIALIZING).withUnassignedInfo(
+                                    unassignedInfo
+                                ).build()
                             )
                     )
             )

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -19,7 +20,6 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -50,11 +50,11 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
                         CohereServiceFields.MODEL,
                         "abc",
                         CohereEmbeddingsTaskSettings.INPUT_TYPE,
-                        InputType.INGEST.toString().toLowerCase(Locale.ROOT),
+                        InputType.INGEST.toString(),
                         CohereEmbeddingsTaskSettings.EMBEDDING_TYPE,
-                        CohereEmbeddingType.INT8,
+                        CohereEmbeddingType.INT8.toString(),
                         CohereServiceFields.TRUNCATE,
-                        CohereTruncation.END.toString().toLowerCase(Locale.ROOT)
+                        CohereTruncation.END.toString()
                     )
                 )
             ),
@@ -76,16 +76,13 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
         var exception = expectThrows(
-            ValidationException.class,
+            ElasticsearchStatusException.class,
             () -> CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.EMBEDDING_TYPE, List.of("abc"))))
         );
 
         MatcherAssert.assertThat(
             exception.getMessage(),
-            is(
-                "Validation Failed: 1: [task_settings] Invalid type [Integer]"
-                    + " received for value [123]. [embedding_types] must be type [String];"
-            )
+            is("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
         );
     }
 

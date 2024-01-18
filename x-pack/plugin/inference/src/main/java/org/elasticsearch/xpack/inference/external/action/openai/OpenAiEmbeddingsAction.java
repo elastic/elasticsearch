@@ -43,7 +43,7 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
             this.model.getSecretSettings().apiKey()
         );
         this.client = new OpenAiClient(Objects.requireNonNull(sender), Objects.requireNonNull(serviceComponents));
-        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri(), "send OpenAI embeddings");
+        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri(), "OpenAI embeddings");
         this.truncator = Objects.requireNonNull(serviceComponents.truncator());
     }
 

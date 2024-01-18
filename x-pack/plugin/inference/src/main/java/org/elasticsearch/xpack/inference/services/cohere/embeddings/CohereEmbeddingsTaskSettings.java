@@ -92,7 +92,12 @@ public record CohereEmbeddingsTaskSettings(
     }
 
     public CohereEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalString(), InputType.fromStream(in), CohereEmbeddingType.fromStream(in), CohereTruncation.fromStream(in));
+        this(
+            in.readOptionalString(),
+            in.readOptionalEnum(InputType.class),
+            in.readOptionalEnum(CohereEmbeddingType.class),
+            in.readOptionalEnum(CohereTruncation.class)
+        );
     }
 
     @Override
@@ -130,9 +135,9 @@ public record CohereEmbeddingsTaskSettings(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(model);
-        inputType.writeTo(out);
-        embeddingType.writeTo(out);
-        truncation.writeTo(out);
+        out.writeOptionalEnum(inputType);
+        out.writeOptionalEnum(embeddingType);
+        out.writeOptionalEnum(truncation);
     }
 
     public CohereEmbeddingsTaskSettings overrideWith(CohereEmbeddingsTaskSettings requestTaskSettings) {

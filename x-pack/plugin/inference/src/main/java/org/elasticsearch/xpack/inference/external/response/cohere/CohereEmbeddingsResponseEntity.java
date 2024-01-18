@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +46,7 @@ public class CohereEmbeddingsResponseEntity {
 
     private static String supportedEmbeddingTypes() {
         var validTypes = EMBEDDING_PARSERS.keySet().toArray(String[]::new);
+        Arrays.sort(validTypes);
         return String.join(", ", validTypes);
     }
 

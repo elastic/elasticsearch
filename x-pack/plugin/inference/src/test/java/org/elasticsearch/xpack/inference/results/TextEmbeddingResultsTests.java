@@ -54,6 +54,10 @@ public class TextEmbeddingResultsTests extends AbstractBWCWireSerializationTestC
         return createRandomResults(createFunction);
     }
 
+    public static TextEmbeddingResults createRandomFloatResults() {
+        return createRandomResults(TextEmbeddingResultsTests::createRandomFloatEmbedding);
+    }
+
     private static TextEmbeddingResults createRandomResults(Supplier<TextEmbeddingResults.Embedding> creator) {
         int embeddings = randomIntBetween(1, 10);
         List<TextEmbeddingResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
@@ -63,10 +67,6 @@ public class TextEmbeddingResultsTests extends AbstractBWCWireSerializationTestC
         }
 
         return new TextEmbeddingResults(embeddingResults);
-    }
-
-    private static TextEmbeddingResults.Embedding createRandomEmbedding(boolean makeFloatEmbedding) {
-        return makeFloatEmbedding ? createRandomFloatEmbedding() : createRandomByteEmbedding();
     }
 
     private static TextEmbeddingResults.Embedding createRandomByteEmbedding() {
@@ -284,7 +284,7 @@ public class TextEmbeddingResultsTests extends AbstractBWCWireSerializationTestC
             return new TextEmbeddingResults(instance.embeddings().subList(0, end));
         } else {
             List<TextEmbeddingResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
-            embeddings.add(createRandomEmbedding(randomBoolean()));
+            embeddings.add(createRandomFloatEmbedding());
             return new TextEmbeddingResults(embeddings);
         }
     }

@@ -879,3 +879,43 @@ AVG(salary):double | avg_salary_rounded:double
 48248.55           | 48249.0
 // end::statsUnnamedColumnEval-result[]
 ;
+
+groupByNull#[skip:-8.12.0,reason:bug fixed in 8.12.1]
+ROW a = 1, c = null
+| STATS COUNT(a) BY c;
+
+COUNT(a):long | c:null
+            1 | null
+;
+
+groupByNullAndString#[skip:-8.12.0,reason:bug fixed in 8.12.1]
+ROW a = 1, b = "foo", c = null
+| STATS COUNT(a) BY c, b;
+
+COUNT(a):long | c:null | b:keyword
+            1 | null   | foo
+;
+
+groupByStringAndNull#[skip:-8.12.0,reason:bug fixed in 8.12.1]
+ROW a = 1, b = "foo", c = null
+| STATS COUNT(a) BY b, c;
+
+COUNT(a):long | b:keyword | c:null
+            1 | foo       | null
+;
+
+countNull#[skip:-8.12.0,reason:bug fixed in 8.12.1]
+ROW a = 1, c = null
+| STATS COUNT(c) BY a;
+
+COUNT(c):long | a:integer
+            0 | 1
+;
+
+countDistinctNull#[skip:-8.99.99,reason:not yet fixed]
+ROW a = 1, c = null
+| STATS COUNT_DISTINCT(c) BY a;
+
+COUNT(c):long | a:integer
+            0 | 1
+;

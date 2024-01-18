@@ -2304,6 +2304,75 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Before local optimizations:
      *
      * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
+     * WORD]) AS count],FINAL,null]
+     *   \_ExchangeExec[[xVal{r}#18, xDel{r}#19, yVal{r}#20, yDel{r}#21, count{r}#22, xVal{r}#23, xDel{r}#24, yVal{r}#25, yDel{r}#26,
+     * count{r}#27, count{r}#28, seen{r}#29],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
+     * WORD]) AS count]]
+     * \_EsRelation[airports][abbrev{f}#10, city{f}#16, city_location{f}#17, coun..]]]
+     *
+     * After local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
+     * WORD]) AS count],FINAL,108]
+     *   \_ExchangeExec[[xVal{r}#18, xDel{r}#19, yVal{r}#20, yDel{r}#21, count{r}#22, xVal{r}#23, xDel{r}#24, yVal{r}#25, yDel{r}#26,
+     * count{r}#27, count{r}#28, seen{r}#29],true]
+     *     \_AggregateExec[[],[SPATIALCENTROID(location{f}#14) AS airports, SPATIALCENTROID(city_location{f}#17) AS cities, COUNT([2a][KEY
+     * WORD]) AS count],PARTIAL,108]
+     *       \_FieldExtractExec[location{f}#14, city_location{f}#17][location{f}#14, city_location{f}#17]
+     *         \_EsQueryExec[airports], query[][_doc{f}#53], limit[], sort[] estimatedRowSize[104]
+     *
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     */
+    public void testSpatialTypesAndStatsUseDocValuesMultiSpatialAggregations() {
+        var plan = physicalPlanAirports("""
+            FROM airports
+            | STATS airports=ST_CENTROID(location), cities=ST_CENTROID(city_location), count=COUNT()
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+        // Before optimization the aggregation does not use doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "airports", SpatialCentroid.class, GEO_POINT, false);
+        assertAggregation(agg, "cities", SpatialCentroid.class, GEO_POINT, false);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fAgg = as(fragment.fragment(), Aggregate.class);
+        as(fAgg.child(), EsRelation.class);
+
+        // Now optimize the plan and assert the aggregation uses doc-values
+        var optimized = optimizedPlan(plan);
+        limit = as(optimized, LimitExec.class);
+        agg = as(limit.child(), AggregateExec.class);
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "airports", SpatialCentroid.class, GEO_POINT, false);
+        assertAggregation(agg, "cities", SpatialCentroid.class, GEO_POINT, false);
+        exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+        // below the exchange (in data node) the aggregation is using doc-values
+        assertAggregation(agg, "count", Count.class);
+        assertAggregation(agg, "airports", SpatialCentroid.class, GEO_POINT, true);
+        assertAggregation(agg, "cities", SpatialCentroid.class, GEO_POINT, true);
+        var extract = as(agg.child(), FieldExtractExec.class);
+        source(extract.child());
+        assertTrue("Expect attributes to be forStats", extract.attributesToExtract().stream().allMatch(attr -> {
+            boolean forStats = extract.forStats(attr);
+            return forStats && attr.dataType() == GEO_POINT;
+        }));
+    }
+
+    /**
+     * Before local optimizations:
+     *
+     * LimitExec[500[INTEGER]]
      * \_AggregateExec[[],[SPATIALCENTROID(location{f}#12) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,null]
      *   \_ExchangeExec[[xVal{r}#13, xDel{r}#14, yVal{r}#15, yDel{r}#16, count{r}#17, count{r}#18, seen{r}#19],true]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[

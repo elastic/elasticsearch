@@ -155,6 +155,15 @@ centroid:geo_point                           | count:long
 POINT (7.572387259169772 26.836561792945492) | 891
 ;
 
+centroidFromAirportsCountCityLocations#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS centroid=ST_CENTROID(city_location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (1.3965610809060276 24.127649406297987) | 891
+;
+
 centroidFromAirportsCountGroupedCountry#[skip:-8.12.99, reason:st_centroid added in 8.13]
 FROM airports
 | STATS centroid=ST_CENTROID(city_location), count=COUNT() BY country
@@ -200,6 +209,15 @@ FROM airports
 
 centroid:geo_point                            | count:long
 POINT (17.55538044598613 18.185558743854063)  | 891
+;
+
+centroidFromAirportsCountryCount#[skip:-8.12.99, reason:st_centroid added in 8.13]
+FROM airports
+| STATS airports=ST_CENTROID(location), cities=ST_CENTROID(city_location), count=COUNT()
+;
+
+airports:geo_point                             | cities:geo_point                              | count:long
+POINT(-0.030548143003023033 24.37553649504829) | POINT (1.3965610809060276 24.127649406297987) | 891
 ;
 
 centroidFromAirportsFilteredAndSorted#[skip:-8.12.99, reason:st_centroid added in 8.13]

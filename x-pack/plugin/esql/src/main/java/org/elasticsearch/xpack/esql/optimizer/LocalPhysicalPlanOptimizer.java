@@ -57,13 +57,13 @@ import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.Queries;
 import org.elasticsearch.xpack.ql.util.Queries.Clause;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -432,7 +432,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     private static class SpatialDocValuesExtraction extends OptimizerRule<AggregateExec> {
         @Override
         protected PhysicalPlan rule(AggregateExec aggregate) {
-            var foundAttribute = new Holder<Attribute>(null);
+            var foundAttributes = new HashSet<Attribute>();
 
             PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
                 if (exec instanceof AggregateExec agg) {
@@ -442,7 +442,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
                             if (af.field() instanceof FieldAttribute fieldAttribute) {
                                 // We need to both mark the field to load differently, and change the spatial function to know to use it
-                                foundAttribute.set(fieldAttribute);
+                                foundAttributes.add(fieldAttribute);
                                 changedAggregates = true;
                                 orderedAggregates.add(as.replaceChild(af.withDocValues()));
                             } else {
@@ -465,9 +465,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {
                     // Tell the field extractor that it should extract the field from doc-values instead of source values
-                    if (foundAttribute.get() != null && fieldExtractExec.attributesToExtract().contains(foundAttribute.get())) {
-                        exec = fieldExtractExec.withForStats(foundAttribute.get());
+                    for (Attribute found : foundAttributes) {
+                        if (fieldExtractExec.attributesToExtract().contains(found)) {
+                            fieldExtractExec = fieldExtractExec.withForStats(found);
+                        }
                     }
+                    exec = fieldExtractExec;
                 }
                 return exec;
             });

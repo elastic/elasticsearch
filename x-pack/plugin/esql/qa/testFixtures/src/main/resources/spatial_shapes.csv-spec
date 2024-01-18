@@ -3,11 +3,16 @@
 #
 
 convertFromString#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
-row wkt = "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"
-| eval pt = to_geoshape(wkt);
+// tag::to_geoshape-str[]
+ROW wkt = "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"
+| EVAL geom = TO_GEOSHAPE(wkt)
+// end::to_geoshape-str[]
+;
 
-wkt:keyword                                     |pt:geo_shape
+// tag::to_geoshape-str-result[]
+wkt:keyword                                     | geom:geo_shape
 "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))" | POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))
+// end::to_geoshape-str-result[]
 ;
 
 convertFromStringArray#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
@@ -70,14 +75,18 @@ wkt:keyword                               |pt:geo_shape
 #
 
 convertCartesianShapeFromString#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
-
-row wkt = "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))"
-| mv_expand wkt
-| eval pt = to_cartesianshape(wkt)
+// tag::to_cartesianshape-str[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))"]
+| MV_EXPAND wkt
+| EVAL geom = TO_CARTESIANSHAPE(wkt)
+// end::to_cartesianshape-str[]
 ;
 
-wkt:keyword               |pt:cartesian_shape 
+// tag::to_cartesianshape-str-result[]
+wkt:keyword               |geom:cartesian_shape
+"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
 "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))" |POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))
+// end::to_cartesianshape-str-result[]
 ;
 
 convertCartesianFromStringArray#[skip:-8.12.99, reason:spatial type cartesian_shape only added in 8.13]

@@ -118,7 +118,9 @@ public final class CsvTestUtils {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
-                if (stringValue.contains(",")) {// multi-value field
+                if (stringValue.startsWith("\"") && stringValue.endsWith("\"")) { // string value
+                    stringValue = stringValue.substring(1, stringValue.length() - 1).replace(ESCAPED_COMMA_SEQUENCE, ",");
+                } else if (stringValue.contains(",")) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
 
                     String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");
@@ -421,7 +423,9 @@ public final class CsvTestUtils {
         ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
-        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
+        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
+        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -486,7 +490,7 @@ public final class CsvTestUtils {
         }
 
         private static Type bytesRefBlockType(Type actualType) {
-            if (actualType == GEO_POINT || actualType == CARTESIAN_POINT) {
+            if (actualType == GEO_POINT || actualType == CARTESIAN_POINT || actualType == GEO_SHAPE || actualType == CARTESIAN_SHAPE) {
                 return actualType;
             } else {
                 return KEYWORD;

@@ -51,12 +51,7 @@ final class CO2Calculator {
             return DEFAULT_KILOWATTS_PER_CORE * customCO2PerKWH * annualCoreHours * customDatacenterPUE;
         }
 
-        CostEntry costs = InstanceTypeService.getCosts(host.instanceType);
-        if (costs == null) {
-            return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
-        }
-
-        return annualCoreHours * costs.co2Factor; // unit: metric tons
+        return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
     }
 
     private double getKiloWattsPerCore(HostMetadata host) {

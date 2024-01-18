@@ -109,7 +109,7 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(jobId);
     }
 
-    private static IndexRequest indexRandomAnnotation(String jobId, String createUsername) throws IOException {
+    private static void indexRandomAnnotation(String jobId, String createUsername) throws IOException {
         Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setCreateUsername(createUsername).build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);

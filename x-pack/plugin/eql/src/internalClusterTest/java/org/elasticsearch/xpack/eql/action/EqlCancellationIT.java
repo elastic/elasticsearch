@@ -62,6 +62,9 @@ public class EqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         }
 
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         boolean cancelDuringSearch = randomBoolean();
         List<SearchBlockPlugin> plugins = initBlockFactory(cancelDuringSearch, cancelDuringSearch == false);
         EqlSearchRequest request = new EqlSearchRequest().indices("test").query("my_event where val==1").eventCategoryField("event_type");

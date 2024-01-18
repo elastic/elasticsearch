@@ -553,18 +553,21 @@ public class UpdateRequestTests extends ESTestCase {
         UpdateRequest request = new UpdateRequest("index", id);
         request.doc("{}", XContentType.JSON);
         ActionRequestValidationException validate = request.validate();
+        request.decRef();
         assertNull(validate);
 
         id = randomAlphaOfLength(512);
         request = new UpdateRequest("index", id);
         request.doc("{}", XContentType.JSON);
         validate = request.validate();
+        request.decRef();
         assertNull(validate);
 
         id = randomAlphaOfLength(513);
         request = new UpdateRequest("index", id);
         request.doc("{}", XContentType.JSON);
         validate = request.validate();
+        request.decRef();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(), containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
     }

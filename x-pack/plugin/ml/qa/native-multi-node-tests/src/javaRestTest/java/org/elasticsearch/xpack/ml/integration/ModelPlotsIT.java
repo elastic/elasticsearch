@@ -54,6 +54,7 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
                     IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
                     indexRequest.source("time", timestamp, "user", user);
                     bulkRequestBuilder.add(indexRequest);
+                    indexRequest.decRef();
                 }
             }
 

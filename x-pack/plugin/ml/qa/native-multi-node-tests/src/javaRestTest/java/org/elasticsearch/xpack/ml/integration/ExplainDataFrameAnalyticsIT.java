@@ -87,6 +87,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
                     i < 2 ? "bingo" : "rest"
                 ); // We tag bingo on the first two docs to ensure we have 2 classes
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {
@@ -249,6 +250,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
                 Object[] source = new Object[] { "mapped_field", i };
                 IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source).opType(DocWriteRequest.OpType.CREATE);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             if (bulkResponse.hasFailures()) {

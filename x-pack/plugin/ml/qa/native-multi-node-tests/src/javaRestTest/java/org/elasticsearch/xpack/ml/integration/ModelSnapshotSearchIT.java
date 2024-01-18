@@ -119,15 +119,19 @@ public class ModelSnapshotSearchIT extends MlNativeAutodetectIntegTestCase {
         IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).id(
             ModelSnapshot.documentId(jobId, snapshotId)
         ).setRequireAlias(true);
-        if (immediateRefresh) {
-            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        }
-        XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
-        modelSnapshotBuilder.build().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-        indexRequest.source(xContentBuilder);
+        try {
+            if (immediateRefresh) {
+                indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            }
+            XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
+            modelSnapshotBuilder.build().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            indexRequest.source(xContentBuilder);
 
-        DocWriteResponse indexResponse = client().execute(TransportIndexAction.TYPE, indexRequest).actionGet();
-        assertThat(indexResponse.getResult(), is(DocWriteResponse.Result.CREATED));
+            DocWriteResponse indexResponse = client().execute(TransportIndexAction.TYPE, indexRequest).actionGet();
+            assertThat(indexResponse.getResult(), is(DocWriteResponse.Result.CREATED));
+        } finally {
+            indexRequest.decRef();
+        }
     }
 
     private void persistModelStateDocs(String jobId, String snapshotId, int numDocs) {
@@ -142,6 +146,7 @@ public class ModelSnapshotSearchIT extends MlNativeAutodetectIntegTestCase {
                     .source(Collections.singletonMap("compressed", Collections.singletonList("foo")))
                     .setRequireAlias(true);
                 bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
 
             BulkResponse bulkResponse = client().execute(BulkAction.INSTANCE, bulkRequest).actionGet();

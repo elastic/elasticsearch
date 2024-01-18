@@ -55,15 +55,15 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         assertThatNumberOfAnnotationsIsEqualTo(0);
 
         runJob(jobIdA, datafeedIdA);
-        client().index(randomAnnotationIndexRequest(jobIdA, InternalUsers.XPACK_USER.principal())).actionGet();
-        client().index(randomAnnotationIndexRequest(jobIdA, InternalUsers.XPACK_USER.principal())).actionGet();
-        client().index(randomAnnotationIndexRequest(jobIdA, "real_user")).actionGet();
+        indexRandomAnnotation(jobIdA, InternalUsers.XPACK_USER.principal());
+        indexRandomAnnotation(jobIdA, InternalUsers.XPACK_USER.principal());
+        indexRandomAnnotation(jobIdA, "real_user");
         // 3 jobA annotations (2 _xpack, 1 real_user)
         assertThatNumberOfAnnotationsIsEqualTo(3);
 
         runJob(jobIdB, datafeedIdB);
-        client().index(randomAnnotationIndexRequest(jobIdB, InternalUsers.XPACK_USER.principal())).actionGet();
-        client().index(randomAnnotationIndexRequest(jobIdB, "other_real_user")).actionGet();
+        indexRandomAnnotation(jobIdB, InternalUsers.XPACK_USER.principal());
+        indexRandomAnnotation(jobIdB, "other_real_user");
         // 3 jobA annotations (2 _xpack, 1 real_user) and 2 jobB annotations (1 _xpack, 1 real_user)
         assertThatNumberOfAnnotationsIsEqualTo(5);
 
@@ -109,12 +109,16 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(jobId);
     }
 
-    private static IndexRequest randomAnnotationIndexRequest(String jobId, String createUsername) throws IOException {
+    private static IndexRequest indexRandomAnnotation(String jobId, String createUsername) throws IOException {
         Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setCreateUsername(createUsername).build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME).source(xContentBuilder)
-                .setRequireAlias(true)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
+            try {
+                indexRequest.source(xContentBuilder).setRequireAlias(true).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                client().index(indexRequest).actionGet();
+            } finally {
+                indexRequest.decRef();
+            }
         }
     }
 }

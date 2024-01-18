@@ -182,7 +182,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
                     }
                   }
                 }""", destIndex);
-            Request createIndexTemplateRequest = new Request("PUT", "_template/test_dest_index_no_deduce_template");
+            Request createIndexTemplateRequest = new Request("PUT", "_template/test_dest_index_mappings_template");
             createIndexTemplateRequest.setJsonEntity(destIndexTemplate);
             createIndexTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
             Map<String, Object> createIndexTemplateResponse = entityAsMap(client().performRequest(createIndexTemplateRequest));
@@ -261,6 +261,9 @@ public class TransformDestIndexIT extends TransformRestTestCase {
                 )
             )
         );
+        Map<String, Object> searchResult = getAsMap(destIndex + "/_search?q=reviewer:user_0");
+        String timestamp = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.timestamp", searchResult)).get(0);
+        assertThat(timestamp, is(equalTo("2017-01-10T10:10:10.000Z")));
     }
 
     private static void assertAliases(String index, String... aliases) throws IOException {

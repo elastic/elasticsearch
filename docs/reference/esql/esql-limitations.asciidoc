@@ -36,7 +36,9 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 * `version`
 * Spatial types
 ** `geo_point`
+** `geo_shape`
 ** `point`
+** `shape`
 
 [discrete]
 ==== Unsupported types
@@ -47,9 +49,6 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** `counter`
 ** `position`
 ** `aggregate_metric_double`
-* Spatial types
-** `geo_shape`
-** `shape`
 * Date/time
 ** `date_nanos`
 ** `date_range`

@@ -21,6 +21,9 @@ public final class MapperMergeContext {
     private final MapperBuilderContext mapperBuilderContext;
     private final AtomicLong remainingFieldsUntilLimit;
 
+    /**
+     * The root context, to be used when merging a tree of mappers
+     */
     public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long maxFieldsToAddDuringMerge) {
         return new MapperMergeContext(
             MapperBuilderContext.root(isSourceSynthetic, isDataStream),
@@ -28,6 +31,12 @@ public final class MapperMergeContext {
         );
     }
 
+    /**
+     * Creates a new {@link MapperMergeContext} from a {@link MapperBuilderContext}
+     * @param mapperBuilderContext the {@link MapperBuilderContext} for this {@link MapperMergeContext}
+     * @param maxFieldsToAddDuringMerge limits how many fields can be added during the merge process
+     * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
+     */
     public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext, long maxFieldsToAddDuringMerge) {
         return new MapperMergeContext(mapperBuilderContext, new AtomicLong(maxFieldsToAddDuringMerge));
     }
@@ -37,15 +46,25 @@ public final class MapperMergeContext {
         this.remainingFieldsUntilLimit = remainingFieldsUntilLimit;
     }
 
+    /**
+     * Creates a new {@link MapperMergeContext} that is a child of this context
+     * @param name the name of the child context
+     * @return a new {@link MapperMergeContext} with this context as its parent
+     */
     public MapperMergeContext createChildContext(String name) {
         return createChildContext(mapperBuilderContext.createChildContext(name));
     }
 
+    /**
+     * Creates a new {@link MapperMergeContext} with a given {@link MapperBuilderContext}
+     * @param childContext the child {@link MapperBuilderContext}
+     * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
+     */
     public MapperMergeContext createChildContext(MapperBuilderContext childContext) {
         return new MapperMergeContext(childContext, remainingFieldsUntilLimit);
     }
 
-    public MapperBuilderContext getMapperBuilderContext() {
+    MapperBuilderContext getMapperBuilderContext() {
         return mapperBuilderContext;
     }
 

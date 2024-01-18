@@ -41,6 +41,9 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     // Flag set for disallowing index auto creation for an individual write request.
     String REQUIRE_ALIAS = "require_alias";
 
+    // Flag set for disallowing index auto creation if no matching data-stream index template is available.
+    String REQUIRE_DATA_STREAM = "require_data_stream";
+
     // Flag indicating that the list of executed pipelines should be returned in the request
     String LIST_EXECUTED_PIPELINES = "list_executed_pipelines";
 
@@ -148,6 +151,12 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * @return boolean flag, when true specifically requires an alias
      */
     boolean isRequireAlias();
+
+    /**
+     * Should this request override specifically require the destination to be a data stream?
+     * @return boolean flag, when true specifically requires a data stream
+     */
+    boolean isRequireDataStream();
 
     /**
      * Finalize the request before executing or routing it.

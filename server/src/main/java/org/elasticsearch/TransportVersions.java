@@ -188,7 +188,8 @@ public class TransportVersions {
     public static final TransportVersion PEERFINDER_REPORTS_PEERS_MASTERS = def(8_575_00_0);
     public static final TransportVersion ESQL_MULTI_CLUSTERS_ENRICH = def(8_576_00_0);
     public static final TransportVersion NESTED_KNN_MORE_INNER_HITS = def(8_577_00_0);
-    public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_578_00_0);
+    public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_578_00_0);
+    public static final TransportVersion DESIRED_NODE_VERSION_OPTIONAL_STRING = def(8_579_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

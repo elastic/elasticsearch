@@ -192,14 +192,14 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
-        assert Objects.equals(mapperBuilderContext.buildFullName("foo"), "foo");
-        return mapperBuilderContext;
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
+        return mapperMergeContext;
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
-        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
+        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
         final Explicit<Boolean> numericDetection;
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {

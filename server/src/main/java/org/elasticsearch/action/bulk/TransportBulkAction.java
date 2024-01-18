@@ -53,6 +53,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -73,7 +74,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +85,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -346,7 +347,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         // Attempt to create all the indices that we're going to need during the bulk before we start.
         // Step 1: collect all the indices in the request
-        final Map<String, Boolean> indices = bulkRequest.requests.stream()
+        final Map<String, ReducedRequestInfo> indices = bulkRequest.requests.stream()
             // delete requests should not attempt to create the index (if the index does not
             // exist), unless an external versioning is used
             .filter(
@@ -354,20 +355,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     || request.versionType() == VersionType.EXTERNAL
                     || request.versionType() == VersionType.EXTERNAL_GTE
             )
-            .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 || v2));
+            .collect(
+                Collectors.toMap(
+                    DocWriteRequest::index,
+                    request -> new ReducedRequestInfo(request.isRequireAlias(), request.isRequireDataStream()),
+                    ReducedRequestInfo::merge
+                )
+            );
 
         // Step 2: filter the list of indices to find those that don't currently exist.
         final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
-        Set<String> autoCreateIndices = new HashSet<>();
-        ClusterState state = clusterService.state();
-        for (Map.Entry<String, Boolean> indexAndFlag : indices.entrySet()) {
-            final String index = indexAndFlag.getKey();
-            boolean shouldAutoCreate = indexNameExpressionResolver.hasIndexAbstraction(index, state) == false;
+        final ClusterState state = clusterService.state();
+        Map<String, Boolean> indicesToAutoCreate = indices.entrySet()
+            .stream()
+            .filter(entry -> indexNameExpressionResolver.hasIndexAbstraction(entry.getKey(), state) == false)
             // We should only auto create if we are not requiring it to be an alias
-            if (shouldAutoCreate && (indexAndFlag.getValue() == false)) {
-                autoCreateIndices.add(index);
-            }
-        }
+            .filter(entry -> entry.getValue().isRequireAlias == false)
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().isRequireDataStream));
 
         // Step 3: Collect all the data streams that need to be rolled over before writing
         Set<String> dataStreamsToBeRolledOver = indices.keySet().stream().filter(target -> {
@@ -381,7 +385,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             bulkRequest,
             executorName,
             listener,
-            autoCreateIndices,
+            indicesToAutoCreate,
             dataStreamsToBeRolledOver,
             indicesThatCannotBeCreated,
             startTime
@@ -397,14 +401,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         BulkRequest bulkRequest,
         String executorName,
         ActionListener<BulkResponse> listener,
-        Set<String> autoCreateIndices,
+        Map<String, Boolean> indicesToAutoCreate,
         Set<String> dataStreamsToBeRolledOver,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
-        if (autoCreateIndices.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
+        if (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
             return;
         }
@@ -415,8 +419,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
-            for (String index : autoCreateIndices) {
-                createIndex(index, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+            for (Map.Entry<String, Boolean> indexEntry : indicesToAutoCreate.entrySet()) {
+                final String index = indexEntry.getKey();
+                createIndex(index, indexEntry.getValue(), bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse createIndexResponse) {}
 
@@ -564,9 +569,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+    void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest();
         createIndexRequest.index(index);
+        createIndexRequest.requireDataStream(requireDataStream);
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.masterNodeTimeout(timeout);
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
@@ -595,6 +601,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     protected long buildTookInMillis(long startTimeNanos) {
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
+    }
+
+    private record ReducedRequestInfo(boolean isRequireAlias, boolean isRequireDataStream) {
+        private ReducedRequestInfo merge(ReducedRequestInfo other) {
+            return new ReducedRequestInfo(
+                this.isRequireAlias || other.isRequireAlias,
+                this.isRequireDataStream || other.isRequireDataStream
+            );
+        }
     }
 
     /**
@@ -653,6 +668,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     continue;
                 }
                 if (addFailureIfIndexCannotBeCreated(docWriteRequest, i)) {
+                    continue;
+                }
+                if (addFailureIfRequiresDataStreamAndNoParentDataStream(docWriteRequest, i, metadata)) {
                     continue;
                 }
                 IndexAbstraction ia = null;
@@ -821,6 +839,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (request.isRequireAlias() && (metadata.hasAlias(request.index()) == false)) {
                 Exception exception = new IndexNotFoundException(
                     "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + request.index() + "] is not an alias",
+                    request.index()
+                );
+                addFailure(request, idx, exception);
+                return true;
+            }
+            return false;
+        }
+
+        private boolean addFailureIfRequiresDataStreamAndNoParentDataStream(DocWriteRequest<?> request, int idx, final Metadata metadata) {
+            if (request.isRequireDataStream() && (metadata.indexIsADataStream(request.index()) == false)) {
+                Exception exception = new ResourceNotFoundException(
+                    "["
+                        + DocWriteRequest.REQUIRE_DATA_STREAM
+                        + "] request flag is [true] and ["
+                        + request.index()
+                        + "] is not a data stream",
                     request.index()
                 );
                 addFailure(request, idx, exception);
@@ -1017,16 +1051,54 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 );
             } else {
                 return actionListener.map(response -> {
-                    BulkItemResponse[] items = response.getItems();
-                    for (int i = 0; i < items.length; i++) {
-                        itemResponses.add(originalSlots.get(i), response.getItems()[i]);
+                    // these items are the responses from the subsequent bulk request, their 'slots'
+                    // are not correct for this response we're building
+                    final BulkItemResponse[] bulkResponses = response.getItems();
+
+                    final BulkItemResponse[] allResponses = new BulkItemResponse[bulkResponses.length + itemResponses.size()];
+
+                    // the item responses are from the original request, so their slots are correct.
+                    // these are the responses for requests that failed early and were not passed on to the subsequent bulk.
+                    for (BulkItemResponse item : itemResponses) {
+                        allResponses[item.getItemId()] = item;
                     }
-                    return new BulkResponse(
-                        itemResponses.toArray(new BulkItemResponse[0]),
-                        response.getTook().getMillis(),
-                        ingestTookInMillis
-                    );
+
+                    // use the original slots for the responses from the bulk
+                    for (int i = 0; i < bulkResponses.length; i++) {
+                        allResponses[originalSlots.get(i)] = bulkResponses[i];
+                    }
+
+                    if (Assertions.ENABLED) {
+                        assertResponsesAreCorrect(bulkResponses, allResponses);
+                    }
+
+                    return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis);
                 });
+            }
+        }
+
+        private void assertResponsesAreCorrect(BulkItemResponse[] bulkResponses, BulkItemResponse[] allResponses) {
+            // check for an empty intersection between the ids
+            final Set<Integer> failedIds = itemResponses.stream().map(BulkItemResponse::getItemId).collect(Collectors.toSet());
+            final Set<Integer> responseIds = IntStream.range(0, bulkResponses.length)
+                .map(originalSlots::get) // resolve subsequent bulk ids back to the original slots
+                .boxed()
+                .collect(Collectors.toSet());
+            assert Sets.haveEmptyIntersection(failedIds, responseIds)
+                : "bulk item response slots cannot have failed and been processed in the subsequent bulk request, failed ids: "
+                    + failedIds
+                    + ", response ids: "
+                    + responseIds;
+
+            // check for the correct number of responses
+            final int expectedResponseCount = bulkRequest.requests.size();
+            final int actualResponseCount = failedIds.size() + responseIds.size();
+            assert expectedResponseCount == actualResponseCount
+                : "Expected [" + expectedResponseCount + "] responses, but found [" + actualResponseCount + "]";
+
+            // check that every response is present
+            for (int i = 0; i < allResponses.length; i++) {
+                assert allResponses[i] != null : "BulkItemResponse at index [" + i + "] was null";
             }
         }
 
@@ -1053,7 +1125,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             // We hit a error during preprocessing a request, so we:
-            // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
+            // 1) Remember the request item slot from the bulk, so that when we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
             failedSlots.set(slot);

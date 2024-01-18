@@ -98,6 +98,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

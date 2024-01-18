@@ -214,12 +214,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#grouping}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitGrouping(EsqlBaseParser.GroupingContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#fromIdentifier}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -465,4 +459,10 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#setting}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSetting(EsqlBaseParser.SettingContext ctx);
 }

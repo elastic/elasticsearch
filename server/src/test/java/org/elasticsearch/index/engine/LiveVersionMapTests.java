@@ -52,10 +52,10 @@ public class LiveVersionMapTests extends ESTestCase {
                 map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
             }
         }
-        long actualMemoryBytesUsed = RamUsageTester.ramUsed(map);
-        long estimatedMemoryBytesUsed = map.ramBytesUsed();
+        long actualRamBytesUsed = RamUsageTester.ramUsed(map);
+        long estimatedRamBytesUsed = map.ramBytesUsed();
         // less than 50% off
-        assertEquals(actualMemoryBytesUsed, estimatedMemoryBytesUsed, actualMemoryBytesUsed / 2);
+        assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, actualRamBytesUsed / 2);
 
         // now refresh
         map.beforeRefresh();
@@ -68,8 +68,8 @@ public class LiveVersionMapTests extends ESTestCase {
                 map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
             }
         }
-        actualMemoryBytesUsed = RamUsageTester.ramUsed(map);
-        estimatedMemoryBytesUsed = map.ramBytesUsed();
+        actualRamBytesUsed = RamUsageTester.ramUsed(map);
+        estimatedRamBytesUsed = map.ramBytesUsed();
         long tolerance;
         if (Constants.JRE_IS_MINIMUM_JAVA9) {
             // With Java 9, RamUsageTester computes the memory usage of maps as
@@ -79,14 +79,14 @@ public class LiveVersionMapTests extends ESTestCase {
             // linked list/tree that is used to resolve collisions. So we use a
             // bigger tolerance.
             // less than 50% off
-            tolerance = actualMemoryBytesUsed / 2;
+            tolerance = actualRamBytesUsed / 2;
         } else {
             // Java 8 is more accurate by doing reflection into the actual JDK classes
             // so we give it a lower error bound.
             // less than 25% off
-            tolerance = actualMemoryBytesUsed / 4;
+            tolerance = actualRamBytesUsed / 4;
         }
-        assertEquals(actualMemoryBytesUsed, estimatedMemoryBytesUsed, tolerance);
+        assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, tolerance);
     }
 
     public void testRefreshingBytes() throws IOException {
@@ -449,9 +449,9 @@ public class LiveVersionMapTests extends ESTestCase {
         }
     }
 
-    public void testVersionLookupMemoryBytesUsed() {
+    public void testVersionLookupRamBytesUsed() {
         var vl = new LiveVersionMap.VersionLookup(newConcurrentMapWithAggressiveConcurrency());
-        assertEquals(0, vl.memoryBytesUsed());
+        assertEquals(0, vl.ramBytesUsed());
         Set<BytesRef> existingKeys = new HashSet<>();
         Supplier<Tuple<BytesRef, IndexVersionValue>> randomEntry = () -> {
             var key = randomBoolean() || existingKeys.isEmpty() ? uid(randomIdentifier()) : randomFrom(existingKeys);
@@ -488,18 +488,18 @@ public class LiveVersionMapTests extends ESTestCase {
                     throw new IllegalStateException("branch value unexpected");
             }
         });
-        long actualMemoryBytesUsed = vl.getMap()
+        long actualRamBytesUsed = vl.getMap()
             .entrySet()
             .stream()
             .mapToLong(entry -> LiveVersionMap.VersionLookup.mapEntryBytesUsed(entry.getKey(), entry.getValue()))
             .sum();
-        assertEquals(actualMemoryBytesUsed, vl.memoryBytesUsed());
+        assertEquals(actualRamBytesUsed, vl.ramBytesUsed());
     }
 
-    public void testVersionMapReclaimableMemoryBytes() throws IOException {
+    public void testVersionMapReclaimableRamBytes() throws IOException {
         LiveVersionMap map = new LiveVersionMap();
-        assertEquals(map.memoryBytesUsedForRefresh(), 0L);
-        assertEquals(map.reclaimableRefreshMemoryBytes(), 0L);
+        assertEquals(map.ramBytesUsedForRefresh(), 0L);
+        assertEquals(map.reclaimableRefreshRamBytes(), 0L);
         IntStream.range(0, randomIntBetween(10, 100)).forEach(i -> {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
@@ -507,13 +507,13 @@ public class LiveVersionMapTests extends ESTestCase {
                 map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
             }
         });
-        assertThat(map.reclaimableRefreshMemoryBytes(), greaterThan(0L));
-        assertEquals(map.reclaimableRefreshMemoryBytes(), map.memoryBytesUsedForRefresh());
+        assertThat(map.reclaimableRefreshRamBytes(), greaterThan(0L));
+        assertEquals(map.reclaimableRefreshRamBytes(), map.ramBytesUsedForRefresh());
         map.beforeRefresh();
-        assertEquals(map.reclaimableRefreshMemoryBytes(), 0L);
-        assertThat(map.memoryBytesUsedForRefresh(), greaterThan(0L));
+        assertEquals(map.reclaimableRefreshRamBytes(), 0L);
+        assertThat(map.ramBytesUsedForRefresh(), greaterThan(0L));
         map.afterRefresh(randomBoolean());
-        assertEquals(map.reclaimableRefreshMemoryBytes(), 0L);
-        assertEquals(map.memoryBytesUsedForRefresh(), 0L);
+        assertEquals(map.reclaimableRefreshRamBytes(), 0L);
+        assertEquals(map.ramBytesUsedForRefresh(), 0L);
     }
 }

@@ -61,8 +61,8 @@ public class LiveVersionMapTestUtils {
         map.pruneTombstones(maxTimestampToPrune, maxSeqNoToPrune);
     }
 
-    public static long reclaimableRefreshMemoryBytes(LiveVersionMap map) {
-        return map.reclaimableRefreshMemoryBytes();
+    public static long reclaimableRefreshRamBytes(LiveVersionMap map) {
+        return map.reclaimableRefreshRamBytes();
     }
 
     public static long refreshingBytes(LiveVersionMap map) {

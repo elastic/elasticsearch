@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -25,7 +26,7 @@ public class CcrLicenseCheckerTests extends ESTestCase {
         final CcrLicenseChecker checker = new CcrLicenseChecker(() -> isCcrAllowed, () -> true) {
 
             @Override
-            User getUser(final Client remoteClient) {
+            User getUser(final ThreadContext threadContext) {
                 return null;
             }
 

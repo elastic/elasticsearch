@@ -8,6 +8,11 @@
 
 package org.elasticsearch.cli.internal;
 
+/**
+ * Simple escape util for JSON.
+ *
+ * Note, this doesn't do unicode encoding for any additional special, non-printable characters.
+ */
 class JsonUtils {
     private JsonUtils() {}
 
@@ -22,33 +27,67 @@ class JsonUtils {
         ESC_CODES['\\'] = '\\';
     }
 
-    /**
-     * Simple escape util for JSON.
-     *
-     * This doesn't do unicode encoding for any additional special, non-printable characters.
-     */
-    static void quoteAsString(CharSequence chars, StringBuilder sb) {
-        if (chars == null) {
-            sb.append("null");
-            return;
-        }
-        int length = chars.length();
-        int start = 0;
+    static void quoteAsString(char[] chars, int start, int count, StringBuilder sb) {
+        quoteAsString(new CharArrayWrapper(chars), start, count, sb);
+    }
 
-        for (int end = 0; end < length; end++) {
-            char c = chars.charAt(end);
+    static void quoteAsString(CharSequence chars, int start, int count, StringBuilder sb) {
+        final int end = start + count;
+        assert chars != null;
+        assert end <= chars.length();
+
+        for (int current = start; current < end; current++) {
+            char c = chars.charAt(current);
             // check for special chars in escape code table
             char ec = c < 128 ? ESC_CODES[c] : 0;
             if (ec != 0) {
-                if (end > start) {
-                    sb.append(chars, start, end);
+                if (current > start) {
+                    sb.append(chars, start, current);
                 }
                 sb.append('\\').append(ec); // append escaped
-                start = end + 1;
+                start = current + 1;
             }
         }
-        if (start < length) {
-            sb.append(chars, start, length);
+        if (start < end) {
+            sb.append(chars, start, end);
+        }
+    }
+
+    static void quote(char c, StringBuilder sb) {
+        // check for special chars in escape code table
+        char ec = c < 128 ? ESC_CODES[c] : 0;
+        if (ec != 0) {
+            sb.append('\\').append(ec); // append escaped
+        } else {
+            sb.append(c);
+        }
+    }
+
+    private static class CharArrayWrapper implements CharSequence {
+        private final char[] data;
+
+        CharArrayWrapper(char[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public int length() {
+            return data.length;
+        }
+
+        @Override
+        public char charAt(int index) {
+            return data[index];
+        }
+
+        @Override
+        public CharSequence subSequence(int start, int end) {
+            return new String(data, start, end - start);
+        }
+
+        @Override
+        public String toString() {
+            return new String(data);
         }
     }
 }

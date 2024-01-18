@@ -743,12 +743,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
-            if (bulkShardRequest.items().length == 0) {
-                // No requests to execute due to previous errors, terminate early
-                releaseOnFinish.close();
-                return;
-            }
-
             client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {

@@ -1120,6 +1120,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
         boolean storeTextField = randomBoolean();
         boolean storedKeywordField = storeTextField || randomBoolean();
+        boolean indexText = randomBoolean();
         String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
         Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
@@ -1137,7 +1138,12 @@ public class TextFieldMapperTests extends MapperTestCase {
                         delegate.inputValue(),
                         delegate.expectedForSyntheticSource(),
                         delegate.expectedForBlockLoader(),
-                        b -> b.field("type", "text").field("store", true)
+                        b -> {
+                            b.field("type", "text").field("store", true);
+                            if (indexText == false) {
+                                b.field("index", false);
+                            }
+                        }
                     );
                 }
                 // We'll load from _source if ignore_above is defined, otherwise we load from the keyword field.
@@ -1149,6 +1155,9 @@ public class TextFieldMapperTests extends MapperTestCase {
                     delegate.expectedForBlockLoader(),
                     b -> {
                         b.field("type", "text");
+                        if (indexText == false) {
+                            b.field("index", false);
+                        }
                         b.startObject("fields");
                         {
                             b.startObject(randomAlphaOfLength(4));

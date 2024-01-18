@@ -334,7 +334,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             }
         }
 
-        private QueryPage<JobStats> jobsStats;
+        private final QueryPage<JobStats> jobsStats;
 
         public Response(QueryPage<JobStats> jobsStats) {
             super(Collections.emptyList(), Collections.emptyList());

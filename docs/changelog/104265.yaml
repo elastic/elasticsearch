@@ -1,0 +1,6 @@
+pr: 104265
+summary: Remove `hashCode` and `equals` from `OperationModeUpdateTask`
+area: ILM+SLM
+type: bug
+issues:
+ - 100871

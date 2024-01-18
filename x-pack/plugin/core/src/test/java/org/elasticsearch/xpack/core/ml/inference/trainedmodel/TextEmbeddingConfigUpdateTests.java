@@ -20,7 +20,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.cloneWithNewTruncation;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<TextEmbeddingConfigUpdate> {
 
@@ -61,7 +60,7 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
     public void testApply() {
         TextEmbeddingConfig originalConfig = TextEmbeddingConfigTests.createRandom();
 
-        assertThat(originalConfig, sameInstance(new TextEmbeddingConfigUpdate.Builder().build().apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(new TextEmbeddingConfigUpdate.Builder().build())));
 
         assertThat(
             new TextEmbeddingConfig(
@@ -70,7 +69,7 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
                 "ml-results",
                 originalConfig.getEmbeddingSize()
             ),
-            equalTo(new TextEmbeddingConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new TextEmbeddingConfigUpdate.Builder().setResultsField("ml-results").build()))
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
@@ -83,9 +82,11 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
                 originalConfig.getEmbeddingSize()
             ),
             equalTo(
-                new TextEmbeddingConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
-                ).build().apply(originalConfig)
+                originalConfig.apply(
+                    new TextEmbeddingConfigUpdate.Builder().setTokenizationUpdate(
+                        createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                    ).build()
+                )
             )
         );
     }

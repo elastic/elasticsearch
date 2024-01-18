@@ -862,6 +862,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
+        Map.entry(
+            Set.of(
+                EsqlDataTypes.DATE_PERIOD,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.LONG,
+                EsqlDataTypes.TIME_DURATION,
+                DataTypes.NULL
+            ),
+            "numeric, date_period or time_duration"
+        ),
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),

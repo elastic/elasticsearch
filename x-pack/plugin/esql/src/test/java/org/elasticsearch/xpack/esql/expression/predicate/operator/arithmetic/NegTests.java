@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFun
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -39,33 +40,36 @@ public class NegTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Integer", () -> {
-            // Ensure we don't have an overflow
-            int arg = randomIntBetween((Integer.MIN_VALUE + 1), Integer.MAX_VALUE);
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.INTEGER, "arg")),
-                "NegIntsEvaluator[v=Attribute[channel=0]]",
-                DataTypes.INTEGER,
-                equalTo(Math.negateExact(arg))
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        TestCaseSupplier.forUnaryInt(suppliers,
+            "NegIntsEvaluator[v=Attribute[channel=0]]",
+            DataTypes.INTEGER,
+            Math::negateExact,
+            Integer.MIN_VALUE + 1,
+            Integer.MAX_VALUE,
+            List.of()
             );
-        }), new TestCaseSupplier("Long", () -> {
-            // Ensure we don't have an overflow
-            long arg = randomLongBetween((Long.MIN_VALUE + 1), Long.MAX_VALUE);
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.LONG, "arg")),
-                "NegLongsEvaluator[v=Attribute[channel=0]]",
-                DataTypes.LONG,
-                equalTo(Math.negateExact(arg))
-            );
-        }), new TestCaseSupplier("Double", () -> {
-            double arg = randomDouble();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "NegDoublesEvaluator[v=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(-arg)
-            );
-        }), new TestCaseSupplier("Duration", () -> {
+        TestCaseSupplier.forUnaryLong(
+           suppliers,
+            "NegLongsEvaluator[v=Attribute[channel=0]]",
+            DataTypes.LONG,
+            Math::negateExact,
+            Long.MIN_VALUE + 1,
+            Long.MAX_VALUE,
+            List.of()
+        );
+        TestCaseSupplier.forUnaryDouble(
+            suppliers,
+            "NegDoublesEvaluator[v=Attribute[channel=0]]",
+            DataTypes.DOUBLE,
+            // TODO: Probably we don't want to allow negative zeros
+            d -> -d,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            List.of()
+        );
+        suppliers.addAll(List.of(
+           new TestCaseSupplier("Duration", List.of(EsqlDataTypes.TIME_DURATION),() -> {
             Duration arg = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.TIME_DURATION, "arg")),
@@ -73,7 +77,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 EsqlDataTypes.TIME_DURATION,
                 equalTo(arg.negated())
             );
-        }), new TestCaseSupplier("Period", () -> {
+        }), new TestCaseSupplier("Period", List.of(EsqlDataTypes.DATE_PERIOD),() -> {
             Period arg = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.DATE_PERIOD, "arg")),
@@ -82,6 +86,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
                 equalTo(arg.negated())
             );
         })));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
     @Override

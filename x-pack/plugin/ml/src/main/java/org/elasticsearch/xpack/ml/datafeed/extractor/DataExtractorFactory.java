@@ -71,7 +71,7 @@ public interface DataExtractorFactory {
 
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
             if (hasEsqlQuery) {
-                EsqlDataExtractorFactory.create(datafeed, factoryHandler);
+                EsqlDataExtractorFactory.create(client, datafeed, job.getDataDescription().getTimeField(), factoryHandler);
                 return;
             }
             final boolean hasRollup = response.getJobs().isEmpty() == false;

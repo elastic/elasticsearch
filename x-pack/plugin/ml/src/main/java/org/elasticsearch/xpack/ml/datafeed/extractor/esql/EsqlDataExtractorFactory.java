@@ -8,21 +8,37 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-//
-//import java.time.ZoneOffset;
-//import java.util.List;
-//import java.util.Locale;
+
+import java.util.Objects;
 
 public class EsqlDataExtractorFactory implements DataExtractorFactory {
 
-    public static void create(DatafeedConfig datafeed, ActionListener<DataExtractorFactory> factoryHandler) {
+    private final Client client;
+    private final DatafeedConfig datafeed;
+    private final String timeField;
+
+    private EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, String timeField) {
+        this.client = Objects.requireNonNull(client);
+        this.datafeed = Objects.requireNonNull(datafeed);
+        this.timeField = timeField;
+    }
+
+    public static void create(
+        Client client,
+        DatafeedConfig datafeed,
+        String timeField,
+        ActionListener<DataExtractorFactory> factoryHandler
+    ) {
+        DataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, timeField);
+        factoryHandler.onResponse(factory);
     }
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        return null;
+        return new EsqlDataExtractor(client, datafeed, timeField, start, end);
     }
 }

@@ -13,10 +13,10 @@
         "severity_text": {
           "type": "keyword"
         },
-        "body.text": {
+        "body_text": {
           "type": "match_only_text"
         },
-        "body.structured": {
+        "body_structured": {
           "type": "flattened"
         },
         "trace_flags": {

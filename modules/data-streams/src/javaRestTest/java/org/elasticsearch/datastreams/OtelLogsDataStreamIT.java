@@ -49,7 +49,7 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         indexDoc(client, dataStream, """
             {
                "@timestamp": "1688394864123.456789",
-               "body.text": "This is a log message",
+               "body_text": "This is a log message",
                "data_stream": {
                  "type": "logs",
                  "dataset": "generic.otel",

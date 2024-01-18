@@ -24,9 +24,11 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.index.IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -312,6 +314,21 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
             );
         }
 
+        return validationException;
+    }
+
+    static ActionRequestValidationException validateDocIdLength(String id, ActionRequestValidationException validationException) {
+        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
+            validationException = addValidationError(
+                "id ["
+                    + id
+                    + "] is too long, must be no longer than "
+                    + MAX_DOCUMENT_ID_LENGTH_IN_BYTES
+                    + " bytes but was: "
+                    + id.getBytes(StandardCharsets.UTF_8).length,
+                validationException
+            );
+        }
         return validationException;
     }
 }

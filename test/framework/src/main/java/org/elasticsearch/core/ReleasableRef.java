@@ -8,16 +8,40 @@
 
 package org.elasticsearch.core;
 
+import org.elasticsearch.transport.LeakTracker;
+
+import java.util.Objects;
+
 /**
  * Adapter to use a {@link RefCounted} in a try-with-resources block.
  */
-public record ReleasableRef<T extends RefCounted>(T get) implements Releasable {
+public final class ReleasableRef<T extends RefCounted> implements Releasable {
+
+    private final Releasable closeResource;
+    private final T resource;
+
+    private ReleasableRef(T resource) {
+        this.resource = Objects.requireNonNull(resource);
+        this.closeResource = LeakTracker.wrap(Releasables.assertOnce(resource::decRef));
+    }
+
     @Override
     public void close() {
-        get().decRef();
+        closeResource.close();
     }
 
     public static <T extends RefCounted> ReleasableRef<T> of(T value) {
         return new ReleasableRef<>(value);
     }
+
+    public T get() {
+        assert resource.hasReferences();
+        return resource;
+    }
+
+    @Override
+    public String toString() {
+        return "ReleasableRef[" + resource + ']';
+    }
+
 }

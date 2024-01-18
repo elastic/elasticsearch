@@ -329,37 +329,37 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         // Index and refresh on an unsafe map
-        assertEquals(0, archive.getMemoryBytesUsed());
-        assertEquals(0, archive.getReclaimableMemoryBytes());
-        assertEquals(0, archive.getRefreshingMemoryBytes());
+        assertEquals(0, archive.getRamBytesUsed());
+        assertEquals(0, archive.getReclaimableRamBytes());
+        assertEquals(0, archive.getRefreshingRamBytes());
         maybePutIndex(map, "1", randomIndexVersionValue());
-        assertEquals(0, archive.getMemoryBytesUsed());
+        assertEquals(0, archive.getRamBytesUsed());
         assertTrue(isUnsafe(map));
         refresh(map);
-        assertEquals(0, archive.getMemoryBytesUsed());
+        assertEquals(0, archive.getRamBytesUsed());
         // Index and refresh on an safe map
         enforceSafeAccess(map);
         maybePutIndex(map, "2", randomIndexVersionValue());
-        assertEquals(0, archive.getMemoryBytesUsed());
-        assertEquals(0, archive.getReclaimableMemoryBytes());
+        assertEquals(0, archive.getRamBytesUsed());
+        assertEquals(0, archive.getReclaimableRamBytes());
         refresh(map);
-        assertThat(archive.getReclaimableMemoryBytes(), greaterThan(0L));
-        assertEquals(0, archive.getRefreshingMemoryBytes());
+        assertThat(archive.getReclaimableRamBytes(), greaterThan(0L));
+        assertEquals(0, archive.getRefreshingRamBytes());
         assertArchiveMemoryBytesUsedIsCorrect(archive);
         flush(map, currentGeneration, preCommitGeneration);
         assertArchiveMemoryBytesUsedIsCorrect(archive);
-        assertEquals(0, archive.getReclaimableMemoryBytes());
-        assertThat(archive.getRefreshingMemoryBytes(), greaterThan(0L));
+        assertEquals(0, archive.getReclaimableRamBytes());
+        assertThat(archive.getRefreshingRamBytes(), greaterThan(0L));
         archive.afterUnpromotablesRefreshed(currentGeneration.get());
-        assertEquals(0, archive.getMemoryBytesUsed());
-        assertEquals(0, archive.getReclaimableMemoryBytes());
-        assertEquals(0, archive.getRefreshingMemoryBytes());
+        assertEquals(0, archive.getRamBytesUsed());
+        assertEquals(0, archive.getReclaimableRamBytes());
+        assertEquals(0, archive.getRefreshingRamBytes());
         // Randomly test indexing (assuming safe map), refresh, flush and unpromotable refresh
         IntStream.range(1, randomIntBetween(10, 20)).forEach(i -> {
-            var sizeBeforeIndexing = archive.getMemoryBytesUsed();
+            var sizeBeforeIndexing = archive.getRamBytesUsed();
             var noOfOps = randomIntBetween(0, 10);
             IntStream.range(0, noOfOps).forEach(opCounter -> putIndex(map, randomIdentifier(), randomIndexVersionValue()));
-            assertEquals(sizeBeforeIndexing, archive.getMemoryBytesUsed());
+            assertEquals(sizeBeforeIndexing, archive.getRamBytesUsed());
             var noOfRefreshes = randomIntBetween(0, 3);
             IntStream.range(0, noOfRefreshes).forEach(refreshCounter -> refresh(map));
             assertArchiveMemoryBytesUsedIsCorrect(archive);
@@ -374,7 +374,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
                 flushedGenerations.add(currentGeneration.get());
             });
             if (noOfRefreshes > 0 && noOfFlushes > 0) {
-                assertEquals(0, archive.getReclaimableMemoryBytes());
+                assertEquals(0, archive.getReclaimableRamBytes());
                 if (noOfOps > 0) {
                     assertThat(refreshingBytes(map), greaterThan(0L));
                 }
@@ -429,7 +429,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
 
     private static void assertArchiveMemoryBytesUsedIsCorrect(StatelessLiveVersionMapArchive archive) {
         var actualMemoryUsed = RamUsageTester.ramUsed(archive);
-        assertEquals(EMPTY_ARCHIVE_SIZE + archive.getMemoryBytesUsed(), actualMemoryUsed, actualMemoryUsed / 2);
+        assertEquals(EMPTY_ARCHIVE_SIZE + archive.getRamBytesUsed(), actualMemoryUsed, actualMemoryUsed / 2);
     }
 
     private void flush(LiveVersionMap map, AtomicLong currentGeneration, AtomicLong preCommitGeneration) {

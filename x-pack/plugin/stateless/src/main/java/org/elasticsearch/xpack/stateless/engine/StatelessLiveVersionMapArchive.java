@@ -151,7 +151,7 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     }
 
     @Override
-    public long getMemoryBytesUsed() {
+    public long getRamBytesUsed() {
         long memBytesUsed = 0;
         for (var versionLookup : archivePerGeneration.values()) {
             memBytesUsed += archiveEntryBytesUsed(versionLookup);
@@ -160,7 +160,7 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     }
 
     @Override
-    public long getReclaimableMemoryBytes() {
+    public long getReclaimableRamBytes() {
         long preCommitGeneration = preCommitGenerationSupplier.get();
         long notFlushingBytes = 0;
         for (var entry : archivePerGeneration.entrySet()) {
@@ -174,7 +174,7 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     }
 
     @Override
-    public long getRefreshingMemoryBytes() {
+    public long getRefreshingRamBytes() {
         long preCommitGeneration = preCommitGenerationSupplier.get();
         long flushingBytes = 0;
         for (var entry : archivePerGeneration.entrySet()) {

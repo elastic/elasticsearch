@@ -16,8 +16,10 @@ structures. So these same recommendations also help with indexing speed.
 The default <<dense-vector-element-type,`element_type`>> is `float`. But this
 can be automatically quantized during index time through
 <<dense-vector-quantization,`quantization`>>. Quantization will reduce the
-required memory by 4x, but it will also reduce the precision of the vectors. For
-`float` vectors with `dim` greater than or equal to `384`, using a
+required memory by 4x, but it will also reduce the precision of the vectors and
+increase disk usage for the field (by up to 25%).
+
+For `float` vectors with `dim` greater than or equal to `384`, using a
 <<dense-vector-quantization,`quantized`>> index is highly recommended.
 
 [discrete]

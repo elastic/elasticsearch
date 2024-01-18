@@ -447,8 +447,8 @@ public class ObjectMapper extends Mapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperBuilderContext) {
-        return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperBuilderContext);
+    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
+        return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperMergeContext);
     }
 
     @Override
@@ -458,12 +458,12 @@ public class ObjectMapper extends Mapper {
         }
     }
 
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperBuilderContext, String name) {
-        return mapperBuilderContext.createChildContext(name);
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        return mapperMergeContext.createChildContext(name);
     }
 
-    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {
-        var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
+        var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
         return new ObjectMapper(
             simpleName(),
             fullPath,

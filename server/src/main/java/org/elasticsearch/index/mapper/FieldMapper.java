@@ -372,7 +372,7 @@ public abstract class FieldMapper extends Mapper {
     public abstract Builder getMergeBuilder();
 
     @Override
-    public final FieldMapper merge(Mapper mergeWith, MapperMergeContext mapperBuilderContext) {
+    public final FieldMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
         if (mergeWith == this) {
             return this;
         }
@@ -394,9 +394,9 @@ public abstract class FieldMapper extends Mapper {
             return (FieldMapper) mergeWith;
         }
         Conflicts conflicts = new Conflicts(name());
-        builder.merge((FieldMapper) mergeWith, conflicts, mapperBuilderContext);
+        builder.merge((FieldMapper) mergeWith, conflicts, mapperMergeContext);
         conflicts.check();
-        return builder.build(mapperBuilderContext.getMapperBuilderContext());
+        return builder.build(mapperMergeContext.getMapperBuilderContext());
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -1224,11 +1224,11 @@ public abstract class FieldMapper extends Mapper {
             return this;
         }
 
-        protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperBuilderContext) {
+        protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            MapperMergeContext childContext = mapperBuilderContext.createChildContext(in.simpleName());
+            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.simpleName());
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }

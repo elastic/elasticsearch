@@ -213,8 +213,8 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {
-        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
+        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
         final Explicit<Boolean> numericDetection;
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
@@ -260,9 +260,9 @@ public class RootObjectMapper extends ObjectMapper {
         assert this.runtimeFields != mergeWithObject.runtimeFields;
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
-                parentBuilderContext.removeRuntimeField(runtimeFields, runtimeField.getKey());
+                parentMergeContext.removeRuntimeField(runtimeFields, runtimeField.getKey());
             } else {
-                parentBuilderContext.addRuntimeFieldIfPossible(runtimeFields, runtimeField.getValue());
+                parentMergeContext.addRuntimeFieldIfPossible(runtimeFields, runtimeField.getValue());
             }
         }
 

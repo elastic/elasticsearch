@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -174,20 +173,8 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         }
 
         @Override
-        protected Object nullValueAsSource(Object nullValue) {
-            if (nullValue == null) {
-                return null;
-            }
-            SpatialPoint point = (SpatialPoint) nullValue;
-            return point.toWKT();
-        }
-
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // Currently we can only load from source in ESQL
-            ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
-            // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
-            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
+        protected Object nullValueAsSource(T nullValue) {
+            return nullValue == null ? null : nullValue.toWKT();
         }
     }
 }

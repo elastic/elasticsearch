@@ -8,11 +8,11 @@
 
 package org.elasticsearch.recovery;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -405,7 +405,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
     private void refreshAndAssert() throws Exception {
         assertBusy(() -> {
-            RefreshResponse actionGet = indicesAdmin().prepareRefresh().get();
+            BroadcastResponse actionGet = indicesAdmin().prepareRefresh().get();
             assertAllSuccessful(actionGet);
         }, 5, TimeUnit.MINUTES);
     }

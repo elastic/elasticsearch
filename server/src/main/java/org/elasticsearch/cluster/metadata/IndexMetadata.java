@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -139,14 +138,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
-    // TODO: refactor this method after adding more downsampling metadata
-    public boolean isDownsampledIndex() {
-        final String sourceIndex = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
-        final String indexDownsamplingStatus = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY);
-        final boolean downsamplingSuccess = DownsampleTaskStatus.SUCCESS.name()
-            .toLowerCase(Locale.ROOT)
-            .equals(indexDownsamplingStatus != null ? indexDownsamplingStatus.toLowerCase(Locale.ROOT) : DownsampleTaskStatus.UNKNOWN);
-        return Strings.isNullOrEmpty(sourceIndex) == false && downsamplingSuccess;
+    @Nullable
+    public String getDownsamplingInterval() {
+        return settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY);
     }
 
     public enum State implements Writeable {
@@ -639,7 +633,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     private final Long shardSizeInBytesForecast;
     // Key: model ID, Value: Fields that use model
-    private final Map<String, Set<String>> fieldsForModels;
+    private final ImmutableOpenMap<String, Set<String>> fieldsForModels;
 
     private IndexMetadata(
         final Index index,
@@ -686,7 +680,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final IndexMetadataStats stats,
         @Nullable final Double writeLoadForecast,
         @Nullable Long shardSizeInBytesForecast,
-        final Map<String, Set<String>> fieldsForModels
+        final ImmutableOpenMap<String, Set<String>> fieldsForModels
     ) {
         this.index = index;
         this.version = version;
@@ -742,8 +736,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.writeLoadForecast = writeLoadForecast;
         this.shardSizeInBytesForecast = shardSizeInBytesForecast;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
-        this.fieldsForModels = fieldsForModels;
-        assert fieldsForModels != null;
+        this.fieldsForModels = Objects.requireNonNull(fieldsForModels);
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
@@ -1252,6 +1245,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String INDEX_DOWNSAMPLE_ORIGIN_UUID_KEY = "index.downsample.origin.uuid";
 
     public static final String INDEX_DOWNSAMPLE_STATUS_KEY = "index.downsample.status";
+    public static final String INDEX_DOWNSAMPLE_INTERVAL_KEY = "index.downsample.interval";
     public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_UUID = Setting.simpleString(
         INDEX_DOWNSAMPLE_SOURCE_UUID_KEY,
         Property.IndexScope,
@@ -1292,6 +1286,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         DownsampleTaskStatus.UNKNOWN,
         Property.IndexScope,
         Property.InternalIndex
+    );
+
+    public static final Setting<String> INDEX_DOWNSAMPLE_INTERVAL = Setting.simpleString(
+        INDEX_DOWNSAMPLE_INTERVAL_KEY,
+        "",
+        Property.IndexScope,
+        Property.InternalIndex,
+        Property.PrivateIndex
     );
 
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and
@@ -1961,10 +1963,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder putMapping(MappingMetadata mappingMd) {
             mapping = mappingMd;
-            if (mappingMd != null) {
-                Map<String, Set<String>> fieldsForModels = mappingMd.getFieldsForModels();
-                processFieldsForModels(this.fieldsForModels, fieldsForModels);
-            }
             return this;
         }
 

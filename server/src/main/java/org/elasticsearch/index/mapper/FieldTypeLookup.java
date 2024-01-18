@@ -71,8 +71,8 @@ final class FieldTypeLookup {
                 }
                 fieldToCopiedFields.get(targetField).add(fieldName);
             }
-            if (fieldType instanceof InferenceModelFieldType) {
-                String inferenceModel = ((InferenceModelFieldType) fieldType).getInferenceModel();
+            if (fieldType instanceof InferenceModelFieldType inferenceModelFieldType) {
+                String inferenceModel = inferenceModelFieldType.getInferenceModel();
                 if (inferenceModel != null) {
                     Set<String> fields = fieldsForModels.computeIfAbsent(inferenceModel, v -> new HashSet<>());
                     fields.add(fieldName);
@@ -218,11 +218,6 @@ final class FieldTypeLookup {
         }
 
         return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);
-    }
-
-    Set<String> getFieldsForModel(String model) {
-        Set<String> fields = fieldsForModels.get(model);
-        return fields != null ? fields : Collections.emptySet();
     }
 
     Map<String, Set<String>> getFieldsForModels() {

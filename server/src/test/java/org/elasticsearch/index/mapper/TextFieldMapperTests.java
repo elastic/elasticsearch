@@ -1121,12 +1121,11 @@ public class TextFieldMapperTests extends MapperTestCase {
         boolean storeTextField = randomBoolean();
         boolean storedKeywordField = storeTextField || randomBoolean();
         boolean indexText = randomBoolean();
-        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
         Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
             ignoreAbove,
             storedKeywordField,
-            nullValue,
+            null,
             false == storeTextField
         );
         return new SyntheticSourceSupport() {

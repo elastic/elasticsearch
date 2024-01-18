@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -37,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -82,7 +81,6 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -98,6 +96,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -128,19 +127,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        EnrichPolicyResolution policy = AnalyzerTestUtils.loadEnrichPolicyResolution(
+        var enrichResolution = AnalyzerTestUtils.loadEnrichPolicyResolution(
             "languages_idx",
             "id",
             "languages_idx",
             "mapping-languages.json"
         );
         analyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResult,
-                new EnrichResolution(Set.of(policy), Set.of("languages_idx", "something"))
-            ),
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
             TEST_VERIFIER
         );
     }
@@ -2766,6 +2760,102 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(agg.aggregates()), contains("c", "w", "g"));
         var eval = as(agg.child(), Eval.class);
         var from = as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no%2{r}#6],[COUNT(salary{f}#12) AS c, emp_no%2{r}#6]]
+     *   \_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no%2]]
+     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testNestedExpressionsInGroups() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary) by emp_no % 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        var aggs = agg.aggregates();
+        var ref = as(groupings.get(0), ReferenceAttribute.class);
+        assertThat(aggs.get(1), is(ref));
+        var eval = as(agg.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).toAttribute(), is(ref));
+        assertThat(eval.fields().get(0).name(), is("emp_no % 2"));
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no{f}#6],[COUNT(__c_COUNT@1bd45f36{r}#16) AS c, emp_no{f}#6]]
+     *   \_Eval[[salary{f}#11 + 1[INTEGER] AS __c_COUNT@1bd45f36]]
+     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testNestedExpressionsInAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary + 1) by emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        var count = aliased(aggs.get(0), Count.class);
+        var ref = as(count.field(), ReferenceAttribute.class);
+        var eval = as(agg.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).toAttribute(), is(ref));
+        var add = aliased(fields.get(0), Add.class);
+        assertThat(Expressions.name(add.left()), is("salary"));
+    }
+
+    /**
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no%2{r}#7],[COUNT(__c_COUNT@fb7855b0{r}#18) AS c, emp_no%2{r}#7]]
+     *   \_Eval[[emp_no{f}#8 % 2[INTEGER] AS emp_no%2, 100[INTEGER] / languages{f}#11 + salary{f}#13 + 1[INTEGER] AS __c_COUNT
+     * @fb7855b0]]
+     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testNestedExpressionsInBothAggsAndGroups() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(salary + 1 + 100 / languages) by emp_no % 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        var aggs = agg.aggregates();
+        var gRef = as(groupings.get(0), ReferenceAttribute.class);
+        assertThat(aggs.get(1), is(gRef));
+
+        var count = aliased(aggs.get(0), Count.class);
+        var aggRef = as(count.field(), ReferenceAttribute.class);
+        var eval = as(agg.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(fields, hasSize(2));
+        assertThat(fields.get(0).toAttribute(), is(gRef));
+        assertThat(fields.get(1).toAttribute(), is(aggRef));
+
+        var mod = aliased(fields.get(0), Mod.class);
+        assertThat(Expressions.name(mod.left()), is("emp_no"));
+        var refs = Expressions.references(singletonList(fields.get(1)));
+        assertThat(Expressions.names(refs), containsInAnyOrder("languages", "salary"));
+    }
+
+    public void testNestedMultiExpressionsInGroupingAndAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats count(salary + 1), max(salary   +  23) by languages   + 1, emp_no %  3
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.output()), contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3"));
     }
 
     private LogicalPlan optimizedPlan(String query) {

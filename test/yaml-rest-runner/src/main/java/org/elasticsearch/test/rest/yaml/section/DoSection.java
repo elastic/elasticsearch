@@ -266,7 +266,7 @@ public class DoSection implements ExecutableSection {
         return apiCallSection;
     }
 
-    void setApiCallSection(ApiCallSection apiCallSection) {
+    public void setApiCallSection(ApiCallSection apiCallSection) {
         this.apiCallSection = apiCallSection;
     }
 
@@ -275,7 +275,7 @@ public class DoSection implements ExecutableSection {
      * If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
-    List<String> getExpectedWarningHeaders() {
+    public List<String> getExpectedWarningHeaders() {
         return expectedWarningHeaders;
     }
 
@@ -284,7 +284,7 @@ public class DoSection implements ExecutableSection {
      * If the headers don't match this request is considered to have failed.
      * Defaults to emptyList.
      */
-    List<Pattern> getExpectedWarningHeadersRegex() {
+    public List<Pattern> getExpectedWarningHeadersRegex() {
         return expectedWarningHeadersRegex;
     }
 
@@ -292,7 +292,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. If the headers don't match exactly this request is considered to have
      * failed. Defaults to emptyList.
      */
-    void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
+    public void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
     }
 
@@ -300,7 +300,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers patterns that we expect from this response. If the headers don't match this request is considered to have
      * failed. Defaults to emptyList.
      */
-    void setExpectedWarningHeadersRegex(List<Pattern> expectedWarningHeadersRegex) {
+    public void setExpectedWarningHeadersRegex(List<Pattern> expectedWarningHeadersRegex) {
         this.expectedWarningHeadersRegex = expectedWarningHeadersRegex;
     }
 
@@ -308,7 +308,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we allow from this response. These warning
      * headers don't cause the test to fail. Defaults to emptyList.
      */
-    List<String> getAllowedWarningHeaders() {
+    public List<String> getAllowedWarningHeaders() {
         return allowedWarningHeaders;
     }
 
@@ -316,7 +316,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we allow from this response. These warning
      * headers don't cause the test to fail. Defaults to emptyList.
      */
-    List<Pattern> getAllowedWarningHeadersRegex() {
+    public List<Pattern> getAllowedWarningHeadersRegex() {
         return allowedWarningHeadersRegex;
     }
 
@@ -324,7 +324,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. These
      * warning headers don't cause the test to fail. Defaults to emptyList.
      */
-    void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
+    public void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
         this.allowedWarningHeaders = allowedWarningHeaders;
     }
 
@@ -332,7 +332,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers pattern that we expect from this response. These
      * warning headers don't cause the test to fail. Defaults to emptyList.
      */
-    void setAllowedWarningHeadersRegex(List<Pattern> allowedWarningHeadersRegex) {
+    public void setAllowedWarningHeadersRegex(List<Pattern> allowedWarningHeadersRegex) {
         this.allowedWarningHeadersRegex = allowedWarningHeadersRegex;
     }
 
@@ -343,7 +343,6 @@ public class DoSection implements ExecutableSection {
 
     @Override
     public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
-
         if ("param".equals(catchParam)) {
             // client should throw validation error before sending request
             // lets just return without doing anything as we don't have any client to test here
@@ -359,17 +358,7 @@ public class DoSection implements ExecutableSection {
                 apiCallSection.getHeaders(),
                 apiCallSection.getNodeSelector()
             );
-            if (Strings.hasLength(catchParam)) {
-                String catchStatusCode;
-                if (CATCHES.containsKey(catchParam)) {
-                    catchStatusCode = CATCHES.get(catchParam).v1();
-                } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
-                    catchStatusCode = "4xx|5xx";
-                } else {
-                    throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
-                }
-                fail(formatStatusCodeMessage(response, catchStatusCode));
-            }
+            failIfHasCatch(response);
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
@@ -393,27 +382,23 @@ public class DoSection implements ExecutableSection {
             }
             checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch (ClientYamlTestResponseException e) {
-            ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
-            if (Strings.hasLength(catchParam) == false) {
-                fail(formatStatusCodeMessage(restTestResponse, "2xx"));
-            } else if (CATCHES.containsKey(catchParam)) {
-                assertStatusCode(restTestResponse);
-            } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
-                // the text of the error message matches regular expression
-                assertThat(
-                    formatStatusCodeMessage(restTestResponse, "4xx|5xx"),
-                    e.getResponseException().getResponse().getStatusLine().getStatusCode(),
-                    greaterThanOrEqualTo(400)
-                );
-                Object error = executionContext.response("error");
-                assertThat("error was expected in the response", error, notNullValue());
-                // remove delimiters from regex
-                String regex = catchParam.substring(1, catchParam.length() - 1);
-                assertThat("the error message was expected to match the provided regex but didn't", error.toString(), matches(regex));
-            } else {
-                throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
-            }
+            checkResponseException(e, executionContext);
         }
+    }
+
+    public void failIfHasCatch(ClientYamlTestResponse response) {
+        if (Strings.hasLength(catchParam) == false) {
+            return;
+        }
+        String catchStatusCode;
+        if (CATCHES.containsKey(catchParam)) {
+            catchStatusCode = CATCHES.get(catchParam).v1();
+        } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
+            catchStatusCode = "4xx|5xx";
+        } else {
+            throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
+        }
+        fail(formatStatusCodeMessage(response, catchStatusCode));
     }
 
     void checkElasticProductHeader(final List<String> productHeaders) {
@@ -448,7 +433,7 @@ public class DoSection implements ExecutableSection {
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
+    public void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
@@ -533,6 +518,31 @@ public class DoSection implements ExecutableSection {
                 "the following regular expression" + (missingRegex.size() > 1 ? "s" : "") + " did not match any warning header"
             );
             fail(failureMessage.toString());
+        }
+    }
+
+    public void checkResponseException(ClientYamlTestResponseException e, ClientYamlTestExecutionContext executionContext)
+        throws IOException {
+
+        ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
+        if (Strings.hasLength(catchParam) == false) {
+            fail(formatStatusCodeMessage(restTestResponse, "2xx"));
+        } else if (CATCHES.containsKey(catchParam)) {
+            assertStatusCode(restTestResponse);
+        } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
+            // the text of the error message matches regular expression
+            assertThat(
+                formatStatusCodeMessage(restTestResponse, "4xx|5xx"),
+                e.getResponseException().getResponse().getStatusLine().getStatusCode(),
+                greaterThanOrEqualTo(400)
+            );
+            Object error = executionContext.response("error");
+            assertThat("error was expected in the response", error, notNullValue());
+            // remove delimiters from regex
+            String regex = catchParam.substring(1, catchParam.length() - 1);
+            assertThat("the error message was expected to match the provided regex but didn't", error.toString(), matches(regex));
+        } else {
+            throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
         }
     }
 

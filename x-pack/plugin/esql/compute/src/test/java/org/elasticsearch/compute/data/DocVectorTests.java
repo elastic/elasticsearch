@@ -12,11 +12,13 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.test.BreakerTestUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,32 +64,29 @@ public class DocVectorTests extends ComputeTestCase {
         docs.close();
     }
 
-    private static int MAX_BUILD_BREAKS_LIMIT = 1391;
-
     public void testBuildBreaks() {
-        testBuildBreaks(ByteSizeValue.ofBytes(between(0, MAX_BUILD_BREAKS_LIMIT)));
-    }
-
-    public void testBuildBreaksMax() {
-        testBuildBreaks(ByteSizeValue.ofBytes(MAX_BUILD_BREAKS_LIMIT));
-    }
-
-    private void testBuildBreaks(ByteSizeValue limit) {
-        int size = 100;
-        BlockFactory blockFactory = blockFactory(limit);
-        Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, size)) {
-                for (int r = 0; r < size; r++) {
-                    builder.appendShard(3 - size % 4);
-                    builder.appendSegment(size % 10);
-                    builder.appendDoc(size);
-                }
-                builder.build().close();
-            }
+        var maxBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
+            BlockFactory blockFactory = blockFactory(limit);
+            buildDocBlock(blockFactory).close();
         });
+        var limit = ByteSizeValue.ofBytes(randomLongBetween(0, maxBreakLimit.getBytes()));
+        BlockFactory blockFactory = blockFactory(limit);
+        Exception e = expectThrows(CircuitBreakingException.class, () -> buildDocBlock(blockFactory).close());
         assertThat(e.getMessage(), equalTo("over test limit"));
         logger.info("break position", e);
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private DocBlock buildDocBlock(BlockFactory blockFactory) {
+        int size = 100;
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, size)) {
+            for (int r = 0; r < size; r++) {
+                builder.appendShard(3 - r % 4);
+                builder.appendSegment(r % 10);
+                builder.appendDoc(size);
+            }
+            return builder.build();
+        }
     }
 
     public void testShardSegmentDocMap() {
@@ -171,24 +170,31 @@ public class DocVectorTests extends ComputeTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
-    // TODO these are really difficult to maintain. can we figure these out of the fly?
-    private static final int MAX_SHARD_SEGMENT_DOC_MAP_BREAKS = 2220;
-
     public void testShardSegmentDocMapBreaks() {
-        testShardSegmentDocMapBreaks(ByteSizeValue.ofBytes(between(MAX_BUILD_BREAKS_LIMIT + 1, MAX_SHARD_SEGMENT_DOC_MAP_BREAKS)));
-    }
-
-    public void testShardSegmentDocMapBreaksMax() {
-        testShardSegmentDocMapBreaks(ByteSizeValue.ofBytes(MAX_SHARD_SEGMENT_DOC_MAP_BREAKS));
-    }
-
-    private void testShardSegmentDocMapBreaks(ByteSizeValue limit) {
-        int size = 100;
+        ByteSizeValue buildBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
+            BlockFactory blockFactory = blockFactory(limit);
+            buildDocBlock(blockFactory).close();
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        });
+        ByteSizeValue docMapBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
+            BlockFactory blockFactory = blockFactory(limit);
+            try (DocBlock docBlock = buildDocBlock(blockFactory)) {
+                docBlock.asVector().shardSegmentDocMapForwards();
+            }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        });
+        var limit = ByteSizeValue.ofBytes(randomLongBetween(buildBreakLimit.getBytes() + 1, docMapBreakLimit.getBytes()));
         BlockFactory blockFactory = blockFactory(limit);
+        testShardSegmentDocMapBreaks(blockFactory);
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private void testShardSegmentDocMapBreaks(BlockFactory blockFactory) {
+        int size = 100;
         try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, size)) {
             for (int r = 0; r < size; r++) {
-                builder.appendShard(3 - size % 4);
-                builder.appendSegment(size % 10);
+                builder.appendShard(3 - r % 4);
+                builder.appendSegment(r % 10);
                 builder.appendDoc(size);
             }
             try (DocBlock docBlock = builder.build()) {
@@ -254,15 +260,36 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     public void testFilterBreaks() {
-        BlockFactory factory = blockFactory(ByteSizeValue.ofBytes(between(250, 370)));
-        try (
-            DocVector docs = new DocVector(
-                factory.newConstantIntVector(0, 10),
-                factory.newConstantIntVector(0, 10),
-                factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
-                false
-            )
-        ) {
+        Function<BlockFactory, DocVector> buildDocVector = factory -> {
+            IntVector shards = null;
+            IntVector segments = null;
+            IntVector docs = null;
+            DocVector result = null;
+            try {
+                shards = factory.newConstantIntVector(0, 10);
+                segments = factory.newConstantIntVector(0, 10);
+                docs = factory.newConstantIntVector(0, 10);
+                result = new DocVector(shards, segments, docs, false);
+                return result;
+            } finally {
+                if (result == null) {
+                    Releasables.close(shards, segments, docs);
+                }
+            }
+        };
+        ByteSizeValue buildBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
+            BlockFactory factory = blockFactory(limit);
+            buildDocVector.apply(factory).close();
+        });
+        ByteSizeValue filterBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
+            BlockFactory factory = blockFactory(limit);
+            try (DocVector docs = buildDocVector.apply(factory)) {
+                docs.filter(1, 2, 3).close();
+            }
+        });
+        ByteSizeValue limit = ByteSizeValue.ofBytes(randomLongBetween(buildBreakLimit.getBytes() + 1, filterBreakLimit.getBytes()));
+        BlockFactory factory = blockFactory(limit);
+        try (DocVector docs = buildDocVector.apply(factory)) {
             Exception e = expectThrows(CircuitBreakingException.class, () -> docs.filter(1, 2, 3));
             assertThat(e.getMessage(), equalTo("over test limit"));
         }

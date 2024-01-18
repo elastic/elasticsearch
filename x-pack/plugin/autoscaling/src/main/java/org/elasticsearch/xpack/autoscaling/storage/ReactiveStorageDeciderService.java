@@ -979,7 +979,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
         private static final TransportVersion SHARD_IDS_OUTPUT_VERSION = TransportVersions.V_8_4_0;
-        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersions.V_8_500_020;
+        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersions.V_8_9_X;
 
         private final String reason;
         private final long unassigned;

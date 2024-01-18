@@ -77,7 +77,7 @@ public class DeploymentManager {
 
     private static final Logger logger = LogManager.getLogger(DeploymentManager.class);
     private static final AtomicLong requestIdCounter = new AtomicLong(1);
-    public static final int NUM_START_ATTEMPTS = 3;
+    public static final int NUM_RESTART_ATTEMPTS = 3;
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;

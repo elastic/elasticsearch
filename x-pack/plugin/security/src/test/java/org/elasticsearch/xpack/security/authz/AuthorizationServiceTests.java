@@ -2580,16 +2580,15 @@ public class AuthorizationServiceTests extends ESTestCase {
         // build a request with bulk items of the same action type, but multiple index names
         switch (opType) {
             case INDEX -> {
-                items = randomArray(
-                    1,
-                    8,
-                    BulkItemRequest[]::new,
-                    () -> new BulkItemRequest(
-                        idCounter.get(),
-                        new IndexRequest(indexNameSupplier.get()).id("id" + idCounter.incrementAndGet())
-                            .opType(DocWriteRequest.OpType.INDEX)
-                    )
-                );
+                items = randomArray(1, 8, BulkItemRequest[]::new, () -> {
+                    IndexRequest indexRequest = new IndexRequest(indexNameSupplier.get()).id("id" + idCounter.incrementAndGet())
+                        .opType(DocWriteRequest.OpType.INDEX);
+                    try {
+                        return new BulkItemRequest(idCounter.get(), indexRequest);
+                    } finally {
+                        indexRequest.decRef();
+                    }
+                });
                 goodRole = new RoleDescriptor(
                     "good-role",
                     null,

@@ -263,7 +263,7 @@ public class CohereServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModel() throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesACohereEmbeddingsModel() throws IOException {
         try (
             var service = new CohereService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),

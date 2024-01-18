@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the openai model type.
+ * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the cohere model type.
  */
 public class CohereActionCreator implements CohereActionVisitor {
     private final Sender sender;

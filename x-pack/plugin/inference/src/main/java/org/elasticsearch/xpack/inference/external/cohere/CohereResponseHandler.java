@@ -48,7 +48,6 @@ public class CohereResponseHandler extends BaseResponseHandler {
     /**
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
-     * The OpenAI API error codes are documented <a href="https://platform.openai.com/docs/guides/error-codes/api-errors">here</a>.
      * @param request The http request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }

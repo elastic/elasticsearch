@@ -571,7 +571,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104343")
     public void testDesiredBalanceShouldConvergeInABigCluster() {
         var nodes = randomIntBetween(3, 7);
         var nodeIds = new ArrayList<String>(nodes);

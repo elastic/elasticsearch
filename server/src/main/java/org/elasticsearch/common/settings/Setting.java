@@ -1088,6 +1088,9 @@ public class Setting<T> implements ToXContentObject {
             matchStream(settings).distinct().forEach(key -> {
                 String namespace = this.key.getNamespace(key);
                 Setting<T> concreteSetting = getConcreteSetting(namespace, key);
+                if (map.containsKey(namespace) && this.key.isFallback(key)) {
+                    return;
+                }
                 map.put(namespace, concreteSetting.get(settings));
             });
             return Collections.unmodifiableMap(map);
@@ -2248,6 +2251,10 @@ public class Setting<T> implements ToXContentObject {
         }
 
         // package private for testing
+
+        /**
+         * If key is the fallback, return it and the primary key
+         */
         Optional<Tuple<String, String>> maybeFallback(String key) {
             Matcher m = fallbackPattern.matcher(key);
             if (m.matches() == false) {
@@ -2256,8 +2263,18 @@ public class Setting<T> implements ToXContentObject {
             return Optional.of(new Tuple<>(key, m.replaceFirst(prefix + "$2")));
         }
 
+        /**
+         * Does this key have a fallback prefix?
+         */
         private boolean hasFallback() {
             return fallbackPattern != null;
+        }
+
+        /**
+         * Does the key start with the fallback prefix?
+         */
+        public boolean isFallback(String key) {
+            return hasFallback() && fallbackPattern.matcher(key).matches();
         }
 
         /**

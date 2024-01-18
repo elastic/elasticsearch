@@ -269,6 +269,18 @@ public class SettingTests extends ESTestCase {
         assertTrue(FooBarValidator.invokedWithDependencies);
     }
 
+    public void testDuplicateSettingsPrefersPrimary() {
+        Setting<String> fooBar = new Setting<>("foo.bar", new Setting<>("baz.qux", "", Function.identity()), Function.identity());
+        assertThat(
+            fooBar.get(Settings.builder().put("foo.bar", "primaryUsed").put("baz.qux", "fallbackUsed").build()),
+            equalTo("primaryUsed")
+        );
+        assertThat(
+            fooBar.get(Settings.builder().put("baz.qux", "fallbackUsed").put("foo.bar", "primaryUsed").build()),
+            equalTo("primaryUsed")
+        );
+    }
+
     public void testValidatorForFilteredStringSetting() {
         final Setting<String> filteredStringSetting = new Setting<>("foo.bar", "foobar", Function.identity(), value -> {
             throw new SettingsException("validate always fails");
@@ -820,6 +832,11 @@ public class SettingTests extends ESTestCase {
         map = setting.getAsMap(Settings.builder().put("bar.bar", "true").build());
         assertEquals(1, map.size());
         assertTrue(map.get("bar"));
+
+        // Prefer primary
+        map = setting.getAsMap(Settings.builder().put("foo.bar", "false").put("bar.bar", "true").build());
+        assertEquals(1, map.size());
+        assertFalse(map.get("bar"));
     }
 
     public void testAffixKeySetting() {

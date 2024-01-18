@@ -14,7 +14,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -60,7 +59,6 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Tests that deprecation message are returned via response headers, and can be indexed into a data stream.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101596")
 public class DeprecationHttpIT extends ESRestTestCase {
 
     @Before
@@ -184,7 +182,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         }
     }
 
-    private void cleanupSettings() throws IOException {
+    private void cleanupSettings() throws Exception {
         XContentBuilder builder = JsonXContent.contentBuilder()
             .startObject()
             .startObject("persistent")
@@ -198,6 +196,13 @@ public class DeprecationHttpIT extends ESRestTestCase {
         final Request request = new Request("PUT", "_cluster/settings");
         request.setJsonEntity(Strings.toString(builder));
         client().performRequest(request);
+
+        // await the cleanup to generate deprecation too. It will be removed in the @Before
+        assertBusy(() -> {
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
+            logger.warn(documents);
+            assertThat(documents, hasSize(2));
+        });
     }
 
     /**

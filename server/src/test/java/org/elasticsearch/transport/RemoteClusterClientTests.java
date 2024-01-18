@@ -91,7 +91,6 @@ public class RemoteClusterClientTests extends ESTestCase {
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
                 assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
                 Client client = remoteClusterService.getRemoteClusterClient(
-                    threadPool,
                     "test",
                     threadPool.executor(TEST_THREAD_POOL_NAME),
                     randomBoolean()
@@ -167,12 +166,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                     connectionManager.disconnectFromNode(remoteNode);
                     closeFuture.get();
 
-                    Client client = remoteClusterService.getRemoteClusterClient(
-                        threadPool,
-                        "test",
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                        true
-                    );
+                    Client client = remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE, true);
                     ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
                     assertNotNull(clusterStateResponse);
                     assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
@@ -198,7 +192,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> remoteClusterService.getRemoteClusterClient(threadPool, "test", EsExecutors.DIRECT_EXECUTOR_SERVICE, randomBoolean())
+                () -> remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE, randomBoolean())
             );
             assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
         }
@@ -241,7 +235,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-                Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test", EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                Client client = remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
                 try {
                     assertFalse(remoteClusterService.isRemoteNodeConnected("test", remoteNode));

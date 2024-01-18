@@ -529,7 +529,7 @@ public class PainlessExecuteAction {
                 // forward to remote cluster
                 String clusterAlias = request.getContextSetup().getClusterAlias();
                 Client remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(threadPool, clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                    .getRemoteClusterClient(clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 remoteClusterClient.admin().cluster().execute(PainlessExecuteAction.INSTANCE, request, listener);
             }
         }

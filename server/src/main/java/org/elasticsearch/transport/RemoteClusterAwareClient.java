@@ -16,7 +16,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;
 
@@ -30,13 +29,12 @@ final class RemoteClusterAwareClient extends AbstractClient {
 
     RemoteClusterAwareClient(
         Settings settings,
-        ThreadPool threadPool,
         TransportService service,
         String clusterAlias,
         Executor responseExecutor,
         boolean ensureConnected
     ) {
-        super(settings, threadPool);
+        super(settings, service.getThreadPool());
         this.service = service;
         this.clusterAlias = clusterAlias;
         this.remoteClusterService = service.getRemoteClusterService();
@@ -86,6 +84,6 @@ final class RemoteClusterAwareClient extends AbstractClient {
 
     @Override
     public Client getRemoteClusterClient(String remoteClusterAlias, Executor responseExecutor) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), remoteClusterAlias, responseExecutor);
+        return remoteClusterService.getRemoteClusterClient(remoteClusterAlias, responseExecutor);
     }
 }

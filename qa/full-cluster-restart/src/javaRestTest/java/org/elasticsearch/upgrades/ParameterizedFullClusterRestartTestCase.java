@@ -25,7 +25,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -43,8 +42,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     private static boolean upgradeFailed = false;
     private static boolean upgraded = false;
 
-    private static boolean oldClusterFeaturesInitialized = false;
-    private static final Set<String> oldClusterFeatures = new HashSet<>();
+    private static Set<String> oldClusterFeatures;
     private final FullClusterRestartUpgradeStatus requestedUpgradeStatus;
 
     public ParameterizedFullClusterRestartTestCase(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -58,11 +56,10 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
 
     @Before
     public void extractOldClusterFeatures() {
-        if (upgraded == false && oldClusterFeaturesInitialized == false) {
+        if (upgraded == false && oldClusterFeatures == null) {
             assert testFeatureServiceInitialized()
                 : "Old cluster features can be extracted only after testFeatureService has been initialized. See ESRestTestCase#initClient";
-            oldClusterFeatures.addAll(testFeatureService.getAllSupportedFeatures());
-            oldClusterFeaturesInitialized = true;
+            oldClusterFeatures = Set.copyOf(testFeatureService.getAllSupportedFeatures());
         }
     }
 
@@ -127,8 +124,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     public static void resetUpgrade() {
         upgraded = false;
         upgradeFailed = false;
-        oldClusterFeaturesInitialized = false;
-        oldClusterFeatures.clear();
+        oldClusterFeatures = null;
     }
 
     public boolean isRunningAgainstOldCluster() {
@@ -140,7 +136,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
     }
 
     protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterFeaturesInitialized : "Old cluster features cannot be accessed before initialization is completed";
+        assert oldClusterFeatures != null : "Old cluster features cannot be accessed before initialization is completed";
         return oldClusterFeatures.contains(featureId);
     }
 

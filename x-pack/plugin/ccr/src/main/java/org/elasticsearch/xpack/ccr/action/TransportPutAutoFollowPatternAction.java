@@ -100,7 +100,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }
-        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster(), remoteClientResponseExecutor);
+        final var remoteClient = client.getRemoteClusterClient(request.getRemoteCluster(), remoteClientResponseExecutor);
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
             threadPool.getThreadContext(),
             clusterService.state()

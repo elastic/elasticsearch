@@ -18,7 +18,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -493,12 +492,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                     String clusterAlias = remoteIndices.getKey();
                     OriginalIndices originalIndices = remoteIndices.getValue();
-                    Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                    var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                         clusterAlias,
                         EsExecutors.DIRECT_EXECUTOR_SERVICE
                     );
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
-                    remoteClusterClient.admin().indices().resolveIndex(remoteRequest, ActionListener.wrap(response -> {
+                    remoteClusterClient.execute(ResolveIndexAction.INSTANCE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
                     }, failure -> terminalHandler.run()));

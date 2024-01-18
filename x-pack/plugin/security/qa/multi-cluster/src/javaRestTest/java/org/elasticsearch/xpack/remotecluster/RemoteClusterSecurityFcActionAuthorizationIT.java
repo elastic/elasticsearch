@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.Client;
@@ -32,6 +36,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
@@ -50,6 +55,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.PASS;
@@ -99,7 +105,32 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testIndicesPrivilegesAreEnforcedForCcrRestoreSessionActions() throws IOException {
+    private static <Request extends ActionRequest, Response extends ActionResponse> Response executeRemote(
+        Client client,
+        ActionType<Response> action,
+        Request request
+    ) throws Exception {
+        final var future = new PlainActionFuture<Response>();
+        client.execute(action, request, future);
+        try {
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RemoteTransportException remoteTransportException
+                && remoteTransportException.getCause() instanceof Exception cause) {
+                throw cause;
+            }
+
+            if (e.getCause() instanceof Exception cause) {
+                throw cause;
+            }
+
+            throw new AssertionError(e);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testIndicesPrivilegesAreEnforcedForCcrRestoreSessionActions() throws Exception {
         final Map<String, Object> crossClusterApiKeyMap = createCrossClusterAccessApiKey(adminClient(), """
             {
               "replication": [
@@ -141,14 +172,14 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
 
-            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient("my_remote_cluster", threadPool.generic());
+            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient("my_remote_cluster", threadPool.generic());
 
             // Creating a restore session fails if index is not accessible
             final ShardId privateShardId = new ShardId("private-index", privateIndexUUID, 0);
             final PutCcrRestoreSessionRequest request = new PutCcrRestoreSessionRequest(UUIDs.randomBase64UUID(), privateShardId);
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(PutCcrRestoreSessionAction.INSTANCE, request).actionGet()
+                () -> executeRemote(remoteClusterClient, PutCcrRestoreSessionAction.INSTANCE, request)
             );
             assertThat(
                 e.getMessage(),
@@ -165,30 +196,33 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final String sessionUUID1 = UUIDs.randomBase64UUID();
             final ShardId shardId1 = new ShardId("leader-index-1", leaderIndex1UUID, 0);
             final PutCcrRestoreSessionRequest request1 = new PutCcrRestoreSessionRequest(sessionUUID1, shardId1);
-            final PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response1 = remoteClusterClient.execute(
+            final PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response1 = executeRemote(
+                remoteClusterClient,
                 PutCcrRestoreSessionAction.INSTANCE,
                 request1
-            ).actionGet();
+            );
             assertThat(response1.getStoreFileMetadata().fileMetadataMap().keySet(), hasSize(greaterThanOrEqualTo(1)));
             final String leaderIndex1FileName = response1.getStoreFileMetadata().fileMetadataMap().keySet().iterator().next();
 
             final String sessionUUID2 = UUIDs.randomBase64UUID();
             final ShardId shardId2 = new ShardId("leader-index-2", leaderIndex2UUID, 0);
             final PutCcrRestoreSessionRequest request2 = new PutCcrRestoreSessionRequest(sessionUUID2, shardId2);
-            final PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response2 = remoteClusterClient.execute(
+            final PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response2 = executeRemote(
+                remoteClusterClient,
                 PutCcrRestoreSessionAction.INSTANCE,
                 request2
-            ).actionGet();
+            );
             assertThat(response2.getStoreFileMetadata().fileMetadataMap().keySet(), hasSize(greaterThanOrEqualTo(1)));
             final String leaderIndex2FileName = response2.getStoreFileMetadata().fileMetadataMap().keySet().iterator().next();
 
             // Get file chuck fails if requested index is not authorized
             final var e1 = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(
+                () -> executeRemote(
+                    remoteClusterClient,
                     GetCcrRestoreFileChunkAction.INSTANCE,
                     new GetCcrRestoreFileChunkRequest(response1.getNode(), sessionUUID1, leaderIndex1FileName, 1, privateShardId)
-                ).actionGet()
+                )
             );
             assertThat(
                 e1.getMessage(),
@@ -198,17 +232,19 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             // Get file chunk fails if requested index does not match session index
             final var e2 = expectThrows(
                 IllegalArgumentException.class,
-                () -> remoteClusterClient.execute(
+                () -> executeRemote(
+                    remoteClusterClient,
                     GetCcrRestoreFileChunkAction.INSTANCE,
                     new GetCcrRestoreFileChunkRequest(response1.getNode(), sessionUUID1, leaderIndex1FileName, 1, shardId2)
-                ).actionGet()
+                )
             );
             assertThat(e2.getMessage(), containsString("does not match requested shardId"));
 
             // Get file chunk fails if requested file is not part of the session
             final var e3 = expectThrows(
                 IllegalArgumentException.class,
-                () -> remoteClusterClient.execute(
+                () -> executeRemote(
+                    remoteClusterClient,
                     GetCcrRestoreFileChunkAction.INSTANCE,
                     new GetCcrRestoreFileChunkRequest(
                         response1.getNode(),
@@ -217,24 +253,26 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                         1,
                         shardId1
                     )
-                ).actionGet()
+                )
             );
             assertThat(e3.getMessage(), containsString("invalid file name"));
 
             // Get file chunk succeeds
-            final GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse getChunkResponse = remoteClusterClient.execute(
+            final GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse getChunkResponse = executeRemote(
+                remoteClusterClient,
                 GetCcrRestoreFileChunkAction.INSTANCE,
                 new GetCcrRestoreFileChunkRequest(response2.getNode(), sessionUUID2, leaderIndex2FileName, 1, shardId2)
-            ).actionGet();
+            );
             assertThat(getChunkResponse.getChunk().length(), equalTo(1));
 
             // Clear restore session fails if index is unauthorized
             final var e4 = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(
+                () -> executeRemote(
+                    remoteClusterClient,
                     ClearCcrRestoreSessionAction.INSTANCE,
                     new ClearCcrRestoreSessionRequest(sessionUUID1, response1.getNode(), privateShardId)
-                ).actionGet()
+                )
             );
             assertThat(
                 e4.getMessage(),
@@ -244,22 +282,25 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             // Clear restore session fails if requested index does not match session index
             final var e5 = expectThrows(
                 IllegalArgumentException.class,
-                () -> remoteClusterClient.execute(
+                () -> executeRemote(
+                    remoteClusterClient,
                     ClearCcrRestoreSessionAction.INSTANCE,
                     new ClearCcrRestoreSessionRequest(sessionUUID1, response1.getNode(), shardId2)
-                ).actionGet()
+                )
             );
             assertThat(e5.getMessage(), containsString("does not match requested shardId"));
 
             // Clear restore sessions succeed
-            remoteClusterClient.execute(
+            executeRemote(
+                remoteClusterClient,
                 ClearCcrRestoreSessionAction.INSTANCE,
                 new ClearCcrRestoreSessionRequest(sessionUUID1, response1.getNode(), shardId1)
-            ).actionGet();
-            remoteClusterClient.execute(
+            );
+            executeRemote(
+                remoteClusterClient,
                 ClearCcrRestoreSessionAction.INSTANCE,
                 new ClearCcrRestoreSessionRequest(sessionUUID2, response2.getNode(), shardId2)
-            ).actionGet();
+            );
         }
     }
 
@@ -274,17 +315,18 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
         try (MockTransportService service = startTransport("node", threadPool, (String) apiKeyMap.get("encoded"))) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 "my_remote_cluster",
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
 
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(
+                () -> executeRemote(
+                    remoteClusterClient,
                     RemoteClusterNodesAction.TYPE,
                     RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES
-                ).actionGet()
+                )
             );
             assertThat(
                 e.getMessage(),
@@ -295,7 +337,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         }
     }
 
-    public void testUpdateCrossClusterApiKey() throws IOException {
+    public void testUpdateCrossClusterApiKey() throws Exception {
         final Map<String, Object> crossClusterApiKeyMap = createCrossClusterAccessApiKey(adminClient(), """
             {
               "search": [
@@ -346,7 +388,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final List<RemoteConnectionInfo> remoteConnectionInfos = remoteClusterService.getRemoteConnectionInfos().toList();
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
-            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 "my_remote_cluster",
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -354,7 +396,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             // 1. Not accessible because API key does not grant the access
             final ElasticsearchSecurityException e1 = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet()
+                () -> executeRemote(remoteClusterClient, TransportFieldCapabilitiesAction.TYPE, request)
             );
             assertThat(
                 e1.getMessage(),
@@ -380,10 +422,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                   }
                 }""");
             assertOK(performRequestWithAdminUser(adminClient(), updateApiKeyRequest));
-            final FieldCapabilitiesResponse fieldCapabilitiesResponse = remoteClusterClient.execute(
+            final FieldCapabilitiesResponse fieldCapabilitiesResponse = executeRemote(
+                remoteClusterClient,
                 TransportFieldCapabilitiesAction.TYPE,
                 request
-            ).actionGet();
+            );
             assertThat(fieldCapabilitiesResponse.getIndices(), arrayContaining("index"));
 
             // 3. Update the API key again to remove access
@@ -401,7 +444,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertOK(performRequestWithAdminUser(adminClient(), updateApiKeyRequest));
             final ElasticsearchSecurityException e2 = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet()
+                () -> executeRemote(remoteClusterClient, TransportFieldCapabilitiesAction.TYPE, request)
             );
             assertThat(
                 e2.getMessage(),

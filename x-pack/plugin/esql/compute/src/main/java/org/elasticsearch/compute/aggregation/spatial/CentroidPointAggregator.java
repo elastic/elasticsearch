@@ -5,12 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.aggregation;
+package org.elasticsearch.compute.aggregation.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.compute.aggregation.AggregatorState;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorState;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;

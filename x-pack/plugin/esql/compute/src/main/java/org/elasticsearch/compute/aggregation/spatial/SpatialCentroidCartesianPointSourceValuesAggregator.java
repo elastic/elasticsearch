@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.aggregation;
+package org.elasticsearch.compute.aggregation.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,11 +17,11 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 /**
- * This aggregator calculates the centroid of a set of geo points.
- * It is assumes that the geo points are encoded as WKB BytesRef.
+ * This aggregator calculates the centroid of a set of cartesian points.
+ * It is assumes that the cartesian points are encoded as WKB BytesRef.
  * This requires that the planner has NOT planned that points are loaded from the index as doc-values, but from source instead.
  * This is also used for final aggregations and aggregations in the coordinator node,
- * even if the local node partial aggregation is done with {@link SpatialCentroidGeoPointDocValuesAggregator}.
+ * even if the local node partial aggregation is done with {@link SpatialCentroidCartesianPointSourceValuesAggregator}.
  */
 @Aggregator(
     {
@@ -32,7 +32,7 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
         @IntermediateState(name = "count", type = "LONG") }
 )
 @GroupingAggregator
-class SpatialCentroidGeoPointSourceValuesAggregator extends CentroidPointAggregator {
+class SpatialCentroidCartesianPointSourceValuesAggregator extends CentroidPointAggregator {
 
     public static CentroidState initSingle() {
         return new CentroidState();

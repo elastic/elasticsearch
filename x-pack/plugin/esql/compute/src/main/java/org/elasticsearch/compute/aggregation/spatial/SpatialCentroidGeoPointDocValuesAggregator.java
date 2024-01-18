@@ -5,17 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.aggregation;
+package org.elasticsearch.compute.aggregation.spatial;
 
-import org.apache.lucene.geo.XYEncodingUtils;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 /**
- * This aggregator calculates the centroid of a set of cartesian points.
- * It is assumes that the cartesian points are encoded as longs.
+ * This aggregator calculates the centroid of a set of geo points. It is assumes that the geo points are encoded as longs.
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
 @Aggregator(
@@ -27,7 +26,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "count", type = "LONG") }
 )
 @GroupingAggregator
-class SpatialCentroidCartesianPointDocValuesAggregator extends CentroidPointAggregator {
+class SpatialCentroidGeoPointDocValuesAggregator extends CentroidPointAggregator {
 
     public static CentroidState initSingle() {
         return new CentroidState();
@@ -46,10 +45,10 @@ class SpatialCentroidCartesianPointDocValuesAggregator extends CentroidPointAggr
     }
 
     private static double decodeX(long encoded) {
-        return XYEncodingUtils.decode((int) (encoded >>> 32));
+        return GeoEncodingUtils.decodeLongitude((int) (encoded & 0xFFFFFFFFL));
     }
 
     private static double decodeY(long encoded) {
-        return XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFFL));
+        return GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32));
     }
 }

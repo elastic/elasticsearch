@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -40,7 +39,6 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -2026,7 +2024,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshot2.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
     }
 
-    public void testDeleteIndexWithOutOfOrderFinalization() {
+    public void testDeleteIndexWithOutOfOrderFinalization() throws Exception {
 
         final String indexToDelete = "index-to-delete";
         final List<String> indexNames = Arrays.asList(indexToDelete, "index-0", "index-1", "index-2");
@@ -2071,14 +2069,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .execute();
 
             // ensure each snapshot has really started before moving on to the next one
-            safeAwait(
-                ClusterServiceUtils.addTemporaryStateListener(
-                    internalCluster().getInstance(ClusterService.class),
-                    cs -> SnapshotsInProgress.get(cs)
-                        .forRepo(repoName)
-                        .stream()
-                        .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals(snapshotName))
-                )
+            awaitClusterState(
+                cs -> cs.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                    .forRepo(repoName)
+                    .stream()
+                    .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals(snapshotName))
             );
 
             snapshotCompleters.put(blockingIndex, () -> {
@@ -2089,36 +2084,46 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
 
         // set up to delete the index at a very specific moment during finalization
-        final MetadataDeleteIndexService masterDeleteIndexService = internalCluster().getCurrentMasterNodeInstance(MetadataDeleteIndexService.class);
-        final var indexRecreatedListener = ClusterServiceUtils
-            // wait until the snapshot has entered finalization
-            .addTemporaryStateListener(
-                internalCluster().getInstance(ClusterService.class),
-                cs -> SnapshotsInProgress.get(cs)
-                    .forRepo(repoName)
-                    .stream()
-                    .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals("snapshot-with-index-1") && e.state().completed())
-            )
-            // execute the index deletion _directly on the master_ so it happens before the snapshot finalization executes
-            .andThen((l, ignored) -> masterDeleteIndexService.deleteIndices(new DeleteIndexClusterStateUpdateRequest(l.map(r -> {
-                assertTrue(r.isAcknowledged());
-                return null;
-            })).indices(new Index[] { internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex() })
-                .ackTimeout(TimeValue.timeValueSeconds(10))
-                .masterNodeTimeout(TimeValue.timeValueSeconds(10))))
-            // ultimately create the index again so that taking a full snapshot will pick up any missing shard gen blob, and deleting that
-            // full snapshot will clean up all dangling shard-level blobs
-            .andThen((l, ignored) -> prepareCreate(indexToDelete, indexSettingsNoReplicas(1)).execute(l.map(r -> {
-                assertTrue(r.isAcknowledged());
-                return null;
-            })));
+        final MetadataDeleteIndexService masterDeleteIndexService = internalCluster().getCurrentMasterNodeInstance(
+            MetadataDeleteIndexService.class
+        );
+        final Thread indexRecreationThread = new Thread(() -> {
+            try {
+                // wait until the snapshot has entered finalization
+                awaitClusterState(
+                    cs -> cs.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                        .forRepo(repoName)
+                        .stream()
+                        .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals("snapshot-with-index-1") && e.state().completed())
+                );
+
+                // execute the index deletion _directly on the master_ so it happens before the snapshot finalization executes
+                assertTrue(
+                    PlainActionFuture.<AcknowledgedResponse, Exception>get(
+                        future -> masterDeleteIndexService.deleteIndices(
+                            new DeleteIndexClusterStateUpdateRequest().indices(
+                                new Index[] { internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex() }
+                            ).ackTimeout(TimeValue.timeValueSeconds(10)).masterNodeTimeout(TimeValue.timeValueSeconds(10)),
+                            future
+                        )
+                    ).isAcknowledged()
+                );
+
+                // ultimately create the index again so that taking a full snapshot will pick up any missing shard gen blob, and deleting
+                // that full snapshot will clean up all dangling shard-level blobs
+                createIndex(indexToDelete, indexSettingsNoReplicas(1).build());
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        indexRecreationThread.start();
 
         // release the snapshots to be finalized, in this order
         for (final String blockingIndex : Arrays.asList("index-1", "index-2", "index-0")) {
             snapshotCompleters.get(blockingIndex).run();
         }
 
-        safeAwait(indexRecreatedListener);
+        indexRecreationThread.join();
         masterTransportService.clearAllRules();
 
         // create a full snapshot to verify that the repo is still ok

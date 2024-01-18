@@ -1253,29 +1253,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     *  Should the doc-values reader be used instead of reading from source.
+     *  Get the configuration for testing block loaders with this field. In particular, not all fields can be loaded from doc-values.
      *  For most ESQL types the preference is to read from doc-values if they exist, so that is the default behaviour here.
      *  However, for spatial types, the doc-values involve precision loss, and therefor it is preferable to read from source.
      *  And for text fields, doc values are not easily convertable to original values either, so special cases exist.
      */
     protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
         MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        return new BlockReaderSupport(ft.hasDocValues(), true, true, mapper, loaderFieldName);
+        return new BlockReaderSupport(ft.hasDocValues(), true, mapper, loaderFieldName);
     }
 
     /**
-     * @param columnAtATimeReader true if reading from doc-values is supported
-     * @param rowStrideReader true if reading from source is supported
+     * This record encapsulates the test configuration for testing block loaders (used in ES|QL).
+     *
+     * @param columnAtATimeReader true if the field supports column at a time readers (doc-values)
+     * @param syntheticSource true if the field supports synthetic source
+     * @param mapper the mapper service to use for testing
+     * @param loaderFieldName the field name to use for loading the field
      */
-    public record BlockReaderSupport(
-        boolean columnAtATimeReader,
-        boolean rowStrideReader,
-        boolean syntheticSource,
-        MapperService mapper,
-        String loaderFieldName
-    ) {
+    public record BlockReaderSupport(boolean columnAtATimeReader, boolean syntheticSource, MapperService mapper, String loaderFieldName) {
         BlockReaderSupport(boolean columnAtATimeReader, MapperService mapper, String loaderFieldName) {
-            this(columnAtATimeReader, true, true, mapper, loaderFieldName);
+            this(columnAtATimeReader, true, mapper, loaderFieldName);
         }
 
         private BlockLoader getBlockLoader(boolean columnReader) {
@@ -1357,7 +1355,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         assertNull(loader.columnAtATimeReader(ctx));
                         return;
                     }
-                } else if (blockReaderSupport.rowStrideReader) {
+                } else {
                     BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
                         StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
                         loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
@@ -1366,9 +1364,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), 1);
                     loader.rowStrideReader(ctx).read(0, storedFieldsLoader, builder);
                     block = (TestBlock) builder.build();
-                } else {
-                    // TODO assert
-                    return;
                 }
                 Object inBlock = block.get(0);
                 if (inBlock != null) {

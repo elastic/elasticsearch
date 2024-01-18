@@ -755,6 +755,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     @Override
     protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
         MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        return new BlockReaderSupport(ft.hasDocValues(), true, false, mapper, loaderFieldName);
+        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

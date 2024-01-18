@@ -432,6 +432,6 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         // TODO: Support testing both reading from source as well as reading from doc-values
         MappedFieldType ft = mapper.fieldType(loaderFieldName);
         PointFieldMapper.PointFieldType point = (PointFieldMapper.PointFieldType) ft;
-        return new BlockReaderSupport(point.isIndexed() == false && ft.hasDocValues(), true, false, mapper, loaderFieldName);
+        return new BlockReaderSupport(point.isIndexed() == false && ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

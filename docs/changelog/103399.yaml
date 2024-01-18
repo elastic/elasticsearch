@@ -1,0 +1,6 @@
+pr: 103399
+summary: "add validation on _id field when upsert new doc"
+area: Search
+type: bug
+issues:
+  - 102981

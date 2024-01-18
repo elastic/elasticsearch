@@ -1,0 +1,7 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v | result
+geo_point | geo_point
+keyword | geo_point
+text | geo_point
+|===

@@ -47,7 +47,11 @@ public class TagVersionsTask extends AbstractVersionsTask {
 
     @Option(option = "tag-version", description = "Version id to tag. Of the form <VersionType>:<id>.")
     public void tagVersions(List<String> version) {
-        this.tagVersions = version.stream().map(l -> l.split(":")).collect(Collectors.toMap(l -> l[0], l -> Integer.parseInt(l[1])));
+        this.tagVersions = version.stream().map(l -> {
+            var split = l.split(":");
+            if (split.length != 2) throw new IllegalArgumentException("Invalid tag format [" + l + "]");
+            return split;
+        }).collect(Collectors.toMap(l -> l[0], l -> Integer.parseInt(l[1])));
     }
 
     @TaskAction
@@ -56,7 +60,7 @@ public class TagVersionsTask extends AbstractVersionsTask {
             throw new IllegalArgumentException("Release version not specified");
         }
         if (tagVersions.isEmpty()) {
-            throw new IllegalArgumentException("No version ids specified");
+            throw new IllegalArgumentException("No version tags specified");
         }
 
         LOGGER.lifecycle("Tagging version {} component ids", releaseVersion);
@@ -73,12 +77,18 @@ public class TagVersionsTask extends AbstractVersionsTask {
             List<String> versionRecords = Files.readAllLines(rootDir.resolve(recordFile));
             var modified = addVersionRecord(versionRecords, releaseVersion, v.getValue());
             if (modified.isPresent()) {
-                Files.write(recordFile, modified.get(), StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+                Files.write(
+                    recordFile,
+                    modified.get(),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.WRITE,
+                    StandardOpenOption.TRUNCATE_EXISTING
+                );
             }
         }
     }
 
-    private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)(\\h*#.*)?");
+    private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");
 
     static Optional<List<String>> addVersionRecord(List<String> versionRecordLines, Version release, int id) {
         Map<Version, Integer> versions = versionRecordLines.stream().map(l -> {

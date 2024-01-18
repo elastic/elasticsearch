@@ -870,6 +870,12 @@ public class BasicBlockTests extends ESTestCase {
         List<List<Object>> values = new ArrayList<>();
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
             for (int p = 0; p < positionCount; p++) {
+                if (elementType == ElementType.NULL) {
+                    assert nullAllowed;
+                    values.add(null);
+                    builder.appendNull();
+                    continue;
+                }
                 int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
                 if (valueCount == 0 || nullAllowed && randomBoolean()) {
                     values.add(null);

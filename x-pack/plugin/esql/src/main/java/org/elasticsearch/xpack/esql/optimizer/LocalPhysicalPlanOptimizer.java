@@ -453,7 +453,14 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         }
                     }
                     if (changedAggregates) {
-                        exec = agg.replaceAggregates(orderedAggregates);
+                        exec = new AggregateExec(
+                            agg.source(),
+                            agg.child(),
+                            agg.groupings(),
+                            orderedAggregates,
+                            agg.getMode(),
+                            agg.estimatedRowSize()
+                        );
                     }
                 }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {

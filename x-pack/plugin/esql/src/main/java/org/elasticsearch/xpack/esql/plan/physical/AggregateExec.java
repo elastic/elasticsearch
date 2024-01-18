@@ -60,10 +60,6 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return new AggregateExec(source(), newChild, groupings, aggregates, mode, estimatedRowSize);
     }
 
-    public AggregateExec replaceAggregates(List<? extends NamedExpression> aggregates) {
-        return new AggregateExec(source(), child(), groupings, aggregates, mode, estimatedRowSize);
-    }
-
     public List<? extends Expression> groupings() {
         return groupings;
     }

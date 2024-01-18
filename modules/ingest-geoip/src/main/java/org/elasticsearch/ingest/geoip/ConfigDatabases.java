@@ -33,7 +33,7 @@ import java.util.stream.Stream;
  */
 final class ConfigDatabases implements Closeable {
 
-    private static final Logger LOGGER = LogManager.getLogger(ConfigDatabases.class);
+    private static final Logger logger = LogManager.getLogger(ConfigDatabases.class);
 
     private final GeoIpCache cache;
     private final Path geoipConfigDir;
@@ -57,7 +57,7 @@ final class ConfigDatabases implements Closeable {
         watcher.addListener(new GeoipDirectoryListener());
         resourceWatcher.add(watcher, ResourceWatcherService.Frequency.HIGH);
 
-        LOGGER.debug("initialized config databases [{}] and watching [{}] for changes", configDatabases.keySet(), geoipConfigDir);
+        logger.debug("initialized config databases [{}] and watching [{}] for changes", configDatabases.keySet(), geoipConfigDir);
     }
 
     DatabaseReaderLazyLoader getDatabase(String name) {
@@ -72,20 +72,20 @@ final class ConfigDatabases implements Closeable {
         String databaseFileName = file.getFileName().toString();
         try {
             if (update) {
-                LOGGER.info("database file changed [{}], reload database...", file);
+                logger.info("database file changed [{}], reload database...", file);
                 DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, null);
                 DatabaseReaderLazyLoader existing = configDatabases.put(databaseFileName, loader);
                 if (existing != null) {
                     existing.close();
                 }
             } else {
-                LOGGER.info("database file removed [{}], close database...", file);
+                logger.info("database file removed [{}], close database...", file);
                 DatabaseReaderLazyLoader existing = configDatabases.remove(databaseFileName);
                 assert existing != null;
                 existing.close();
             }
         } catch (Exception e) {
-            LOGGER.error(() -> "failed to update database [" + databaseFileName + "]", e);
+            logger.error(() -> "failed to update database [" + databaseFileName + "]", e);
         }
     }
 

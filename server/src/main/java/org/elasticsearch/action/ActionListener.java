@@ -92,7 +92,8 @@ public interface ActionListener<Response> {
      * Creates a new listener, wrapping this one, that overrides {@link #onResponse} handling with the given {@code bc} consumer.
      * {@link #onFailure(Exception)} handling is delegated to the original listener. Exceptions in {@link #onResponse} are forbidden.
      *
-     * @param bc {@link BiConsumer} invoked via {@link #onResponse} with the original listener and the response with which the new listener was completed.
+     * @param bc {@link BiConsumer} invoked via {@link #onResponse} with the original listener and the response with which the new listener
+     * was completed.
      * @param <T> Type of the delegating listener's response
      * @return a new listener that delegates failures to this listener and runs {@code bc} on a response.
      */

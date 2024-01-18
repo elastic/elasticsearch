@@ -62,7 +62,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -270,7 +269,6 @@ public class TokenServiceTests extends ESTestCase {
     public static void startThreadPool() throws IOException {
         threadPool = new ThreadPool(
             settings,
-            MeterRegistry.NOOP,
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,
@@ -1237,9 +1235,9 @@ public class TokenServiceTests extends ESTestCase {
                 assertThat(refreshFilter.fieldName(), is("refresh_token.token"));
                 final SearchHits hits;
                 if (storedRefreshToken.equals(refreshFilter.value())) {
-                    SearchHit hit = new SearchHit(randomInt(), "token_" + userToken.getId());
+                    SearchHit hit = SearchHit.unpooled(randomInt(), "token_" + userToken.getId());
                     hit.sourceRef(docSource);
-                    hits = new SearchHits(new SearchHit[] { hit }, null, 1);
+                    hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 1);
                 } else {
                     hits = SearchHits.EMPTY_WITH_TOTAL_HITS;
                 }

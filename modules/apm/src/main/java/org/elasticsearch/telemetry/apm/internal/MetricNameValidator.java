@@ -32,13 +32,6 @@ public class MetricNameValidator {
     static final int MAX_ELEMENT_LENGTH = 30;
     static final int MAX_NUMBER_OF_ELEMENTS = 10;
 
-    static final Set<String> SKIP_VALIDATION_METRIC_NAMES_DUE_TO_BWC = Set.of(
-        "searchable_snapshots_cache_fetch_async",
-        "searchable_snapshots_cache_prewarming",
-        "security-token-key",
-        "security-crypto"
-    );
-
     private MetricNameValidator() {}
 
     /**
@@ -49,10 +42,6 @@ public class MetricNameValidator {
      */
     public static String validate(String metricName) {
         Objects.requireNonNull(metricName);
-
-        if (skipValidationToBWC(metricName)) {
-            return metricName;
-        }
         validateMaxMetricNameLength(metricName);
 
         String[] elements = metricName.split("\\.");
@@ -62,19 +51,6 @@ public class MetricNameValidator {
         lastElementIsFromAllowList(elements, metricName);
         perElementValidations(elements, metricName);
         return metricName;
-    }
-
-    /**
-     * Due to backwards compatibility some metric names would have to skip validation.
-     * This is for instance where a threadpool name is too long, or contains `-`
-     * We want to allow to easily find threadpools in code base that are alerting with a metric
-     * as well as find thread pools metrics in dashboards with their codebase names.
-     * Renaming a threadpool name would be a breaking change.
-     *
-     * NOTE: only allow skipping validation if a refactor in codebase would cause a breaking change
-     */
-    private static boolean skipValidationToBWC(String metricName) {
-        return SKIP_VALIDATION_METRIC_NAMES_DUE_TO_BWC.stream().anyMatch(m -> metricName.contains(m));
     }
 
     private static void validateMaxMetricNameLength(String metricName) {
@@ -132,7 +108,6 @@ public class MetricNameValidator {
 
     private static void perElementValidations(String[] elements, String name) {
         for (String element : elements) {
-
             hasOnlyAllowedCharacters(element, name);
             hasNotBreachLengthLimit(element, name);
         }

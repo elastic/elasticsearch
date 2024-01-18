@@ -1120,7 +1120,7 @@ public final class RestoreService implements ClusterStateApplier {
                 if (Objects.equals(previous, changed) == false) {
                     throw new SnapshotRestoreException(
                         snapshot,
-                        Strings.format(
+                        format(
                             "cannot change value of [%s] when restoring searchable snapshot [%s:%s] as index %s",
                             SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION,
                             snapshot.getRepository(),
@@ -1759,7 +1759,7 @@ public final class RestoreService implements ClusterStateApplier {
                 throw new SnapshotRestoreException(
                     repositoryName,
                     snapshotInfo.snapshotId().getName(),
-                    Strings.format(
+                    format(
                         "cannot mount snapshot [%s/%s:%s] as index [%s] with the deletion of snapshot on index removal enabled "
                             + "[index.store.snapshot.delete_searchable_snapshot: true]; snapshot contains [%d] indices instead of 1.",
                         repositoryName,
@@ -1793,7 +1793,7 @@ public final class RestoreService implements ClusterStateApplier {
                     throw new SnapshotRestoreException(
                         repositoryName,
                         snapshotInfo.snapshotId().getName(),
-                        Strings.format(
+                        format(
                             "cannot mount snapshot [%s/%s:%s] as index [%s] with [index.store.snapshot.delete_searchable_snapshot: %b]; "
                                 + "another index %s is mounted with [index.store.snapshot.delete_searchable_snapshot: %b].",
                             repositoryName,

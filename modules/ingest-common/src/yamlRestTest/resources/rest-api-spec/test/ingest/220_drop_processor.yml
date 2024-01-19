@@ -10,7 +10,7 @@ teardown:
 - do:
     ingest.put_pipeline:
       id: "my_pipeline"
-      body:  >
+      body: >
         {
           "description" : "pipeline with drop",
           "processors" : [
@@ -59,7 +59,7 @@ teardown:
 - do:
     ingest.put_pipeline:
       id: "my_pipeline_with_failure"
-      body:  >
+      body: >
         {
           "description" : "pipeline with on failure drop",
           "processors": [

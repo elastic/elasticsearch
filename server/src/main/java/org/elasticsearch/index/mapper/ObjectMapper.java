@@ -403,7 +403,7 @@ public class ObjectMapper extends Mapper {
         return builder;
     }
 
-    public ObjectMapper withoutMappers() {
+    ObjectMapper withoutMappers() {
         return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, null);
     }
 

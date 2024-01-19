@@ -454,14 +454,13 @@ public abstract class FieldMapper extends Mapper {
                 return this;
             }
 
-            public Builder update(FieldMapper toMerge, MapperMergeContext context) {
+            private void update(FieldMapper toMerge, MapperMergeContext context) {
                 if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
                     context.addFieldIfPossible(toMerge, () -> add(toMerge));
                 } else {
                     FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context.getMapperBuilderContext());
                     add(existing.merge(toMerge, context));
                 }
-                return this;
             }
 
             public boolean hasMultiFields() {
@@ -480,10 +479,6 @@ public abstract class FieldMapper extends Mapper {
                     }
                     return new MultiFields(mappers);
                 }
-            }
-
-            public int mapperSize() {
-                return mapperBuilders.size();
             }
         }
 

@@ -186,7 +186,8 @@ public class NestedObjectMapper extends ObjectMapper {
         return builder;
     }
 
-    public NestedObjectMapper withoutMappers() {
+    @Override
+    NestedObjectMapper withoutMappers() {
         return new NestedObjectMapper(
             simpleName(),
             fullPath(),

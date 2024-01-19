@@ -155,7 +155,8 @@ public class RootObjectMapper extends ObjectMapper {
         return builder;
     }
 
-    public RootObjectMapper withoutMappers() {
+    @Override
+    RootObjectMapper withoutMappers() {
         return new RootObjectMapper(
             simpleName(),
             enabled,

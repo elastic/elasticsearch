@@ -19,31 +19,28 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class MapperMergeContext {
 
     private final MapperBuilderContext mapperBuilderContext;
-    private final AtomicLong remainingFieldsUntilLimit;
+    private final AtomicLong remainingFieldsBudget;
 
     /**
      * The root context, to be used when merging a tree of mappers
      */
-    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long maxFieldsToAddDuringMerge) {
-        return new MapperMergeContext(
-            MapperBuilderContext.root(isSourceSynthetic, isDataStream),
-            new AtomicLong(maxFieldsToAddDuringMerge)
-        );
+    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long newFieldsBudget) {
+        return new MapperMergeContext(MapperBuilderContext.root(isSourceSynthetic, isDataStream), new AtomicLong(newFieldsBudget));
     }
 
     /**
      * Creates a new {@link MapperMergeContext} from a {@link MapperBuilderContext}
      * @param mapperBuilderContext the {@link MapperBuilderContext} for this {@link MapperMergeContext}
-     * @param maxFieldsToAddDuringMerge limits how many fields can be added during the merge process
+     * @param newFieldsBudget limits how many fields can be added during the merge process
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
-    public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext, long maxFieldsToAddDuringMerge) {
-        return new MapperMergeContext(mapperBuilderContext, new AtomicLong(maxFieldsToAddDuringMerge));
+    public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext, long newFieldsBudget) {
+        return new MapperMergeContext(mapperBuilderContext, new AtomicLong(newFieldsBudget));
     }
 
-    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, AtomicLong remainingFieldsUntilLimit) {
+    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, AtomicLong remainingFieldsBudget) {
         this.mapperBuilderContext = mapperBuilderContext;
-        this.remainingFieldsUntilLimit = remainingFieldsUntilLimit;
+        this.remainingFieldsBudget = remainingFieldsBudget;
     }
 
     /**
@@ -61,7 +58,7 @@ public final class MapperMergeContext {
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
     public MapperMergeContext createChildContext(MapperBuilderContext childContext) {
-        return new MapperMergeContext(childContext, remainingFieldsUntilLimit);
+        return new MapperMergeContext(childContext, remainingFieldsBudget);
     }
 
     MapperBuilderContext getMapperBuilderContext() {
@@ -71,8 +68,8 @@ public final class MapperMergeContext {
     void removeRuntimeField(Map<String, RuntimeField> runtimeFields, String name) {
         if (runtimeFields.containsKey(name)) {
             runtimeFields.remove(name);
-            if (remainingFieldsUntilLimit.get() != Long.MAX_VALUE) {
-                remainingFieldsUntilLimit.incrementAndGet();
+            if (remainingFieldsBudget.get() != Long.MAX_VALUE) {
+                remainingFieldsBudget.incrementAndGet();
             }
         }
     }
@@ -81,14 +78,14 @@ public final class MapperMergeContext {
         if (runtimeFields.containsKey(runtimeField.name())) {
             runtimeFields.put(runtimeField.name(), runtimeField);
         } else if (canAddField(1)) {
-            remainingFieldsUntilLimit.decrementAndGet();
+            remainingFieldsBudget.decrementAndGet();
             runtimeFields.put(runtimeField.name(), runtimeField);
         }
     }
 
     boolean addFieldIfPossible(Map<String, Mapper> mappers, Mapper mapper) {
         if (canAddField(mapper.mapperSize())) {
-            remainingFieldsUntilLimit.getAndAdd(mapper.mapperSize() * -1);
+            remainingFieldsBudget.getAndAdd(mapper.mapperSize() * -1);
             mappers.put(mapper.simpleName(), mapper);
             return true;
         }
@@ -97,12 +94,12 @@ public final class MapperMergeContext {
 
     void addFieldIfPossible(Mapper mapper, Runnable addField) {
         if (canAddField(mapper.mapperSize())) {
-            remainingFieldsUntilLimit.getAndAdd(mapper.mapperSize() * -1);
+            remainingFieldsBudget.getAndAdd(mapper.mapperSize() * -1);
             addField.run();
         }
     }
 
     boolean canAddField(int fieldSize) {
-        return remainingFieldsUntilLimit.get() >= fieldSize;
+        return remainingFieldsBudget.get() >= fieldSize;
     }
 }

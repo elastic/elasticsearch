@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * A specialized, bytes only request, that can potentially be optimized on the network
@@ -68,11 +67,9 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     }
 
     @Override
-    public void serialize(BytesStream out, List<BytesReference> result) throws IOException {
-        int pos = Math.toIntExact(out.position());
-        writeThin(out);
-        result.add(out.bytes().slice(pos, Math.toIntExact(out.position() - pos)));
-        result.add(bytes);
+    public void serialize(BytesStream out, SerializationContext result) throws IOException {
+        super.writeTo(out);
+        result.insertBytesReference(bytes);
     }
 
     @Override

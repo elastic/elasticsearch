@@ -10,8 +10,10 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,10 +32,38 @@ public interface Writeable {
         return false;
     }
 
-    default void serialize(BytesStream out, List<BytesReference> result) throws IOException {
+    default void serialize(BytesStream out, SerializationContext result) throws IOException {
         var e = new UnsupportedOperationException("[" + this.getClass() + "] does not support zero copy serialization");
         assert false : e;
         throw e;
+    }
+
+    final class SerializationContext {
+
+        private final List<BytesReference> bytesReferences = new ArrayList<>();
+
+        private final BytesStream out;
+
+        private int startingOffset;
+
+        public SerializationContext(BytesStream out) throws IOException {
+            this.out = out;
+            startingOffset = Math.toIntExact(out.position());
+        }
+
+        public void insertBytesReference(BytesReference bytes) throws IOException {
+            out.writeVInt(bytes.length());
+            int currentPos = Math.toIntExact(out.position());
+            bytesReferences.add(out.bytes().slice(startingOffset, currentPos - startingOffset));
+            bytesReferences.add(bytes);
+            startingOffset = currentPos;
+        }
+
+        public BytesReference finish() throws IOException {
+            bytesReferences.add(out.bytes().slice(startingOffset, Math.toIntExact(out.position()) - startingOffset));
+            return CompositeBytesReference.of(bytesReferences.toArray(new BytesReference[0]));
+        }
+
     }
 
     /**

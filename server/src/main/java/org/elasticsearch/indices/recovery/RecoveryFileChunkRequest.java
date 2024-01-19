@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
@@ -85,13 +86,33 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest imp
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public boolean supportsZeroCopy() {
+        return true;
+    }
+
+    @Override
+    public void serialize(BytesStream out, SerializationContext result) throws IOException {
+        writeStart(out);
+        result.insertBytesReference(content);
+        writeEnd(out);
+    }
+
+    private void writeStart(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(metadata.name());
         out.writeVLong(position);
         out.writeVLong(metadata.length());
         out.writeString(metadata.checksum());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeStart(out);
         out.writeBytesReference(content);
+        writeEnd(out);
+    }
+
+    private void writeEnd(StreamOutput out) throws IOException {
         out.writeString(metadata.writtenBy());
         out.writeBoolean(lastChunk);
         out.writeVInt(totalTranslogOps);

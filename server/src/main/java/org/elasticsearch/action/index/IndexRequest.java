@@ -702,19 +702,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         writeBody(out);
     }
 
-    public void serializeThin(BytesStream out, List<BytesReference> result) throws IOException {
-        int currentPos = Math.toIntExact(out.position());
+    public void serializeThin(BytesStream out, SerializationContext result) throws IOException {
         out.writeByte((byte) 0);
         super.writeThin(out);
         writeBodyStart(out);
-        out.writeVInt(source.length());
-        int newPos = Math.toIntExact(out.position());
-        result.add(out.bytes().slice(currentPos, newPos - currentPos));
-        currentPos = newPos;
-        result.add(source);
+        result.insertBytesReference(source);
         writeBodyEnd(out);
-        newPos = Math.toIntExact(out.position());
-        result.add(out.bytes().slice(currentPos, newPos - currentPos));
     }
 
     private void writeBody(StreamOutput out) throws IOException {

@@ -15,10 +15,10 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -27,7 +27,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -292,19 +291,16 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
         }
     }
 
-    static void writeDocumentRequestThin(BytesStream out, List<BytesReference> result, DocWriteRequest<?> request) throws IOException {
+    static void writeDocumentRequestThin(BytesStream out, Writeable.SerializationContext result, DocWriteRequest<?> request)
+        throws IOException {
         if (request instanceof IndexRequest) {
             ((IndexRequest) request).serializeThin(out, result);
         } else if (request instanceof DeleteRequest) {
-            int currentPos = Math.toIntExact(out.position());
             out.writeByte((byte) 1);
             ((DeleteRequest) request).writeThin(out);
-            result.add(out.bytes().slice(currentPos, Math.toIntExact(out.position()) - currentPos));
         } else if (request instanceof UpdateRequest) {
-            int currentPos = Math.toIntExact(out.position());
             out.writeByte((byte) 2);
             ((UpdateRequest) request).writeThin(out);
-            result.add(out.bytes().slice(currentPos, Math.toIntExact(out.position()) - currentPos));
         } else {
             throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }

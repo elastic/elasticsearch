@@ -8,26 +8,27 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 
 public class EsAbortPolicy extends EsRejectedExecutionHandler {
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-        if (r instanceof AbstractRunnable) {
-            if (((AbstractRunnable) r).isForceExecution()) {
-                BlockingQueue<Runnable> queue = executor.getQueue();
-                if ((queue instanceof SizeBlockingQueue) == false) {
-                    throw new IllegalStateException("forced execution, but expected a size queue");
+        if (r instanceof AbstractRunnable abstractRunnable) {
+            if (abstractRunnable.isForceExecution()) {
+                if (executor.getQueue() instanceof SizeBlockingQueue<Runnable> sizeBlockingQueue) {
+                    try {
+                        sizeBlockingQueue.forcePut(r);
+                        return;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("forced execution, but got interrupted", e);
+                    }
                 }
-                try {
-                    ((SizeBlockingQueue<Runnable>) queue).forcePut(r);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("forced execution, but got interrupted", e);
+
+                if (executor.isShutdown() == false) {
+                    throw new IllegalStateException("should only be rejected from unbounded executor when shut-down, not " + executor);
                 }
-                return;
             }
         }
         incrementRejections();

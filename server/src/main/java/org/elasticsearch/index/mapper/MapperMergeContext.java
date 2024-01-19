@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /**
  * Holds context used when merging mappings.
@@ -74,28 +75,19 @@ public final class MapperMergeContext {
         }
     }
 
-    void addRuntimeFieldIfPossible(Map<String, RuntimeField> runtimeFields, RuntimeField runtimeField) {
-        if (runtimeFields.containsKey(runtimeField.name())) {
-            runtimeFields.put(runtimeField.name(), runtimeField);
-        } else if (canAddField(1)) {
-            remainingFieldsBudget.decrementAndGet();
-            runtimeFields.put(runtimeField.name(), runtimeField);
-        }
-    }
-
-    boolean addFieldIfPossible(Map<String, Mapper> mappers, Mapper mapper) {
+    <M extends Mapper> boolean addFieldIfPossible(M mapper, Consumer<M> addField) {
         if (canAddField(mapper.mapperSize())) {
             remainingFieldsBudget.getAndAdd(mapper.mapperSize() * -1);
-            mappers.put(mapper.simpleName(), mapper);
+            addField.accept(mapper);
             return true;
         }
         return false;
     }
 
-    void addFieldIfPossible(Mapper mapper, Runnable addField) {
-        if (canAddField(mapper.mapperSize())) {
-            remainingFieldsBudget.getAndAdd(mapper.mapperSize() * -1);
-            addField.run();
+    void addRuntimeFieldIfPossible(RuntimeField runtimeField, Consumer<RuntimeField> addField) {
+        if (canAddField(1)) {
+            remainingFieldsBudget.decrementAndGet();
+            addField.accept(runtimeField);
         }
     }
 

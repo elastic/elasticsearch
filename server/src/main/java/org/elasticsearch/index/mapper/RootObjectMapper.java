@@ -262,8 +262,10 @@ public class RootObjectMapper extends ObjectMapper {
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
                 parentMergeContext.removeRuntimeField(runtimeFields, runtimeField.getKey());
+            } else if (runtimeFields.containsKey(runtimeField.getKey())) {
+                runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
             } else {
-                parentMergeContext.addRuntimeFieldIfPossible(runtimeFields, runtimeField.getValue());
+                parentMergeContext.addRuntimeFieldIfPossible(runtimeField.getValue(), r -> runtimeFields.put(r.name(), r));
             }
         }
 

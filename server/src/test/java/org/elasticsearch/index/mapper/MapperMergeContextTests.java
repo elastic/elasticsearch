@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.Map;
 
 public class MapperMergeContextTests extends ESTestCase {
 
@@ -19,7 +20,8 @@ public class MapperMergeContextTests extends ESTestCase {
         MapperMergeContext context = MapperMergeContext.root(false, false, 1);
         assertTrue(context.canAddField(1));
         HashMap<String, Mapper> mappers = new HashMap<>();
-        context.addFieldIfPossible(mappers, getKeywordFieldMapper());
+        Mapper mapper = getKeywordFieldMapper();
+        context.addFieldIfPossible(mapper, m -> ((Map<String, Mapper>) mappers).put(mapper.simpleName(), mapper));
         assertEquals(1, mappers.size());
         assertFalse(context.canAddField(1));
     }
@@ -28,7 +30,8 @@ public class MapperMergeContextTests extends ESTestCase {
         MapperMergeContext context = MapperMergeContext.root(false, false, 0);
         assertFalse(context.canAddField(1));
         HashMap<String, Mapper> mappers = new HashMap<>();
-        context.addFieldIfPossible(mappers, getKeywordFieldMapper());
+        Mapper mapper = getKeywordFieldMapper();
+        context.addFieldIfPossible(mapper, m -> ((Map<String, Mapper>) mappers).put(mapper.simpleName(), mapper));
         assertEquals(0, mappers.size());
         assertFalse(context.canAddField(1));
     }
@@ -37,7 +40,7 @@ public class MapperMergeContextTests extends ESTestCase {
         MapperMergeContext context = MapperMergeContext.root(false, false, 1);
         assertTrue(context.canAddField(1));
         HashMap<String, RuntimeField> runtimeFields = new HashMap<>();
-        context.addRuntimeFieldIfPossible(runtimeFields, new TestRuntimeField("foo", "keyword"));
+        context.addRuntimeFieldIfPossible(new TestRuntimeField("foo", "keyword"), r -> runtimeFields.put(r.name(), r));
         assertEquals(1, runtimeFields.size());
         assertFalse(context.canAddField(1));
     }
@@ -46,7 +49,7 @@ public class MapperMergeContextTests extends ESTestCase {
         MapperMergeContext context = MapperMergeContext.root(false, false, 0);
         assertFalse(context.canAddField(1));
         HashMap<String, RuntimeField> runtimeFields = new HashMap<>();
-        context.addRuntimeFieldIfPossible(runtimeFields, new TestRuntimeField("foo", "keyword"));
+        context.addRuntimeFieldIfPossible(new TestRuntimeField("foo", "keyword"), r -> runtimeFields.put(r.name(), r));
         assertEquals(0, runtimeFields.size());
         assertFalse(context.canAddField(1));
     }
@@ -54,7 +57,7 @@ public class MapperMergeContextTests extends ESTestCase {
     public void testRemoveRuntimeField() {
         MapperMergeContext context = MapperMergeContext.root(false, false, 1);
         HashMap<String, RuntimeField> runtimeFields = new HashMap<>();
-        context.addRuntimeFieldIfPossible(runtimeFields, new TestRuntimeField("foo", "keyword"));
+        context.addRuntimeFieldIfPossible(new TestRuntimeField("foo", "keyword"), r -> runtimeFields.put(r.name(), r));
         assertEquals(1, runtimeFields.size());
         assertFalse(context.canAddField(1));
 

@@ -543,13 +543,20 @@ public class ObjectMapper extends Mapper {
 
                 if (mergeIntoMapper == null) {
                     if (mergeWithMapper instanceof ObjectMapper om) {
+                        // We may not be able to fully add the object due to the field budget,
+                        // so we're just adding the object, without it's sub-fields.
                         ObjectMapper withoutMappers = om.withoutMappers();
-                        boolean added = objectMergeContext.addFieldIfPossible(mergedMappers, withoutMappers);
+                        boolean added = objectMergeContext.addFieldIfPossible(withoutMappers, o -> mergedMappers.put(o.simpleName(), o));
                         if (added) {
+                            // If we were able to add the empty object,
+                            // we're then adding the sub-fields one by one via a merge
                             mergedMappers.put(om.simpleName(), withoutMappers.merge(mergeWithMapper, reason, objectMergeContext));
                         }
                     } else {
-                        objectMergeContext.addFieldIfPossible(mergedMappers, mergeWithMapper);
+                        objectMergeContext.addFieldIfPossible(
+                            mergeWithMapper,
+                            m -> mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper)
+                        );
                     }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                     mergedMappers.put(objectMapper.simpleName(), objectMapper.merge(mergeWithMapper, reason, objectMergeContext));

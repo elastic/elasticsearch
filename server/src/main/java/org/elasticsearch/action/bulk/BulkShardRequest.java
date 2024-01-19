@@ -15,6 +15,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -22,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
@@ -94,6 +97,35 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
                 o.writeBoolean(false);
             }
         }, items);
+    }
+
+    @Override
+    public boolean supportsZeroCopy() {
+        return true;
+    }
+
+    @Override
+    public void serialize(BytesStream out, List<BytesReference> result) throws IOException {
+        int pos = Math.toIntExact(out.position());
+        super.writeTo(out);
+        out.writeVInt(items.length);
+        int currentPos = Math.toIntExact(out.position());
+        result.add(out.bytes().slice(pos, currentPos - pos));
+        for (BulkItemRequest item : items) {
+            if (item == null) {
+                out.writeBoolean(false);
+                continue;
+            }
+            out.writeBoolean(true);
+            int newPos = Math.toIntExact(out.position());
+            result.add(out.bytes().slice(currentPos, newPos - currentPos));
+            item.serializeThin(out, result);
+            currentPos = Math.toIntExact(out.position());
+        }
+        int newPos = Math.toIntExact(out.position());
+        if (currentPos != newPos) {
+            result.add(out.bytes().slice(currentPos, newPos - currentPos));
+        }
     }
 
     @Override

@@ -68,11 +68,11 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     }
 
     @Override
-    public void serialize(BytesStream out, List<BytesReference> res) throws IOException {
+    public void serialize(BytesStream out, List<BytesReference> result) throws IOException {
         int pos = Math.toIntExact(out.position());
         writeThin(out);
-        res.add(out.bytes().slice(pos, Math.toIntExact(out.position() - pos)));
-        res.add(bytes);
+        result.add(out.bytes().slice(pos, Math.toIntExact(out.position() - pos)));
+        result.add(bytes);
     }
 
     @Override

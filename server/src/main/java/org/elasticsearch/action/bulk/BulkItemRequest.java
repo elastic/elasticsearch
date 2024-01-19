@@ -12,6 +12,8 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,9 +21,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
-public class BulkItemRequest implements Writeable, Accountable {
+public final class BulkItemRequest implements Writeable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
 
@@ -105,6 +108,17 @@ public class BulkItemRequest implements Writeable, Accountable {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequestThin(out, request);
         out.writeOptionalWriteable(primaryResponse == null ? null : primaryResponse::writeThin);
+    }
+
+    public void serializeThin(BytesStream out, List<BytesReference> result) throws IOException {
+        final int pos = Math.toIntExact(out.position());
+        out.writeVInt(id);
+        int currentPos = Math.toIntExact(out.position());
+        result.add(out.bytes().slice(pos, currentPos - pos));
+        DocWriteRequest.writeDocumentRequestThin(out, result, request);
+        currentPos = Math.toIntExact(out.position());
+        out.writeOptionalWriteable(primaryResponse == null ? null : primaryResponse::writeThin);
+        result.add(out.bytes().slice(currentPos, Math.toIntExact(out.position()) - currentPos));
     }
 
     @Override

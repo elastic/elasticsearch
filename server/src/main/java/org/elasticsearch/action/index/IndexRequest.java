@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -701,13 +702,36 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         writeBody(out);
     }
 
+    public void serializeThin(BytesStream out, List<BytesReference> result) throws IOException {
+        int currentPos = Math.toIntExact(out.position());
+        out.writeByte((byte) 0);
+        super.writeThin(out);
+        writeBodyStart(out);
+        out.writeVInt(source.length());
+        int newPos = Math.toIntExact(out.position());
+        result.add(out.bytes().slice(currentPos, newPos - currentPos));
+        currentPos = newPos;
+        result.add(source);
+        writeBodyEnd(out);
+        newPos = Math.toIntExact(out.position());
+        result.add(out.bytes().slice(currentPos, newPos - currentPos));
+    }
+
     private void writeBody(StreamOutput out) throws IOException {
+        writeBodyStart(out);
+        out.writeBytesReference(source);
+        writeBodyEnd(out);
+    }
+
+    private void writeBodyStart(StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        out.writeBytesReference(source);
+    }
+
+    private void writeBodyEnd(StreamOutput out) throws IOException {
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());

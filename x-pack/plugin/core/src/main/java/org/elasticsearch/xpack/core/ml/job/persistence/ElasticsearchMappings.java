@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -183,7 +183,7 @@ public class ElasticsearchMappings {
                     executeAsyncWithOrigin(
                         client,
                         ML_ORIGIN,
-                        PutMappingAction.INSTANCE,
+                        TransportPutMappingAction.TYPE,
                         putMappingRequest,
                         listener.delegateFailureAndWrap((delegate, response) -> {
                             if (response.isAcknowledged()) {

@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -26,7 +27,16 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 public class Percentile extends NumericAggregate {
     private final Expression percentile;
 
-    public Percentile(Source source, Expression field, Expression percentile) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "The value at which a certain percentage of observed values occur.",
+        isAggregation = true
+    )
+    public Percentile(
+        Source source,
+        @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field,
+        @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
+    ) {
         super(source, field, List.of(percentile));
         this.percentile = percentile;
     }
@@ -60,18 +70,18 @@ public class Percentile extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
+        return new PercentileLongAggregatorFunctionSupplier(inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
+        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
+        return new PercentileDoubleAggregatorFunctionSupplier(inputChannels, percentileValue());
     }
 
     private int percentileValue() {

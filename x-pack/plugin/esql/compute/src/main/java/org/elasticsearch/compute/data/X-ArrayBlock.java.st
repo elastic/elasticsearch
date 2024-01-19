@@ -61,6 +61,9 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.vector = vector;
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
     @Override
@@ -80,7 +83,6 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        // TODO use reference counting to share the vector
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$
@@ -124,8 +126,8 @@ $endif$
 
         // The following line is correct because positions with multi-values are never null.
         int expandedPositionCount = vector.getPositionCount();
-        long bitSetRamUsedEstimate = BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount);
-        blockFactory().adjustBreaker(bitSetRamUsedEstimate, false);
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate);
 
         $Type$ArrayBlock expanded = new $Type$ArrayBlock(
             vector,
@@ -135,7 +137,7 @@ $endif$
             MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             blockFactory()
         );
-        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate, true);
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
         // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
         vector.incRef();
         return expanded;
@@ -183,7 +185,7 @@ $endif$
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

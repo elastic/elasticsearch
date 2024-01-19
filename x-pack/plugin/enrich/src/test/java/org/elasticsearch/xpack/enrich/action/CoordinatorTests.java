@@ -22,7 +22,6 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.ESTestCase;
@@ -373,7 +372,7 @@ public class CoordinatorTests extends ESTestCase {
 
     private static SearchResponse emptySearchResponse() {
         return new SearchResponse(
-            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
             null,
             false,

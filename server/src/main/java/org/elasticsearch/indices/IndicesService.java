@@ -18,9 +18,9 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -882,8 +882,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 : "mapping update consumer only required by local shards recovery";
             client.execute(
                 featureService.clusterHasFeature(clusterService.state(), SUPPORTS_AUTO_PUT)
-                    ? AutoPutMappingAction.INSTANCE
-                    : PutMappingAction.INSTANCE,
+                    ? TransportAutoPutMappingAction.TYPE
+                    : TransportPutMappingAction.TYPE,
                 new PutMappingRequest().setConcreteIndex(shardRouting.index())
                     .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
                     .source(mapping.source().string(), XContentType.JSON)

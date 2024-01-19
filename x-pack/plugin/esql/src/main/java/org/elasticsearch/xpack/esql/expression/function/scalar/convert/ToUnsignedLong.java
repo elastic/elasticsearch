@@ -12,7 +12,6 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -47,7 +46,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "unsigned_long")
+    @FunctionInfo(returnType = "unsigned_long", description = "Converts an input value to an unsigned long value.")
     public ToUnsignedLong(
         Source source,
         @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
@@ -86,7 +85,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         return asLongUnsigned(safeToUnsignedLong(asString));
     }
 
-    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })
     static long fromDouble(double dbl) {
         return asLongUnsigned(safeToUnsignedLong(dbl));
     }

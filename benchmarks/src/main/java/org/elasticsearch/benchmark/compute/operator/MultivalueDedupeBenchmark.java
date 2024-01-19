@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class MultivalueDedupeBenchmark {
-    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;  // TODO real big arrays?
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
         BigArrays.NON_RECYCLING_INSTANCE

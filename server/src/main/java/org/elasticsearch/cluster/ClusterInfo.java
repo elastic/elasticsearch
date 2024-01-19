@@ -144,7 +144,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         return Iterators.concat(startObject("nodes"), Iterators.map(leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
             builder.startObject(c.getKey());
             { // node
-                builder.field("node_name", c.getValue().getNodeName());
+                builder.field("node_name", c.getValue().nodeName());
                 builder.startObject("least_available");
                 {
                     c.getValue().toShortXContent(builder);
@@ -374,10 +374,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(total);
             out.writeCollection(shardIds);
-        }
-
-        public long getTotal() {
-            return total;
         }
 
         public boolean containsShardId(ShardId shardId) {

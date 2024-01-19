@@ -53,6 +53,9 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.vector = vector;
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
     @Override
@@ -67,7 +70,6 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
 
     @Override
     public BytesRefBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
         final BytesRef scratch = new BytesRef();
         try (var builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
             for (int pos : positions) {
@@ -109,8 +111,8 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
 
         // The following line is correct because positions with multi-values are never null.
         int expandedPositionCount = vector.getPositionCount();
-        long bitSetRamUsedEstimate = BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount);
-        blockFactory().adjustBreaker(bitSetRamUsedEstimate, false);
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate);
 
         BytesRefArrayBlock expanded = new BytesRefArrayBlock(
             vector,
@@ -120,7 +122,7 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
             MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             blockFactory()
         );
-        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate, true);
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
         // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
         vector.incRef();
         return expanded;
@@ -168,7 +170,7 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

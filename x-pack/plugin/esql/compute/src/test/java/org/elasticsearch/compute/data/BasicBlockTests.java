@@ -21,6 +21,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -31,9 +34,12 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -369,12 +375,12 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
-    public void testBytesRefBlock() {
+    private void testBytesRefBlock(Supplier<BytesRef> byteArraySupplier, boolean chomp, org.mockito.ThrowingConsumer<BytesRef> assertions) {
         int positionCount = randomIntBetween(1, 16 * 1024);
         BytesRef[] values = new BytesRef[positionCount];
         for (int i = 0; i < positionCount; i++) {
-            BytesRef bytesRef = new BytesRef(randomByteArrayOfLength(between(1, 20)));
-            if (bytesRef.length > 0 && randomBoolean()) {
+            BytesRef bytesRef = byteArraySupplier.get();
+            if (chomp && bytesRef.length > 0 && randomBoolean()) {
                 bytesRef.offset = randomIntBetween(0, bytesRef.length - 1);
                 bytesRef.length = randomIntBetween(0, bytesRef.length - bytesRef.offset);
             }
@@ -400,6 +406,7 @@ public class BasicBlockTests extends ESTestCase {
             int pos = randomIntBetween(0, positionCount - 1);
             bytes = block.getBytesRef(pos, bytes);
             assertThat(bytes, equalTo(values[pos]));
+            assertions.accept(bytes);
         }
         assertSingleValueDenseBlock(block);
 
@@ -433,6 +440,18 @@ public class BasicBlockTests extends ESTestCase {
             assertSingleValueDenseBlock(vector.asBlock());
             releaseAndAssertBreaker(vector.asBlock());
         }
+    }
+
+    public void testBytesRefBlock() {
+        testBytesRefBlock(() -> new BytesRef(randomByteArrayOfLength(between(1, 20))), true, b -> {});
+    }
+
+    public void testBytesRefBlockOnGeoPoints() {
+        testBytesRefBlock(() -> GEO.asWkb(GeometryTestUtils.randomPoint()), false, GEO::wkbToWkt);
+    }
+
+    public void testBytesRefBlockOnCartesianPoints() {
+        testBytesRefBlock(() -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), false, CARTESIAN::wkbToWkt);
     }
 
     public void testBytesRefBlockBuilderWithNulls() {
@@ -877,7 +896,15 @@ public class BasicBlockTests extends ESTestCase {
     ) {
         List<List<Object>> values = new ArrayList<>();
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
+            boolean bytesRefFromPoints = randomBoolean();
+            Supplier<Point> pointSupplier = randomBoolean() ? GeometryTestUtils::randomPoint : ShapeTestUtils::randomPoint;
             for (int p = 0; p < positionCount; p++) {
+                if (elementType == ElementType.NULL) {
+                    assert nullAllowed;
+                    values.add(null);
+                    builder.appendNull();
+                    continue;
+                }
                 int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
                 if (valueCount == 0 || nullAllowed && randomBoolean()) {
                     values.add(null);
@@ -908,7 +935,9 @@ public class BasicBlockTests extends ESTestCase {
                             ((DoubleBlock.Builder) builder).appendDouble(d);
                         }
                         case BYTES_REF -> {
-                            BytesRef b = new BytesRef(randomRealisticUnicodeOfLength(4));
+                            BytesRef b = bytesRefFromPoints
+                                ? GEO.asWkb(pointSupplier.get())
+                                : new BytesRef(randomRealisticUnicodeOfLength(4));
                             valuesAtPosition.add(b);
                             ((BytesRefBlock.Builder) builder).appendBytesRef(b);
                         }

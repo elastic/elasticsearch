@@ -1,5 +1,6 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-arg1 | arg2 | result
+str | delim | result
 keyword | keyword | keyword
+text | text | keyword
 |===

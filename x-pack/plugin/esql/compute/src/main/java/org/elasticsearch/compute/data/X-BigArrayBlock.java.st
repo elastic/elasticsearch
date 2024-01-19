@@ -8,14 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.$if(boolean)$Bit$else$$Type$$endif$Array;
+import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link $Type$BigArrayVector}. Does not take ownership of the given
- * {@link $if(boolean)$Bit$else$$Type$$endif$Array} and does not adjust circuit breakers to account for it.
+ * {@link $Array$} and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {
@@ -24,7 +24,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
     private final $Type$BigArrayVector vector;
 
     public $Type$BigArrayBlock(
-        $if(boolean)$Bit$else$$Type$$endif$Array values,
+        $Array$ values,
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,
@@ -51,6 +51,9 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.vector = vector;
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
     @Override
@@ -65,7 +68,6 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public $Type$Block filter(int... positions) {
-        // TODO use reference counting to share the vector
         try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
@@ -106,8 +108,8 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
         // The following line is correct because positions with multi-values are never null.
         int expandedPositionCount = vector.getPositionCount();
-        long bitSetRamUsedEstimate = BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount);
-        blockFactory().adjustBreaker(bitSetRamUsedEstimate, false);
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate);
 
         $Type$BigArrayBlock expanded = new $Type$BigArrayBlock(
             vector,
@@ -117,7 +119,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
             MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             blockFactory()
         );
-        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate, true);
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
         // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
         vector.incRef();
         return expanded;
@@ -165,7 +167,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

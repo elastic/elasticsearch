@@ -51,8 +51,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -124,6 +122,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matcher;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -1195,32 +1195,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Generate a random valid point constrained to geographic ranges (lat, lon ranges).
-     */
-    public static SpatialPoint randomGeoPoint() {
-        return new GeoPoint(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true));
-    }
-
-    /**
-     * Generate a random valid point constrained to cartesian ranges.
-     */
-    public static SpatialPoint randomCartesianPoint() {
-        double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        return new SpatialPoint() {
-            @Override
-            public double getX() {
-                return x;
-            }
-
-            @Override
-            public double getY() {
-                return y;
-            }
-        };
-    }
-
-    /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */
     public static <T> void maybeSet(Consumer<T> consumer, T value) {
@@ -1734,10 +1708,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContentParserConfiguration config, XContent xContent, BytesReference data)
         throws IOException {
-        if (data.hasArray()) {
-            return xContent.createParser(config, data.array(), data.arrayOffset(), data.length());
-        }
-        return xContent.createParser(config, data.streamInput());
+        return XContentHelper.createParserNotCompressed(config, data, xContent.type());
     }
 
     protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data, RestApiVersion restApiVersion)
@@ -2138,6 +2109,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected static boolean isTurkishLocale() {
         return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
+    }
+
+    /*
+     * Assert.assertThat (inherited from LuceneTestCase superclass) has been deprecated.
+     * So make sure that all assertThat references use the non-deprecated version.
+     */
+    public static <T> void assertThat(T actual, Matcher<? super T> matcher) {
+        MatcherAssert.assertThat(actual, matcher);
+    }
+
+    public static <T> void assertThat(String reason, T actual, Matcher<? super T> matcher) {
+        MatcherAssert.assertThat(reason, actual, matcher);
     }
 
     public static <T> T fail(Throwable t, String msg, Object... args) {

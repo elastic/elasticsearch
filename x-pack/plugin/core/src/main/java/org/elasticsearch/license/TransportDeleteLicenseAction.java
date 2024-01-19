@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -25,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNodeAction<DeleteLicenseRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/xpack/license/delete");
     private final MutableLicenseService licenseService;
 
     @Inject
@@ -37,7 +39,7 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeleteLicenseAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

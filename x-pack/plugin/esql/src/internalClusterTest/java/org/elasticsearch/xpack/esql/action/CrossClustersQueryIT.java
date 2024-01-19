@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -121,6 +122,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testProfile() {
+        assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
         final int localOnlyProfiles;
         // uses shard partitioning as segments can be merged during these queries
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD).build());

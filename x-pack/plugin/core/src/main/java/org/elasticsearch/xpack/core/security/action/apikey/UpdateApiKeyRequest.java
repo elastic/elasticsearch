@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -17,15 +18,16 @@ import java.util.Map;
 
 public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
     public static UpdateApiKeyRequest usingApiKeyId(final String id) {
-        return new UpdateApiKeyRequest(id, null, null);
+        return new UpdateApiKeyRequest(id, null, null, null);
     }
 
     public UpdateApiKeyRequest(
         final String id,
         @Nullable final List<RoleDescriptor> roleDescriptors,
-        @Nullable final Map<String, Object> metadata
+        @Nullable final Map<String, Object> metadata,
+        @Nullable final TimeValue expiration
     ) {
-        super(roleDescriptors, metadata, id);
+        super(roleDescriptors, metadata, expiration, id);
     }
 
     public UpdateApiKeyRequest(StreamInput in) throws IOException {

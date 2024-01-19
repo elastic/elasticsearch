@@ -89,7 +89,9 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
     private final Expression from;
     private final Expression to;
 
-    @FunctionInfo(returnType = { "double", "date" })
+    @FunctionInfo(returnType = { "double", "date" }, description = """
+        Creates human-friendly buckets and returns a datetime value
+        for each row that corresponds to the resulting bucket the row falls into.""")
     public AutoBucket(
         Source source,
         @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,

@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -30,6 +29,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Sum;
@@ -64,7 +66,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
@@ -89,7 +90,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URL;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -420,7 +420,7 @@ public class TrainedModelProvider {
         }));
     }
 
-    public void refreshInferenceIndex(ActionListener<RefreshResponse> listener) {
+    public void refreshInferenceIndex(ActionListener<BroadcastResponse> listener) {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
@@ -664,7 +664,7 @@ public class TrainedModelProvider {
         ActionListener<SearchResponse> trainedModelSearchHandler = ActionListener.wrap(modelSearchResponse -> {
             TrainedModelConfig.Builder builder;
             try {
-                builder = handleHits(modelSearchResponse.getHits().getHits(), modelId, this::parseModelConfigLenientlyFromSource).get(0);
+                builder = handleHits(modelSearchResponse.getHits(), modelId, this::parseModelConfigLenientlyFromSource).get(0);
             } catch (ResourceNotFoundException ex) {
                 getTrainedModelListener.onFailure(
                     new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId))
@@ -702,7 +702,7 @@ public class TrainedModelProvider {
                 ActionListener.wrap(definitionSearchResponse -> {
                     try {
                         List<TrainedModelDefinitionDoc> docs = handleHits(
-                            definitionSearchResponse.getHits().getHits(),
+                            definitionSearchResponse.getHits(),
                             modelId,
                             (bytes, resourceId) -> ChunkedTrainedModelRestorer.parseModelDefinitionDocLenientlyFromSource(
                                 bytes,
@@ -1202,7 +1202,7 @@ public class TrainedModelProvider {
         }
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
                 getClass().getResourceAsStream(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT)
             )
         ) {
@@ -1269,15 +1269,15 @@ public class TrainedModelProvider {
     }
 
     private static <T> List<T> handleHits(
-        SearchHit[] hits,
+        SearchHits hits,
         String resourceId,
         CheckedBiFunction<BytesReference, String, T, Exception> parseLeniently
     ) throws Exception {
-        if (hits.length == 0) {
+        if (hits.getHits().length == 0) {
             throw new ResourceNotFoundException(resourceId);
         }
-        List<T> results = new ArrayList<>(hits.length);
-        String initialIndex = hits[0].getIndex();
+        List<T> results = new ArrayList<>(hits.getHits().length);
+        String initialIndex = hits.getAt(0).getIndex();
         for (SearchHit hit : hits) {
             // We don't want to spread across multiple backing indices
             if (hit.getIndex().equals(initialIndex)) {
@@ -1322,15 +1322,7 @@ public class TrainedModelProvider {
     }
 
     private TrainedModelConfig.Builder parseModelConfigLenientlyFromSource(BytesReference source, String modelId) throws IOException {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
-                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                    stream
-                )
-        ) {
+        try (XContentParser parser = createParser(source)) {
             TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
 
             if (builder.getModelType() == null) {
@@ -1348,20 +1340,20 @@ public class TrainedModelProvider {
     }
 
     private TrainedModelMetadata parseMetadataLenientlyFromSource(BytesReference source, String modelId) throws IOException {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
-                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                    stream
-                )
-        ) {
+        try (XContentParser parser = createParser(source)) {
             return TrainedModelMetadata.fromXContent(parser, true);
         } catch (IOException e) {
             logger.error(() -> "[" + modelId + "] failed to parse model metadata", e);
             throw e;
         }
+    }
+
+    private XContentParser createParser(BytesReference source) throws IOException {
+        return XContentHelper.createParserNotCompressed(
+            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+            source,
+            XContentType.JSON
+        );
     }
 
     private static IndexRequest createRequest(String docId, String index, ToXContentObject body, boolean allowOverwriting) {

@@ -18,7 +18,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -37,6 +37,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -69,7 +70,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -553,12 +553,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 Set<String> ids = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
                 Set<TransformConfig> configs = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    BytesReference source = hit.getSourceRef();
-                    try (
-                        InputStream stream = source.streamInput();
-                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-                    ) {
+                    try (XContentParser parser = createParser(hit)) {
                         TransformConfig config = TransformConfig.fromXContent(parser, null, true);
                         if (ids.add(config.getId())) {
                             configs.add(config);
@@ -590,6 +585,18 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             }, foundConfigsListener::onFailure),
             client::search
         );
+    }
+
+    private XContentParser createParser(BytesReference source) throws IOException {
+        return XContentHelper.createParserNotCompressed(
+            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+            source,
+            XContentType.JSON
+        );
+    }
+
+    private XContentParser createParser(SearchHit hit) throws IOException {
+        return createParser(hit.getSourceRef());
     }
 
     @Override
@@ -770,12 +777,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     return;
                 }
                 SearchHit searchHit = searchResponse.getHits().getHits()[0];
-                BytesReference source = searchHit.getSourceRef();
-                try (
-                    InputStream stream = source.streamInput();
-                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                        .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-                ) {
+                try (XContentParser parser = createParser(searchHit)) {
                     resultListener.onResponse(
                         Tuple.tuple(TransformStoredDoc.fromXContent(parser), SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit))
                     );
@@ -825,12 +827,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     // skip old versions
                     if (hit.getId().equals(previousId) == false) {
                         previousId = hit.getId();
-                        BytesReference source = hit.getSourceRef();
-                        try (
-                            InputStream stream = source.streamInput();
-                            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
-                        ) {
+                        try (XContentParser parser = createParser(hit)) {
                             stats.add(TransformStoredDoc.fromXContent(parser));
                         } catch (IOException e) {
                             listener.onFailure(new ElasticsearchParseException("failed to parse transform stats from search hit", e));
@@ -851,7 +848,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             client.threadPool().getThreadContext(),
             TRANSFORM_ORIGIN,
             new RefreshRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME),
-            ActionListener.<RefreshResponse>wrap(r -> listener.onResponse(true), listener::onFailure),
+            ActionListener.<BroadcastResponse>wrap(r -> listener.onResponse(true), listener::onFailure),
             client.admin().indices()::refresh
         );
     }
@@ -861,11 +858,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         String transformId,
         ActionListener<TransformConfig> transformListener
     ) {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-        ) {
+        try (XContentParser parser = createParser(source)) {
             transformListener.onResponse(TransformConfig.fromXContent(parser, transformId, true));
         } catch (Exception e) {
             logger.error(TransformMessages.getMessage(TransformMessages.FAILED_TO_PARSE_TRANSFORM_CONFIGURATION, transformId), e);
@@ -878,11 +871,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         String transformId,
         ActionListener<TransformCheckpoint> transformListener
     ) {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-        ) {
+        try (XContentParser parser = createParser(source)) {
             transformListener.onResponse(TransformCheckpoint.fromXContent(parser, true));
         } catch (Exception e) {
             logger.error(TransformMessages.getMessage(TransformMessages.FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS, transformId), e);

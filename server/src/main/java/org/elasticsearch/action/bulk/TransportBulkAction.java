@@ -1111,19 +1111,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         synchronized void markItemAsDropped(int slot) {
-            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
+            final DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(slot);
             failedSlots.set(slot);
-            final String id = Objects.requireNonNullElse(indexRequest.id(), DROPPED_ITEM_WITH_AUTO_GENERATED_ID);
+            final String id = Objects.requireNonNullElse(docWriteRequest.id(), DROPPED_ITEM_WITH_AUTO_GENERATED_ID);
             itemResponses.add(
                 BulkItemResponse.success(
                     slot,
-                    indexRequest.opType(),
+                    docWriteRequest.opType(),
                     new UpdateResponse(
-                        new ShardId(indexRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
+                        new ShardId(docWriteRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
                         id,
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
                         SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                        indexRequest.version(),
+                        docWriteRequest.version(),
                         DocWriteResponse.Result.NOOP
                     )
                 )

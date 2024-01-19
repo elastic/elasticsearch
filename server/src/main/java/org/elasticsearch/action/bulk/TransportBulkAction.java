@@ -1110,6 +1110,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
+        synchronized void markItemAsFailed(int slot, Exception e) {
+            final DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(slot);
+            final String id = Objects.requireNonNullElse(docWriteRequest.id(), DROPPED_OR_FAILED_ITEM_WITH_AUTO_GENERATED_ID);
+            // We hit a error during preprocessing a request, so we:
+            // 1) Remember the request item slot from the bulk, so that when we're done processing all requests we know what failed
+            // 2) Add a bulk item failure for this request
+            // 3) Continue with the next request in the bulk.
+            failedSlots.set(slot);
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(docWriteRequest.index(), id, e);
+            itemResponses.add(BulkItemResponse.failure(slot, docWriteRequest.opType(), failure));
+        }
+
         synchronized void markItemAsDropped(int slot) {
             final DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(slot);
             failedSlots.set(slot);
@@ -1128,18 +1140,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     )
                 )
             );
-        }
-
-        synchronized void markItemAsFailed(int slot, Exception e) {
-            final DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(slot);
-            final String id = Objects.requireNonNullElse(docWriteRequest.id(), DROPPED_OR_FAILED_ITEM_WITH_AUTO_GENERATED_ID);
-            // We hit a error during preprocessing a request, so we:
-            // 1) Remember the request item slot from the bulk, so that when we're done processing all requests we know what failed
-            // 2) Add a bulk item failure for this request
-            // 3) Continue with the next request in the bulk.
-            failedSlots.set(slot);
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(docWriteRequest.index(), id, e);
-            itemResponses.add(BulkItemResponse.failure(slot, docWriteRequest.opType(), failure));
         }
     }
 }

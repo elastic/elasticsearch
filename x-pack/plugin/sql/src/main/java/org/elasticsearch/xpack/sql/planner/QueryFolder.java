@@ -493,7 +493,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 Expression target = ne;
 
                 // unwrap aliases since it's the children we are interested in
-                target = Alias.unwrap(ne);
+                if (ne instanceof Alias) {
+                    target = ((Alias) ne).child();
+                }
+
                 id = Expressions.id(target);
 
                 // literal

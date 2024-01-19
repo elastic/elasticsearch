@@ -1059,7 +1059,7 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
                     List<NamedExpression> missing = new ArrayList<>();
 
                     for (Expression orderedAgg : aggs) {
-                        if (Expressions.anyMatch(a.aggregates(), e -> Alias.unwrap(e).equals(orderedAgg) == false)) {
+                        if (Expressions.anyMatch(a.aggregates(), e -> Alias.unwrap(e).equals(orderedAgg)) == false) {
                             missing.add(Expressions.wrapAsNamed(orderedAgg));
                         }
                     }

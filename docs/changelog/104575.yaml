@@ -1,5 +1,5 @@
 pr: 104575
 summary: Introduce Alias.unwrap method
-area: "ES|QL, SQL"
+area: "Query Languages"
 type: enhancement
 issues: []

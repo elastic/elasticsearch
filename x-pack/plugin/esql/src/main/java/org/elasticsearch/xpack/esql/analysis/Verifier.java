@@ -83,7 +83,7 @@ public class Verifier {
             if (p instanceof Aggregate aggregate) {
                 for (NamedExpression agg : aggregate.aggregates()) {
                     var child = Alias.unwrap(agg);
-                    if (child instanceof UnresolvedAttribute u) {
+                    if (child instanceof UnresolvedAttribute) {
                         failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
                     }
                 }

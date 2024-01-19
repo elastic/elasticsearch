@@ -194,8 +194,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
             if (querySupplier.get() == null) {
                 return this;
             }
-            return new KnnRetrieverBuilder(field, querySupplier.get(), null, k, numCands, similarity).preFilterQueryBuilder(
-                preFilterQueryBuilder
+            return new KnnRetrieverBuilder(field, querySupplier.get(), null, k, numCands, similarity).preFilterQueryBuilders(
+                preFilterQueryBuilders
             )._name(_name);
         }
         if (queryVectorBuilder != null) {
@@ -216,7 +216,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
                 }
                 ll.onResponse(null);
             })));
-            return new KnnRetrieverBuilder(field, toSet::get, k, numCands, similarity).preFilterQueryBuilder(preFilterQueryBuilder)
+            return new KnnRetrieverBuilder(field, toSet::get, k, numCands, similarity).preFilterQueryBuilders(preFilterQueryBuilders)
                 ._name(_name);
         }
         return super.rewrite(ctx);
@@ -258,14 +258,11 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
 
     @Override
     public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
-        // TODO: add support for multiple knn retrievers per search request
-        if (searchSourceBuilder.knnSearch().size() == 0) {
+        if (searchSourceBuilder.knnSearch().isEmpty()) {
             KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(field, queryVector, queryVectorBuilder, k, numCands, similarity);
-            if (preFilterQueryBuilder != null) {
-                knnSearchBuilder.addFilterQuery(preFilterQueryBuilder);
+            if (preFilterQueryBuilders != null) {
+                knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
             }
-            this.preFilterQueryBuilder(null);
-            // TODO: add support for _name
             searchSourceBuilder.knnSearch(List.of(knnSearchBuilder));
         } else {
             throw new IllegalStateException("[knn] cannot be declared as a retriever value and as a global value");

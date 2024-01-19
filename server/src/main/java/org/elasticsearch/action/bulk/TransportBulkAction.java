@@ -1113,7 +1113,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         synchronized void markItemAsDropped(int slot) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             failedSlots.set(slot);
-            final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
+            final String id = Objects.requireNonNullElse(indexRequest.id(), DROPPED_ITEM_WITH_AUTO_GENERATED_ID);
             itemResponses.add(
                 BulkItemResponse.success(
                     slot,

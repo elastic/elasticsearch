@@ -6,6 +6,5 @@ issues: []
 deprecation:
   title: Deprecate `client.type`
   area: Infra/Core
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: The node setting `client.type` has been ignored since the node client was removed in 8.0. The setting is now deprecated and will be removed in a future release.
+  impact: Remove the `client.type` setting from `elasticsearch.yml`

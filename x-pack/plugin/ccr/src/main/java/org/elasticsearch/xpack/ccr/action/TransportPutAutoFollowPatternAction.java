@@ -108,7 +108,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-            ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
+            ccrLicenseChecker.hasPrivilegesToFollowIndices(client.threadPool().getThreadContext(), remoteClient, indices, e -> {
                 if (e == null) {
                     submitUnbatchedTask(
                         "put-auto-follow-pattern-" + request.getRemoteCluster(),

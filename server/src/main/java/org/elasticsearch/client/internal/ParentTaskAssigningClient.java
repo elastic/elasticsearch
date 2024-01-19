@@ -62,8 +62,18 @@ public class ParentTaskAssigningClient extends FilterClient {
     }
 
     @Override
-    public ParentTaskAssigningClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-        Client remoteClient = super.getRemoteClusterClient(clusterAlias, responseExecutor);
-        return new ParentTaskAssigningClient(remoteClient, parentTask);
+    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+        final var delegate = super.getRemoteClusterClient(clusterAlias, responseExecutor);
+        return new RemoteClusterClient() {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void execute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                request.setParentTask(parentTask);
+                delegate.execute(action, request, listener);
+            }
+        };
     }
 }

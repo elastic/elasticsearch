@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -20,7 +21,7 @@ import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -37,7 +38,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
@@ -108,7 +108,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
     }
 
     private static <Request extends ActionRequest, Response extends ActionResponse> Response executeRemote(
-        Client client,
+        RemoteClusterClient client,
         ActionType<Response> action,
         Request request
     ) throws Exception {
@@ -117,12 +117,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         try {
             return future.get(10, TimeUnit.SECONDS);
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof RemoteTransportException remoteTransportException
-                && remoteTransportException.getCause() instanceof Exception cause) {
-                throw cause;
-            }
-
-            if (e.getCause() instanceof Exception cause) {
+            if (ExceptionsHelper.unwrapCause(e.getCause()) instanceof Exception cause) {
                 throw cause;
             }
 

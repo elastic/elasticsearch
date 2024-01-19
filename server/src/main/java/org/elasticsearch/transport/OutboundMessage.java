@@ -22,6 +22,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 abstract class OutboundMessage extends NetworkMessage {
 
@@ -61,7 +63,13 @@ abstract class OutboundMessage extends NetworkMessage {
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }
-            if (message instanceof BytesTransportRequest bRequest) {
+            if (message.supportsZeroCopy() && stream instanceof RecyclerBytesStreamOutput b) {
+                int posBefore = Math.toIntExact(b.position());
+                final List<BytesReference> res = new ArrayList<>(2);
+                message.serialize(b, res);
+                b.seek(posBefore);
+                zeroCopyBuffer = CompositeBytesReference.of(res.toArray(new BytesReference[0]));
+            } else if (message instanceof BytesTransportRequest bRequest) {
                 bRequest.writeThin(stream);
                 zeroCopyBuffer = bRequest.bytes;
             } else if (message instanceof RemoteTransportException) {

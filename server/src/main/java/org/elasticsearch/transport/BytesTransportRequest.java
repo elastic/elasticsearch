@@ -11,11 +11,13 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * A specialized, bytes only request, that can potentially be optimized on the network
@@ -58,6 +60,19 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBytesReference(bytes);
+    }
+
+    @Override
+    public boolean supportsZeroCopy() {
+        return true;
+    }
+
+    @Override
+    public void serialize(BytesStream out, List<BytesReference> res) throws IOException {
+        int pos = Math.toIntExact(out.position());
+        writeThin(out);
+        res.add(out.bytes().slice(pos, Math.toIntExact(out.position() - pos)));
+        res.add(bytes);
     }
 
     @Override

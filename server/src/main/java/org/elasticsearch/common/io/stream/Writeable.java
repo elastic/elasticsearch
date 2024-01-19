@@ -9,8 +9,10 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Implementers can be written to a {@linkplain StreamOutput} and read from a {@linkplain StreamInput}. This allows them to be "thrown
@@ -23,6 +25,16 @@ public interface Writeable {
      * Write this into the {@linkplain StreamOutput}.
      */
     void writeTo(StreamOutput out) throws IOException;
+
+    default boolean supportsZeroCopy() {
+        return false;
+    }
+
+    default void serialize(BytesStream out, List<BytesReference> result) throws IOException {
+        var e = new UnsupportedOperationException("[" + this.getClass() + "] does not support zero copy serialization");
+        assert false : e;
+        throw e;
+    }
 
     /**
      * Reference to a method that can write some object to a {@link StreamOutput}.

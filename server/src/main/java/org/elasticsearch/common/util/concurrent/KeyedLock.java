@@ -132,7 +132,7 @@ public final class KeyedLock<T> {
             }
         }
 
-        @SuppressWarnings("FieldMayBeFinal") // updated via VH_REFCOUNT_FIELD (and _only_ via VH_REFCOUNT_FIELD)
+        @SuppressWarnings("FieldMayBeFinal") // updated via VH_COUNT_FIELD (and _only_ via VH_COUNT_FIELD)
         private volatile int count = 1;
 
         KeyLock() {

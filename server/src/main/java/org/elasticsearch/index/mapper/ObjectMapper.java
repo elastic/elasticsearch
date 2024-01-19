@@ -533,15 +533,14 @@ public class ObjectMapper extends Mapper {
             MergeReason reason,
             MapperMergeContext objectMergeContext
         ) {
-            Map<String, Mapper> mergedMappers = null;
+            Map<String, Mapper> mergedMappers = new HashMap<>(existing.mappers);
             for (Mapper mergeWithMapper : mergeWith) {
-                Mapper mergeIntoMapper = (mergedMappers == null ? existing.mappers : mergedMappers).get(mergeWithMapper.simpleName());
+                Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
 
-                Mapper merged;
                 if (mergeIntoMapper == null) {
-                    merged = mergeWithMapper;
+                    mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                    merged = objectMapper.merge(mergeWithMapper, reason, objectMergeContext);
+                    mergedMappers.put(objectMapper.simpleName(), objectMapper.merge(mergeWithMapper, reason, objectMergeContext));
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                     if (mergeWithMapper instanceof NestedObjectMapper) {
@@ -553,23 +552,13 @@ public class ObjectMapper extends Mapper {
                     // If we're merging template mappings when creating an index, then a field definition always
                     // replaces an existing one.
                     if (reason == MergeReason.INDEX_TEMPLATE) {
-                        merged = mergeWithMapper;
+                        mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
                     } else {
-                        merged = mergeIntoMapper.merge(mergeWithMapper, objectMergeContext);
-                    }
+                        mergedMappers.put(mergeWithMapper.simpleName(), mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
                 }
-                if (mergedMappers == null) {
-                    mergedMappers = new HashMap<>(existing.mappers);
-                }
-                mergedMappers.put(merged.simpleName(), merged);
             }
-            if (mergedMappers != null) {
-                mergedMappers = Map.copyOf(mergedMappers);
-            } else {
-                mergedMappers = Map.copyOf(existing.mappers);
-            }
-            return mergedMappers;
         }
+        return Map.copyOf(mergedMappers);
     }
 
     @Override

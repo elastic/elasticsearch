@@ -19,15 +19,15 @@ public class EsAbortPolicy extends EsRejectedExecutionHandler {
                 if (executor.getQueue() instanceof SizeBlockingQueue<Runnable> sizeBlockingQueue) {
                     try {
                         sizeBlockingQueue.forcePut(r);
-                        return;
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         throw new IllegalStateException("forced execution, but got interrupted", e);
                     }
-                }
-
-                if (executor.isShutdown() == false) {
-                    throw new IllegalStateException("should only be rejected from unbounded executor when shut-down, not " + executor);
+                    if ((executor.isShutdown() && sizeBlockingQueue.remove(r)) == false) {
+                        return;
+                    } // else fall through and reject the task since the executor is shut down
+                } else {
+                    throw new IllegalStateException("expected but did not find SizeBlockingQueue: " + executor);
                 }
             }
         }

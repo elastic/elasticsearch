@@ -600,7 +600,6 @@ public class EsExecutorsTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104580")
     public void testFixedBoundedRejectOnShutdown() {
         runRejectOnShutdownTest(
             EsExecutors.newFixed(

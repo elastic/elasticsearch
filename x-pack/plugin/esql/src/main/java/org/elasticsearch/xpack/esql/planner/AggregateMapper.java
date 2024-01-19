@@ -103,7 +103,7 @@ public class AggregateMapper {
     }
 
     private Stream<? extends NamedExpression> map(Expression aggregate, boolean grouping) {
-        aggregate = unwrapAlias(aggregate);
+        aggregate = Alias.unwrap(aggregate);
         return cache.computeIfAbsent(aggregate, aggKey -> computeEntryForAgg(aggKey, grouping)).stream();
     }
 
@@ -230,10 +230,5 @@ public class AggregateMapper {
         } else {
             throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
         }
-    }
-
-    static Expression unwrapAlias(Expression expression) {
-        if (expression instanceof Alias alias) return alias.child();
-        return expression;
     }
 }

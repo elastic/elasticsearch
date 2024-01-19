@@ -86,7 +86,11 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
         Literal to;
         if (arg.dataType() == DataTypes.DATETIME) {
             from = new Literal(Source.EMPTY, new BytesRef("2023-02-01T00:00:00.00Z"), DataTypes.KEYWORD);
-            to = new Literal(Source.EMPTY, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-03-01T09:00:00.00Z"), DataTypes.DATETIME);
+            to = new Literal(
+                Source.EMPTY,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-03-01T09:00:00.00Z"),
+                DataTypes.DATETIME
+            );
         } else {
             from = new Literal(Source.EMPTY, 0, DataTypes.DOUBLE);
             to = new Literal(Source.EMPTY, 1000, DataTypes.DOUBLE);

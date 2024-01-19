@@ -118,6 +118,25 @@ public final class TypeResolutions {
         return isExact(e, operationName, paramOrd);
     }
 
+    public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        TypeResolution resolution = isDate(e, operationName, paramOrd);
+        resolution = resolution.unresolved() ? isString(e, operationName, paramOrd) : resolution;
+        if (resolution.unresolved()) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    acceptedTypesForErrorMsg("string", "datetime"),
+                    name(e),
+                    e.dataType().typeName()
+                )
+            );
+        }
+        return resolution;
+    }
+
     public static TypeResolution isFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
         if (e.foldable() == false) {
             return new TypeResolution(
@@ -170,7 +189,7 @@ public final class TypeResolutions {
             );
     }
 
-    public static String acceptedTypesForErrorMsg(String... acceptedTypes) {
+    private static String acceptedTypesForErrorMsg(String... acceptedTypes) {
         StringJoiner sj = new StringJoiner(", ");
         for (int i = 0; i < acceptedTypes.length - 1; i++) {
             sj.add(acceptedTypes[i]);

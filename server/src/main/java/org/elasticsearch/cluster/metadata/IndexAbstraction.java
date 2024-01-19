@@ -261,8 +261,7 @@ public interface IndexAbstraction {
                 return getWriteIndex();
             }
 
-            final var parentDataStream = metadata.getIndicesLookup().get(getWriteIndex().getName()).getParentDataStream();
-            return parentDataStream.getWriteIndex(request, metadata);
+            return metadata.getIndicesLookup().get(getWriteIndex().getName()).getParentDataStream().getWriteIndex(request, metadata);
         }
 
         @Override

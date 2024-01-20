@@ -43,18 +43,23 @@ public class URLHttpClient implements Closeable {
     private final URLHttpClientSettings httpClientSettings;
 
     public static class Factory implements Closeable {
-        private final PoolingHttpClientConnectionManager connManager;
+        private PoolingHttpClientConnectionManager connManager;
 
-        public Factory() {
-            this.connManager = new PoolingHttpClientConnectionManager();
-            connManager.setDefaultMaxPerRoute(MAX_CONNECTIONS);
-            connManager.setMaxTotal(MAX_CONNECTIONS);
-        }
+        public Factory() {}
 
         public URLHttpClient create(URLHttpClientSettings settings) {
+            final PoolingHttpClientConnectionManager connectionManager;
+            synchronized (this) {
+                if (this.connManager == null) {
+                    this.connManager = new PoolingHttpClientConnectionManager();
+                    connManager.setDefaultMaxPerRoute(MAX_CONNECTIONS);
+                    connManager.setMaxTotal(MAX_CONNECTIONS);
+                }
+                connectionManager = this.connManager;
+            }
             final CloseableHttpClient apacheHttpClient = HttpClients.custom()
                 .setSSLContext(SSLContexts.createSystemDefault())
-                .setConnectionManager(connManager)
+                .setConnectionManager(connectionManager)
                 .disableAutomaticRetries()
                 .setConnectionManagerShared(true)
                 .build();
@@ -63,8 +68,8 @@ public class URLHttpClient implements Closeable {
         }
 
         @Override
-        public void close() {
-            connManager.close();
+        public synchronized void close() throws IOException {
+            IOUtils.close(connManager);
         }
     }
 

@@ -1123,22 +1123,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         synchronized void markItemAsDropped(int slot) {
             final DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(slot);
-            failedSlots.set(slot);
             final String id = Objects.requireNonNullElse(docWriteRequest.id(), DROPPED_OR_FAILED_ITEM_WITH_AUTO_GENERATED_ID);
-            itemResponses.add(
-                BulkItemResponse.success(
-                    slot,
-                    docWriteRequest.opType(),
-                    new UpdateResponse(
-                        new ShardId(docWriteRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
-                        id,
-                        UNASSIGNED_SEQ_NO,
-                        UNASSIGNED_PRIMARY_TERM,
-                        docWriteRequest.version(),
-                        DocWriteResponse.Result.NOOP
-                    )
-                )
+            failedSlots.set(slot);
+            UpdateResponse dropped = new UpdateResponse(
+                new ShardId(docWriteRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
+                id,
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                docWriteRequest.version(),
+                DocWriteResponse.Result.NOOP
             );
+            itemResponses.add(BulkItemResponse.success(slot, docWriteRequest.opType(), dropped));
         }
     }
 }

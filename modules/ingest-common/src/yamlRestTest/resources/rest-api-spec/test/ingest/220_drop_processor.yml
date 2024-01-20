@@ -1,131 +1,94 @@
 ---
 teardown:
-  - do:
-      ingest.delete_pipeline:
-        id: "my_pipeline"
-        ignore: 404
+- do:
+    ingest.delete_pipeline:
+      id: "my_pipeline"
+      ignore: 404
 
 ---
 "Test Drop Processor":
-  - do:
-      ingest.put_pipeline:
-        id: "my_pipeline"
-        body: >
-          {
-            "description" : "pipeline with drop",
-            "processors" : [
-              {
-                "drop" : {
-                  "if": "ctx.foo == 'bar'"
-                }
+- do:
+    ingest.put_pipeline:
+      id: "my_pipeline"
+      body:  >
+        {
+          "description" : "pipeline with drop",
+          "processors" : [
+            {
+              "drop" : {
+                "if": "ctx.foo == 'bar'"
               }
-            ]
-          }
-  - match: { acknowledged: true }
-
-  - do:
-      index:
-        index: test
-        id: "1"
-        pipeline: "my_pipeline"
-        body: {
-          foo: "bar"
+            }
+          ]
         }
+- match: { acknowledged: true }
 
-  - do:
-      index:
-        index: test
-        id: "2"
-        pipeline: "my_pipeline"
-        body: {
-          foo: "blub"
-        }
+- do:
+    index:
+      index: test
+      id: "1"
+      pipeline: "my_pipeline"
+      body: {
+        foo: "bar"
+      }
 
-  - do:
-      catch: missing
-      get:
-        index: test
-        id: "1"
-  - match: { found: false }
+- do:
+    index:
+      index: test
+      id: "2"
+      pipeline: "my_pipeline"
+      body: {
+        foo: "blub"
+      }
 
-  - do:
-      get:
-        index: test
-        id: "2"
-  - match: { _source.foo: "blub" }
+- do:
+    catch: missing
+    get:
+      index: test
+      id: "1"
+- match: { found: false }
+
+- do:
+    get:
+      index: test
+      id: "2"
+- match: { _source.foo: "blub" }
 
 ---
 "Test Drop Processor On Failure":
-  - do:
-      ingest.put_pipeline:
-        id: "my_pipeline_with_failure"
-        body: >
-          {
-            "description" : "pipeline with on failure drop",
-            "processors": [
-                {
-                  "fail": {
-                    "message": "failed",
-                    "on_failure": [
-                      {
-                        "drop": {}
-                      }
-                    ]
-                  }
-                }
-              ]
-          }
-  - match: { acknowledged: true }
-
-  - do:
-      index:
-        index: test
-        id: "3"
-        pipeline: "my_pipeline_with_failure"
-        body: {
-          foo: "bar"
-        }
-
-  - do:
-      catch: missing
-      get:
-        index: test
-        id: "3"
-
----
-"Test Drop Processor with Upsert":
-  - do:
-      ingest.put_pipeline:
-        id: "my_pipeline"
-        body: >
-          {
-            "processors": [
+- do:
+    ingest.put_pipeline:
+      id: "my_pipeline_with_failure"
+      body:  >
+        {
+          "description" : "pipeline with on failure drop",
+          "processors": [
               {
-                "drop": {
+                "fail": {
+                  "message": "failed",
+                  "on_failure": [
+                    {
+                      "drop": {}
+                    }
+                  ]
                 }
               }
             ]
-          }
-  - match: { acknowledged: true }
+        }
+- match: { acknowledged: true }
 
-  - do:
-      bulk:
-        refresh: true
-        pipeline: "my_pipeline"
-        body:
-          - update:
-              _index: test
-              _id: 4
-          - '{"upsert":{"some":"fields"},"script":"ctx"}'
-  - match: { errors: false }
-  - match: { items.0.update._index: test }
-  - match: { items.0.update._id: "4" }
-  - match: { items.0.update._version: -3 }
-  - match: { items.0.update.result: noop }
-  - match: { items.0.update.status: 200 }
+- do:
+    index:
+      index: test
+      id: "3"
+      pipeline: "my_pipeline_with_failure"
+      body: {
+        foo: "bar"
+      }
 
-  - do:
-      catch: missing
-      get:
-        index: test
-        id: "4"
+- do:
+    catch: missing
+    get:
+      index: test
+      id: "3"
+

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -129,24 +130,34 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             else if (plan instanceof Project project) {
                 var projections = project.projections();
                 List<NamedExpression> newProjections = new ArrayList<>(projections.size());
-                List<Alias> literals = new ArrayList<>();
+                Alias nullLiteral = null;
+                Attribute literalReference = null;
 
                 for (NamedExpression projection : projections) {
                     if (projection instanceof FieldAttribute f && stats.exists(f.qualifiedName()) == false) {
-                        var alias = new Alias(f.source(), f.name(), null, Literal.of(f, null), f.id());
-                        literals.add(alias);
-                        newProjections.add(alias.toAttribute());
-                    } else {
-                        newProjections.add(projection);
+                        // save the first field as null
+                        if (nullLiteral == null) {
+                            nullLiteral = new Alias(f.source(), f.name(), null, Literal.of(f, null), f.id());
+                            literalReference = nullLiteral.toAttribute();
+                            projection = literalReference;
+                        }
+                        // the rest of the missing fields are kept as aliases to the already identified null field
+                        // since avoids creating field copies
+                        else {
+                            projection = new Alias(f.source(), f.name(), f.qualifier(), literalReference, f.id());
+                        }
                     }
+
+                    newProjections.add(projection);
                 }
-                if (literals.size() > 0) {
-                    plan = new Eval(project.source(), project.child(), literals);
+                // add the first found field as null
+                if (nullLiteral != null) {
+                    plan = new Eval(project.source(), project.child(), Collections.singletonList(nullLiteral));
                     plan = new Project(project.source(), plan, newProjections);
-                } else {
-                    plan = project;
                 }
-            } else {
+            }
+            // otherwise transform fields in place
+            else {
                 plan = plan.transformExpressionsOnlyUp(
                     FieldAttribute.class,
                     f -> stats.exists(f.qualifiedName()) ? f : Literal.of(f, null)

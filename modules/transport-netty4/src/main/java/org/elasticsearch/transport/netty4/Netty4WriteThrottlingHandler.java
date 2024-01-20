@@ -9,6 +9,7 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
@@ -16,10 +17,14 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.concurrent.PromiseCombiner;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.Transports;
 
+import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -42,17 +47,40 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-        assert msg instanceof ByteBuf;
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws IOException {
         assert Transports.assertDefaultThreadContext(threadContext);
         assert Transports.assertTransportThread();
-        final ByteBuf buf = (ByteBuf) msg;
+        if (msg instanceof ByteBuf buf) {
+            writeByteBuf(ctx, promise, buf);
+        } else {
+            assert msg instanceof BytesReference;
+            writeBytesReference(ctx, (BytesReference) msg, promise);
+        }
+    }
+
+    private void writeBytesReference(ChannelHandlerContext ctx, BytesReference ref, ChannelPromise promise) throws IOException {
+        if (ref.hasArray()) {
+            writeByteBuf(ctx, promise, Unpooled.wrappedBuffer(ref.array(), ref.arrayOffset(), ref.length()));
+        } else {
+            var iterator = ref.iterator();
+            BytesRef slice;
+            final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
+            while ((slice = iterator.next()) != null) {
+                var partPromise = ctx.newPromise();
+                writeByteBuf(ctx, partPromise, Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
+                combiner.add((ChannelFuture) partPromise);
+            }
+            combiner.finish(promise);
+        }
+    }
+
+    private void writeByteBuf(ChannelHandlerContext ctx, ChannelPromise promise, ByteBuf buf) {
         if (ctx.channel().isWritable() && currentWrite == null && queuedWrites.isEmpty()) {
             // nothing is queued for writing and the channel is writable, just pass the write down the pipeline directly
             if (buf.readableBytes() > MAX_BYTES_PER_WRITE) {
                 writeInSlices(ctx, promise, buf);
             } else {
-                ctx.write(msg, promise);
+                ctx.write(buf, promise);
             }
         } else {
             queueWrite(buf, promise);

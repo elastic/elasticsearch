@@ -10,7 +10,7 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
-        body:  >
+        body: >
           {
             "description": "_description",
             "processors": [
@@ -36,7 +36,7 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
-        body:  >
+        body: >
           {
             "description": "_description",
             "processors": [
@@ -69,3 +69,42 @@ teardown:
         index: test
         id: "1"
   - match: { _source.error_message: "fail_processor_ran" }
+
+---
+"Test Fail Processor with Upsert":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "fail": {
+                  "message": "error-message"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      bulk:
+        refresh: true
+        pipeline: "my_pipeline"
+        body:
+          - update:
+              _index: test
+              _id: 3
+          - '{"upsert":{"some":"fields"},"script":"ctx"}'
+  - match: { errors: true }
+  - match: { items.0.update._index: test }
+  - match: { items.0.update._id: "3" }
+  - match: { items.0.update.status: 500 }
+  - match: { items.0.update.error.type: fail_processor_exception }
+  - match: { items.0.update.error.reason: error-message }
+
+  - do:
+      catch: missing
+      get:
+        index: test
+        id: "3"

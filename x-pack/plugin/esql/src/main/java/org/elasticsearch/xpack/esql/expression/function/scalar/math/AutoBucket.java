@@ -117,7 +117,6 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         if (field.dataType() == DataTypes.DATETIME) {
             long f = convertToLong(from, sourceText(), THIRD);
             long t = convertToLong(to, sourceText(), FOURTH);
-            ;
             return DateTrunc.evaluator(
                 source(),
                 toEvaluator.apply(field),

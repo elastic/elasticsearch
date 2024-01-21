@@ -89,19 +89,21 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Creates a listener that delegates all exceptions it receives to another listener.
+     * Creates a new listener, wrapping this one, that overrides {@link #onResponse} handling with the given {@code bc} consumer.
+     * {@link #onFailure(Exception)} handling is delegated to the original listener. Exceptions in {@link #onResponse} are forbidden.
      *
-     * @param bc BiConsumer invoked with delegate listener and response
+     * @param bc {@link BiConsumer} invoked via {@link #onResponse} with the original listener and the response with which the new listener
+     * was completed.
      * @param <T> Type of the delegating listener's response
-     * @return Delegating listener
+     * @return a new listener that delegates failures to this listener and runs {@code bc} on a response.
      */
     default <T> ActionListener<T> delegateFailure(BiConsumer<ActionListener<Response>, T> bc) {
         return new ActionListenerImplementations.DelegatingFailureActionListener<>(this, bc);
     }
 
     /**
-     * Same as {@link #delegateFailure(BiConsumer)} except that any failure thrown by {@code bc} or the delegate listener's
-     * {@link #onResponse} will be passed to the delegate listeners {@link #onFailure(Exception)}.
+     * Same as {@link #delegateFailure(BiConsumer)} except that any failure thrown by {@code bc} or the original listener's
+     * {@link #onResponse} will be passed to the original listener's {@link #onFailure(Exception)}.
      */
     default <T> ActionListener<T> delegateFailureAndWrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> bc) {
         return new ActionListenerImplementations.ResponseWrappingActionListener<>(this, bc);
@@ -150,7 +152,7 @@ public interface ActionListener<Response> {
      * the sense that an exception from the {@code onResponse} consumer is passed into the {@code onFailure} consumer.
      * <p>
      * If the {@code onFailure} argument is {@code listener::onFailure} for some other {@link ActionListener}, prefer to use
-     * {@link #delegateFailureAndWrap} instead.
+     * {@link #delegateFailureAndWrap} instead for performance reasons.
      * @param onResponse the checked consumer of the response, executed when the listener is completed successfully. If it throws an
      *                   exception, the exception is passed to the {@code onFailure} consumer.
      * @param onFailure the consumer of the failure, executed when the listener is completed with an exception (or it is completed
@@ -180,29 +182,6 @@ public interface ActionListener<Response> {
             @Override
             public String toString() {
                 return "WrappedActionListener{" + onResponse + "}{" + onFailure + "}";
-            }
-        };
-    }
-
-    /**
-     * Adds a wrapper around a listener which catches exceptions thrown by its {@link #onResponse} method and feeds them to its
-     * {@link #onFailure} method.
-     */
-    static <DelegateResponse, Response extends DelegateResponse> ActionListener<Response> wrap(ActionListener<DelegateResponse> delegate) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Response response) {
-                ActionListener.run(delegate, l -> l.onResponse(response));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                safeOnFailure(delegate, e);
-            }
-
-            @Override
-            public String toString() {
-                return "wrapped{" + delegate + "}";
             }
         };
     }
@@ -372,12 +351,32 @@ public interface ActionListener<Response> {
     /**
      * Execute the given action in a {@code try/catch} block which feeds all exceptions to the given listener's {@link #onFailure} method.
      */
-    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, Exception> action) {
+    static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, ? extends Exception> action) {
         try {
             action.accept(listener);
         } catch (Exception e) {
             safeOnFailure(listener, e);
         }
+    }
+
+    /**
+     * Execute the given action in an (async equivalent of a) try-with-resources block which closes the supplied resource on completion, and
+     * feeds all exceptions to the given listener's {@link #onFailure} method.
+     */
+    static <T, R extends AutoCloseable> void runWithResource(
+        ActionListener<T> listener,
+        CheckedSupplier<R, ? extends Exception> resourceSupplier,
+        CheckedBiConsumer<ActionListener<T>, R, ? extends Exception> action
+    ) {
+        R resource;
+        try {
+            resource = resourceSupplier.get();
+        } catch (Exception e) {
+            safeOnFailure(listener, e);
+            return;
+        }
+
+        ActionListener.run(ActionListener.runBefore(listener, resource::close), l -> action.accept(l, resource));
     }
 
 }

@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
@@ -76,8 +76,8 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
         ).get();
 
         client().execute(
-            PutLifecycleAction.INSTANCE,
-            new PutLifecycleAction.Request(
+            ILMActions.PUT,
+            new PutLifecycleRequest(
                 new LifecyclePolicy(
                     "ilm-policy",
                     Map.of("warm", new Phase("warm", TimeValue.timeValueHours(1), Map.of("readonly", new ReadOnlyAction())))
@@ -109,7 +109,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
             }
         });
 
-        assertAcked(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).get());
+        assertAcked(client().execute(ILMActions.STOP, new StopILMRequest()).get());
         assertAcked(client().execute(StopSLMAction.INSTANCE, new StopSLMAction.Request()).get());
         assertBusy(() -> assertThat(ilmMode(), equalTo(OperationMode.STOPPED)));
         assertBusy(() -> assertThat(slmMode(), equalTo(OperationMode.STOPPED)));

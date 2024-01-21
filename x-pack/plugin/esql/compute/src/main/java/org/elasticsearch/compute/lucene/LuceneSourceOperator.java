@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,8 +45,8 @@ public class LuceneSourceOperator extends LuceneOperator {
         private final LuceneSliceQueue sliceQueue;
 
         public Factory(
-            List<SearchContext> searchContexts,
-            Function<SearchContext, Query> queryFunction,
+            List<? extends ShardContext> contexts,
+            Function<ShardContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int maxPageSize,
@@ -57,7 +56,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             var weightFunction = weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
-            this.sliceQueue = LuceneSliceQueue.create(searchContexts, weightFunction, dataPartitioning, taskConcurrency);
+            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }
 
@@ -95,7 +94,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         super(blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
-        this.docsBuilder = IntVector.newVectorBuilder(Math.min(limit, maxPageSize), blockFactory);
+        this.docsBuilder = blockFactory.newIntVectorBuilder(Math.min(limit, maxPageSize));
         this.leafCollector = new LeafCollector() {
             @Override
             public void setScorer(Scorable scorer) {
@@ -149,10 +148,10 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntBlock leaf = null;
                 IntVector docs = null;
                 try {
-                    shard = IntBlock.newConstantBlockWith(scorer.shardIndex(), currentPagePos, blockFactory);
-                    leaf = IntBlock.newConstantBlockWith(scorer.leafReaderContext().ord, currentPagePos, blockFactory);
+                    shard = blockFactory.newConstantIntBlockWith(scorer.shardContext().index(), currentPagePos);
+                    leaf = blockFactory.newConstantIntBlockWith(scorer.leafReaderContext().ord, currentPagePos);
                     docs = docsBuilder.build();
-                    docsBuilder = IntVector.newVectorBuilder(Math.min(remainingDocs, maxPageSize), blockFactory);
+                    docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     page = new Page(currentPagePos, new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock());
                 } finally {
                     if (page == null) {

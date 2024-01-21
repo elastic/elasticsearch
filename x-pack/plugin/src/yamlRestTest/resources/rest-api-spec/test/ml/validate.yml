@@ -2,7 +2,7 @@
 "Test valid job config":
   - do:
       ml.validate:
-        body:  >
+        body: >
           {
             "analysis_config": {
               "bucket_span": "1h",
@@ -21,7 +21,7 @@
   - do:
       catch: /.data_description. failed to parse field .format./
       ml.validate:
-        body:  >
+        body: >
           {
             "analysis_config": {
               "bucket_span": "1h",
@@ -38,7 +38,7 @@
 "Test valid job config with job ID":
   - do:
       ml.validate:
-        body:  >
+        body: >
           {
             "job_id": "validate-job-config-with-job-id",
             "analysis_config": {
@@ -58,7 +58,7 @@
   - do:
       catch: /Invalid job_id; '_' can contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
       ml.validate:
-        body:  >
+        body: >
           {
             "job_id": "_",
             "analysis_config": {
@@ -78,7 +78,7 @@
   - do:
       catch: /illegal_argument_exception/
       ml.validate:
-        body:  >
+        body: >
           {
             "model_snapshot_id": "wont-create-with-this-setting",
             "analysis_config" : {
@@ -92,7 +92,7 @@
   - do:
       catch: /The job is configured with fields \[model_snapshot_id\] that are illegal to set at job creation/
       ml.validate:
-        body:  >
+        body: >
           {
             "model_snapshot_id": "wont-create-with-this-setting",
             "analysis_config" : {
@@ -109,7 +109,7 @@
   - do:
       catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
       ml.validate:
-        body:  >
+        body: >
           {
             "analysis_config": {
                 "bucket_span": "1h",
@@ -126,7 +126,7 @@
   - do:
       catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
       ml.validate:
-        body:  >
+        body: >
           {
             "analysis_config": {
                 "bucket_span": "1h",

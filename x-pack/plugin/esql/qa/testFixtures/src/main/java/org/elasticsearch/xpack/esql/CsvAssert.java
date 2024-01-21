@@ -119,7 +119,7 @@ public final class CsvAssert {
             for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
                 var page = pages.get(pageIndex);
                 var block = page.getBlock(column);
-                var blockType = Type.asType(block.elementType());
+                var blockType = Type.asType(block.elementType(), actualType);
 
                 if (blockType == Type.LONG
                     && (expectedType == Type.DATETIME
@@ -155,7 +155,7 @@ public final class CsvAssert {
     }
 
     static void assertData(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        assertData(expected, actual.values(), ignoreOrder, logger, Function.identity());
+        assertData(expected, actual.values(), ignoreOrder, logger, v -> v);
     }
 
     public static void assertData(
@@ -202,9 +202,13 @@ public final class CsvAssert {
                         if (expectedType == Type.DATETIME) {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
                         } else if (expectedType == Type.GEO_POINT) {
-                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> GEO.longAsPoint((long) x));
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
                         } else if (expectedType == Type.CARTESIAN_POINT) {
-                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> CARTESIAN.longAsPoint((long) x));
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.GEO_SHAPE) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.CARTESIAN_SHAPE) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
                         } else if (expectedType == Type.IP) {
                             // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));

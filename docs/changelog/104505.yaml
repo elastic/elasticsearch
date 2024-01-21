@@ -1,0 +1,5 @@
+pr: 104505
+summary: "Revert \"x-pack/plugin/apm-data: download geoip DB on pipeline creation\""
+area: Ingest Node
+type: bug
+issues: []

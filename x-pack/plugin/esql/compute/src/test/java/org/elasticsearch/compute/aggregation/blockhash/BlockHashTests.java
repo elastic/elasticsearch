@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -27,6 +26,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasables;
@@ -498,12 +498,12 @@ public class BlockHashTests extends ESTestCase {
                 assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
                 assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
                 assertKeys(ordsAndKeys.keys, true);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(0, 1)));
             } else {
                 assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=false, seenTrue=true, seenNull=false}"));
                 assertOrds(ordsAndKeys.ords, 2, 2, 2, 2);
                 assertKeys(ordsAndKeys.keys, true);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(2).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(2, 1)));
             }
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());
     }
@@ -514,11 +514,11 @@ public class BlockHashTests extends ESTestCase {
             if (forcePackedHash) {
                 assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
                 assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(0, 1)));
             } else {
                 assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=false, seenNull=false}"));
                 assertOrds(ordsAndKeys.ords, 1, 1, 1, 1);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(1).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(1, 1)));
             }
             assertKeys(ordsAndKeys.keys, false);
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());
@@ -602,6 +602,20 @@ public class BlockHashTests extends ESTestCase {
                 assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 3)));
             }, builder);
         }
+    }
+
+    public void testNullHash() {
+        Object[] values = new Object[] { null, null, null, null };
+        hash(ordsAndKeys -> {
+            if (forcePackedHash) {
+                assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:NULL], entries=1, size="));
+            } else {
+                assertThat(ordsAndKeys.description, equalTo("NullBlockHash{channel=0, seenNull=true}"));
+            }
+            assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(0, 1)));
+            assertKeys(ordsAndKeys.keys, new Object[][] { new Object[] { null } });
+        }, blockFactory.newConstantNullBlock(values.length));
     }
 
     public void testLongLongHash() {
@@ -1083,6 +1097,22 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
+    public void testLongNull() {
+        long[] values = new long[] { 0, 1, 0, 2, 3, 1 };
+        hash(ordsAndKeys -> {
+            Object[][] expectedKeys = {
+                new Object[] { 0L, null },
+                new Object[] { 1L, null },
+                new Object[] { 2L, null },
+                new Object[] { 3L, null } };
+
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:NULL], entries=4, size="));
+            assertOrds(ordsAndKeys.ords, 0, 1, 0, 2, 3, 1);
+            assertKeys(ordsAndKeys.keys, expectedKeys);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 4)));
+        }, blockFactory.newLongArrayVector(values, values.length).asBlock(), blockFactory.newConstantNullBlock(values.length));
+    }
+
     record OrdsAndKeys(String description, int positionOffset, IntBlock ords, Block[] keys, IntVector nonEmpty) {}
 
     /**
@@ -1262,6 +1292,6 @@ public class BlockHashTests extends ESTestCase {
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {
-        return IntVector.range(startInclusive, endExclusive, BlockFactory.getNonBreakingInstance());
+        return IntVector.range(startInclusive, endExclusive, TestBlockFactory.getNonBreakingInstance());
     }
 }

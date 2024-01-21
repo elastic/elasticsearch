@@ -64,7 +64,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
             model.getServiceSettings().uri(),
             null, // Similarity measure is unknown
             embeddingSize,
-            null  // max input tokens is unknown
+            model.getTokenLimit()
         );
 
         return new HuggingFaceEmbeddingsModel(model, serviceSettings);

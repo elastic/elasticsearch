@@ -83,6 +83,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
@@ -232,6 +233,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -242,6 +244,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<RestHandler> handlers = new ArrayList<>(
             super.getRestHandlers(
                 settings,
+                namedWriteableRegistry,
                 restController,
                 clusterSettings,
                 indexScopedSettings,
@@ -254,6 +257,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             p -> handlers.addAll(
                 p.getRestHandlers(
                     settings,
+                    namedWriteableRegistry,
                     restController,
                     clusterSettings,
                     indexScopedSettings,
@@ -381,10 +385,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-
+    public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
         // There can be only one.
-        List<UnaryOperator<RestHandler>> items = filterPlugins(ActionPlugin.class).stream()
+        List<RestInterceptor> items = filterPlugins(ActionPlugin.class).stream()
             .filter(RestServerActionPlugin.class::isInstance)
             .map(RestServerActionPlugin.class::cast)
             .map(p -> p.getRestHandlerInterceptor(threadContext))
@@ -448,7 +451,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public Function<String, Predicate<String>> getFieldFilter() {
-        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream().map(p -> p.getFieldFilter()).toList();
+        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream()
+            .map(p -> p.getFieldFilter())
+            .filter(p -> p.equals(NOOP_FIELD_FILTER) == false)
+            .toList();
         if (items.size() > 1) {
             throw new UnsupportedOperationException("Only the security MapperPlugin should override this");
         } else if (items.size() == 1) {

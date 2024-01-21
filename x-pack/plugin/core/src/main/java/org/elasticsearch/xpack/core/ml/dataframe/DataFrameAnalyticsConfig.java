@@ -192,7 +192,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.allowLazyStart = in.readBoolean();
         this.maxNumThreads = in.readVInt();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            Map<String, Object> readMeta = in.readMap();
+            Map<String, Object> readMeta = in.readGenericMap();
             this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
         } else {
             this.meta = null;

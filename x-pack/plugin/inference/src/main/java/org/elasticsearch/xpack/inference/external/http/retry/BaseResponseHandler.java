@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -26,26 +25,23 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     public static final String RATE_LIMIT = "Received a rate limit status code";
     public static final String AUTHENTICATION = "Received an authentication error status code";
     public static final String REDIRECTION = "Unhandled redirection";
+    public static final String CONTENT_TOO_LARGE = "Received a content too large status code";
     public static final String UNSUCCESSFUL = "Received an unsuccessful status code";
 
     protected final String requestType;
-    private final CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction;
+    private final ResponseParser parseFunction;
     private final Function<HttpResult, ErrorMessage> errorParseFunction;
 
-    public BaseResponseHandler(
-        String requestType,
-        CheckedFunction<HttpResult, InferenceServiceResults, IOException> parseFunction,
-        Function<HttpResult, ErrorMessage> errorParseFunction
-    ) {
+    public BaseResponseHandler(String requestType, ResponseParser parseFunction, Function<HttpResult, ErrorMessage> errorParseFunction) {
         this.requestType = Objects.requireNonNull(requestType);
         this.parseFunction = Objects.requireNonNull(parseFunction);
         this.errorParseFunction = Objects.requireNonNull(errorParseFunction);
     }
 
     @Override
-    public InferenceServiceResults parseResult(HttpResult result) throws RetryException {
+    public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
         try {
-            return parseFunction.apply(result);
+            return parseFunction.apply(request, result);
         } catch (Exception e) {
             throw new RetryException(true, e);
         }

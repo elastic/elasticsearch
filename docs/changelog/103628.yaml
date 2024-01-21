@@ -1,0 +1,5 @@
+pr: 103628
+summary: Add ES|QL async delete API
+area: ES|QL
+type: enhancement
+issues: []

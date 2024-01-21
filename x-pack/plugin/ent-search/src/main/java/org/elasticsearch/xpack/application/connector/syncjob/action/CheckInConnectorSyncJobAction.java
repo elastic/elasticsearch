@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants;
 
 import java.io.IOException;
@@ -27,13 +27,13 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class CheckInConnectorSyncJobAction extends ActionType<AcknowledgedResponse> {
+public class CheckInConnectorSyncJobAction extends ActionType<ConnectorUpdateActionResponse> {
 
     public static final CheckInConnectorSyncJobAction INSTANCE = new CheckInConnectorSyncJobAction();
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/check_in";
 
     private CheckInConnectorSyncJobAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME, ConnectorUpdateActionResponse::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

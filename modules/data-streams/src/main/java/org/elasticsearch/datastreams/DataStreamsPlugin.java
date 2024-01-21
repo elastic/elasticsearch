@@ -21,6 +21,7 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -90,15 +91,28 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         Setting.Property.Dynamic
     );
 
+    private static final TimeValue MAX_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2);
     public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
         "index.look_ahead_time",
-        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(30),
         TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueDays(7),
+        TimeValue.timeValueDays(7), // is effectively 2h now.
         Setting.Property.IndexScope,
         Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
+
+    /**
+     * Returns the look ahead time and lowers it when it to 2 hours if it is configured to more than 2 hours.
+     */
+    public static TimeValue getLookAheadTime(Settings settings) {
+        TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(settings);
+        if (lookAheadTime.compareTo(DataStreamsPlugin.MAX_LOOK_AHEAD_TIME) > 0) {
+            lookAheadTime = DataStreamsPlugin.MAX_LOOK_AHEAD_TIME;
+        }
+        return lookAheadTime;
+    }
+
     public static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
     public static final Setting<TimeValue> LOOK_BACK_TIME = Setting.timeSetting(
         "index.look_back_time",
@@ -217,6 +231,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

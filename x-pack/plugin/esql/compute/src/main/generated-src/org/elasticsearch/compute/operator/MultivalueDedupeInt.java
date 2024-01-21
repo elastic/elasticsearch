@@ -28,6 +28,7 @@ public class MultivalueDedupeInt {
      * The choice of number has been experimentally derived.
      */
     private static final int ALWAYS_COPY_MISSING = 300;
+
     private final IntBlock block;
     private int[] work = new int[ArrayUtil.oversize(2, Integer.BYTES)];
     private int w;
@@ -45,7 +46,7 @@ public class MultivalueDedupeInt {
             block.incRef();
             return block;
         }
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -95,7 +96,7 @@ public class MultivalueDedupeInt {
             block.incRef();
             return block;
         }
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -125,7 +126,7 @@ public class MultivalueDedupeInt {
             block.incRef();
             return block;
         }
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);

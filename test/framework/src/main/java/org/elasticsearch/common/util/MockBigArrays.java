@@ -702,5 +702,11 @@ public class MockBigArrays extends BigArrays {
         public long getUsed() {
             return used.get();
         }
+
+        @Override
+        public String toString() {
+            long u = used.get();
+            return "LimitedBreaker[" + u + "/" + max.getBytes() + "][" + ByteSizeValue.ofBytes(u) + "/" + max + "]";
+        }
     }
 }

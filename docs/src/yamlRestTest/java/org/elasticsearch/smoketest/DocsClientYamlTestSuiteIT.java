@@ -16,7 +16,6 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
@@ -48,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -98,20 +96,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected ClientYamlTestClient initClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
-        final List<HttpHost> hosts,
-        final Version esVersion,
-        final Predicate<String> clusterFeaturesPredicate,
-        final String os
+        final List<HttpHost> hosts
     ) {
-        return new ClientYamlDocsTestClient(
-            restSpec,
-            restClient,
-            hosts,
-            esVersion,
-            clusterFeaturesPredicate,
-            os,
-            this::getClientBuilderWithSniffedHosts
-        );
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts);
     }
 
     @Before

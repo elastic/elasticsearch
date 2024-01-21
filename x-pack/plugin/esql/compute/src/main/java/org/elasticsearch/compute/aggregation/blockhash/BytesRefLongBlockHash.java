@@ -18,7 +18,6 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -72,7 +71,9 @@ final class BytesRefLongBlockHash extends BlockHash {
         BytesRefVector vector1 = block1.asVector();
         LongVector vector2 = block2.asVector();
         if (vector1 != null && vector2 != null) {
-            addInput.add(0, add(vector1, vector2));
+            try (IntVector ords = add(vector1, vector2)) {
+                addInput.add(0, ords);
+            }
         } else {
             try (AddWork work = new AddWork(block1, block2, addInput)) {
                 work.add();
@@ -88,7 +89,7 @@ final class BytesRefLongBlockHash extends BlockHash {
             long hash1 = hashOrdToGroup(bytesHash.add(vector1.getBytesRef(i, scratch)));
             ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(hash1, vector2.getLong(i))));
         }
-        return new IntArrayVector(ords, positions);
+        return blockFactory.newIntArrayVector(ords, positions);
     }
 
     private static final long[] EMPTY = new long[0];

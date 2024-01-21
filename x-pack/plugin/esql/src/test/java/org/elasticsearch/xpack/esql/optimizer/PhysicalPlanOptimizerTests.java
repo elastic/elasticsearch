@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -84,6 +83,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -104,7 +105,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -162,25 +163,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
-        var enrichResolution = new EnrichResolution(
-            Set.of(
-                new EnrichPolicyResolution(
-                    "foo",
-                    new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
-                    IndexResolution.valid(
-                        new EsIndex(
-                            "idx",
-                            Map.ofEntries(
-                                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
-                            )
-                        )
-                    )
-                )
-            ),
-            Set.of("foo")
+        EnrichResolution enrichResolution = new EnrichResolution();
+        enrichResolution.addResolvedPolicy(
+            "foo",
+            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
+            Map.of("", "idx"),
+            Map.ofEntries(
+                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
+                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+            )
         );
-
+        enrichResolution.addExistingPolicies(Set.of("foo"));
         analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
     }
 
@@ -510,6 +503,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES + KEYWORD_EST));
     }
 
+    /**
+     * Expects
+     * EvalExec[[agg_emp{r}#4 + 7[INTEGER] AS x]]
+     * \_LimitExec[500[INTEGER]]
+     *   \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],FINAL,16]
+     *     \_ExchangeExec[[sum{r}#18, seen{r}#19],true]
+     *       \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],PARTIAL,8]
+     *         \_FieldExtractExec[emp_no{f}#8]
+     *           \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#34], limit[], sort[] estimatedRowSize[8]
+     */
     public void testQueryWithAggregation() {
         var plan = physicalPlan("""
             from test
@@ -526,8 +529,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
+
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
+        assertThat(query.query(), is(existsQuery("emp_no")));
     }
 
+    /**
+     * Expects
+     * EvalExec[[agg_emp{r}#4 + 7[INTEGER] AS x]]
+     * \_LimitExec[500[INTEGER]]
+     *   \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],FINAL,16]
+     *     \_ExchangeExec[[sum{r}#18, seen{r}#19],true]
+     *       \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],PARTIAL,8]
+     *         \_FieldExtractExec[emp_no{f}#8]
+     *           \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#34], limit[], sort[] estimatedRowSize[8]
+     */
     public void testQueryWithAggAfterEval() {
         var plan = physicalPlan("""
             from test
@@ -543,10 +560,35 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(agg.estimatedRowSize(), equalTo(Long.BYTES * 2));
         var exchange = asRemoteExchange(agg.child());
         var aggregate = as(exchange.child(), AggregateExec.class);
-        // sum is long a long, x isn't calculated until the agg above
+        // sum is long, x isn't calculated until the agg above
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
         var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
+
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
+        assertThat(query.query(), is(existsQuery("emp_no")));
+    }
+
+    public void testQueryForStatWithMultiAgg() {
+        var plan = physicalPlan("""
+            from test
+            | stats agg_1 = sum(emp_no), agg_2 = min(salary)
+            """);
+
+        var stats = statsWithIndexedFields("emp_no", "salary");
+        var optimized = optimizedPlan(plan, stats);
+        var topLimit = as(optimized, LimitExec.class);
+        var agg = as(topLimit.child(), AggregateExec.class);
+        var exchange = asRemoteExchange(agg.child());
+        var aggregate = as(exchange.child(), AggregateExec.class);
+        // sum is long, x isn't calculated until the agg above
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("emp_no", "salary"));
+
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));
+        assertThat(query.query(), is(boolQuery().should(existsQuery("emp_no")).should(existsQuery("salary"))));
     }
 
     public void testQueryWithNull() {
@@ -1337,8 +1379,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertEquals(WildcardQueryBuilder.class, query.getClass());
-        WildcardQueryBuilder wildcard = ((WildcardQueryBuilder) query);
+        assertEquals(SingleValueQuery.Builder.class, query.getClass());
+        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(WildcardQueryBuilder.class));
+        WildcardQueryBuilder wildcard = ((WildcardQueryBuilder) ((SingleValueQuery.Builder) query).next());
         assertEquals("first_name", wildcard.fieldName());
         assertEquals("*foo*", wildcard.value());
     }
@@ -1402,8 +1445,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertEquals(RegexpQueryBuilder.class, query.getClass());
-        RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) query);
+        assertEquals(SingleValueQuery.Builder.class, query.getClass());
+        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(RegexpQueryBuilder.class));
+        RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) ((SingleValueQuery.Builder) query).next());
         assertEquals("first_name", wildcard.fieldName());
         assertEquals(".*foo.*", wildcard.value());
     }
@@ -1424,8 +1468,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertThat(query, instanceOf(BoolQueryBuilder.class));
-        var boolQuery = (BoolQueryBuilder) query;
+        assertThat(query, instanceOf(SingleValueQuery.Builder.class));
+        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) ((SingleValueQuery.Builder) query).next();
         List<QueryBuilder> mustNot = boolQuery.mustNot();
         assertThat(mustNot.size(), is(1));
         assertThat(mustNot.get(0), instanceOf(RegexpQueryBuilder.class));
@@ -1892,6 +1937,110 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(localSourceExec.output()), contains("languages", "min", "seen"));
     }
 
+    /**
+     * Expects
+     * intermediate plan
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,null]
+     *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[COUNT(emp_no{f}#6) AS c]]
+     * \_Filter[emp_no{f}#6 > 10[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]]]
+     *
+     * and final plan is
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,8]
+     *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
+     *     \_LocalSourceExec[[count{r}#16, seen{r}#17],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    public void testPartialAggFoldingOutput() {
+        var plan = physicalPlan("""
+              from test
+            | where emp_no > 10
+            | stats c = count(emp_no)
+            """);
+
+        var stats = statsForMissingField("emp_no");
+        var optimized = optimizedPlan(plan, stats);
+
+        var limit = as(optimized, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        assertThat(Expressions.names(exchange.output()), contains("count", "seen"));
+        var source = as(exchange.child(), LocalSourceExec.class);
+        assertThat(Expressions.names(source.output()), contains("count", "seen"));
+    }
+
+    /**
+     * Checks that when the folding happens on the coordinator, the intermediate agg state
+     * are not used anymore.
+     *
+     * Expects
+     * LimitExec[10000[INTEGER]]
+     * \_AggregateExec[[],[COUNT(emp_no{f}#5) AS c],FINAL,8]
+     *   \_AggregateExec[[],[COUNT(emp_no{f}#5) AS c],PARTIAL,8]
+     *     \_LimitExec[10[INTEGER]]
+     *       \_ExchangeExec[[],false]
+     *         \_ProjectExec[[emp_no{r}#5]]
+     *           \_EvalExec[[null[INTEGER] AS emp_no]]
+     *             \_EsQueryExec[test], query[][_doc{f}#26], limit[10], sort[] estimatedRowSize[8]
+     */
+    public void testGlobalAggFoldingOutput() {
+        var plan = physicalPlan("""
+              from test
+            | limit 10
+            | stats c = count(emp_no)
+            """);
+
+        var stats = statsForMissingField("emp_no");
+        var optimized = optimizedPlan(plan, stats);
+
+        var limit = as(optimized, LimitExec.class);
+        var aggFinal = as(limit.child(), AggregateExec.class);
+        var aggPartial = as(aggFinal.child(), AggregateExec.class);
+        assertThat(Expressions.names(aggPartial.output()), contains("c"));
+        limit = as(aggPartial.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+    }
+
+    /**
+     * Checks the folded aggregation preserves the intermediate output.
+     *
+     * Expects
+     * ProjectExec[[a{r}#5]]
+     * \_EvalExec[[__a_SUM@734e2841{r}#16 / __a_COUNT@12536eab{r}#17 AS a]]
+     *   \_LimitExec[500[INTEGER]]
+     *     \_AggregateExec[[],[SUM(emp_no{f}#6) AS __a_SUM@734e2841, COUNT(emp_no{f}#6) AS __a_COUNT@12536eab],FINAL,24]
+     *       \_ExchangeExec[[sum{r}#18, seen{r}#19, count{r}#20, seen{r}#21],true]
+     *         \_LocalSourceExec[[sum{r}#18, seen{r}#19, count{r}#20, seen{r}#21],[LongArrayBlock[positions=1, mvOrdering=UNORDERED,
+     *         values=[0,
+     * 0]], BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]],
+     *      LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
+     *      BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]]]]
+     */
+    public void testPartialAggFoldingOutputForSyntheticAgg() {
+        var plan = physicalPlan("""
+              from test
+            | where emp_no > 10
+            | stats a = avg(emp_no)
+            """);
+
+        var stats = statsForMissingField("emp_no");
+        var optimized = optimizedPlan(plan, stats);
+
+        var project = as(optimized, ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
+        var aggFinal = as(limit.child(), AggregateExec.class);
+        assertThat(aggFinal.output(), hasSize(2));
+        var exchange = as(aggFinal.child(), ExchangeExec.class);
+        assertThat(Expressions.names(exchange.output()), contains("sum", "seen", "count", "seen"));
+        var source = as(exchange.child(), LocalSourceExec.class);
+        assertThat(Expressions.names(source.output()), contains("sum", "seen", "count", "seen"));
+    }
+
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();
@@ -1922,6 +2071,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return l;
     }
 
+    static SearchStats statsWithIndexedFields(String... names) {
+        return new EsqlTestUtils.TestSearchStats() {
+            private final Set<String> indexedFields = Set.of(names);
+
+            @Override
+            public boolean isIndexed(String field) {
+                return indexedFields.contains(field);
+            }
+        };
+    }
+
     static PhysicalPlan localRelationshipAlignment(PhysicalPlan l) {
         // handle local reduction alignment
         return l.transformUp(ExchangeExec.class, exg -> {
@@ -1941,6 +2101,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
+        // System.out.println(physical);
         assertSerialization(physical);
         return physical;
     }

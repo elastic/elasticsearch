@@ -30,7 +30,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.MockUtils;
@@ -116,9 +115,14 @@ public class TransportGetPipelineActionTests extends ESTestCase {
      * Test that the explicit and wildcard IDs are requested.
      */
     public void testGetPipelinesByExplicitAndWildcardIds() {
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(prepareSearchHits(), null, null, null, false, null, 1);
         SearchResponse searchResponse = new SearchResponse(
-            internalSearchResponse,
+            prepareSearchHits(),
+            null,
+            null,
+            false,
+            null,
+            null,
+            1,
             null,
             1,
             1,
@@ -218,18 +222,18 @@ public class TransportGetPipelineActionTests extends ESTestCase {
     }
 
     private SearchHits prepareSearchHits() {
-        SearchHit hit1 = new SearchHit(0, "1");
+        SearchHit hit1 = SearchHit.unpooled(0, "1");
         hit1.score(1f);
         hit1.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchHit hit2 = new SearchHit(0, "2");
+        SearchHit hit2 = SearchHit.unpooled(0, "2");
         hit2.score(1f);
         hit2.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchHit hit3 = new SearchHit(0, "3*");
+        SearchHit hit3 = SearchHit.unpooled(0, "3*");
         hit3.score(1f);
         hit3.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        return new SearchHits(new SearchHit[] { hit1, hit2, hit3 }, new TotalHits(3L, TotalHits.Relation.EQUAL_TO), 1f);
+        return SearchHits.unpooled(new SearchHit[] { hit1, hit2, hit3 }, new TotalHits(3L, TotalHits.Relation.EQUAL_TO), 1f);
     }
 }

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.PostStartBasicAction;
@@ -24,6 +23,7 @@ import org.elasticsearch.license.PostStartBasicRequest;
 import org.elasticsearch.license.PostStartTrialAction;
 import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
+import org.elasticsearch.license.TransportDeleteLicenseAction;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -57,7 +57,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
     }
 
     public void testFailRestoreOnInvalidLicense() throws Exception {
-        assertAcked(client().execute(DeleteLicenseAction.INSTANCE, new AcknowledgedRequest.Plain()).get());
+        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain()).get());
         assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
 
         ensureClusterSizeConsistency();
@@ -93,7 +93,7 @@ public class ArchiveLicenseIntegTests extends AbstractArchiveTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        assertAcked(client().execute(DeleteLicenseAction.INSTANCE, new AcknowledgedRequest.Plain()).get());
+        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain()).get());
         assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
 
         ensureClusterSizeConsistency();

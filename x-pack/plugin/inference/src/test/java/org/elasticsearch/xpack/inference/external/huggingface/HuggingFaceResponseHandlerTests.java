@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 
 import static org.hamcrest.Matchers.containsString;
@@ -33,7 +34,7 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
 
         var httpResult = new HttpResult(httpResponse, new byte[] {});
 
-        var handler = new HuggingFaceResponseHandler("", result -> null);
+        var handler = new HuggingFaceResponseHandler("", (request, result) -> null);
 
         // 200 ok
         when(statusLine.getStatusCode()).thenReturn(200);
@@ -65,6 +66,12 @@ public class HuggingFaceResponseHandlerTests extends ESTestCase {
             containsString("Received a rate limit status code for request [null] status [429]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
+        // 413
+        when(statusLine.getStatusCode()).thenReturn(413);
+        retryException = expectThrows(ContentTooLargeException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        assertTrue(retryException.shouldRetry());
+        assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
+        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
         // 401
         when(statusLine.getStatusCode()).thenReturn(401);
         retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));

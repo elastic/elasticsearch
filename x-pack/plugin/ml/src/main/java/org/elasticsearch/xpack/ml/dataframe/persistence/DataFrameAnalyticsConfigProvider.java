@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -57,7 +58,6 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -176,14 +176,8 @@ public class DataFrameAnalyticsConfigProvider {
 
             // Parse the original config
             DataFrameAnalyticsConfig originalConfig;
-            try {
-                try (
-                    InputStream stream = getResponse.getSourceAsBytesRef().streamInput();
-                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                        .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-                ) {
-                    originalConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
-                }
+            try (XContentParser parser = createParser(getResponse.getSourceAsBytesRef())) {
+                originalConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchParseException("Failed to parse data frame analytics configuration [" + id + "]", e));
                 return;
@@ -332,12 +326,7 @@ public class DataFrameAnalyticsConfigProvider {
                     SearchHit[] hits = searchResponse.getHits().getHits();
                     List<DataFrameAnalyticsConfig> configs = new ArrayList<>(hits.length);
                     for (SearchHit hit : hits) {
-                        BytesReference sourceBytes = hit.getSourceRef();
-                        try (
-                            InputStream stream = sourceBytes.streamInput();
-                            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-                        ) {
+                        try (XContentParser parser = createParser(hit.getSourceRef())) {
                             configs.add(DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build());
                         } catch (IOException e) {
                             delegate.onFailure(e);
@@ -353,6 +342,14 @@ public class DataFrameAnalyticsConfigProvider {
                 }
             },
             client::search
+        );
+    }
+
+    private XContentParser createParser(BytesReference sourceBytes) throws IOException {
+        return XContentHelper.createParserNotCompressed(
+            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+            sourceBytes,
+            XContentType.JSON
         );
     }
 }

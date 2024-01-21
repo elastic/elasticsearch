@@ -13,9 +13,11 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
@@ -23,22 +25,42 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
 
 public class HuggingFaceInferenceRequest implements Request {
 
+    private final Truncator truncator;
     private final HuggingFaceAccount account;
-    private final HuggingFaceInferenceRequestEntity entity;
+    private final Truncator.TruncationResult truncationResult;
 
-    public HuggingFaceInferenceRequest(HuggingFaceAccount account, HuggingFaceInferenceRequestEntity entity) {
+    public HuggingFaceInferenceRequest(Truncator truncator, HuggingFaceAccount account, Truncator.TruncationResult input) {
+        this.truncator = Objects.requireNonNull(truncator);
         this.account = Objects.requireNonNull(account);
-        this.entity = Objects.requireNonNull(entity);
+        this.truncationResult = Objects.requireNonNull(input);
     }
 
     public HttpRequestBase createRequest() {
         HttpPost httpPost = new HttpPost(account.url());
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(entity).getBytes(StandardCharsets.UTF_8));
+        ByteArrayEntity byteEntity = new ByteArrayEntity(
+            Strings.toString(new HuggingFaceInferenceRequestEntity(truncationResult.input())).getBytes(StandardCharsets.UTF_8)
+        );
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
         return httpPost;
+    }
+
+    public URI getURI() {
+        return account.url();
+    }
+
+    @Override
+    public Request truncate() {
+        var truncateResult = truncator.truncate(truncationResult.input());
+
+        return new HuggingFaceInferenceRequest(truncator, account, truncateResult);
+    }
+
+    @Override
+    public boolean[] getTruncationInfo() {
+        return truncationResult.truncated().clone();
     }
 }

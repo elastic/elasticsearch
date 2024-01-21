@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -34,10 +36,11 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
     private final Expression base, exponent;
     private final DataType dataType;
 
+    @FunctionInfo(returnType = "double", description = "Returns the value of a base raised to the power of an exponent.")
     public Pow(
         Source source,
-        @Param(name = "base", type = { "integer", "unsigned_long", "long", "double" }) Expression base,
-        @Param(name = "exponent", type = { "integer", "unsigned_long", "long", "double" }) Expression exponent
+        @Param(name = "base", type = { "double", "integer", "long", "unsigned_long" }) Expression base,
+        @Param(name = "exponent", type = { "double", "integer", "long", "unsigned_long" }) Expression exponent
     ) {
         super(source, Arrays.asList(base, exponent));
         this.base = base;
@@ -71,15 +74,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
 
     @Evaluator(warnExceptions = { ArithmeticException.class })
     static double process(double base, double exponent) {
-        return validateAsDouble(base, exponent);
-    }
-
-    private static double validateAsDouble(double base, double exponent) {
-        double result = Math.pow(base, exponent);
-        if (Double.isNaN(result) || Double.isInfinite(result)) {
-            throw new ArithmeticException("invalid result when computing pow");
-        }
-        return result;
+        return NumericUtils.asFiniteNumber(Math.pow(base, exponent));
     }
 
     @Override

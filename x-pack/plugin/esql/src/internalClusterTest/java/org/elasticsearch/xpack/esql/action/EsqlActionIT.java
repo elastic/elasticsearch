@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -82,6 +84,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     @Before
     public void setupIndex() {
         createAndPopulateIndex("test");
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // TODO: Allow relocation once we have retry in ESQL (see #103081)
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("cluster.routing.rebalance.enable", "none")
+            .build();
     }
 
     public void testProjectConstant() {
@@ -790,7 +801,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 1000);
         QueryBuilder filter = new RangeQueryBuilder("val").from(from, true).to(to, true);
         try (
-            EsqlQueryResponse results = new EsqlQueryRequestBuilder(client()).query(command).filter(filter).pragmas(randomPragmas()).get()
+            EsqlQueryResponse results = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
+                .query(command)
+                .filter(filter)
+                .pragmas(randomPragmas())
+                .get()
         ) {
             logger.info(results);
             OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
@@ -976,7 +991,27 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest("test_overlapping_index_patterns_2").id("1").source("field", "foo"))
             .get();
 
-        expectThrows(VerificationException.class, () -> run("from test_overlapping_index_patterns_* | sort field"));
+        assertVerificationException("from test_overlapping_index_patterns_* | sort field");
+    }
+
+    public void testErrorMessageForUnknownColumn() {
+        var e = assertVerificationException("row a = 1 | eval x = b");
+        assertThat(e.getMessage(), containsString("Unknown column [b]"));
+    }
+
+    // Straightforward verification. Subclasses can override.
+    protected Exception assertVerificationException(String esqlCommand) {
+        return expectThrows(VerificationException.class, () -> run(esqlCommand));
+    }
+
+    public void testErrorMessageForEmptyParams() {
+        var e = assertParsingException("row a = 1 | eval x = ?");
+        assertThat(e.getMessage(), containsString("Not enough actual parameters 0"));
+    }
+
+    // Straightforward verification. Subclasses can override.
+    protected Exception assertParsingException(String esqlCommand) {
+        return expectThrows(ParsingException.class, () -> run(esqlCommand));
     }
 
     public void testEmptyIndex() {
@@ -1014,7 +1049,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         new ColumnInfo("returnType", "keyword"),
                         new ColumnInfo("description", "keyword"),
                         new ColumnInfo("optionalArgs", "boolean"),
-                        new ColumnInfo("variadic", "boolean")
+                        new ColumnInfo("variadic", "boolean"),
+                        new ColumnInfo("isAggregation", "boolean")
                     )
                 )
             );

@@ -1031,9 +1031,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
      */
     public static final TransportVersion INFERRED_TRANSPORT_VERSION = TransportVersions.V_8_8_0;
 
+    public static final Version VERSION_INTRODUCING_TRANSPORT_VERSIONS = Version.V_8_8_0;
+
     private static TransportVersion inferTransportVersion(DiscoveryNode node) {
         TransportVersion tv;
-        if (node.getVersion().before(Version.V_8_8_0)) {
+        if (node.getVersion().before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
             // 1-to-1 mapping between Version and TransportVersion
             tv = TransportVersion.fromId(node.getPre811VersionId().getAsInt());
         } else {

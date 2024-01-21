@@ -73,6 +73,8 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         RescorerBuilder<?> rescorer = null;
         Integer windowSize = null;
         XContentParser.Token token;
+        String rescorerType = null;
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -83,8 +85,11 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
-                rescorerNameConsumer.accept(fieldName);
+                if (fieldName != null) {
+                    rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
+                    rescorerNameConsumer.accept(fieldName);
+                    rescorerType = fieldName;
+                }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
             }
@@ -92,9 +97,13 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         if (rescorer == null) {
             throw new ParsingException(parser.getTokenLocation(), "missing rescore type");
         }
+
         if (windowSize != null) {
             rescorer.windowSize(windowSize.intValue());
+        } else if (rescorer.isWindowSizeRequired()) {
+            throw new ParsingException(parser.getTokenLocation(), "window_size is required for rescorer of type [" + rescorerType + "]");
         }
+
         return rescorer;
     }
 
@@ -112,10 +121,20 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     /**
+     * Indicate if the window_size is a required parameter for the rescorer.
+     */
+    protected boolean isWindowSizeRequired() {
+        return false;
+    }
+
+    /**
      * Build the {@linkplain RescoreContext} that will be used to actually
      * execute the rescore against a particular shard.
      */
     public final RescoreContext buildContext(SearchExecutionContext context) throws IOException {
+        if (isWindowSizeRequired()) {
+            assert windowSize != null;
+        }
         int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
         RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
         return rescoreContext;

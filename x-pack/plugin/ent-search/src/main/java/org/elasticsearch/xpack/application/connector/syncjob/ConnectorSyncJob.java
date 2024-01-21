@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.connector.syncjob;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -281,7 +283,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         );
         PARSER.declareField(
             constructorArg(),
-            (p, c) -> ConnectorSyncJob.syncJobConnectorFromXContent(p),
+            (p, c) -> ConnectorSyncJob.syncJobConnectorFromXContent(p, null),
             CONNECTOR_FIELD,
             ObjectParser.ValueType.OBJECT
         );
@@ -326,12 +328,21 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Connector, Void> SYNC_JOB_CONNECTOR_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<Connector, String> SYNC_JOB_CONNECTOR_PARSER = new ConstructingObjectParser<>(
         "sync_job_connector",
         true,
-        (args) -> {
+        (args, connectorId) -> {
             int i = 0;
-            return new Connector.Builder().setConnectorId((String) args[i++])
+
+            // Parse the connector ID from the arguments. The ID uniquely identifies the connector.
+            String parsedConnectorId = (String) args[i++];
+
+            // Determine the actual connector ID to use. If the context parameter `connectorId` is not null or empty,
+            // it takes precedence over the `parsedConnectorId` extracted from the arguments.
+            // This approach allows for flexibility in specifying the connector ID, either from a context or as a parsed argument.
+            String syncJobConnectorId = Strings.isNullOrEmpty(connectorId) ? parsedConnectorId : connectorId;
+
+            return new Connector.Builder().setConnectorId(syncJobConnectorId)
                 .setFiltering((List<ConnectorFiltering>) args[i++])
                 .setIndexName((String) args[i++])
                 .setLanguage((String) args[i++])
@@ -343,26 +354,25 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
     );
 
     static {
-        SYNC_JOB_CONNECTOR_PARSER.declareString(constructorArg(), Connector.ID_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.ID_FIELD);
         SYNC_JOB_CONNECTOR_PARSER.declareObjectArray(
             optionalConstructorArg(),
             (p, c) -> ConnectorFiltering.fromXContent(p),
             Connector.FILTERING_FIELD
         );
-        SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.INDEX_NAME_FIELD);
-        SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.LANGUAGE_FIELD);
-        SYNC_JOB_CONNECTOR_PARSER.declareField(
+        SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.INDEX_NAME_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.LANGUAGE_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareObjectOrNull(
             optionalConstructorArg(),
             (p, c) -> ConnectorIngestPipeline.fromXContent(p),
-            Connector.PIPELINE_FIELD,
-            ObjectParser.ValueType.OBJECT
+            null,
+            Connector.PIPELINE_FIELD
         );
-        SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
-        SYNC_JOB_CONNECTOR_PARSER.declareField(
+        SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareObject(
             optionalConstructorArg(),
-            (parser, context) -> parser.map(),
-            Connector.CONFIGURATION_FIELD,
-            ObjectParser.ValueType.OBJECT
+            (p, c) -> p.map(HashMap::new, ConnectorConfiguration::fromXContent),
+            Connector.CONFIGURATION_FIELD
         );
     }
 
@@ -378,8 +388,16 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         return PARSER.parse(parser, null);
     }
 
-    public static Connector syncJobConnectorFromXContent(XContentParser parser) throws IOException {
-        return SYNC_JOB_CONNECTOR_PARSER.parse(parser, null);
+    public static Connector syncJobConnectorFromXContentBytes(BytesReference source, String connectorId, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return ConnectorSyncJob.syncJobConnectorFromXContent(parser, connectorId);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse a connector document.", e);
+        }
+    }
+
+    public static Connector syncJobConnectorFromXContent(XContentParser parser, String connectorId) throws IOException {
+        return SYNC_JOB_CONNECTOR_PARSER.parse(parser, connectorId);
     }
 
     public String getId() {
@@ -470,7 +488,9 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
             builder.startObject(CONNECTOR_FIELD.getPreferredName());
             {
-                builder.field(Connector.ID_FIELD.getPreferredName(), connector.getConnectorId());
+                if (connector.getConnectorId() != null) {
+                    builder.field(Connector.ID_FIELD.getPreferredName(), connector.getConnectorId());
+                }
                 if (connector.getFiltering() != null) {
                     builder.field(Connector.FILTERING_FIELD.getPreferredName(), connector.getFiltering());
                 }

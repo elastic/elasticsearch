@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
@@ -150,6 +151,10 @@ public class ApiKeyTests extends ESTestCase {
 
         // Make metadata mutable for testing purposes
         return randomMetadata == null ? new HashMap<>() : new HashMap<>(randomMetadata);
+    }
+
+    public static TimeValue randomFutureExpirationTime() {
+        return TimeValue.parseTimeValue(randomTimeValue(10, 20, "d", "h", "s", "m"), "expiration");
     }
 
     public static ApiKey randomApiKeyInstance() {

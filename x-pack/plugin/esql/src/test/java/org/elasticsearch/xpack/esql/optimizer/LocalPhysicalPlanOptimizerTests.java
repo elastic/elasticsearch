@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -133,25 +132,17 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
-        var enrichResolution = new EnrichResolution(
-            Set.of(
-                new EnrichPolicyResolution(
-                    "foo",
-                    new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
-                    IndexResolution.valid(
-                        new EsIndex(
-                            "idx",
-                            Map.ofEntries(
-                                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
-                            )
-                        )
-                    )
-                )
-            ),
-            Set.of("foo")
+        EnrichResolution enrichResolution = new EnrichResolution();
+        enrichResolution.addResolvedPolicy(
+            "foo",
+            new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("idx"), "fld", List.of("a", "b")),
+            Map.of("", "idx"),
+            Map.ofEntries(
+                Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
+                Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+            )
         );
-
+        enrichResolution.addExistingPolicies(Set.of("foo"));
         analyzer = new Analyzer(
             new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution),
             new Verifier(new Metrics())
@@ -258,9 +249,11 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
-        assertThat(stat.query(), is(QueryBuilders.existsQuery("salary")));
-        var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
+        Source source = new Source(2, 8, "salary > 1000");
+        var exists = QueryBuilders.existsQuery("salary");
+        assertThat(stat.query(), is(exists));
+        var range = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
+        var expected = QueryBuilders.boolQuery().must(range).must(exists);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
@@ -379,6 +372,28 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(exchange.isInBetweenAggs(), is(true));
         var localSource = as(exchange.child(), LocalSourceExec.class);
         assertThat(Expressions.names(localSource.output()), contains("count", "seen"));
+    }
+
+    public void testIsNotNullPushdownFilter() {
+        var plan = plan("from test | where emp_no is not null");
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var query = as(exchange.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(500));
+        var expected = QueryBuilders.existsQuery("emp_no");
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testIsNullPushdownFilter() {
+        var plan = plan("from test | where emp_no is null");
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var query = as(exchange.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(500));
+        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
+        assertThat(query.query().toString(), is(expected.toString()));
     }
 
     private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {

@@ -11,6 +11,7 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 /**
@@ -34,11 +35,12 @@ public interface ResponseHandler {
 
     /**
      * A method for parsing the response from the server.
-     * @param result The wrapped response from the server.
+     * @param request The original request sent to the server
+     * @param result The wrapped response from the server
      * @return the parsed inference results
      * @throws RetryException if a parsing error occurs
      */
-    InferenceServiceResults parseResult(HttpResult result) throws RetryException;
+    InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException;
 
     /**
      * A string to uniquely identify the type of request that is being handled. This allows loggers to clarify which type of request

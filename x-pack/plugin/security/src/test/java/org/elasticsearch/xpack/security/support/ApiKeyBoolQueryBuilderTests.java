@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiTermQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -405,7 +406,6 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
 
         final AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> q1 = randomFrom(
-            QueryBuilders.matchQuery(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             QueryBuilders.constantScoreQuery(mock(QueryBuilder.class)),
             QueryBuilders.boostingQuery(mock(QueryBuilder.class), mock(QueryBuilder.class)),
             QueryBuilders.queryStringQuery("q=a:42"),
@@ -773,7 +773,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
     }
 
     private QueryBuilder randomSimpleQuery(String fieldName) {
-        return switch (randomIntBetween(0, 8)) {
+        return switch (randomIntBetween(0, 9)) {
             case 0 -> QueryBuilders.termQuery(fieldName, randomAlphaOfLengthBetween(3, 8));
             case 1 -> QueryBuilders.termsQuery(fieldName, randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
             case 2 -> QueryBuilders.idsQuery().addIds(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(22)));
@@ -788,6 +788,11 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
                 .field(fieldName)
                 .lenient(randomBoolean())
                 .analyzeWildcard(randomBoolean());
+            case 9 -> QueryBuilders.matchQuery(fieldName, randomAlphaOfLengthBetween(3, 8))
+                .operator(randomFrom(Operator.OR, Operator.AND))
+                .lenient(randomBoolean())
+                .maxExpansions(randomIntBetween(1, 100))
+                .analyzer(randomFrom(randomAlphaOfLength(4), null));
             default -> throw new IllegalStateException("illegal switch case");
         };
     }

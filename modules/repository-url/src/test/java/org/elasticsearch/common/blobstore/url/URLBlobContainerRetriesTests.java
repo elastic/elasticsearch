@@ -43,7 +43,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
     }
 
     @AfterClass
-    public static void tearDownHttpClient() throws IOException {
+    public static void tearDownHttpClient() {
         factory.close();
     }
 

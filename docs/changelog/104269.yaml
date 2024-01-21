@@ -1,0 +1,5 @@
+pr: 104269
+summary: "ESQL: Support loading shapes from source into WKB blocks"
+area: "ES|QL"
+type: enhancement
+issues: []

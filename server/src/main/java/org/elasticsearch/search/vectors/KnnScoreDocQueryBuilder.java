@@ -35,6 +35,8 @@ import java.util.Objects;
 public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQueryBuilder> {
     public static final String NAME = "knn_score_doc";
     private final ScoreDoc[] scoreDocs;
+    private final String fieldName;
+    private final float[] queryVector;
 
     /**
      * Creates a query builder.
@@ -42,13 +44,26 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
      * @param scoreDocs the docs and scores this query should match. The array must be
      *                  sorted in order of ascending doc IDs.
      */
-    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs) {
+    public KnnScoreDocQueryBuilder(ScoreDoc[] scoreDocs, String fieldName, float[] queryVector) {
         this.scoreDocs = scoreDocs;
+        this.fieldName = fieldName;
+        this.queryVector = queryVector;
     }
 
     public KnnScoreDocQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NESTED_KNN_MORE_INNER_HITS)) {
+            this.fieldName = in.readOptionalString();
+            if (in.readBoolean()) {
+                this.queryVector = in.readFloatArray();
+            } else {
+                this.queryVector = null;
+            }
+        } else {
+            this.fieldName = null;
+            this.queryVector = null;
+        }
     }
 
     @Override
@@ -60,9 +75,26 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return scoreDocs;
     }
 
+    String fieldName() {
+        return fieldName;
+    }
+
+    float[] queryVector() {
+        return queryVector;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeScoreDoc, scoreDocs);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NESTED_KNN_MORE_INNER_HITS)) {
+            out.writeOptionalString(fieldName);
+            if (queryVector != null) {
+                out.writeBoolean(true);
+                out.writeFloatArray(queryVector);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
@@ -73,6 +105,12 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             builder.startObject().field("doc", scoreDoc.doc).field("score", scoreDoc.score).endObject();
         }
         builder.endArray();
+        if (fieldName != null) {
+            builder.field("field", fieldName);
+        }
+        if (queryVector != null) {
+            builder.field("query", queryVector);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -96,6 +134,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (scoreDocs.length == 0) {
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        }
+        if (queryRewriteContext.convertToInnerHitsRewriteContext() != null && queryVector != null && fieldName != null) {
+            return new ExactKnnQueryBuilder(queryVector, fieldName);
         }
         return super.doRewrite(queryRewriteContext);
     }
@@ -134,7 +175,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 return false;
             }
         }
-        return true;
+        return Objects.equals(fieldName, other.fieldName) && Arrays.equals(queryVector, other.queryVector);
     }
 
     @Override
@@ -144,7 +185,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             int hashCode = Objects.hash(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
             result = 31 * result + hashCode;
         }
-        return result;
+        return Objects.hash(result, fieldName, Arrays.hashCode(queryVector));
     }
 
     @Override

@@ -1864,13 +1864,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.http.HttpHeadersValidationException.class,
             org.elasticsearch.http.HttpHeadersValidationException::new,
             169,
-            TransportVersions.V_8_500_020
+            TransportVersions.V_8_9_X
         ),
         ROLE_RESTRICTION_EXCEPTION(
             ElasticsearchRoleRestrictionException.class,
             ElasticsearchRoleRestrictionException::new,
             170,
-            TransportVersions.V_8_500_020
+            TransportVersions.V_8_9_X
         ),
         API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_500_065),
         RECOVERY_COMMIT_TOO_NEW_EXCEPTION(

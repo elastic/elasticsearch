@@ -73,12 +73,7 @@ public class ActionTestUtils {
         ActionListener<Response> listener
     ) {
         Request request = requestBuilder.buildRequest();
-        try {
-            ActionTestUtils.execute(action, task, request, ActionListener.runAfter(listener, request::decRef));
-        } catch (Exception e) {
-            request.decRef();
-            throw e;
-        }
+        ActionListener.run(ActionListener.runAfter(listener, request::decRef), l -> ActionTestUtils.execute(action, task, request, l));
     }
 
     public static <Request extends ActionRequest, Response extends ActionResponse> void execute(

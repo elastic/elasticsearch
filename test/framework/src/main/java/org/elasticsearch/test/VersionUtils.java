@@ -56,12 +56,6 @@ public class VersionUtils {
         } else {
             // on a stable or release branch, ie N.x
             stableVersions = currentMajor;
-            // remove the next maintenance bugfix
-            final Version prevMajorLastMinor = moveLastToUnreleased(previousMajor, unreleasedVersions);
-            if (prevMajorLastMinor.revision == 0 && previousMajor.isEmpty() == false) {
-                // The latest minor in the previous major is a ".0" release, so there must be an unreleased bugfix for the minor before that
-                moveLastToUnreleased(previousMajor, unreleasedVersions);
-            }
         }
 
         // remove next minor

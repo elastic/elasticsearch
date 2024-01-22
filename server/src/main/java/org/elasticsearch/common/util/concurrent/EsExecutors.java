@@ -382,6 +382,29 @@ public class EsExecutors {
             }
         }
 
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public void put(E e) {
+            // As the queue is unbounded, this method will always add to the queue.
+            super.offer(e);
+        }
+
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public boolean add(E e) {
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
+        }
+
+        // Overridden to workaround a JDK bug introduced in JDK 21.0.2
+        // https://bugs.openjdk.org/browse/JDK-8323659
+        @Override
+        public boolean offer(E e, long timeout, TimeUnit unit) {
+            // As the queue is unbounded, this method will never return false.
+            return super.offer(e);
+        }
     }
 
     /**

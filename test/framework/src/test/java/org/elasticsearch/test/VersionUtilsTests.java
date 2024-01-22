@@ -116,6 +116,7 @@ public class VersionUtilsTests extends ESTestCase {
             equalTo(
                 Arrays.asList(
                     TestReleaseBranch.V_4_0_0,
+                    TestReleaseBranch.V_4_0_1,
                     TestReleaseBranch.V_5_3_0,
                     TestReleaseBranch.V_5_3_1,
                     TestReleaseBranch.V_5_3_2,
@@ -123,7 +124,7 @@ public class VersionUtilsTests extends ESTestCase {
                 )
             )
         );
-        assertThat(unreleased, equalTo(Arrays.asList(TestReleaseBranch.V_4_0_1, TestReleaseBranch.V_5_4_1)));
+        assertThat(unreleased, equalTo(Arrays.asList(TestReleaseBranch.V_5_4_1)));
     }
 
     public static class TestStableBranch {
@@ -141,8 +142,11 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        assertThat(released, equalTo(Arrays.asList(TestStableBranch.V_4_0_0, TestStableBranch.V_5_0_0, TestStableBranch.V_5_0_1)));
-        assertThat(unreleased, equalTo(Arrays.asList(TestStableBranch.V_4_0_1, TestStableBranch.V_5_0_2, TestStableBranch.V_5_1_0)));
+        assertThat(
+            released,
+            equalTo(Arrays.asList(TestStableBranch.V_4_0_0, TestStableBranch.V_4_0_1, TestStableBranch.V_5_0_0, TestStableBranch.V_5_0_1))
+        );
+        assertThat(unreleased, equalTo(Arrays.asList(TestStableBranch.V_5_0_2, TestStableBranch.V_5_1_0)));
     }
 
     public static class TestStableBranchBehindStableBranch {
@@ -169,6 +173,7 @@ public class VersionUtilsTests extends ESTestCase {
             equalTo(
                 Arrays.asList(
                     TestStableBranchBehindStableBranch.V_4_0_0,
+                    TestStableBranchBehindStableBranch.V_4_0_1,
                     TestStableBranchBehindStableBranch.V_5_3_0,
                     TestStableBranchBehindStableBranch.V_5_3_1
                 )
@@ -178,7 +183,6 @@ public class VersionUtilsTests extends ESTestCase {
             unreleased,
             equalTo(
                 Arrays.asList(
-                    TestStableBranchBehindStableBranch.V_4_0_1,
                     TestStableBranchBehindStableBranch.V_5_3_2,
                     TestStableBranchBehindStableBranch.V_5_4_0,
                     TestStableBranchBehindStableBranch.V_5_5_0
@@ -286,6 +290,7 @@ public class VersionUtilsTests extends ESTestCase {
                 Arrays.asList(
                     TestVersionBumpIn6x.V_5_6_0,
                     TestVersionBumpIn6x.V_5_6_1,
+                    TestVersionBumpIn6x.V_5_6_2,
                     TestVersionBumpIn6x.V_6_0_0_alpha1,
                     TestVersionBumpIn6x.V_6_0_0_alpha2,
                     TestVersionBumpIn6x.V_6_0_0_beta1,
@@ -294,10 +299,7 @@ public class VersionUtilsTests extends ESTestCase {
                 )
             )
         );
-        assertThat(
-            unreleased,
-            equalTo(Arrays.asList(TestVersionBumpIn6x.V_5_6_2, TestVersionBumpIn6x.V_6_0_1, TestVersionBumpIn6x.V_6_1_0))
-        );
+        assertThat(unreleased, equalTo(Arrays.asList(TestVersionBumpIn6x.V_6_0_1, TestVersionBumpIn6x.V_6_1_0)));
     }
 
     public static class TestNewMinorBranchIn6x {
@@ -331,6 +333,7 @@ public class VersionUtilsTests extends ESTestCase {
                 Arrays.asList(
                     TestNewMinorBranchIn6x.V_5_6_0,
                     TestNewMinorBranchIn6x.V_5_6_1,
+                    TestNewMinorBranchIn6x.V_5_6_2,
                     TestNewMinorBranchIn6x.V_6_0_0_alpha1,
                     TestNewMinorBranchIn6x.V_6_0_0_alpha2,
                     TestNewMinorBranchIn6x.V_6_0_0_beta1,
@@ -342,10 +345,7 @@ public class VersionUtilsTests extends ESTestCase {
                 )
             )
         );
-        assertThat(
-            unreleased,
-            equalTo(Arrays.asList(TestNewMinorBranchIn6x.V_5_6_2, TestNewMinorBranchIn6x.V_6_1_2, TestNewMinorBranchIn6x.V_6_2_0))
-        );
+        assertThat(unreleased, equalTo(Arrays.asList(TestNewMinorBranchIn6x.V_6_1_2, TestNewMinorBranchIn6x.V_6_2_0)));
     }
 
     /**

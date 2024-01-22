@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -31,11 +30,6 @@ public class ExecuteSnapshotRetentionAction extends ActionType<AcknowledgedRespo
 
         public Request(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

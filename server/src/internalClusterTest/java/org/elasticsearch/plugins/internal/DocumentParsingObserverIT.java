@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -73,8 +72,18 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         public TestDocumentParsingObserverPlugin() {}
 
         @Override
-        public Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
-            return () -> new TestDocumentParsingObserver();
+        public DocumentParsingObserverSupplier getDocumentParsingObserverSupplier() {
+            return new DocumentParsingObserverSupplier() {
+                @Override
+                public DocumentParsingObserver get() {
+                    return new TestDocumentParsingObserver();
+                }
+
+                @Override
+                public DocumentParsingObserver forAlreadyParsedInIngest(String indexName, long normalisedBytesParsed) {
+                    return null;
+                }
+            } ;
         }
     }
 
@@ -95,14 +104,14 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
         }
 
         @Override
-        public void setIndexName(String indexName) {
-            this.indexName = indexName;
+        public void close(String indexName) {
+            assertThat(this.indexName, equalTo(TEST_INDEX_NAME));
+            assertThat(counter, equalTo(5L));
         }
 
         @Override
-        public void close() {
-            assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(counter, equalTo(5L));
+        public long getNormalisedBytesParsed() {
+            return 0;
         }
     }
 }

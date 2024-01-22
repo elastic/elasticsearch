@@ -158,6 +158,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
@@ -610,7 +611,8 @@ class NodeConstruction {
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
+        DocumentParsingObserverSupplier documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
+        modules.bindToInstance(DocumentParsingObserverSupplier.class, documentParsingObserverSupplier);
 
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -1270,9 +1272,9 @@ class NodeConstruction {
         logger.info("initialized");
     }
 
-    private Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
+    private DocumentParsingObserverSupplier getDocumentParsingObserverSupplier() {
         return getSinglePlugin(DocumentParsingObserverPlugin.class).map(DocumentParsingObserverPlugin::getDocumentParsingObserverSupplier)
-            .orElse(() -> DocumentParsingObserver.EMPTY_INSTANCE);
+            .orElse(DocumentParsingObserverSupplier.EMPTY_INSTANCE);
     }
 
     /**

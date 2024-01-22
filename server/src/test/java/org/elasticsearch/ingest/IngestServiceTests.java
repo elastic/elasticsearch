@@ -54,6 +54,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -91,7 +92,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
@@ -153,7 +153,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            DocumentParsingObserverSupplier.EMPTY_INSTANCE
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -173,7 +173,7 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
-                () -> DocumentParsingObserver.EMPTY_INSTANCE
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -190,7 +190,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            DocumentParsingObserverSupplier.EMPTY_INSTANCE
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1172,23 +1172,33 @@ public class IngestServiceTests extends ESTestCase {
          */
         AtomicInteger setNameCalledCount = new AtomicInteger(0);
         AtomicInteger closeCalled = new AtomicInteger(0);
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier = () -> new DocumentParsingObserver() {
+        DocumentParsingObserverSupplier documentParsingObserverSupplier = new DocumentParsingObserverSupplier(){
             @Override
-            public XContentParser wrapParser(XContentParser xContentParser) {
-                return xContentParser;
+            public DocumentParsingObserver get() {
+                return new DocumentParsingObserver() {
+                    @Override
+                    public XContentParser wrapParser(XContentParser xContentParser) {
+                        return xContentParser;
+                    }
+
+                    @Override
+                    public void close(String indexName) {
+                        closeCalled.incrementAndGet();
+                    }
+
+                    @Override
+                    public long getNormalisedBytesParsed() {
+                        return 0;
+                    }
+
+                };
             }
 
             @Override
-            public void setIndexName(String indexName) {
-                assertNotNull(indexName);
-                setNameCalledCount.incrementAndGet();
+            public DocumentParsingObserver forAlreadyParsedInIngest(String indexName, long normalisedBytesParsed) {
+                return null;
             }
-
-            @Override
-            public void close() {
-                closeCalled.incrementAndGet();
-            }
-        };
+        } ;
         IngestService ingestService = createWithProcessors(
             Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor()),
             documentParsingObserverSupplier
@@ -1983,7 +1993,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            DocumentParsingObserverSupplier.EMPTY_INSTANCE
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2320,7 +2330,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            DocumentParsingObserverSupplier.EMPTY_INSTANCE
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -2594,12 +2604,12 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
-        return createWithProcessors(processors, () -> DocumentParsingObserver.EMPTY_INSTANCE);
+        return createWithProcessors(processors, DocumentParsingObserverSupplier.EMPTY_INSTANCE);
     }
 
     private static IngestService createWithProcessors(
         Map<String, Processor.Factory> processors,
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+        DocumentParsingObserverSupplier documentParsingObserverSupplier
     ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);

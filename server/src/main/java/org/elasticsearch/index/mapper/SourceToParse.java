@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
@@ -27,7 +28,8 @@ public class SourceToParse {
     private final XContentType xContentType;
 
     private final Map<String, String> dynamicTemplates;
-    private boolean toBeReported;
+    private final DocumentParsingObserver documentParsingObserver;
+    private boolean pipelinesHaveRun;
 
     public SourceToParse(
         @Nullable String id,
@@ -35,8 +37,7 @@ public class SourceToParse {
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
-        boolean toBeReported
-    ) {
+        DocumentParsingObserver documentParsingObserver) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
@@ -44,15 +45,11 @@ public class SourceToParse {
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
-        this.toBeReported = toBeReported;
+        this.documentParsingObserver = documentParsingObserver;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), false);
-    }
-
-    public boolean toBeReported() {
-        return toBeReported;
+        this(id, source, xContentType, null, Map.of(), DocumentParsingObserver.EMPTY_INSTANCE);
     }
 
     public BytesReference source() {
@@ -87,5 +84,9 @@ public class SourceToParse {
 
     public XContentType getXContentType() {
         return this.xContentType;
+    }
+
+    public DocumentParsingObserver getDocumentParsingObserver() {
+        return documentParsingObserver;
     }
 }

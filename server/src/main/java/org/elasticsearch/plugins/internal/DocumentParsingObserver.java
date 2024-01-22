@@ -10,14 +10,12 @@ package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.xcontent.XContentParser;
 
-import java.io.Closeable;
-
 /**
  * An interface to allow wrapping an XContentParser and observe the events emitted while parsing
  * A default implementation returns a noop DocumentParsingObserver - does not wrap a XContentParser and
  * does not do anything upon finishing parsing.
  */
-public interface DocumentParsingObserver extends Closeable {
+public interface DocumentParsingObserver  {
     /**
      * a default noop implementation
      */
@@ -28,10 +26,13 @@ public interface DocumentParsingObserver extends Closeable {
         }
 
         @Override
-        public void setIndexName(String indexName) {}
+        public void close(String indexName) {}
+
 
         @Override
-        public void close() {}
+        public long getNormalisedBytesParsed() {
+            return 0;
+        }
     };
 
     /**
@@ -46,13 +47,10 @@ public interface DocumentParsingObserver extends Closeable {
     XContentParser wrapParser(XContentParser xContentParser);
 
     /**
-     * Sets an indexName associated with parsed document.
-     * @param indexName an index name that is associated with the parsed document
-     */
-    void setIndexName(String indexName);
-
-    /**
      * An action to be performed upon finished parsing.
      */
-    void close();
+    void close(String indexName);
+
+
+    long getNormalisedBytesParsed();
 }

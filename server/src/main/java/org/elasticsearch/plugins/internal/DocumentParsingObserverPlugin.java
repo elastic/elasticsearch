@@ -18,5 +18,5 @@ public interface DocumentParsingObserverPlugin {
     /**
      * @return a supplier of DocumentParsingObserver to allow observing parsing events
      */
-    Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier();
+    DocumentParsingObserverSupplier getDocumentParsingObserverSupplier();
 }

@@ -63,6 +63,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -487,8 +488,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                                 XContentHelper.xContentType(source),
                                 rootFieldsVisitor.routing(),
                                 Map.of(),
-                                false
-                            ),
+                                DocumentParsingObserver.EMPTY_INSTANCE),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

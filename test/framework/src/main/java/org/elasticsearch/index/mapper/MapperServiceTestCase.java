@@ -220,8 +220,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                 throw new UnsupportedOperationException();
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
-            this::compileScript,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            this::compileScript
         );
     }
 
@@ -285,7 +284,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates, false);
+        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates, DocumentParsingObserver.EMPTY_INSTANCE);
     }
 
     /**
@@ -710,7 +709,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
             roundTripIw.addDocument(
-                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of(), false)).rootDoc()
+                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of(), DocumentParsingObserver.EMPTY_INSTANCE)).rootDoc()
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {

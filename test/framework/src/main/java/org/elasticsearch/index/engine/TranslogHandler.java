@@ -55,8 +55,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             mapperRegistry,
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            null
         );
     }
 
@@ -96,8 +95,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                         XContentHelper.xContentType(index.source()),
                         index.routing(),
                         Map.of(),
-                        false
-                    ),
+                        DocumentParsingObserver.EMPTY_INSTANCE),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

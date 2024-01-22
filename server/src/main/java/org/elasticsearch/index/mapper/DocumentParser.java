@@ -53,17 +53,14 @@ public final class DocumentParser {
     public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
 
     private final XContentParserConfiguration parserConfiguration;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final MappingParserContext mappingParserContext;
 
     DocumentParser(
         XContentParserConfiguration parserConfiguration,
-        MappingParserContext mappingParserContext,
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+        MappingParserContext mappingParserContext
     ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
     }
 
     /**
@@ -81,10 +78,7 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        // only observe a document if it was not already reported (done in IngestService)
-        DocumentParsingObserver documentParsingObserver = source.toBeReported()
-            ? documentParsingObserverSupplier.get()
-            : DocumentParsingObserver.EMPTY_INSTANCE;
+        DocumentParsingObserver documentParsingObserver = source.getDocumentParsingObserver();
         try (
             XContentParser parser = documentParsingObserver.wrapParser(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
@@ -105,11 +99,6 @@ public final class DocumentParser {
 
         Mapping dynamicUpdate = createDynamicUpdate(context);
 
-        // if a mappingUpdate is required, the parsing will be triggered again
-        if (dynamicUpdate == null) {
-            documentParsingObserver.setIndexName(mappingParserContext.getIndexSettings().getIndex().getName());
-            documentParsingObserver.close();
-        }
         return new ParsedDocument(
             context.version(),
             context.seqID(),
@@ -124,6 +113,11 @@ public final class DocumentParser {
             public String documentDescription() {
                 IdFieldMapper idMapper = (IdFieldMapper) mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
                 return idMapper.documentDescription(this);
+            }
+
+            @Override
+            public long getNormalisedBytesParsed() {
+                return documentParsingObserver.getNormalisedBytesParsed();
             }
         };
     }

@@ -82,7 +82,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -159,7 +158,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -193,11 +191,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Engine.IndexCommitListener indexCommitListener,
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+        Engine.IndexCommitListener indexCommitListener
     ) {
         super(indexSettings);
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
             : "IndexCreationContext.RELOAD_ANALYZERS should only be used when reloading analysers";
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -222,8 +218,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // we parse all percolator queries as they would be parsed on shard 0
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
                 idFieldMapper,
-                scriptService,
-                documentParsingObserverSupplier
+                scriptService
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {

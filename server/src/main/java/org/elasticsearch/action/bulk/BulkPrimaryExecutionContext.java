@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,6 +29,8 @@ import java.util.List;
  * to stop and wait for external events such as mapping updates.
  */
 class BulkPrimaryExecutionContext {
+
+
 
     enum ItemProcessingState {
         /** Item execution is ready to start, no operations have been performed yet */
@@ -62,6 +65,7 @@ class BulkPrimaryExecutionContext {
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
     private long noopMappingUpdateRetryForMappingVersion;
+    private DocumentParsingObserver documentParsingObserver;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
@@ -366,5 +370,12 @@ class BulkPrimaryExecutionContext {
                 break;
         }
         return true;
+    }
+    public void setDocumentParsingObserver(DocumentParsingObserver documentParsingObserver) {
+        this.documentParsingObserver = documentParsingObserver;
+    }
+
+    public void onDocumentParsingCompleted(String index){
+        documentParsingObserver.close(index);
     }
 }

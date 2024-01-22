@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,7 +80,7 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
         public TestDocumentParsingObserverPlugin() {}
 
         @Override
-        public Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
+        public DocumentParsingObserverSupplier getDocumentParsingObserverSupplier() {
             // returns a static instance, because we want to assert that the wrapping is called only once
             return () -> DOCUMENT_PARSING_OBSERVER;
         }
@@ -108,13 +107,8 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
         }
 
         @Override
-        public void setIndexName(String indexName) {
-            this.indexName = indexName;
-        }
-
-        @Override
-        public void close() {
-            assertThat(indexName, equalTo(TEST_INDEX_NAME));
+        public void close(String indexName) {
+            assertThat(this.indexName, equalTo(TEST_INDEX_NAME));
             assertThat(mapCounter, equalTo(1L));
 
             assertThat(
@@ -124,6 +118,10 @@ public class DocumentParsingObserverWithPipelinesIT extends ESIntegTestCase {
             );
         }
 
+        @Override
+        public long getNormalisedBytesParsed() {
+            return 0;
+        }
     }
 
 }

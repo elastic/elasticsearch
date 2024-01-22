@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -73,7 +74,7 @@ public class IndicesServiceBuilder {
     Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers = Map.of();
     @Nullable
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
-    Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
+    DocumentParsingObserverSupplier documentParsingObserverSupplier;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -172,7 +173,7 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder documentParsingObserverSupplier(Supplier<DocumentParsingObserver> documentParsingObserverSupplier) {
+    public IndicesServiceBuilder documentParsingObserverSupplier(DocumentParsingObserverSupplier documentParsingObserverSupplier) {
         this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         return this;
     }

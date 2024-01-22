@@ -46,6 +46,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -120,8 +122,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> {},
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog should change, since there were no problems
@@ -151,8 +153,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new ThrowingMappingUpdatePerformer(new RuntimeException("fail")),
             listener -> {},
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(secondContext.getLocationToSync());
@@ -282,7 +284,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             assertNotNull(update);
             updateCalled.incrementAndGet();
             listener.onResponse(null);
-        }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
+        }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER, DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         assertTrue(context.isInitial());
         assertTrue(context.hasMoreOperationsToExecute());
         assertThat(context.getUpdateRetryCounter(), equalTo(0));
@@ -302,8 +304,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             (update, shardId, listener) -> fail("should not have had to update the mappings"),
             listener -> {},
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
 
         // Verify that the shard "executed" the operation only once (1 for previous invocations plus
         // 1 for this execution)
@@ -350,8 +352,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 public void onFailure(final Exception e) {
                     assertEquals(err, e);
                 }
-            }, latch)
-        );
+            }, latch),
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         latch.await();
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -394,8 +396,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> {},
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog changes, even though the document didn't exist
@@ -441,8 +443,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> {},
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog changes, because the document was deleted
@@ -504,8 +506,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> {},
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
 
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -559,8 +561,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> {},
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Since this was not a conflict failure, the primary response
@@ -620,8 +622,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 threadPool::absoluteTimeInMillis,
                 new NoopMappingUpdatePerformer(),
                 listener -> listener.onResponse(null),
-                ASSERTING_DONE_LISTENER
-            );
+                ASSERTING_DONE_LISTENER,
+                    DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         }
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -678,8 +680,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> {},
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Check that the translog is successfully advanced
@@ -734,8 +736,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> listener.onResponse(null),
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Check that the translog is successfully advanced
@@ -771,8 +773,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> {},
-            ASSERTING_DONE_LISTENER
-        );
+            ASSERTING_DONE_LISTENER,
+                DocumentParsingObserverSupplier.EMPTY_INSTANCE);
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());
@@ -810,8 +812,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     threadPool::absoluteTimeInMillis,
                     new NoopMappingUpdatePerformer(),
                     listener -> {},
-                    ASSERTING_DONE_LISTENER
-                );
+                    ASSERTING_DONE_LISTENER,
+                        DocumentParsingObserverSupplier.EMPTY_INSTANCE);
             }
 
             assertTrue(shard.isSyncNeeded());

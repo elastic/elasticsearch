@@ -160,6 +160,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverSupplier;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -1793,7 +1794,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .client(client)
                     .featureService(new FeatureService(List.of(new IndicesFeatures())))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
-                    .documentParsingObserverSupplier(() -> DocumentParsingObserver.EMPTY_INSTANCE)
+                    .documentParsingObserverSupplier(DocumentParsingObserverSupplier.EMPTY_INSTANCE)
                     .build();
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -1935,7 +1936,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            () -> DocumentParsingObserver.EMPTY_INSTANCE
+                            DocumentParsingObserverSupplier.EMPTY_INSTANCE
                         ),
                         client,
                         actionFilters,
@@ -1955,8 +1956,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new UpdateHelper(scriptService),
                     actionFilters,
                     indexingMemoryLimits,
-                    EmptySystemIndices.INSTANCE
-                );
+                    EmptySystemIndices.INSTANCE,
+                    DocumentParsingObserverSupplier.EMPTY_INSTANCE);
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService,

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.textstructure.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
@@ -22,6 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.textstructure.TextStructurePlugin.BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestTestGrokPatternAction extends BaseRestHandler {
 
     @Override

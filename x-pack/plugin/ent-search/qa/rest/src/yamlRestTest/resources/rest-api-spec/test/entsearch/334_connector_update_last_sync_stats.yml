@@ -31,6 +31,24 @@ setup:
   - match: { last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z" }
 
 ---
+"Update Connector Last Sync Stats - Supports different datetime format":
+  - do:
+      connector.last_sync:
+        connector_id: test-connector
+        body:
+          last_sync_error: "oh no error"
+          last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z"
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { last_sync_error: "oh no error" }
+  - match: { last_access_control_sync_scheduled_at: "2023-05-25T12:30:00.000Z" }
+
+---
 "Update Connector Last Sync Stats - Connector doesn't exist":
   - do:
       catch: "missing"

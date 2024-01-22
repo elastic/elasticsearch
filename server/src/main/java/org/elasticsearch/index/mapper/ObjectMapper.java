@@ -533,8 +533,13 @@ public class ObjectMapper extends Mapper {
             MergeReason reason,
             MapperMergeContext objectMergeContext
         ) {
+            Iterator<Mapper> iterator = mergeWith.iterator();
+            if (iterator.hasNext() == false) {
+                return Map.copyOf(existing.mappers);
+            }
             Map<String, Mapper> mergedMappers = new HashMap<>(existing.mappers);
-            for (Mapper mergeWithMapper : mergeWith) {
+            while (iterator.hasNext()) {
+                Mapper mergeWithMapper = iterator.next();
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
 
                 if (mergeIntoMapper == null) {
@@ -555,10 +560,11 @@ public class ObjectMapper extends Mapper {
                         mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
                     } else {
                         mergedMappers.put(mergeWithMapper.simpleName(), mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
+                    }
                 }
             }
+            return Map.copyOf(mergedMappers);
         }
-        return Map.copyOf(mergedMappers);
     }
 
     @Override

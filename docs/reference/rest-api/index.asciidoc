@@ -55,6 +55,7 @@ not be included yet.
 * <<sql-apis,SQL APIs>>
 * <<synonyms-apis,Synonyms APIs>>
 * <<transform-apis,{transform-cap} APIs>>
+* <<test-grok-pattern,Test Grok pattern API>>
 * <<usage-api,Usage API>>
 * <<watcher-api,Watcher APIs>>
 --
@@ -76,6 +77,7 @@ include::{es-repo-dir}/esql/esql-apis.asciidoc[]
 include::{es-repo-dir}/features/apis/features-apis.asciidoc[]
 include::{es-repo-dir}/fleet/index.asciidoc[]
 include::{es-repo-dir}/text-structure/apis/find-structure.asciidoc[leveloffset=+1]
+include::{es-repo-dir}/text-structure/apis/test-grok-pattern.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]

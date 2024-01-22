@@ -63,6 +63,9 @@ dependencies {
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
+  // fast datetime parsing
+  api 'com.ethlo.time:itu:1.7.7'
+
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"

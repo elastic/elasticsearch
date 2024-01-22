@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiTermQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
@@ -25,10 +27,12 @@ import org.elasticsearch.index.query.SpanQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -48,11 +52,13 @@ import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslator
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -61,17 +67,120 @@ import static org.mockito.Mockito.verify;
 public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
 
     public void testBuildFromSimpleQuery() {
-        final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
-        final QueryBuilder q1 = randomSimpleQuery("name");
-        final List<String> queryFields = new ArrayList<>();
-        final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, queryFields::add, authentication);
-        assertQueryFields(queryFields, q1, authentication);
-        assertCommonFilterQueries(apiKeyQb1, authentication);
-        final List<QueryBuilder> mustQueries = apiKeyQb1.must();
+        {
+            QueryBuilder qb = randomSimpleQuery("name");
+            List<String> queryFields = new ArrayList<>();
+            ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(qb, queryFields::add, null);
+            assertQueryFields(queryFields, qb, null);
+            assertCommonFilterQueries(apiKeyQb, null);
+            List<QueryBuilder> mustQueries = apiKeyQb.must();
+            assertThat(mustQueries, hasSize(1));
+            assertThat(mustQueries.get(0), equalTo(qb));
+            assertThat(apiKeyQb.should(), emptyIterable());
+            assertThat(apiKeyQb.mustNot(), emptyIterable());
+        }
+        {
+            Authentication authentication = AuthenticationTests.randomAuthentication(null, null);
+            QueryBuilder qb = randomSimpleQuery("name");
+            List<String> queryFields = new ArrayList<>();
+            ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(qb, queryFields::add, authentication);
+            assertQueryFields(queryFields, qb, authentication);
+            assertCommonFilterQueries(apiKeyQb, authentication);
+            List<QueryBuilder> mustQueries = apiKeyQb.must();
+            assertThat(mustQueries, hasSize(1));
+            assertThat(mustQueries.get(0), equalTo(qb));
+            assertThat(apiKeyQb.should(), emptyIterable());
+            assertThat(apiKeyQb.mustNot(), emptyIterable());
+        }
+        {
+            String apiKeyId = randomUUID();
+            Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(AuthenticationTests.randomUser(), apiKeyId);
+            QueryBuilder qb = randomSimpleQuery("name");
+            List<String> queryFields = new ArrayList<>();
+            ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(qb, queryFields::add, authentication);
+            assertQueryFields(queryFields, qb, authentication);
+            assertCommonFilterQueries(apiKeyQb, authentication);
+            List<QueryBuilder> mustQueries = apiKeyQb.must();
+            assertThat(mustQueries, hasSize(1));
+            assertThat(mustQueries.get(0), equalTo(qb));
+            assertThat(apiKeyQb.should(), emptyIterable());
+            assertThat(apiKeyQb.mustNot(), emptyIterable());
+        }
+    }
+
+    public void testMatchQueryBuilderPropertiesArePreservedFor() {
+        // the match query has many properties, that all must be preserved after limiting for API Key docs only
+        Authentication authentication = randomFrom(
+            AuthenticationTests.randomApiKeyAuthentication(AuthenticationTests.randomUser(), randomUUID()),
+            AuthenticationTests.randomAuthentication(null, null),
+            null
+        );
+        String fieldName = randomFrom(
+            "username",
+            "realm_name",
+            "name",
+            "type",
+            "creation",
+            "expiration",
+            "invalidated",
+            "invalidation",
+            "metadata",
+            "metadata.what.ever"
+        );
+        MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery(fieldName, new Object());
+        if (randomBoolean()) {
+            matchQueryBuilder.operator(randomFrom(Operator.OR, Operator.AND));
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.analyzer(randomAlphaOfLength(4));
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.fuzziness(randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO, Fuzziness.AUTO));
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.minimumShouldMatch(randomAlphaOfLength(4));
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.fuzzyRewrite(randomAlphaOfLength(4));
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.zeroTermsQuery(randomFrom(ZeroTermsQueryOption.NONE, ZeroTermsQueryOption.ALL, ZeroTermsQueryOption.NULL));
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.prefixLength(randomNonNegativeInt());
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.maxExpansions(randomIntBetween(1, 100));
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.fuzzyTranspositions(randomBoolean());
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.lenient(randomBoolean());
+        }
+        if (randomBoolean()) {
+            matchQueryBuilder.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
+        List<String> queryFields = new ArrayList<>();
+        ApiKeyBoolQueryBuilder apiKeyMatchQueryBuilder = ApiKeyBoolQueryBuilder.build(matchQueryBuilder, queryFields::add, authentication);
+        assertThat(queryFields, hasItem(ApiKeyFieldNameTranslators.translate(fieldName)));
+        List<QueryBuilder> mustQueries = apiKeyMatchQueryBuilder.must();
         assertThat(mustQueries, hasSize(1));
-        assertThat(mustQueries.get(0), equalTo(q1));
-        assertTrue(apiKeyQb1.should().isEmpty());
-        assertTrue(apiKeyQb1.mustNot().isEmpty());
+        assertThat(mustQueries.get(0), instanceOf(MatchQueryBuilder.class));
+        MatchQueryBuilder matchQueryBuilder2 = (MatchQueryBuilder) mustQueries.get(0);
+        assertThat(matchQueryBuilder2.fieldName(), is(ApiKeyFieldNameTranslators.translate(matchQueryBuilder.fieldName())));
+        assertThat(matchQueryBuilder2.value(), is(matchQueryBuilder.value()));
+        assertThat(matchQueryBuilder2.operator(), is(matchQueryBuilder.operator()));
+        assertThat(matchQueryBuilder2.analyzer(), is(matchQueryBuilder.analyzer()));
+        assertThat(matchQueryBuilder2.fuzziness(), is(matchQueryBuilder.fuzziness()));
+        assertThat(matchQueryBuilder2.minimumShouldMatch(), is(matchQueryBuilder.minimumShouldMatch()));
+        assertThat(matchQueryBuilder2.fuzzyRewrite(), is(matchQueryBuilder.fuzzyRewrite()));
+        assertThat(matchQueryBuilder2.zeroTermsQuery(), is(matchQueryBuilder.zeroTermsQuery()));
+        assertThat(matchQueryBuilder2.prefixLength(), is(matchQueryBuilder.prefixLength()));
+        assertThat(matchQueryBuilder2.maxExpansions(), is(matchQueryBuilder.maxExpansions()));
+        assertThat(matchQueryBuilder2.fuzzyTranspositions(), is(matchQueryBuilder.fuzzyTranspositions()));
+        assertThat(matchQueryBuilder2.lenient(), is(matchQueryBuilder.lenient()));
+        assertThat(matchQueryBuilder2.autoGenerateSynonymsPhraseQuery(), is(matchQueryBuilder.autoGenerateSynonymsPhraseQuery()));
     }
 
     public void testQueryForDomainAuthentication() {
@@ -760,16 +869,34 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         if (authentication == null) {
             return;
         }
-        assertTrue(
-            tqb.stream()
-                .anyMatch(
-                    q -> q.equals(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()))
+        if (authentication.isApiKey()) {
+            List<IdsQueryBuilder> idsQueryBuilders = qb.filter()
+                .stream()
+                .filter(q -> q.getClass() == IdsQueryBuilder.class)
+                .map(q -> (IdsQueryBuilder) q)
+                .toList();
+            assertThat(idsQueryBuilders, iterableWithSize(1));
+            assertThat(
+                idsQueryBuilders.get(0),
+                equalTo(
+                    QueryBuilders.idsQuery()
+                        .addIds((String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY))
                 )
-        );
-        assertTrue(
-            tqb.stream()
-                .anyMatch(q -> q.equals(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication))))
-        );
+            );
+        } else {
+            assertTrue(
+                tqb.stream()
+                    .anyMatch(
+                        q -> q.equals(
+                            QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal())
+                        )
+                    )
+            );
+            assertTrue(
+                tqb.stream()
+                    .anyMatch(q -> q.equals(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication))))
+            );
+        }
     }
 
     private QueryBuilder randomSimpleQuery(String fieldName) {

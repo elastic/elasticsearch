@@ -8,6 +8,7 @@
 
 Tests a Grok pattern on lines of text, see also <<grok,Grokking grok>>.
 
+[discrete]
 [[test-grok-pattern-request]]
 == {api-request-title}
 
@@ -15,6 +16,7 @@ Tests a Grok pattern on lines of text, see also <<grok,Grokking grok>>.
 
 `POST _text_structure/test_grok_pattern` +
 
+[discrete]
 [[test-grok-pattern-desc]]
 == {api-description-title}
 
@@ -22,8 +24,7 @@ The test Grok pattern API allows you to execute a Grok pattern on one
 or more lines of text. It returns whether the lines match the pattern
 together with the offsets and lengths of the matched substrings.
 
-[[test-grok-pattern-parms]]
-
+[discrete]
 [[test-grok-pattern-query-parms]]
 == {api-query-parms-title}
 
@@ -31,13 +32,9 @@ together with the offsets and lengths of the matched substrings.
 (Optional, string) The mode of compatibility with ECS compliant Grok patterns.
 Use this parameter to specify whether to use ECS Grok patterns instead of
 legacy ones when the structure finder creates a Grok pattern. Valid values
-are `disabled` and `v1`. The default value is `disabled`. This setting primarily
-has an impact when a whole message Grok pattern such as `%{CATALINALOG}`
-matches the input. If the structure finder identifies a common structure but
-has no idea of meaning then generic field names such as `path`, `ipaddress`,
-`field1` and `field2` are used in the `grok_pattern` output, with the intention
-that a user who knows the meanings rename these fields before using it.
+are `disabled` and `v1`. The default value is `disabled`.
 
+[discrete]
 [[test-grok-pattern-request-body]]
 == {api-request-body-title}
 
@@ -49,6 +46,7 @@ The Grok pattern to run on the lines of text.
 (Required, array of strings)
 The lines of text to run the Grok pattern on.
 
+[discrete]
 [[test-grok-pattern-example]]
 == {api-examples-title}
 

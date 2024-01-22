@@ -34,6 +34,9 @@ public class RestGetAsyncStatusAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         GetAsyncStatusRequest statusRequest = new GetAsyncStatusRequest(request.param("id"));
+        if (request.hasParam("keep_alive")) {
+            statusRequest.setKeepAlive(request.paramAsTime("keep_alive", statusRequest.getKeepAlive()));
+        }
         return channel -> client.execute(GetAsyncStatusAction.INSTANCE, statusRequest, new RestToXContentListener<>(channel));
     }
 }

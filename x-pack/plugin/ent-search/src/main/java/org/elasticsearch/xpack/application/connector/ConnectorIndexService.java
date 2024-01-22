@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastS
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -508,6 +509,52 @@ public class ConnectorIndexService {
                     l.onResponse(updateResponse);
                 })
             );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Updates the service type property of a {@link Connector} and its status.
+     *
+     * @param request  The request for updating the connector's service type.
+     * @param listener The listener for handling responses, including successful updates or errors.
+     */
+    public void updateConnectorServiceType(UpdateConnectorServiceTypeAction.Request request, ActionListener<UpdateResponse> listener) {
+        try {
+            String connectorId = request.getConnectorId();
+            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+
+                ConnectorStatus prevStatus = connector.getStatus();
+                ConnectorStatus newStatus = prevStatus == ConnectorStatus.CREATED
+                    ? ConnectorStatus.CREATED
+                    : ConnectorStatus.NEEDS_CONFIGURATION;
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
+                    new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+                        .id(connectorId)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .source(
+                            Map.of(
+                                Connector.SERVICE_TYPE_FIELD.getPreferredName(),
+                                request.getServiceType(),
+                                Connector.STATUS_FIELD.getPreferredName(),
+                                newStatus
+                            )
+                        )
+
+                );
+                clientWithOrigin.update(
+                    updateRequest,
+                    new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (updateListener, updateResponse) -> {
+                        if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
+                            updateListener.onFailure(new ResourceNotFoundException(connectorId));
+                            return;
+                        }
+                        updateListener.onResponse(updateResponse);
+                    })
+                );
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }

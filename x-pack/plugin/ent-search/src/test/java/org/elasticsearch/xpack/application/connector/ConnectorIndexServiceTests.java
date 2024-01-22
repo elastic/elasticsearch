@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastS
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -214,6 +215,27 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(updatedScheduling, equalTo(indexedConnector.getScheduling()));
+    }
+
+    public void testUpdateConnectorServiceType() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        String newServiceType = randomAlphaOfLengthBetween(3, 10);
+
+        UpdateConnectorServiceTypeAction.Request updateServiceTypeRequest = new UpdateConnectorServiceTypeAction.Request(
+            connectorId,
+            newServiceType
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorServiceType(updateServiceTypeRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(newServiceType, equalTo(indexedConnector.getServiceType()));
     }
 
     public void testUpdateConnectorError() throws Exception {
@@ -555,6 +577,32 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from update scheduling request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorServiceType(UpdateConnectorServiceTypeAction.Request updateServiceTypeRequest)
+        throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorServiceType(updateServiceTypeRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update service type request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update service type request", resp.get());
         return resp.get();
     }
 

@@ -65,4 +65,9 @@ class JavaTimeDateTimeFormatter implements DateTimeFormatter {
     public String format(TemporalAccessor accessor) {
         return formatter.format(accessor);
     }
+
+    @Override
+    public String toString() {
+        return formatter.toString();
+    }
 }

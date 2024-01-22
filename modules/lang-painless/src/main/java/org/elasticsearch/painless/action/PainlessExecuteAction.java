@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -528,9 +527,9 @@ public class PainlessExecuteAction {
             } else {
                 // forward to remote cluster
                 String clusterAlias = request.getContextSetup().getClusterAlias();
-                Client remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(threadPool, clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-                remoteClusterClient.admin().cluster().execute(PainlessExecuteAction.INSTANCE, request, listener);
+                transportService.getRemoteClusterService()
+                    .getRemoteClusterClient(clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                    .execute(PainlessExecuteAction.INSTANCE, request, listener);
             }
         }
 

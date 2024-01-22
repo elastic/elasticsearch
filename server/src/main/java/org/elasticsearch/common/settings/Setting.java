@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -442,14 +441,10 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
      */
-    protected boolean isDeprecated() {
+    private boolean isDeprecated() {
         return properties.contains(Property.Deprecated)
             || properties.contains(Property.DeprecatedWarning)
             || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
-    }
-
-    protected Stream<Tuple<String, String>> deprecatedKeyStream(Settings settings) {
-        return Stream.empty();
     }
 
     private boolean isDeprecatedWarningOnly() {
@@ -654,16 +649,6 @@ public class Setting<T> implements ToXContentObject {
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
             }
         }
-        String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release, use [{}] instead";
-        deprecatedKeyStream(settings).forEach(deprecatedReplacement -> {
-            Settings.DeprecationLoggerHolder.deprecationLogger.warn(
-                DeprecationCategory.SETTINGS,
-                deprecatedReplacement.v1(),
-                message,
-                deprecatedReplacement.v1(),
-                deprecatedReplacement.v2()
-            );
-        });
     }
 
     /**
@@ -1094,17 +1079,6 @@ public class Setting<T> implements ToXContentObject {
                 map.put(namespace, concreteSetting.get(settings));
             });
             return Collections.unmodifiableMap(map);
-        }
-
-        @Override
-        protected Stream<Tuple<String, String>> deprecatedKeyStream(Settings settings) {
-            if (key.hasFallback() == false) {
-                return super.deprecatedKeyStream(settings);
-            }
-            return Stream.concat(
-                super.deprecatedKeyStream(settings),
-                settings.keySet().stream().map(key::maybeFallback).flatMap(Optional::stream)
-            );
         }
     }
 
@@ -2248,19 +2222,6 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public boolean match(String key) {
             return pattern.matcher(key).matches();
-        }
-
-        // package private for testing
-
-        /**
-         * If key is the fallback, return it and the primary key
-         */
-        Optional<Tuple<String, String>> maybeFallback(String key) {
-            Matcher m = fallbackPattern.matcher(key);
-            if (m.matches() == false) {
-                return Optional.empty();
-            }
-            return Optional.of(new Tuple<>(key, m.replaceFirst(prefix + "$2")));
         }
 
         /**

@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -1435,29 +1434,6 @@ public class SettingTests extends ESTestCase {
         );
         deprecatedSettingWarningOnly.checkDeprecation(settings);
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSettingWarningOnly });
-    }
-
-    public void testAffixSettingFallback() {
-        Setting.AffixKey key = new Setting.AffixKey("foo.bar.baz.", null, "qux.quux.");
-        Optional<Tuple<String, String>> replacement = key.maybeFallback("qux.quux.abc.123.doremi");
-        assertTrue(replacement.isPresent());
-        assertThat(replacement.get(), equalTo(new Tuple<>("qux.quux.abc.123.doremi", "foo.bar.baz.abc.123.doremi")));
-        assertFalse(key.maybeFallback("foo.bar.baz.123.doremi").isPresent());
-    }
-
-    public void testCheckForDeprecatedAffixSettings() {
-        Setting.AffixSetting<Boolean> setting = Setting.prefixKeySetting(
-            "foo.",
-            "bar.",
-            (ns, key) -> Setting.boolSetting(key, false, Property.NodeScope)
-        );
-        setting.checkDeprecation(Settings.builder().put("bar.a.1", true).put("bar.b.q.do", false).build());
-        assertWarnings(
-            "[bar.a.1] setting was deprecated in Elasticsearch and will be removed in a future release, use [foo.a.1] instead",
-            "[bar.b.q.do] setting was deprecated in Elasticsearch and will be removed in a future release, use [foo.b.q.do] instead"
-        );
-        setting.checkDeprecation(Settings.builder().put("foo.a.1", true).put("foo.b.q.d", false).build());
-        ensureNoWarnings();
     }
 
     public void testCheckForDeprecationWithSkipSetting() {

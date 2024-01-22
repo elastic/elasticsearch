@@ -25,7 +25,7 @@ public class TypedParams {
         this.positionalParams = params;
     }
 
-    public List<TypedParamValue> positionalParams () {
+    public List<TypedParamValue> positionalParams() {
         return this.positionalParams;
     }
 
@@ -48,6 +48,7 @@ public class TypedParams {
     public boolean containsTokenLocation(Token token) {
         return this.positionalParamTokens.containsKey(token);
     }
+
     public TypedParamValue getParamByTokenLocation(Token tokenLocation) {
         return this.positionalParamTokens.get(tokenLocation);
     }

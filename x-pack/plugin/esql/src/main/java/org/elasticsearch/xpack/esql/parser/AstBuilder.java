@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
-import org.antlr.v4.runtime.Token;
-
-import java.util.Map;
-
 public class AstBuilder extends LogicalPlanBuilder {
     public AstBuilder(TypedParams params) {
         super(params);

@@ -878,7 +878,9 @@ public class StatementParserTests extends ESTestCase {
     }
 
     private LogicalPlan statement(String e, List<TypedParamValue> params) {
-        return parser.createStatement(e, params);
+        TypedParams typedParams = new TypedParams();
+        typedParams.positionalParams(params);
+        return parser.createStatement(e, typedParams);
     }
 
     private LogicalPlan processingCommand(String e) {

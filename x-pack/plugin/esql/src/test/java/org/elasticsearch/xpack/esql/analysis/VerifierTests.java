@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.TypedParams;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -326,18 +327,20 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, Analyzer analyzer, Object... params) {
-        List<TypedParamValue> parameters = new ArrayList<>();
+        List<TypedParamValue> parameterList = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
-                parameters.add(new TypedParamValue("null", null));
+                parameterList.add(new TypedParamValue("null", null));
             } else if (param instanceof String) {
-                parameters.add(new TypedParamValue("keyword", param));
+                parameterList.add(new TypedParamValue("keyword", param));
             } else if (param instanceof Number) {
-                parameters.add(new TypedParamValue("param", param));
+                parameterList.add(new TypedParamValue("param", param));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
+        TypedParams parameters = new TypedParams();
+        parameters.positionalParams(parameterList);
         VerificationException e = expectThrows(
             VerificationException.class,
             () -> analyzer.analyze(parser.createStatement(query, parameters))

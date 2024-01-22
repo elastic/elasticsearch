@@ -272,8 +272,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
                 result.add(currentParam);
                 previousParam = currentParam;
             }
-        }
-        else if(token == XContentParser.Token.START_OBJECT) {
+        } else if (token == XContentParser.Token.START_OBJECT) {
             String currentParamName = null;
             TypedParamValue previousParam = null;
             TypedParamValue currentParam;
@@ -295,11 +294,8 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return typedParams;
     }
 
-    private static TypedParamValue parseParam(
-        XContentParser p,
-        XContentParser.Token token,
-        TypedParamValue previousParam
-    ) throws  IOException {
+    private static TypedParamValue parseParam(XContentParser p, XContentParser.Token token, TypedParamValue previousParam)
+        throws IOException {
         TypedParamValue currentParam;
         Object value = null;
         String type = null;
@@ -349,6 +345,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         }
         return currentParam;
     }
+
     static ContentLocation toProto(org.elasticsearch.xcontent.XContentLocation toProto) {
         if (toProto == null) {
             return null;

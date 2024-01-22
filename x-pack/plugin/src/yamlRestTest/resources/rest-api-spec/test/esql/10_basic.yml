@@ -270,7 +270,7 @@ setup:
   - length: {values: 1}
 
 ---
-"Test Input Params":
+"Test Input Positional Params":
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -309,12 +309,89 @@ setup:
   - match: {values.0: [1, 44, "green"]}
 
 ---
-"Test Mixed Input Params":
+"Test Mixed Input Positional Params":
   - do:
       esql.query:
         body:
           query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit 3'
           params: [{"value": 1, "type": "keyword"}, {"value": 2, "type": "double"}, null, true, 123, {"value": 123, "type": "long"}]
+
+  - length: {columns: 6}
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "y"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "z"}
+  - match: {columns.2.type: "null"}
+  - match: {columns.3.name: "t"}
+  - match: {columns.3.type: "boolean"}
+  - match: {columns.4.name: "u"}
+  - match: {columns.4.type: "integer"}
+  - match: {columns.5.name: "v"}
+  - match: {columns.5.type: "long"}
+  - length: {values: 3}
+  - match: {values.0: ["1",2.0,null,true,123,123]}
+  - match: {values.1: ["1",2.0,null,true,123,123]}
+  - match: {values.2: ["1",2.0,null,true,123,123]}
+
+---
+"Test Input Named Params":
+  - skip:
+      version: " - 8.12.99"
+      reason: "Named parameter support is added in 8.13"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row a = {{a}} | eval b = {{b}}, c = {{c}} + 1'
+          params: { "a": "foo", "b": 15, "c": 10 }
+
+  - length: {columns: 3}
+  - match: {columns.0.name: "a"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "b"}
+  - match: {columns.1.type: "integer"}
+  - match: {columns.2.name: "c"}
+  - match: {columns.2.type: "integer"}
+  - length: {values: 1}
+  - match: {values.0: ["foo", 15, 11]}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where color == {{color}} and count == {{count}} and time == {{time}} | keep data, count, color'
+          params: { "color":"green", "count": 44, "time": 1674835275193 }
+
+  - length: {columns: 3}
+  - match: {columns.0.name: "data"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "color"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 1}
+  - match: {values.0: [1, 44, "green"]}
+
+---
+"Test Mixed Input Named Params":
+  - skip:
+      version: " - 8.12.99"
+      reason: "Named parameter support is added in 8.13"
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = {{x}}, y = {{y}}, z = {{z}}, t = {{t}}, u = {{u}}, v = {{v}} | keep x, y, z, t, u, v | limit 3'
+          params: {
+            "x": {"value": 1, "type": "keyword"},
+            "y": {"value": 2, "type": "double"},
+            "z": null,
+            "t": true,
+            "u": 123,
+            "v": {"value": 123, "type": "long"}
+          }
 
   - length: {columns: 6}
   - match: {columns.0.name: "x"}

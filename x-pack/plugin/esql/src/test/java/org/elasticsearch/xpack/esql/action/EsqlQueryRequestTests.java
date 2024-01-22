@@ -64,9 +64,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
 
-        assertEquals(params.size(), request.params().size());
+        assertEquals(params.size(), request.params().positionalParams().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().get(i));
+            assertEquals(params.get(i), request.params().getParamAt(i));
         }
     }
 
@@ -115,9 +115,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(waitForCompletion, request.waitForCompletionTimeout());
         assertEquals(keepAlive, request.keepAlive());
 
-        assertEquals(params.size(), request.params().size());
+        assertEquals(params.size(), request.params().positionalParams().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().get(i));
+            assertEquals(params.get(i), request.params().getParamAt(i));
         }
     }
 

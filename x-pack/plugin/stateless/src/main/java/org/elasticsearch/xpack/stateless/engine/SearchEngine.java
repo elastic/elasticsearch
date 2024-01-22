@@ -73,7 +73,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * {@link Engine} implementation for search shards
@@ -197,10 +196,7 @@ public class SearchEngine extends Engine {
     }
 
     public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {
-        return Stream.concat(
-            openReaders.values().stream().map(OpenReaderInfo::primaryTermAndGeneration),
-            directory.getAcquiredGenerationalFilesPrimaryTermAndGenerations().stream()
-        ).collect(Collectors.toSet());
+        return openReaders.values().stream().map(OpenReaderInfo::primaryTermAndGeneration).collect(Collectors.toSet());
     }
 
     /**

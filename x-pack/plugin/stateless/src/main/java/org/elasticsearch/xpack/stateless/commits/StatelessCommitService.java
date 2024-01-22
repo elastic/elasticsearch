@@ -605,11 +605,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return null;
     }
 
-    // Visible for testing
-    boolean hasClosedGenerationalFiles(ShardId shardId, PrimaryTermAndGeneration termGen) {
-        return getSafe(shardsCommitsStates, shardId).primaryTermAndGenToBlobReference.get(termGen).generationalFilesClosed.get();
-    }
-
     private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
         final ShardCommitState commitState = map.get(shardId);
         if (commitState == null) {
@@ -819,7 +814,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // Deleted and unused locally such that only the recovery commit retains this compound commit
                     b.deleted();
                     b.closedLocalReaders();
-                    b.closedGenerationalFiles();
                 });
 
             recoveredPrimaryTerm = recoveredCommit.primaryTerm();
@@ -1152,7 +1146,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 primaryTermAndGenToBlobReference.values().forEach(blobReference -> {
                     blobReference.closedLocalReaders();
                     blobReference.deleted();
-                    blobReference.closedGenerationalFiles();
                 });
             }
         }
@@ -1374,14 +1367,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             };
         }
 
-        public void closedGenerationalFiles(PrimaryTermAndGeneration termAndGeneration) {
-            BlobReference blobReference = primaryTermAndGenToBlobReference.get(termAndGeneration);
-            if (blobReference != null) {
-                blobReference.closedGenerationalFiles();
-                logger.trace(() -> "closed generational files for " + termAndGeneration);
-            }
-        }
-
         /**
          * A ref counted instance representing a (compound commit) blob reference to the object store. It can reference some other previous
          * blob reference instances (if the commit has external files) which are decRef when the current instance ref count reaches zero.
@@ -1393,7 +1378,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             private final AtomicBoolean deleted = new AtomicBoolean();
             private final AtomicBoolean readersClosed = new AtomicBoolean();
             private final AtomicBoolean externalReadersClosed = new AtomicBoolean();
-            private final AtomicBoolean generationalFilesClosed = new AtomicBoolean();
 
             BlobReference(long primaryTerm, long generation, Set<String> internalFiles) {
                 this(new PrimaryTermAndGeneration(primaryTerm, generation), internalFiles);
@@ -1403,9 +1387,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 this.primaryTermAndGeneration = primaryTermAndGeneration;
                 this.internalFiles = Set.copyOf(internalFiles);
                 this.references = newSetFromMap(new IdentityHashMap<>());
-                // we both decRef on delete, closedLocalReaders, closedExternalReaders, and closedGenerationalFiles, hence the extra
-                // incRefs (in addition to the 1 ref given by AbstractRefCounted constructor)
-                this.incRef();
+                // we both decRef on delete, closedLocalReaders and closedExternalReaders, hence the extra incRefs (in addition to the
+                // 1 ref given by AbstractRefCounted constructor)
                 this.incRef();
                 this.incRef();
             }
@@ -1417,8 +1400,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void incRef(BlobReference other) {
                 assert hasReferences() : this;
                 assert other.hasReferences() : other;
-                // incRef 3 times since we expect all references to be deleted, locally unused, and externally unused.
-                // We do not incRef for generational files, since these are copied, and we do not need to track references to them.
+                // incRef three times since we expect all commits to be both deleted, locally unused and externally unused
                 other.incRef();
                 other.incRef();
                 other.incRef();
@@ -1451,13 +1433,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     decRef();
                 } else {
                     assert false : "external readers already closed for [" + this + "]";
-                }
-            }
-
-            public void closedGenerationalFiles() {
-                // be idempotent.
-                if (generationalFilesClosed.compareAndSet(false, true)) {
-                    decRef();
                 }
             }
 
@@ -1504,8 +1479,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + readersClosed.get()
                     + ","
                     + externalReadersClosed.get()
-                    + ","
-                    + generationalFilesClosed.get()
                     + ","
                     + refCount()
                     + "]";
@@ -1616,16 +1589,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      */
     public LongConsumer closedLocalReadersForGeneration(ShardId shardId) {
         return shardsCommitsStates.get(shardId).closedLocalReadersForGeneration();
-    }
-
-    /**
-     * An idempotent call that closes the generational files of an index shard's stateless compound commit
-     *
-     * @param shardId the shard of the commit
-     * @param termAndGeneration the primary term and generation of the commit for which to close the generational files
-     */
-    public void closedGenerationalFiles(ShardId shardId, PrimaryTermAndGeneration termAndGeneration) {
-        shardsCommitsStates.get(shardId).closedGenerationalFiles(termAndGeneration);
     }
 
     private void waitForClusterStateProcessed(long clusterStateVersion, Runnable whenDone) {

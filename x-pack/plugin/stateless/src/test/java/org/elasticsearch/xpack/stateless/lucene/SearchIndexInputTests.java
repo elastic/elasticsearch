@@ -18,9 +18,6 @@
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
-import co.elastic.elasticsearch.stateless.commits.BlobFile;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
-import co.elastic.elasticsearch.stateless.commits.RefCountedBlobLocation;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -67,31 +64,19 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 final String fileName = randomAlphaOfLength(5) + randomFileExtension();
                 final byte[] input = randomChecksumBytes(randomIntBetween(1, 100_000)).v2();
                 final long primaryTerm = randomNonNegativeLong();
-                RefCountedBlobLocation refBlobLocation = randomBoolean()
-                    ? new RefCountedBlobLocation(
-                        new BlobLocation(new BlobFile(randomNonNegativeLong(), randomAlphaOfLength(5), randomNonNegativeLong()), 0, 1)
-                    )
-                    : null;
-                try (
-                    SearchIndexInput indexInput = new SearchIndexInput(
-                        fileName,
-                        refBlobLocation,
-                        sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
-                        randomIOContext(),
-                        TestUtils.singleBlobContainer(fileName, input),
-                        sharedBlobCacheService,
-                        input.length,
-                        0
-                    )
-                ) {
-                    assertEquals(input.length, indexInput.length());
-                    assertEquals(0, indexInput.getFilePointer());
-                    byte[] output = randomReadAndSlice(indexInput, input.length);
-                    assertArrayEquals(input, output);
-                }
-                if (refBlobLocation != null) {
-                    assertFalse(refBlobLocation.hasReferences());
-                }
+                final SearchIndexInput indexInput = new SearchIndexInput(
+                    fileName,
+                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
+                    randomIOContext(),
+                    TestUtils.singleBlobContainer(fileName, input),
+                    sharedBlobCacheService,
+                    input.length,
+                    0
+                );
+                assertEquals(input.length, indexInput.length());
+                assertEquals(0, indexInput.getFilePointer());
+                byte[] output = randomReadAndSlice(indexInput, input.length);
+                assertArrayEquals(input, output);
             }
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
@@ -121,7 +106,6 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             final long primaryTerm = randomNonNegativeLong();
             final SearchIndexInput indexInput = new SearchIndexInput(
                 fileName,
-                null,
                 sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                 randomIOContext(),
                 TestUtils.singleBlobContainer(fileName, input),

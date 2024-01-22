@@ -187,7 +187,14 @@ public class FakeStatelessNode implements Closeable {
                 BlobCacheMetrics.NOOP
             );
             localCloseables.add(sharedCacheService);
-            searchDirectory = localCloseables.add(new SearchDirectory(sharedCacheService, searchShardPath.getShardId(), null));
+            indexingDirectory = localCloseables.add(
+                new IndexDirectory(
+                    new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
+                    new SearchDirectory(sharedCacheService, shardId)
+                )
+            );
+            indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
+            searchDirectory = localCloseables.add(new SearchDirectory(sharedCacheService, searchShardPath.getShardId()));
             searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
             transportService = transport.createTransportService(
@@ -250,13 +257,6 @@ public class FakeStatelessNode implements Closeable {
                 commitCleaner
             );
             commitService.register(shardId, getPrimaryTerm());
-            indexingDirectory = localCloseables.add(
-                new IndexDirectory(
-                    new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
-                    new SearchDirectory(sharedCacheService, shardId, (termGen -> commitService.closedGenerationalFiles(shardId, termGen)))
-                )
-            );
-            indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
             indexingDirectory.getSearchDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
 
             closeables = localCloseables.transfer();

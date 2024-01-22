@@ -24,5 +24,6 @@ public abstract class JavaToolChainResolverPlugin implements Plugin<Settings> {
         registry.register(OracleOpenJdkToolchainResolver.class);
         registry.register(AdoptiumJdkToolchainResolver.class);
         registry.register(ArchivedOracleJdkToolchainResolver.class);
+        registry.register(OracleOpenJdkEarlyAccessToolchainResolver.class);
     }
 }

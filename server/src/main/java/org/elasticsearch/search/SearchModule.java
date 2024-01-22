@@ -228,11 +228,11 @@ import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
-import org.elasticsearch.search.retriever.ClassicRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.LinearCombinationRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -1048,7 +1048,7 @@ public class SearchModule {
 
     private void registerRetrieverParsers(List<SearchPlugin> plugins) {
         registerRetriever(
-            new RetrieverSpec<>(ClassicRetrieverBuilder.NAME, ClassicRetrieverBuilder::new, ClassicRetrieverBuilder::fromXContent)
+            new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::new, StandardRetrieverBuilder::fromXContent)
         );
         registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::new, KnnRetrieverBuilder::fromXContent));
         registerRetriever(

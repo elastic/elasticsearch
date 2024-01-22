@@ -29,9 +29,7 @@ public record HealthInfo(
     Map<String, DiskHealthInfo> diskInfoByNode,
     @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
     Map<String, RepositoriesHealthInfo> repositoriesInfoByNode
-)
-    implements
-        Writeable {
+) implements Writeable {
 
     public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of());
 

@@ -57,8 +57,7 @@ public class RepositoriesCheckTests extends ESTestCase {
         when(metadata.generation()).thenReturn(randomNonNegativeLong());
         var repo = mock(Repository.class);
         when(repo.getMetadata()).thenReturn(metadata);
-        when(repositoriesService.getRepositories())
-            .thenReturn(Map.of(randomAlphaOfLength(10), repo));
+        when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), repo));
 
         var health = repositoriesCheck.getHealth();
 
@@ -78,8 +77,9 @@ public class RepositoriesCheckTests extends ESTestCase {
 
     public void test_getHealth_invalid() {
         var repoName = randomAlphaOfLength(10);
-        when(repositoriesService.getRepositories())
-            .thenReturn(Map.of(repoName, new InvalidRepository(createRepositoryMetadata(), new RepositoryException(repoName, "Test"))));
+        when(repositoriesService.getRepositories()).thenReturn(
+            Map.of(repoName, new InvalidRepository(createRepositoryMetadata(), new RepositoryException(repoName, "Test")))
+        );
 
         var health = repositoriesCheck.getHealth();
 

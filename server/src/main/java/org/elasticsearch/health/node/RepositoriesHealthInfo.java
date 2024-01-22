@@ -18,10 +18,7 @@ import java.util.List;
 /**
  * The repository health info for a node.
  */
-public record RepositoriesHealthInfo(
-    List<String> unknownRepositories,
-    List<String> invalidRepositories
-) implements Writeable {
+public record RepositoriesHealthInfo(List<String> unknownRepositories, List<String> invalidRepositories) implements Writeable {
     public RepositoriesHealthInfo(StreamInput in) throws IOException {
         this(in.readStringCollectionAsList(), in.readStringCollectionAsList());
     }

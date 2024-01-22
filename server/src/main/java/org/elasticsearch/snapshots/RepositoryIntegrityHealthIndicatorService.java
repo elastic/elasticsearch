@@ -160,10 +160,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             var unknownRepositoriesCount = new AtomicInteger();
             var invalidRepositoriesCount = new AtomicInteger();
             repositoriesHealthByNode.forEach((nodeId, healthInfo) -> {
-                unknownRepositories.computeIfAbsent(nodeId, k -> new ArrayList<>())
-                    .addAll(healthInfo.unknownRepositories());
-                invalidRepositories.computeIfAbsent(nodeId, k -> new ArrayList<>())
-                    .addAll(healthInfo.invalidRepositories());
+                unknownRepositories.computeIfAbsent(nodeId, k -> new ArrayList<>()).addAll(healthInfo.unknownRepositories());
+                invalidRepositories.computeIfAbsent(nodeId, k -> new ArrayList<>()).addAll(healthInfo.invalidRepositories());
 
                 unknownRepositoriesCount.getAndAdd(healthInfo.unknownRepositories().size());
                 invalidRepositoriesCount.getAndAdd(healthInfo.invalidRepositories().size());
@@ -262,12 +260,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             int maxAffectedResourcesCount
         ) {
             // Flat map all the repo's (and make sure we only return distinct repo names).
-            var repoNames = reposMap.values()
-                .stream()
-                .flatMap(Collection::stream)
-                .distinct()
-                .limit(maxAffectedResourcesCount)
-                .toList();
+            var repoNames = reposMap.values().stream().flatMap(Collection::stream).distinct().limit(maxAffectedResourcesCount).toList();
             var nodes = reposMap.entrySet()
                 .stream()
                 .filter(entry -> entry.getValue().isEmpty() == false)

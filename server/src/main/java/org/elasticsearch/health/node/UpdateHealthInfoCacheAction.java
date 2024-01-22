@@ -46,11 +46,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         @Nullable
         private final RepositoriesHealthInfo repositoriesHealthInfo;
 
-        public Request(
-            String nodeId,
-            DiskHealthInfo diskHealthInfo,
-            RepositoriesHealthInfo repositoriesHealthInfo
-        ) {
+        public Request(String nodeId, DiskHealthInfo diskHealthInfo, RepositoriesHealthInfo repositoriesHealthInfo) {
             this.dslHealthInfo = null;
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;

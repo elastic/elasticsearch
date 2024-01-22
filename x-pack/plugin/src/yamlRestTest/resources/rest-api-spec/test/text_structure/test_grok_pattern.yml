@@ -23,6 +23,7 @@
 "Grok pattern with two identically named fields":
   - do:
       text_structure.test_grok_pattern:
+        ecs_compatibility: v1
         body:
           grok_pattern: "%{WORD}.*%{WORD:name} %{WORD:name}!"
           text:

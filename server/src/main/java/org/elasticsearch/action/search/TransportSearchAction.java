@@ -527,7 +527,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider.absoluteStartMillis(),
                 true
             );
-            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias, remoteClientResponseExecutor);
+            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(clusterAlias, remoteClientResponseExecutor);
             remoteClusterClient.execute(TransportSearchAction.REMOTE_TYPE, ccsSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
@@ -607,7 +607,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     listener
                 );
                 final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                    threadPool,
                     clusterAlias,
                     remoteClientResponseExecutor
                 );

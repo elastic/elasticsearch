@@ -625,7 +625,6 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices());
 
                 var remoteClient = remoteClusterService.getRemoteClusterClient(
-                    transportService.getThreadPool(),
                     clusterAlias,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 );

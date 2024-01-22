@@ -229,7 +229,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
 
     private long convertToLong(Expression e) {
         Object value = Foldables.valueOf(e);
-        return (e.dataType() == DataTypes.DATETIME)
+        return DataTypes.isDateTime(e.dataType())
             ? ((Number) value).longValue()
             : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(BytesRefs.toString(value));
     }

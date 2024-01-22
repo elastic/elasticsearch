@@ -147,7 +147,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     // larger than any (unsigned) long
     private static final String HUMONGOUS_DOUBLE = "1E300";
-    private static final String INFTY = "1.0/0.0";
+    private static final String INFINITY = "1.0/0.0";
     private static final String NAN = "0.0/0.0";
 
     public static boolean shouldLog() {
@@ -395,46 +395,29 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             "scaled_float"
         );
 
-        List<String> trueForSingleValuesComparisons = List.of(
-            " < " + HUMONGOUS_DOUBLE,
-            " <= " + HUMONGOUS_DOUBLE,
-            " > -" + HUMONGOUS_DOUBLE,
-            " >= -" + HUMONGOUS_DOUBLE,
-            " != " + HUMONGOUS_DOUBLE,
-            " != -" + HUMONGOUS_DOUBLE,
-            " < " + INFTY,
-            " <= " + INFTY,
-            " > -" + INFTY,
-            " >= -" + INFTY,
-            " != " + INFTY,
-            " != -" + INFTY,
-            " != " + NAN
+        String lessOrLessEqual = randomBoolean() ? " < " : " <= ";
+        String largerOrLargerEqual = randomBoolean() ? " > " : " >= ";
+        String inEqualPlusMinus = randomBoolean() ? " != " : " != -";
+        String equalPlusMinus = randomBoolean() ? " == " : " == -";
+        // TODO: once we do not support infinity and NaN anymore, remove INFINITY/NAN cases.
+        // https://github.com/elastic/elasticsearch/issues/98698#issuecomment-1847423390
+        String humongousPositiveLiteral = randomBoolean() ? HUMONGOUS_DOUBLE : INFINITY;
+        String nanOrNull = randomBoolean() ? NAN : "to_double(null)";
 
+        List<String> trueForSingleValuesComparisons = List.of(
+            lessOrLessEqual + humongousPositiveLiteral,
+            largerOrLargerEqual + " -" + humongousPositiveLiteral,
+            inEqualPlusMinus + humongousPositiveLiteral,
+            inEqualPlusMinus + NAN
         );
         List<String> alwaysFalseComparisons = List.of(
-            " < -" + HUMONGOUS_DOUBLE,
-            " <= -" + HUMONGOUS_DOUBLE,
-            " > " + HUMONGOUS_DOUBLE,
-            " >= " + HUMONGOUS_DOUBLE,
-            " == " + HUMONGOUS_DOUBLE,
-            " == -" + HUMONGOUS_DOUBLE,
-            " < -" + INFTY,
-            " <= -" + INFTY,
-            " > " + INFTY,
-            " >= " + INFTY,
-            " == " + INFTY,
-            " == -" + INFTY,
-            " < " + NAN,
-            " <= " + NAN,
-            " > " + NAN,
-            " >= " + NAN,
-            " == " + NAN,
-            " < to_double(null)",
-            " <= to_double(null)",
-            " > to_double(null)",
-            " >= to_double(null)",
-            " == to_double(null)",
-            " != to_double(null)"
+            lessOrLessEqual + " -" + humongousPositiveLiteral,
+            largerOrLargerEqual + humongousPositiveLiteral,
+            equalPlusMinus + humongousPositiveLiteral,
+            lessOrLessEqual + nanOrNull,
+            largerOrLargerEqual + nanOrNull,
+            equalPlusMinus + nanOrNull,
+            inEqualPlusMinus + "to_double(null)"
         );
 
         for (String fieldWithType : dataTypes) {

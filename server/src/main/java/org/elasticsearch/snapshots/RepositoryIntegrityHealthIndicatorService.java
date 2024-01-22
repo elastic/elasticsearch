@@ -69,7 +69,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     );
     public static final Diagnosis.Definition CORRUPTED_DEFINITION = new Diagnosis.Definition(
         NAME,
-        "corrupt_repository",
+        "corrupt_repo_integrity",
         "Multiple clusters are writing to the same repository.",
         "Remove the repository from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository"
             + " to this cluster.",

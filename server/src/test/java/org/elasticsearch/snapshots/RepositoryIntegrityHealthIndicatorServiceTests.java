@@ -276,8 +276,10 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
     // they need to be declared in the health-api-indexer.edn in the telemetry repository.
     public void testMappedFieldsForTelemetry() {
-        assertThat(RepositoryIntegrityHealthIndicatorService.NAME, equalTo("repository_integrity"));
-        assertThat(CORRUPTED_DEFINITION.getUniqueId(), equalTo("elasticsearch:health:repository_integrity:diagnosis:corrupt_repository"));
+        assertEquals("repository_integrity", RepositoryIntegrityHealthIndicatorService.NAME);
+        assertEquals("elasticsearch:health:repository_integrity:diagnosis:corrupt_repo_integrity", CORRUPTED_DEFINITION.getUniqueId());
+        assertEquals("elasticsearch:health:repository_integrity:diagnosis:unknown_repository", UNKNOWN_DEFINITION.getUniqueId());
+        assertEquals("elasticsearch:health:repository_integrity:diagnosis:invalid_repository", INVALID_DEFINITION.getUniqueId());
     }
 
     private ClusterState createClusterStateWith(RepositoriesMetadata metadata) {

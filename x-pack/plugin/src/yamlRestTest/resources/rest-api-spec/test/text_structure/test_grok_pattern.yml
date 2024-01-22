@@ -11,13 +11,13 @@
         - matched: true
           fields:
             first_name:
-              match: Dave
-              offset: 8
-              length: 4
+              - match: Dave
+                offset: 8
+                length: 4
             last_name:
-              match: Roberts
-              offset: 13
-              length: 7
+              - match: Roberts
+                offset: 13
+                length: 7
         - matched: false
 ---
 "Grok pattern with two identically named fields":

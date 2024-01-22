@@ -165,25 +165,22 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
                 if (ranges != null) {
                     builder.startObject("fields");
                     for (Map.Entry<String, Object> rangeOrList : ranges.entrySet()) {
-                        if (rangeOrList.getValue() instanceof GrokCaptureExtracter.Range) {
-                            GrokCaptureExtracter.Range range = (GrokCaptureExtracter.Range) rangeOrList.getValue();
-                            builder.startObject(rangeOrList.getKey());
+                        List<?> listOfRanges;
+                        if (rangeOrList.getValue() instanceof List) {
+                            listOfRanges = (List<?>) rangeOrList.getValue();
+                        } else {
+                            listOfRanges = List.of(rangeOrList.getValue());
+                        }
+                        builder.startArray(rangeOrList.getKey());
+                        for (Object rangeObject : listOfRanges) {
+                            GrokCaptureExtracter.Range range = (GrokCaptureExtracter.Range) rangeObject;
+                            builder.startObject();
                             builder.field("match", range.match());
                             builder.field("offset", range.offset());
                             builder.field("length", range.length());
                             builder.endObject();
-                        } else if (rangeOrList.getValue() instanceof List) {
-                            builder.startArray(rangeOrList.getKey());
-                            for (Object rangeObject : (List<?>) rangeOrList.getValue()) {
-                                GrokCaptureExtracter.Range range = (GrokCaptureExtracter.Range) rangeObject;
-                                builder.startObject();
-                                builder.field("match", range.match());
-                                builder.field("offset", range.offset());
-                                builder.field("length", range.length());
-                                builder.endObject();
-                            }
-                            builder.endArray();
                         }
+                        builder.endArray();
                     }
                     builder.endObject();
                 }

@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -156,7 +157,7 @@ public class CcrLicenseChecker {
                 final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null
                     ? indexAbstraction.getParentDataStream()
                     : null;
-                hasPrivilegesToFollowIndices(remoteClient, new String[] { leaderIndex }, e -> {
+                hasPrivilegesToFollowIndices(client.threadPool().getThreadContext(), remoteClient, new String[] { leaderIndex }, e -> {
                     if (e == null) {
                         fetchLeaderHistoryUUIDs(
                             remoteClient,
@@ -195,6 +196,7 @@ public class CcrLicenseChecker {
     ) {
         try {
             var remoteClient = systemClient(
+                client.threadPool().getThreadContext(),
                 client.getRemoteClusterClient(clusterAlias, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME))
             );
             checkRemoteClusterLicenseAndFetchClusterState(
@@ -232,7 +234,7 @@ public class CcrLicenseChecker {
     private static void checkRemoteClusterLicenseAndFetchClusterState(
         final Client client,
         final String clusterAlias,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final ClusterStateRequest request,
         final Consumer<Exception> onFailure,
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
@@ -278,7 +280,7 @@ public class CcrLicenseChecker {
     // NOTE: Placed this method here; in order to avoid duplication of logic for fetching history UUIDs
     // in case of following a local or a remote cluster.
     public static void fetchLeaderHistoryUUIDs(
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final IndexMetadata leaderIndexMetadata,
         final Consumer<Exception> onFailure,
         final Consumer<String[]> historyUUIDConsumer
@@ -334,7 +336,12 @@ public class CcrLicenseChecker {
      * @param indices      the indices
      * @param handler      the callback
      */
-    public void hasPrivilegesToFollowIndices(final Client remoteClient, final String[] indices, final Consumer<Exception> handler) {
+    public void hasPrivilegesToFollowIndices(
+        final ThreadContext threadContext,
+        final RemoteClusterClient remoteClient,
+        final String[] indices,
+        final Consumer<Exception> handler
+    ) {
         Objects.requireNonNull(remoteClient, "remoteClient");
         Objects.requireNonNull(indices, "indices");
         if (indices.length == 0) {
@@ -346,7 +353,7 @@ public class CcrLicenseChecker {
             return;
         }
 
-        final User user = getUser(remoteClient.threadPool().getThreadContext());
+        final User user = getUser(threadContext);
         if (user == null) {
             handler.accept(new IllegalStateException("missing or unable to read authentication info on request"));
             return;
@@ -390,6 +397,39 @@ public class CcrLicenseChecker {
         return new SecurityContext(Settings.EMPTY, threadContext).getUser();
     }
 
+    public static RemoteClusterClient wrapRemoteClusterClient(
+        ThreadContext threadContext,
+        RemoteClusterClient client,
+        Map<String, String> headers,
+        ClusterState clusterState
+    ) {
+        if (headers.isEmpty()) {
+            return client;
+        } else {
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState);
+            if (filteredHeaders.isEmpty()) {
+                return client;
+            }
+            return new RemoteClusterClient() {
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse> void execute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    ClientHelper.executeWithHeadersAsync(
+                        threadContext,
+                        filteredHeaders,
+                        null,
+                        request,
+                        listener,
+                        (r, l) -> client.execute(action, r, l)
+                    );
+                }
+            };
+        }
+    }
+
     public static Client wrapClient(Client client, Map<String, String> headers, ClusterState clusterState) {
         if (headers.isEmpty()) {
             return client;
@@ -411,11 +451,10 @@ public class CcrLicenseChecker {
         }
     }
 
-    private static Client systemClient(Client client) {
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        return new FilterClient(client) {
+    private static RemoteClusterClient systemClient(ThreadContext threadContext, RemoteClusterClient delegate) {
+        return new RemoteClusterClient() {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            public <Request extends ActionRequest, Response extends ActionResponse> void execute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
@@ -423,7 +462,7 @@ public class CcrLicenseChecker {
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     threadContext.markAsSystemContext();
-                    super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                    delegate.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
                 }
             }
         };

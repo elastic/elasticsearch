@@ -20,7 +20,7 @@ import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -106,7 +106,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
     }
 
     private static <Request extends ActionRequest, Response extends ActionResponse> Response executeRemote(
-        Client client,
+        RemoteClusterClient client,
         ActionType<Response> action,
         Request request
     ) throws Exception {

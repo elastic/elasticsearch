@@ -106,7 +106,7 @@ public class ReleaseVersions {
                 } else {
                     // we know about all preceding versions - how can this version be less than everything else we know about???
                     assert false : "Could not find preceding version for id " + id;
-                    lowerBound = "[" + id + "]";
+                    lowerBound = "snapshot[" + id + "]";
                 }
 
                 var upperRange = versions.higherEntry(id);
@@ -115,7 +115,7 @@ public class ReleaseVersions {
                     upperBound = upperRange.getValue().get(0).toString();
                 } else {
                     // likely a version created after the last release tagged version - ok
-                    upperBound = "[" + id + "]";
+                    upperBound = "snapshot[" + id + "]";
                 }
             }
 

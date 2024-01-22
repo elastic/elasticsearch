@@ -30,6 +30,6 @@ public class ReleaseVersionsTests extends ESTestCase {
 
         assertThat(versions.apply(17), equalTo("8.1.2-8.2.0"));
         expectThrows(AssertionError.class, () -> versions.apply(9));
-        assertThat(versions.apply(24), equalTo("8.2.2-[24]"));
+        assertThat(versions.apply(24), equalTo("8.2.2-snapshot[24]"));
     }
 }

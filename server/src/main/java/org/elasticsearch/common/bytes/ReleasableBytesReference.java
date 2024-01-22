@@ -137,6 +137,12 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     }
 
     @Override
+    public BytesReference deepCopy(int from, int length) throws IOException {
+        assert hasReferences();
+        return delegate.deepCopy(from, length);
+    }
+
+    @Override
     public long ramBytesUsed() {
         return delegate.ramBytesUsed();
     }

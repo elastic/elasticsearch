@@ -47,8 +47,8 @@ public class RetentionLeaseActions {
 
     public static final long RETAIN_ALL = -1;
     public static final ActionType<ActionResponse.Empty> ADD = ActionType.localOnly("indices:admin/seq_no/add_retention_lease");
-    public static final ActionType<ActionResponse.Empty> RENEW = ActionType.emptyResponse("indices:admin/seq_no/renew_retention_lease");
-    public static final ActionType<ActionResponse.Empty> REMOVE = ActionType.emptyResponse("indices:admin/seq_no/remove_retention_lease");
+    public static final ActionType<ActionResponse.Empty> RENEW = ActionType.localOnly("indices:admin/seq_no/renew_retention_lease");
+    public static final ActionType<ActionResponse.Empty> REMOVE = ActionType.localOnly("indices:admin/seq_no/remove_retention_lease");
 
     public static final RemoteClusterActionType<ActionResponse.Empty> REMOTE_ADD = RemoteClusterActionType.emptyResponse(ADD.name());
     public static final RemoteClusterActionType<ActionResponse.Empty> REMOTE_RENEW = RemoteClusterActionType.emptyResponse(RENEW.name());

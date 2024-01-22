@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
@@ -40,7 +39,7 @@ import java.util.Objects;
 public class RemoteClusterNodesAction {
 
     public static final String NAME = "cluster:internal/remote_cluster/nodes";
-    public static final ActionType<RemoteClusterNodesAction.Response> TYPE = new ActionType<>(NAME, Writeable.Reader.localOnly());
+    public static final ActionType<RemoteClusterNodesAction.Response> TYPE = ActionType.localOnly(NAME);
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
         RemoteClusterNodesAction.Response::new

@@ -60,6 +60,12 @@ and <<query-dsl-simple-query-string-query,`simple query string`>>
 +
 You can query the following public values associated with an API key.
 +
+NOTE: The queryable string values associated with API keys are internally mapped as <<keyword,`keyword`>>s.
+Consequently, if no <<analysis-analyzers,`analyzer`>> parameter is specified for a
+<<query-dsl-match-query,`match`>> query, then the provided match query string is interpreted as
+a single keyword value. The <<query-dsl-match-query,`match`>> query is hence equivalent to a
+<<query-dsl-term-query,`term`>> one.
++
 .Valid values for `query`
 [%collapsible%open]
 ====

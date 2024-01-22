@@ -75,6 +75,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertQuery(API_KEY_ADMIN_AUTH_HEADER, randomBoolean() ? "" : """
             {"query":{"match_all":{}}}""", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
 
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, randomBoolean() ? "" : """
+            { "query": { "match": {"type": "rest"} } }""", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
+
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
             """

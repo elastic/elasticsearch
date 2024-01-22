@@ -1,0 +1,5 @@
+pr: 104597
+summary: "X-pack/plugin/core: make automatic rollovers lazy"
+area: Data streams
+type: enhancement
+issues: []

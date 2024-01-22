@@ -30,7 +30,12 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private ProfileResult profileResult;
 
-    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> hits = null));
+    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> {
+        if (hits != null) {
+            hits.decRef();
+            hits = null;
+        }
+    }));
 
     public FetchSearchResult() {}
 
@@ -42,12 +47,13 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public FetchSearchResult(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);
-        hits = new SearchHits(in);
+        hits = SearchHits.readFrom(in, true);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
@@ -61,6 +67,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void shardResult(SearchHits hits, ProfileResult profileResult) {
         assert assertNoSearchTarget(hits);
         this.hits = hits;
+        hits.incRef();
         assert this.profileResult == null;
         this.profileResult = profileResult;
     }
@@ -73,6 +80,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public SearchHits hits() {
+        assert hasReferences();
         return hits;
     }
 

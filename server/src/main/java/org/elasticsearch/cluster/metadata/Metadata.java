@@ -897,6 +897,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return builder.build();
     }
 
+    /**
+     * Checks whether the provided index is a data stream.
+     */
+    public boolean indexIsADataStream(String indexName) {
+        final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
+        IndexAbstraction abstraction = lookup.get(indexName);
+        return abstraction != null && abstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
+    }
+
     @SuppressWarnings("unchecked")
     private static MappingMetadata filterFields(MappingMetadata mappingMetadata, Predicate<String> fieldPredicate) {
         if (mappingMetadata == null) {

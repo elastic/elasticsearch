@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -526,12 +525,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider.absoluteStartMillis(),
                 true
             );
-            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                threadPool,
-                clusterAlias,
-                remoteClientResponseExecutor
-            );
-            remoteClusterClient.search(ccsSearchRequest, new ActionListener<>() {
+            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(clusterAlias, remoteClientResponseExecutor);
+            remoteClusterClient.execute(TransportSearchAction.TYPE, ccsSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // overwrite the existing cluster entry with the updated one
@@ -609,12 +604,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task.getProgressListener(),
                     listener
                 );
-                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                    threadPool,
-                    clusterAlias,
-                    remoteClientResponseExecutor
-                );
-                remoteClusterClient.search(ccsSearchRequest, ccsListener);
+                final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(clusterAlias, remoteClientResponseExecutor);
+                remoteClusterClient.execute(TransportSearchAction.TYPE, ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
@@ -716,7 +707,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     final String[] indices = entry.getValue().indices();
                     final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                     // TODO: support point-in-time
-                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                             indices,
                             indicesOptions,

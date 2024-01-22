@@ -26,7 +26,7 @@ public abstract class InstanceShardOperationRequestBuilder<
     }
 
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setIndex(String index) {
+    public RequestBuilder setIndex(String index) {
         request.index(index);
         return (RequestBuilder) this;
     }
@@ -35,7 +35,7 @@ public abstract class InstanceShardOperationRequestBuilder<
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setTimeout(TimeValue timeout) {
+    public RequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
         return (RequestBuilder) this;
     }
@@ -44,7 +44,7 @@ public abstract class InstanceShardOperationRequestBuilder<
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setTimeout(String timeout) {
+    public RequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
         return (RequestBuilder) this;
     }

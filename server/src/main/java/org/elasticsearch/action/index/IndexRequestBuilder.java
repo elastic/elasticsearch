@@ -10,11 +10,15 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,13 +31,39 @@ import java.util.Map;
 public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, DocWriteResponse, IndexRequestBuilder>
     implements
         WriteRequestBuilder<IndexRequestBuilder> {
+    private String index;
+    private String id = null;
+    private Map<String, ?> sourceMap;
+    private Object[] sourceArray;
+    private XContentBuilder sourceXContentBuilder;
+    private String sourceString;
+    private BytesReference sourceBytesReference;
+    private byte[] sourceBytes;
+    private Integer sourceOffset;
+    private Integer sourceLength;
+    private XContentType sourceContentType;
+    private String pipeline;
+    private Boolean requireAlias;
+    private Boolean requireDataStream;
+    private String routing;
+    private WriteRequest.RefreshPolicy refreshPolicy;
+    private Long ifSeqNo;
+    private Long ifPrimaryTerm;
+    private String timeoutString;
+    private TimeValue timeout;
+    private DocWriteRequest.OpType opType;
+    private Boolean create;
+    private Long version;
+    private VersionType versionType;
+    private ActiveShardCount waitForActiveShards;
 
     public IndexRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportIndexAction.TYPE, new IndexRequest());
+        super(client, TransportIndexAction.TYPE, null);
     }
 
     public IndexRequestBuilder(ElasticsearchClient client, @Nullable String index) {
-        super(client, TransportIndexAction.TYPE, new IndexRequest(index));
+        super(client, TransportIndexAction.TYPE, null);
+        setIndex(index);
     }
 
     /**
@@ -41,7 +71,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * generated.
      */
     public IndexRequestBuilder setId(String id) {
-        request.id(id);
+        this.id = id;
         return this;
     }
 
@@ -50,7 +80,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * and not the id.
      */
     public IndexRequestBuilder setRouting(String routing) {
-        request.routing(routing);
+        this.routing = routing;
         return this;
     }
 
@@ -58,7 +88,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the source.
      */
     public IndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
-        request.source(source, xContentType);
+        this.sourceBytesReference = source;
+        this.sourceContentType = xContentType;
         return this;
     }
 
@@ -68,7 +99,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The map to index
      */
     public IndexRequestBuilder setSource(Map<String, ?> source) {
-        request.source(source);
+        this.sourceMap = source;
         return this;
     }
 
@@ -78,7 +109,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The map to index
      */
     public IndexRequestBuilder setSource(Map<String, ?> source, XContentType contentType) {
-        request.source(source, contentType);
+        this.sourceMap = source;
+        this.sourceContentType = contentType;
         return this;
     }
 
@@ -89,7 +121,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * or using the {@link #setSource(byte[], XContentType)}.
      */
     public IndexRequestBuilder setSource(String source, XContentType xContentType) {
-        request.source(source, xContentType);
+        this.sourceString = source;
+        this.sourceContentType = xContentType;
         return this;
     }
 
@@ -97,7 +130,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the content source to index.
      */
     public IndexRequestBuilder setSource(XContentBuilder sourceBuilder) {
-        request.source(sourceBuilder);
+        this.sourceXContentBuilder = sourceBuilder;
         return this;
     }
 
@@ -105,7 +138,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the document to index in bytes form.
      */
     public IndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
-        request.source(source, xContentType);
+        this.sourceBytes = source;
+        this.sourceContentType = xContentType;
         return this;
     }
 
@@ -119,7 +153,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param xContentType The type/format of the source
      */
     public IndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
-        request.source(source, offset, length, xContentType);
+        this.sourceBytes = source;
+        this.sourceOffset = offset;
+        this.sourceLength = length;
+        this.sourceContentType = xContentType;
         return this;
     }
 
@@ -132,7 +169,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * </p>
      */
     public IndexRequestBuilder setSource(Object... source) {
-        request.source(source);
+        this.sourceArray = source;
         return this;
     }
 
@@ -145,7 +182,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * </p>
      */
     public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
-        request.source(xContentType, source);
+        this.sourceArray = source;
+        this.sourceContentType = xContentType;
         return this;
     }
 
@@ -153,7 +191,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the type of operation to perform.
      */
     public IndexRequestBuilder setOpType(DocWriteRequest.OpType opType) {
-        request.opType(opType);
+        this.opType = opType;
         return this;
     }
 
@@ -161,7 +199,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Set to {@code true} to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#CREATE}.
      */
     public IndexRequestBuilder setCreate(boolean create) {
-        request.create(create);
+        this.create = create;
         return this;
     }
 
@@ -170,7 +208,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * version exists and no changes happened on the doc since then.
      */
     public IndexRequestBuilder setVersion(long version) {
-        request.version(version);
+        this.version = version;
         return this;
     }
 
@@ -178,7 +216,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
      */
     public IndexRequestBuilder setVersionType(VersionType versionType) {
-        request.versionType(versionType);
+        this.versionType = versionType;
         return this;
     }
 
@@ -190,7 +228,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public IndexRequestBuilder setIfSeqNo(long seqNo) {
-        request.setIfSeqNo(seqNo);
+        this.ifSeqNo = seqNo;
         return this;
     }
 
@@ -202,7 +240,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public IndexRequestBuilder setIfPrimaryTerm(long term) {
-        request.setIfPrimaryTerm(term);
+        this.ifPrimaryTerm = term;
         return this;
     }
 
@@ -210,7 +248,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the ingest pipeline to be executed before indexing the document
      */
     public IndexRequestBuilder setPipeline(String pipeline) {
-        request.setPipeline(pipeline);
+        this.pipeline = pipeline;
         return this;
     }
 
@@ -218,7 +256,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the require_alias flag
      */
     public IndexRequestBuilder setRequireAlias(boolean requireAlias) {
-        request.setRequireAlias(requireAlias);
+        this.requireAlias = requireAlias;
         return this;
     }
 
@@ -226,7 +264,142 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the require_data_stream flag
      */
     public IndexRequestBuilder setRequireDataStream(boolean requireDataStream) {
-        request.setRequireDataStream(requireDataStream);
+        this.requireDataStream = requireDataStream;
         return this;
+    }
+
+    public IndexRequestBuilder setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
+        return this;
+    }
+
+    /*
+     * The following come from ReplicationRequestBuilder and can be moved to a parent class again in the future
+     */
+
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
+     */
+    public IndexRequestBuilder setTimeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    /**
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
+     */
+    public final IndexRequestBuilder setTimeout(String timeout) {
+        this.timeoutString = timeout;
+        return this;
+    }
+
+    public final IndexRequestBuilder setIndex(String index) {
+        this.index = index;
+        return this;
+    }
+
+    /**
+     * Sets the number of shard copies that must be active before proceeding with the write.
+     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
+     */
+    public IndexRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
+        return this;
+    }
+
+    /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public IndexRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    @Override
+    public IndexRequest request() {
+        IndexRequest indexRequest = new IndexRequest(index);
+        try {
+            indexRequest.id(id);
+            if (sourceMap != null) {
+                if (sourceContentType == null) {
+                    indexRequest.source(sourceMap);
+                } else {
+                    indexRequest.source(sourceMap, sourceContentType);
+                }
+            }
+            if (sourceArray != null) {
+                if (sourceContentType == null) {
+                    indexRequest.source(sourceArray);
+                } else {
+                    indexRequest.source(sourceContentType, sourceArray);
+                }
+            }
+            if (sourceXContentBuilder != null) {
+                indexRequest.source(sourceXContentBuilder);
+            }
+            if (sourceString != null && sourceContentType != null) {
+                indexRequest.source(sourceString, sourceContentType);
+            }
+            if (sourceBytesReference != null && sourceContentType != null) {
+                indexRequest.source(sourceBytesReference, sourceContentType);
+            }
+            if (sourceBytes != null && sourceContentType != null) {
+                if (sourceOffset != null && sourceLength != null) {
+                    indexRequest.source(sourceBytes, sourceOffset, sourceLength, sourceContentType);
+                } else {
+                    indexRequest.source(sourceBytes, sourceContentType);
+                }
+            }
+            if (pipeline != null) {
+                indexRequest.setPipeline(pipeline);
+            }
+            if (routing != null) {
+                indexRequest.routing(routing);
+            }
+            if (refreshPolicy != null) {
+                indexRequest.setRefreshPolicy(refreshPolicy);
+            }
+            if (timeoutString != null) {
+                indexRequest.timeout(timeoutString);
+            }
+            if (timeout != null) {
+                indexRequest.timeout(timeout);
+            }
+            if (ifSeqNo != null) {
+                indexRequest.setIfSeqNo(ifSeqNo);
+            }
+            if (ifPrimaryTerm != null) {
+                indexRequest.setIfPrimaryTerm(ifPrimaryTerm);
+            }
+            if (pipeline != null) {
+                indexRequest.setPipeline(pipeline);
+            }
+            if (requireAlias != null) {
+                indexRequest.setRequireAlias(requireAlias);
+            }
+            if (requireDataStream != null) {
+                indexRequest.setRequireDataStream(requireDataStream);
+            }
+            if (opType != null) {
+                indexRequest.opType(opType);
+            }
+            if (create != null) {
+                indexRequest.create(create);
+            }
+            if (version != null) {
+                indexRequest.version(version);
+            }
+            if (versionType != null) {
+                indexRequest.versionType(versionType);
+            }
+            if (waitForActiveShards != null) {
+                indexRequest.waitForActiveShards(waitForActiveShards);
+            }
+            return indexRequest;
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 }

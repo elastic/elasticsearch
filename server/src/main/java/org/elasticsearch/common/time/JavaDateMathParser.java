@@ -41,8 +41,7 @@ public class JavaDateMathParser implements DateMathParser {
     JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {
         this.format = format;
         this.roundupParser = roundupParser;
-        Objects.requireNonNull(formatter);
-        this.formatter = formatter;
+        this.formatter = Objects.requireNonNull(formatter);
     }
 
     @Override

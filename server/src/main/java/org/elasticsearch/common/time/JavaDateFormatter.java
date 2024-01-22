@@ -10,9 +10,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
 
-import java.text.ParsePosition;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
@@ -24,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 class JavaDateFormatter implements DateFormatter {
@@ -82,6 +81,11 @@ class JavaDateFormatter implements DateFormatter {
         JavaDateFormatter getRoundupParser() {
             throw new UnsupportedOperationException("RoundUpFormatter does not have another roundUpFormatter");
         }
+    }
+
+    // named formatters use default roundUpParser
+    JavaDateFormatter(String format, java.time.format.DateTimeFormatter printer, java.time.format.DateTimeFormatter... parsers) {
+        this(format, new JavaTimeDateTimeFormatter(printer), mapParsers(JavaTimeDateTimeFormatter::new, parsers));
     }
 
     // named formatters use default roundUpParser
@@ -147,9 +151,9 @@ class JavaDateFormatter implements DateFormatter {
         if (format.contains("||") == false) {
             return new RoundUpFormatter(format, mapParsers(parser -> {
                 DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-                builder.append(parser);
+                parser.applyToBuilder(builder);
                 roundupParserConsumer.accept(builder, parser);
-                return builder.toFormatter(locale);
+                return new JavaTimeDateTimeFormatter(builder.toFormatter(locale));
             }, parsers));
         }
         return null;
@@ -229,10 +233,9 @@ class JavaDateFormatter implements DateFormatter {
     private TemporalAccessor doParse(String input) {
         if (parsers.length > 1) {
             for (DateTimeFormatter formatter : parsers) {
-                ParsePosition pos = new ParsePosition(0);
-                Object object = formatter.toFormat().parseObject(input, pos);
-                if (parsingSucceeded(object, input, pos)) {
-                    return (TemporalAccessor) object;
+                var result = formatter.tryParse(input);
+                if (result.isPresent()) {
+                    return result.get();
                 }
             }
             throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, 0);
@@ -240,13 +243,9 @@ class JavaDateFormatter implements DateFormatter {
         return this.parsers[0].parse(input);
     }
 
-    private static boolean parsingSucceeded(Object object, String input, ParsePosition pos) {
-        return object != null && pos.getIndex() == input.length();
-    }
-
     @Override
     public DateFormatter withZone(ZoneId zoneId) {
-        // shortcurt to not create new objects unnecessarily
+        // shortcut to not create new objects unnecessarily
         if (zoneId.equals(zone())) {
             return this;
         }
@@ -255,7 +254,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateFormatter withLocale(Locale locale) {
-        // shortcurt to not create new objects unnecessarily
+        // shortcut to not create new objects unnecessarily
         if (locale.equals(locale())) {
             return this;
         }
@@ -271,7 +270,7 @@ class JavaDateFormatter implements DateFormatter {
         );
     }
 
-    private static DateTimeFormatter[] mapParsers(UnaryOperator<DateTimeFormatter> mapping, DateTimeFormatter[] parsers) {
+    private static <T> DateTimeFormatter[] mapParsers(Function<T, DateTimeFormatter> mapping, T[] parsers) {
         DateTimeFormatter[] res = new DateTimeFormatter[parsers.length];
         for (int i = 0; i < parsers.length; i++) {
             res[i] = mapping.apply(parsers[i]);

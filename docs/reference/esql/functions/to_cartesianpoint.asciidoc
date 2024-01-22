@@ -36,3 +36,7 @@ include::{esql-specs}/spatial.csv-spec[tag=to_cartesianpoint-str]
 |===
 include::{esql-specs}/spatial.csv-spec[tag=to_cartesianpoint-str-result]
 |===
+
+Supported types:
+
+include::types/to_cartesianpoint.asciidoc[]

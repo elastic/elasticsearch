@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttributeTests;
@@ -473,6 +474,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              * stackoverflow errors while building the tree.
              */
             return UnresolvedAttributeTests.randomUnresolvedAttribute();
+        }
+        if (EnrichPolicy.class == argClass) {
+            List<String> enrichFields = randomSubsetOf(List.of("e1", "e2", "e3"));
+            return new EnrichPolicy(randomFrom("match", "range"), null, List.of(), randomFrom("m1", "m2"), enrichFields);
         }
 
         if (Pipe.class == argClass) {

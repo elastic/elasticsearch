@@ -83,7 +83,6 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        // TODO use reference counting to share the vector
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$

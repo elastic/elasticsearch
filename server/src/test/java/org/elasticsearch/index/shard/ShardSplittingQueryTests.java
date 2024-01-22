@@ -22,6 +22,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -46,7 +47,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -68,12 +69,11 @@ public class ShardSplittingQueryTests extends ESTestCase {
         dir.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104349")
     public void testSplitOnRouting() throws IOException {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -98,7 +98,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -125,7 +125,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -236,5 +236,13 @@ public class ShardSplittingQueryTests extends ESTestCase {
 
     private int shardId(IndexRouting indexRouting, int id, @Nullable String routing) {
         return indexRouting.getShard(Integer.toString(id), routing);
+    }
+
+    private static RandomIndexWriter createIndexWriter(Directory dir) throws IOException {
+        return new RandomIndexWriter(
+            random(),
+            dir,
+            LuceneTestCase.newIndexWriterConfig().setMergePolicy(LuceneTestCase.newMergePolicy(random(), false))
+        );
     }
 }

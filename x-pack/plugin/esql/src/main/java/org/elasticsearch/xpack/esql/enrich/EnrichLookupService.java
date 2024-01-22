@@ -301,9 +301,12 @@ public class EnrichLookupService {
                 new ValuesSourceReaderOperator(
                     driverContext.blockFactory(),
                     fields,
-                    List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.searcher().getIndexReader(), () -> {
-                        throw new UnsupportedOperationException("can't load _source as part of enrich");
-                    })),
+                    List.of(
+                        new ValuesSourceReaderOperator.ShardContext(
+                            searchContext.searcher().getIndexReader(),
+                            searchContext::newSourceLoader
+                        )
+                    ),
                     0
                 )
             );

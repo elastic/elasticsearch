@@ -110,7 +110,7 @@ public class AggregateMapper {
     }
 
     private Stream<? extends NamedExpression> map(Expression aggregate, boolean grouping) {
-        aggregate = unwrapAlias(aggregate);
+        aggregate = Alias.unwrap(aggregate);
         return cache.computeIfAbsent(aggregate, aggKey -> computeEntryForAgg(aggKey, grouping)).stream();
     }
 

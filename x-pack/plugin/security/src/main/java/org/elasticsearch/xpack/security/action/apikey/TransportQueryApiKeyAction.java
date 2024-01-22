@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
@@ -82,20 +83,23 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
         }
 
         final AtomicBoolean accessesApiKeyTypeField = new AtomicBoolean(false);
-        final ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder = ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), fieldName -> {
+        searchSourceBuilder.query(ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), fieldName -> {
             if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
                 accessesApiKeyTypeField.set(true);
             }
-        }, request.isFilterForCurrentUser() ? authentication : null);
-        searchSourceBuilder.query(apiKeyBoolQueryBuilder);
+        }, request.isFilterForCurrentUser() ? authentication : null));
+
+        if (request.getFieldSortBuilders() != null) {
+            translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, fieldName -> {
+                if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
+                    accessesApiKeyTypeField.set(true);
+                }
+            });
+        }
 
         // only add the query-level runtime field to the search request if it's actually referring the "type" field
         if (accessesApiKeyTypeField.get()) {
             searchSourceBuilder.runtimeMappings(API_KEY_TYPE_RUNTIME_MAPPING);
-        }
-
-        if (request.getFieldSortBuilders() != null) {
-            translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);
         }
 
         if (request.getSearchAfterBuilder() != null) {
@@ -107,7 +111,11 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
     }
 
     // package private for testing
-    static void translateFieldSortBuilders(List<FieldSortBuilder> fieldSortBuilders, SearchSourceBuilder searchSourceBuilder) {
+    static void translateFieldSortBuilders(
+        List<FieldSortBuilder> fieldSortBuilders,
+        SearchSourceBuilder searchSourceBuilder,
+        Consumer<String> fieldNameVisitor
+    ) {
         fieldSortBuilders.forEach(fieldSortBuilder -> {
             if (fieldSortBuilder.getNestedSort() != null) {
                 throw new IllegalArgumentException("nested sorting is not supported for API Key query");
@@ -116,6 +124,7 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
                 searchSourceBuilder.sort(fieldSortBuilder);
             } else {
                 final String translatedFieldName = ApiKeyFieldNameTranslators.translate(fieldSortBuilder.getFieldName());
+                fieldNameVisitor.accept(translatedFieldName);
                 if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
                     searchSourceBuilder.sort(fieldSortBuilder);
                 } else {

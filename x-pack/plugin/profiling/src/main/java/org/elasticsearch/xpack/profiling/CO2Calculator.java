@@ -85,6 +85,7 @@ final class CO2Calculator {
             "aws",
             new Provider(
                 1.135d,
+                // data taken from https://github.com/PaoloFrigo/cloud-carbon-footprint/blob/cbd66a5f147d11068df9003dbc522065be633b13/packages/aws/src/domain/AwsFootprintEstimationConstants.ts#L154
                 Map.ofEntries(
                     entry("us-east-1", 0.000379069d),
                     entry("us-east-2", 0.000410608d),
@@ -99,6 +100,7 @@ final class CO2Calculator {
                     entry("ap-northeast-2", 0.0004156d),
                     entry("ap-southeast-1", 0.000408d),
                     entry("ap-southeast-2", 0.00076d),
+                    entry("ap-southeast-3", 0.0007177d),
                     entry("ap-northeast-1", 0.0004658d),
                     entry("ca-central-1", 0.00012d),
                     entry("cn-north-1", 0.0005374d),
@@ -110,6 +112,7 @@ final class CO2Calculator {
                     entry("eu-west-3", 0.0000511d),
                     entry("eu-north-1", 0.0000088d),
                     entry("me-south-1", 0.0005059d),
+                    entry("me-central-1", 0.0004041),
                     entry("sa-east-1", 0.0000617d)
                 )
             ),

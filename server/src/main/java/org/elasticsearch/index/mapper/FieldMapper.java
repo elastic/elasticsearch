@@ -449,9 +449,8 @@ public abstract class FieldMapper extends Mapper {
                 return this;
             }
 
-            public Builder add(FieldMapper mapper) {
+            private void add(FieldMapper mapper) {
                 mapperBuilders.put(mapper.simpleName(), context -> mapper);
-                return this;
             }
 
             private void update(FieldMapper toMerge, MapperMergeContext context) {

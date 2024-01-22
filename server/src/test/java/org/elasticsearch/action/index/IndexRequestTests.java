@@ -134,7 +134,7 @@ public class IndexRequestTests extends ESTestCase {
         IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
-        ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
+        ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(total, successful);
         indexResponse.setShardInfo(shardInfo);
         boolean forcedRefresh = false;
         if (randomBoolean()) {

@@ -562,7 +562,9 @@ public abstract class Engine implements Closeable {
 
         private void ensureNotFrozen() {
             if (this.took >= 0) {
-                throw new IllegalStateException("result is already frozen");
+                var ex = new IllegalStateException("result is already frozen");
+                assert false : ex;
+                throw ex;
             }
         }
 

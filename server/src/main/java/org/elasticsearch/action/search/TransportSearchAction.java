@@ -606,10 +606,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task.getProgressListener(),
                     listener
                 );
-                final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                    clusterAlias,
-                    remoteClientResponseExecutor
-                );
+                final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(clusterAlias, remoteClientResponseExecutor);
                 remoteClusterClient.execute(TransportSearchAction.REMOTE_TYPE, ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {

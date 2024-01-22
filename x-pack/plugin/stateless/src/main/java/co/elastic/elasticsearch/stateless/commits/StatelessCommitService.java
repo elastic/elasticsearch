@@ -69,12 +69,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -88,8 +86,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.newSetFromMap;
-import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
 
@@ -737,9 +733,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             // create a compound commit blob instance for the recovery commit
-            var recoveryCommitBlob = new BlobReference(recoveredCommit.primaryTermAndGeneration(), recoveredCommit.getInternalFiles());
 
-            PriorityQueue<BlobReference> nonRecoveredCommits = new PriorityQueue<>(comparing(c -> c.primaryTermAndGeneration));
+            List<PrimaryTermAndGeneration> nonRecoveredTermGens = new ArrayList<>();
             for (BlobFile nonRecoveredBlobFile : nonRecoveredBlobs) {
                 if (StatelessCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
                     PrimaryTermAndGeneration nonRecoveredTermGen = new PrimaryTermAndGeneration(
@@ -747,23 +742,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         StatelessCompoundCommit.parseGenerationFromBlobName(nonRecoveredBlobFile.blobName())
                     );
 
-                    Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
-
-                    // create a compound commit blob instance for the new commit
-                    var nonRecoveredBlobReference = new BlobReference(nonRecoveredTermGen, internalFiles.keySet());
-                    nonRecoveredCommits.add(nonRecoveredBlobReference);
-
-                    // If the recovery commit references files in this commit, ensure we increment a reference
-                    if (referencedBlobs.containsKey(nonRecoveredTermGen)) {
-                        assert internalFiles.isEmpty() == false;
-                        recoveryCommitBlob.incRef(nonRecoveredBlobReference);
-                    }
-
-                    internalFiles.forEach((key, value) -> {
-                        var previous = blobLocations.put(key, new CommitAndBlobLocation(nonRecoveredBlobReference, value));
-                        assert previous == null : key + ':' + previous;
-                    });
-
+                    nonRecoveredTermGens.add(nonRecoveredTermGen);
                 } else {
                     logger.warn(
                         () -> format(
@@ -774,17 +753,40 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                 }
             }
-
-            ArrayList<BlobReference> previousCommits = new ArrayList<>();
-            BlobReference current;
-            while ((current = nonRecoveredCommits.poll()) != null) {
-                primaryTermAndGenToBlobReference.put(current.getPrimaryTermAndGeneration(), current);
-                for (BlobReference previous : previousCommits) {
-                    current.incRef(previous);
-                }
-
-                previousCommits.add(current);
+            nonRecoveredTermGens.sort(null);
+            // keep a single list and use sublist to avoid n^2 space complexity with many left over commits.
+            ArrayList<BlobReference> previousCommits = new ArrayList<>(nonRecoveredTermGens.size());
+            for (int i = 0; i < nonRecoveredTermGens.size(); ++i) {
+                previousCommits.add(null);
             }
+            for (int i = 0; i < nonRecoveredTermGens.size(); ++i) {
+                PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredTermGens.get(i);
+                Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
+                BlobReference nonRecoveredBlobReference = new BlobReference(
+                    nonRecoveredTermGen,
+                    internalFiles.keySet(),
+                    Collections.unmodifiableList(previousCommits.subList(0, i))
+                );
+                internalFiles.forEach((key, value) -> {
+                    var previous = blobLocations.put(key, new CommitAndBlobLocation(nonRecoveredBlobReference, value));
+                    assert previous == null : key + ':' + previous;
+                });
+                previousCommits.set(i, nonRecoveredBlobReference);
+            }
+
+            var referencedCommitsForRecoveryCommit = previousCommits.stream()
+                .filter(commit -> referencedBlobs.containsKey(commit.getPrimaryTermAndGeneration()))
+                .collect(Collectors.toUnmodifiableSet());
+            var recoveryCommitBlob = new BlobReference(
+                recoveredCommit.primaryTermAndGeneration(),
+                recoveredCommit.getInternalFiles(),
+                referencedCommitsForRecoveryCommit
+            );
+
+            previousCommits.forEach(current -> primaryTermAndGenToBlobReference.put(current.getPrimaryTermAndGeneration(), current));
+
+            assert previousCommits.contains(recoveryCommitBlob) == false;
+            assert primaryTermAndGenToBlobReference.containsKey(recoveredCommit.primaryTermAndGeneration()) == false;
 
             primaryTermAndGenToBlobReference.put(recoveryCommitBlob.getPrimaryTermAndGeneration(), recoveryCommitBlob);
 
@@ -843,21 +845,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             Set<String> additionalFiles
         ) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to add commit data";
-            // create a compound commit blob instance for the new commit
-            var blobReference = new BlobReference(primaryTerm, generation, additionalFiles);
-            if (primaryTermAndGenToBlobReference.putIfAbsent(blobReference.getPrimaryTermAndGeneration(), blobReference) != null) {
-                throw new IllegalArgumentException(blobReference + " already exists");
-            }
-
-            // add pending blob locations for new files
-            additionalFiles.forEach(fileName -> {
-                var previous = blobLocations.put(fileName, new CommitAndBlobLocation(blobReference, null));
-                assert previous == null || isGenerationalFile(fileName) : fileName + ':' + previous + ':' + blobReference;
-            });
 
             // if there are external files the new instance must reference the corresponding commit blob instances
-            commitFiles.forEach(fileName -> {
-                if (additionalFiles.contains(fileName) == false) {
+            Set<BlobReference> references = commitFiles.stream()
+                .filter(fileName -> additionalFiles.contains(fileName) == false)
+                .map(fileName -> {
                     final var commitAndBlobLocation = blobLocations.get(fileName);
                     if (commitAndBlobLocation == null) {
                         final var message = Strings.format(
@@ -875,9 +867,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         assert false : message;
                         throw new IllegalStateException(message);
                     }
-                    blobReference.incRef(commitAndBlobLocation.blobReference());
-                }
+                    return commitAndBlobLocation.blobReference;
+                })
+                .collect(Collectors.toUnmodifiableSet());
+
+            // create a compound commit blob instance for the new commit
+            var blobReference = new BlobReference(primaryTerm, generation, additionalFiles, references);
+            if (primaryTermAndGenToBlobReference.putIfAbsent(blobReference.getPrimaryTermAndGeneration(), blobReference) != null) {
+                throw new IllegalArgumentException(blobReference + " already exists");
+            }
+
+            // add pending blob locations for new files
+            additionalFiles.forEach(fileName -> {
+                var previous = blobLocations.put(fileName, new CommitAndBlobLocation(blobReference, null));
+                assert previous == null || isGenerationalFile(fileName) : fileName + ':' + previous + ':' + blobReference;
             });
+
             initializeUnpromotableCommitReferences(blobReference);
             return blobReference;
         }
@@ -1374,41 +1379,68 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private class BlobReference extends AbstractRefCounted {
             private final PrimaryTermAndGeneration primaryTermAndGeneration;
             private final Set<String> internalFiles;
-            private final Set<BlobReference> references;
+            private final Collection<BlobReference> references;
             private final AtomicBoolean deleted = new AtomicBoolean();
             private final AtomicBoolean readersClosed = new AtomicBoolean();
             private final AtomicBoolean externalReadersClosed = new AtomicBoolean();
 
-            BlobReference(long primaryTerm, long generation, Set<String> internalFiles) {
-                this(new PrimaryTermAndGeneration(primaryTerm, generation), internalFiles);
+            BlobReference(long primaryTerm, long generation, Set<String> internalFiles, Collection<BlobReference> references) {
+                this(new PrimaryTermAndGeneration(primaryTerm, generation), internalFiles, references);
             }
 
-            BlobReference(PrimaryTermAndGeneration primaryTermAndGeneration, Set<String> internalFiles) {
+            BlobReference(
+                PrimaryTermAndGeneration primaryTermAndGeneration,
+                Set<String> internalFiles,
+                Collection<BlobReference> references
+            ) {
+                // no duplicates, isSortedUnique is slightly stronger than needed, but assuming sorted helps avoid allocation and sampling
+                assert references instanceof Set || isSortedUnique((List<BlobReference>) references) : references;
                 this.primaryTermAndGeneration = primaryTermAndGeneration;
                 this.internalFiles = Set.copyOf(internalFiles);
-                this.references = newSetFromMap(new IdentityHashMap<>());
+                this.references = references;
                 // we both decRef on delete, closedLocalReaders and closedExternalReaders, hence the extra incRefs (in addition to the
                 // 1 ref given by AbstractRefCounted constructor)
                 this.incRef();
                 this.incRef();
+                references.forEach(this::incRef);
+            }
+
+            // only for assertions, does sampling.
+            private boolean isSortedUnique(List<BlobReference> references) {
+                if (references.size() <= 1) {
+                    return true;
+                }
+                BlobReference previous = references.get(0);
+                int i = 1;
+                do {
+                    BlobReference next = references.get(i);
+                    if (next.equals(previous)) {
+                        return false;
+                    }
+                    if (next.getPrimaryTermAndGeneration().compareTo(previous.getPrimaryTermAndGeneration()) <= 0) {
+                        return false;
+                    }
+                    previous = next;
+                    if (i > 100) {
+                        i = i * 2;
+                    } else {
+                        i++;
+                    }
+                } while (i < references.size());
+
+                return true;
             }
 
             public PrimaryTermAndGeneration getPrimaryTermAndGeneration() {
                 return primaryTermAndGeneration;
             }
 
-            public void incRef(BlobReference other) {
-                assert hasReferences() : this;
+            private void incRef(BlobReference other) {
                 assert other.hasReferences() : other;
                 // incRef three times since we expect all commits to be both deleted, locally unused and externally unused
                 other.incRef();
                 other.incRef();
                 other.incRef();
-                if (references.add(other) == false) {
-                    other.decRef();
-                    other.decRef();
-                    other.decRef();
-                }
             }
 
             public void deleted() {

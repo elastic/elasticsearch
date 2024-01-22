@@ -103,6 +103,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.hamcrest.Matchers.empty;
@@ -1143,6 +1144,23 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var expectedDeletedCommits = staleCommits(initialCommits, shardId);
             assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+        }
+    }
+
+    /**
+     * This test verifies only that the operation can complete successfully.
+     *
+     * For 50K, it runs in &lt; 1min and successfully at 100MB heap. At 100K, it also succeeds, but takes 4 mins.
+     */
+    public void testLargeRecovery() throws IOException {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            var shardId = testHarness.shardId;
+            StatelessCompoundCommit recoveredCommit = new StatelessCompoundCommit(shardId, 1, 2, "xx", Map.of());
+            int count = rarely() ? 50000 : 10000;
+            var unreferencedFiles = IntStream.range(1, count)
+                .mapToObj(i -> new BlobFile(1, StatelessCompoundCommit.blobNameFromGeneration(i), 100))
+                .collect(Collectors.toSet());
+            testHarness.commitService.markRecoveredCommit(testHarness.shardId, recoveredCommit, unreferencedFiles);
         }
     }
 

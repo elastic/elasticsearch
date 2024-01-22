@@ -1165,7 +1165,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private RunState determineRunStateAtStart() {
-        if (context.from() != null) {
+        if (context.from() != null && changeCollector != null && changeCollector.queryForChanges()) {
             return RunState.IDENTIFY_CHANGES;
         }
 

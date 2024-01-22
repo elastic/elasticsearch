@@ -13,6 +13,12 @@ import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.transport.TransportResponse;
 
+/**
+ * An action which can be invoked by {@link RemoteClusterClient#execute}. The implementation must be registered with the transport service.
+ * <p>
+ * Typically, every {@link RemoteClusterActionType} instance is a global constant (i.e. a public static final field) called {@code
+ * REMOTE_TYPE}.
+ */
 public final class RemoteClusterActionType<Response extends TransportResponse> {
 
     private final String name;

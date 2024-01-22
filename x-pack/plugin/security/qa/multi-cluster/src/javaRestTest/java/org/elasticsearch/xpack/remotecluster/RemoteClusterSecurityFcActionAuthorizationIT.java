@@ -20,7 +20,7 @@ import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -106,7 +106,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
     }
 
     private static <Request extends ActionRequest, Response extends ActionResponse> Response executeRemote(
-        Client client,
+        RemoteClusterClient client,
         ActionType<Response> action,
         Request request
     ) throws Exception {
@@ -167,11 +167,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
 
-            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                threadPool,
-                "my_remote_cluster",
-                threadPool.generic()
-            );
+            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient("my_remote_cluster", threadPool.generic());
 
             // Creating a restore session fails if index is not accessible
             final ShardId privateShardId = new ShardId("private-index", privateIndexUUID, 0);
@@ -315,7 +311,6 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         try (MockTransportService service = startTransport("node", threadPool, (String) apiKeyMap.get("encoded"))) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                threadPool,
                 "my_remote_cluster",
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -389,7 +384,6 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
             final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                threadPool,
                 "my_remote_cluster",
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );

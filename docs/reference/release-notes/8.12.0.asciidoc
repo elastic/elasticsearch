@@ -5,7 +5,18 @@ Also see <<breaking-changes-8.12,Breaking changes in 8.12>>.
 
 [[breaking-8.12.0]]
 [float]
-=== Breaking and notable changes
+=== Breaking changes
+There are no breaking changes in 8.12
+
+[[notable-8.12.0]]
+[float]  
+=== Notable changes
+There are notable changes in 8.12 that you need to be aware of but that we do not consider breaking, items that we may consider as notable changes are
+
+* Changes to features that are in Technical Preview.
+* Changes to log formats.
+* Changes to non-public APIs.
+* Behaviour changes that repair critical bugs.
 
 Authorization::
 * Fixed JWT principal from claims {es-pull}101333[#101333]

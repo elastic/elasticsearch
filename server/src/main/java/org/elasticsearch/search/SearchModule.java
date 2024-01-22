@@ -232,6 +232,7 @@ import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.LinearCombinationRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.scriptrank.ScriptRankRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
@@ -1056,6 +1057,13 @@ public class SearchModule {
                 LinearCombinationRetrieverBuilder.NAME,
                 LinearCombinationRetrieverBuilder::new,
                 LinearCombinationRetrieverBuilder::fromXContent
+            )
+        );
+        registerRetriever(
+            new RetrieverSpec<>(
+                ScriptRankRetrieverBuilder.NAME,
+                ScriptRankRetrieverBuilder::new,
+                ScriptRankRetrieverBuilder::fromXContent
             )
         );
 

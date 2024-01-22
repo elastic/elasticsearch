@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
-import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -22,20 +21,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.health.node.HealthInfoTests.randomDiskHealthInfo;
+import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -90,7 +87,7 @@ public class HealthServiceTests extends ESTestCase {
             1000,
             getExpectedHealthIndicatorResultsActionListener(onResponseCalled, expectedHealthIndicatorResults)
         );
-        assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
+        assertBusy(() -> assertTrue(onResponseCalled.get()));
     }
 
     private ActionListener<List<HealthIndicatorResult>> getExpectedHealthIndicatorResultsActionListener(
@@ -100,8 +97,8 @@ public class HealthServiceTests extends ESTestCase {
         return new ActionListener<>() {
             @Override
             public void onResponse(List<HealthIndicatorResult> results) {
-                assertThat(results.size(), equalTo(healthIndicatorResults.length));
-                assertThat(results, hasItems(healthIndicatorResults));
+                assertEquals(healthIndicatorResults.length, results.size());
+                assertTrue(results.containsAll(List.of(healthIndicatorResults)));
                 onResponseCalled.set(true);
             }
 
@@ -146,7 +143,7 @@ public class HealthServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> service.getHealth(client, null, true, -1, ActionListener.noop())
         );
-        assertThat(illegalArgumentException.getMessage(), is("The max number of resources must be a positive integer"));
+        assertEquals("The max number of resources must be a positive integer", illegalArgumentException.getMessage());
     }
 
     private <T extends Throwable> void assertGetHealthThrowsException(
@@ -172,12 +169,12 @@ public class HealthServiceTests extends ESTestCase {
             } else {
                 // Expected
                 if (expectedMessage != null) {
-                    assertThat(t.getMessage(), equalTo(expectedMessage));
+                    assertEquals(expectedMessage, t.getMessage());
                 }
             }
         }
         if (expectOnFailCalled) {
-            assertBusy(() -> assertThat(onFailureCalled.get(), equalTo(true)));
+            assertBusy(() -> assertTrue(onFailureCalled.get()));
         }
     }
 
@@ -198,7 +195,7 @@ public class HealthServiceTests extends ESTestCase {
                     if (expectedMessage == null) {
                         onFailureCalled.set(true);
                     } else {
-                        assertThat(e.getMessage(), equalTo(expectedMessage));
+                        assertEquals(expectedMessage, e.getMessage());
                         onFailureCalled.set(true);
                     }
                 } else {
@@ -248,12 +245,9 @@ public class HealthServiceTests extends ESTestCase {
         var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
         var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
-        Map<String, DiskHealthInfo> diskHealthInfoMap = new HashMap<>();
-        diskHealthInfoMap.put(
-            randomAlphaOfLength(30),
-            new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
-        );
-        HealthInfo healthInfo = new HealthInfo(diskHealthInfoMap, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS);
+        var diskHealthInfoMap = randomMap(1, 1, () -> tuple(randomAlphaOfLength(10), randomDiskHealthInfo()));
+        var repoHealthInfoMap = randomMap(1, 1, () -> tuple(randomAlphaOfLength(10), randomRepoHealthInfo()));
+        HealthInfo healthInfo = new HealthInfo(diskHealthInfoMap, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, repoHealthInfoMap);
 
         var service = new HealthService(
             // The preflight indicator does not get data because the data is not fetched until after the preflight check
@@ -272,8 +266,8 @@ public class HealthServiceTests extends ESTestCase {
     }
 
     private void assertIndicatorIsUnknownStatus(HealthIndicatorResult result) {
-        assertThat(result.status(), is(equalTo(UNKNOWN)));
-        assertThat(result.symptom(), is(HealthService.UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED));
+        assertEquals(UNKNOWN, result.status());
+        assertEquals(HealthService.UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED, result.symptom());
     }
 
     public void testPreflightIndicatorFailureTriggersUnknownResults() throws Exception {
@@ -298,7 +292,7 @@ public class HealthServiceTests extends ESTestCase {
         NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
         {
             List<HealthIndicatorResult> health = getHealthIndicatorResults(service, client, null);
-            assertThat(health.size(), is(equalTo(5)));
+            assertEquals(5, health.size());
             // Preflight indicators unchanged; posflight all say
             List<String> nonPreflightNames = Stream.of(networkLatency, slowTasks, shardsAvailable)
                 .map(HealthIndicatorResult::name)
@@ -312,14 +306,14 @@ public class HealthServiceTests extends ESTestCase {
 
         {
             List<HealthIndicatorResult> health = getHealthIndicatorResults(service, client, "slow_task_assignment");
-            assertThat(health.size(), is(equalTo(1)));
+            assertEquals(1, health.size());
             assertIndicatorIsUnknownStatus(health.get(0));
         }
 
         {
             List<HealthIndicatorResult> health = getHealthIndicatorResults(service, client, "has_master");
-            assertThat(health.size(), is(equalTo(1)));
-            assertThat(health.get(0), is(equalTo(hasMaster)));
+            assertEquals(1, health.size());
+            assertEquals(hasMaster, health.get(0));
         }
     }
 
@@ -389,7 +383,7 @@ public class HealthServiceTests extends ESTestCase {
             @Override
             public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
                 if (expectedHealthInfo != null) {
-                    assertThat(healthInfo, equalTo(expectedHealthInfo));
+                    assertEquals(expectedHealthInfo, healthInfo);
                 }
                 return result;
             }

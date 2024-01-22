@@ -97,6 +97,9 @@ import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
+import org.elasticsearch.health.node.check.DiskCheck;
+import org.elasticsearch.health.node.check.HealthCheck;
+import org.elasticsearch.health.node.check.RepositoriesCheck;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
@@ -1013,7 +1016,8 @@ class NodeConstruction {
                 transportService,
                 featureService,
                 threadPool,
-                telemetryProvider
+                telemetryProvider,
+                repositoryService
             )
         );
 
@@ -1153,7 +1157,8 @@ class NodeConstruction {
         TransportService transportService,
         FeatureService featureService,
         ThreadPool threadPool,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        RepositoriesService repositoriesService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1185,13 +1190,15 @@ class NodeConstruction {
             telemetryProvider
         );
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
+
+        List<HealthCheck<?>> healthChecks = List.of(new DiskCheck(nodeService, clusterService), new RepositoriesCheck(repositoriesService));
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
             settings,
             clusterService,
-            nodeService,
             threadPool,
             client,
-            featureService
+            featureService,
+            healthChecks
         );
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
 

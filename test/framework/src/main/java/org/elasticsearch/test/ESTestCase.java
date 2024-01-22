@@ -155,6 +155,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -1219,6 +1220,29 @@ public abstract class ESTestCase extends LuceneTestCase {
             randomValue = randomSupplier.get();
         } while (input.test(randomValue));
         return randomValue;
+    }
+
+    /**
+     * Mutates a {@link Map} by either adding, updating, or removing an entry.
+     */
+    public static <K, V> Map<K, V> mutateMap(Map<K, V> original, Supplier<K> randomKeySupplier, Supplier<V> randomValueSupplier) {
+        Map<K, V> mapCopy = new HashMap<>(original);
+        if (original.isEmpty()) {
+            mapCopy.put(randomKeySupplier.get(), randomValueSupplier.get());
+        } else {
+            switch (randomIntBetween(1, 3)) {
+                case 1 -> mapCopy.put(randomKeySupplier.get(), randomValueSupplier.get());
+                case 2 -> {
+                    K someKey = randomFrom(original.keySet());
+                    mapCopy.put(someKey, randomValueOtherThan(original.get(someKey), randomValueSupplier));
+                }
+                case 3 -> {
+                    mapCopy.remove(randomFrom(mapCopy.keySet()));
+                }
+                default -> throw new IllegalStateException();
+            }
+        }
+        return mapCopy;
     }
 
     /**

@@ -29,13 +29,12 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.health.node.HealthInfoTests.randomDslHealthInfo;
+import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -102,7 +101,11 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
         HealthInfoCache healthInfoCache = getTestHealthInfoCache();
         final FetchHealthInfoCacheAction.Response expectedResponse = new FetchHealthInfoCacheAction.Response(
-            new HealthInfo(healthInfoCache.getHealthInfo().diskInfoByNode(), healthInfoCache.getHealthInfo().dslHealthInfo())
+            new HealthInfo(
+                healthInfoCache.getHealthInfo().diskInfoByNode(),
+                healthInfoCache.getHealthInfo().dslHealthInfo(),
+                healthInfoCache.getHealthInfo().repositoriesInfoByNode()
+            )
         );
         ActionTestUtils.execute(
             new FetchHealthInfoCacheAction.TransportAction(
@@ -128,15 +131,17 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
             healthInfoCache.updateNodeHealth(
                 nodeId,
                 new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values())),
-                randomDslHealthInfo()
+                randomDslHealthInfo(),
+                randomRepoHealthInfo()
             );
         }
         return healthInfoCache;
     }
 
     public void testResponseSerialization() {
+        var healthInfo = getTestHealthInfoCache().getHealthInfo();
         FetchHealthInfoCacheAction.Response response = new FetchHealthInfoCacheAction.Response(
-            new HealthInfo(getTestHealthInfoCache().getHealthInfo().diskInfoByNode(), DataStreamLifecycleHealthInfo.NO_DSL_ERRORS)
+            new HealthInfo(healthInfo.diskInfoByNode(), healthInfo.dslHealthInfo(), healthInfo.repositoriesInfoByNode())
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,
@@ -146,16 +151,19 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
     }
 
     private FetchHealthInfoCacheAction.Response mutateResponse(FetchHealthInfoCacheAction.Response originalResponse) {
-        Map<String, DiskHealthInfo> diskHealthInfoMap = originalResponse.getHealthInfo().diskInfoByNode();
-        Map<String, DiskHealthInfo> diskHealthInfoMapCopy = new HashMap<>(diskHealthInfoMap);
-        diskHealthInfoMapCopy.put(
-            randomAlphaOfLength(10),
-            new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
-        );
         return new FetchHealthInfoCacheAction.Response(
             new HealthInfo(
-                diskHealthInfoMapCopy,
-                randomValueOtherThan(originalResponse.getHealthInfo().dslHealthInfo(), HealthInfoTests::randomDslHealthInfo)
+                mutateMap(
+                    originalResponse.getHealthInfo().diskInfoByNode(),
+                    () -> randomAlphaOfLength(10),
+                    HealthInfoTests::randomDiskHealthInfo
+                ),
+                randomValueOtherThan(originalResponse.getHealthInfo().dslHealthInfo(), HealthInfoTests::randomDslHealthInfo),
+                mutateMap(
+                    originalResponse.getHealthInfo().repositoriesInfoByNode(),
+                    () -> randomAlphaOfLength(10),
+                    HealthInfoTests::randomRepoHealthInfo
+                )
             )
         );
     }

@@ -24,7 +24,7 @@ Point] format.
 
 *Supported types*
 
-The input type must be a string or a cartesian `point`.
+include::types/to_cartesianpoint.asciidoc[]
 
 *Example*
 
@@ -36,7 +36,3 @@ include::{esql-specs}/spatial.csv-spec[tag=to_cartesianpoint-str]
 |===
 include::{esql-specs}/spatial.csv-spec[tag=to_cartesianpoint-str-result]
 |===
-
-Supported types:
-
-include::types/to_cartesianpoint.asciidoc[]

@@ -119,7 +119,7 @@ public final class RestResponse {
                 channel.request().params(),
                 status.getStatus()
             );
-            if (status.getStatus() < 500) {
+            if (status.getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);

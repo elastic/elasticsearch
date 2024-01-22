@@ -216,11 +216,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             var aggs = aggregate.aggregates();
             Set<Expression> nonNullAggFields = Sets.newLinkedHashSetWithExpectedSize(aggs.size());
             for (var agg : aggs) {
-                Expression expr = agg;
-                if (agg instanceof Alias as) {
-                    expr = as.child();
-                }
-                if (expr instanceof AggregateFunction af) {
+                if (Alias.unwrap(agg) instanceof AggregateFunction af) {
                     Expression field = af.field();
                     // ignore literals (e.g. COUNT(1))
                     // make sure the field exists at the source and is indexed (not runtime)

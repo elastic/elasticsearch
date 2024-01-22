@@ -19,4 +19,11 @@ public interface BuildExtension {
      * Returns the {@link Build} that represents the running Elasticsearch code.
      */
     Build getCurrentBuild();
+
+    /**
+     * {@code true} if this build uses release versions.
+     */
+    default boolean hasReleaseVersioning() {
+        return true;
+    }
 }

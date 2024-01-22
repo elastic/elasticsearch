@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -52,6 +53,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
 import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
@@ -210,14 +212,15 @@ public class PlannerUtils {
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
      */
     public static ElementType toElementType(DataType dataType) {
-        // TODO: Remove this method and update all calls to pass the extra boolean
-        return toElementType(dataType, false);
+        return toElementType(dataType, MappedFieldType.FieldExtractPreference.NONE);
     }
 
     /**
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
+     * Under some situations, the same data type might be extracted into a different element type.
+     * For example, spatial types can be extracted into doc-values under specific conditions, otherwise they extract as BytesRef.
      */
-    public static ElementType toElementType(DataType dataType, boolean forStats) {
+    public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
         if (dataType == DataTypes.LONG || dataType == DataTypes.DATETIME || dataType == DataTypes.UNSIGNED_LONG) {
             return ElementType.LONG;
         }
@@ -246,7 +249,7 @@ public class PlannerUtils {
             return ElementType.DOC;
         }
         if (EsqlDataTypes.isSpatialPoint(dataType)) {
-            return forStats ? ElementType.LONG : ElementType.BYTES_REF;
+            return fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
         }
         if (EsqlDataTypes.isSpatial(dataType)) {
             // TODO: support forStats for shape aggregations, like st_centroid

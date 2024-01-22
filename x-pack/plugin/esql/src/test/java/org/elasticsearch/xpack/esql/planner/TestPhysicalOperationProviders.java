@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -48,6 +49,8 @@ import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
 
@@ -65,7 +68,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
-            op = op.with(new TestFieldExtractOperatorFactory(attr, fieldExtractExec.forStats(attr)), layout.build());
+            op = op.with(new TestFieldExtractOperatorFactory(attr, fieldExtractExec.extractPreference(attr)), layout.build());
         }
         return op;
     }
@@ -156,17 +159,17 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         boolean finished;
         String columnName;
         private final DataType dataType;
-        private final boolean forStats;
+        private final MappedFieldType.FieldExtractPreference extractPreference;
 
-        TestFieldExtractOperator(String columnName, DataType dataType, boolean forStats) {
+        TestFieldExtractOperator(String columnName, DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
             this.columnName = columnName;
             this.dataType = dataType;
-            this.forStats = forStats;
+            this.extractPreference = extractPreference;
         }
 
         @Override
         public void addInput(Page page) {
-            Block block = extractBlockForColumn(page, columnName, dataType, forStats);
+            Block block = extractBlockForColumn(page, columnName, dataType, extractPreference);
             lastPage = page.appendBlock(block);
         }
 
@@ -201,8 +204,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private class TestFieldExtractOperatorFactory implements Operator.OperatorFactory {
         final Operator op;
 
-        TestFieldExtractOperatorFactory(Attribute attr, boolean forStats) {
-            this.op = new TestFieldExtractOperator(attr.name(), attr.dataType(), forStats);
+        TestFieldExtractOperatorFactory(Attribute attr, MappedFieldType.FieldExtractPreference extractPreference) {
+            this.op = new TestFieldExtractOperator(attr.name(), attr.dataType(), extractPreference);
         }
 
         @Override
@@ -232,7 +235,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         @Override
         protected Page wrapPage(Page page) {
-            return page.appendBlock(extractBlockForColumn(page, columnName, null, false));
+            return page.appendBlock(extractBlockForColumn(page, columnName, null, NONE));
         }
     }
 
@@ -288,7 +291,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
     }
 
-    private Block extractBlockForColumn(Page page, String columnName, DataType dataType, boolean forStats) {
+    private Block extractBlockForColumn(
+        Page page,
+        String columnName,
+        DataType dataType,
+        MappedFieldType.FieldExtractPreference extractPreference
+    ) {
         var columnIndex = -1;
         // locate the block index corresponding to "columnName"
         for (int i = 0, size = columnNames.size(); i < size && columnIndex < 0; i++) {
@@ -302,10 +310,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         DocBlock docBlock = page.getBlock(0);
         IntVector docIndices = docBlock.asVector().docs();
         Block originalData = testData.getBlock(columnIndex);
-        var blockCopier = (EsqlDataTypes.isSpatialPoint(dataType) && forStats)
+        var blockCopier = shouldMapToDocValues(dataType, extractPreference)
             ? TestSpatialPointStatsBlockCopier.create(docIndices, dataType)
             : new TestBlockCopier(docIndices);
         return blockCopier.copyBlock(originalData);
+    }
+
+    private boolean shouldMapToDocValues(DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
+        return extractPreference == DOC_VALUES && EsqlDataTypes.isSpatialPoint(dataType);
     }
 
     private static class TestBlockCopier {

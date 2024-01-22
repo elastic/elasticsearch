@@ -423,8 +423,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             }
 
             @Override
-            public boolean forStats() {
-                return false;
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
             }
 
             @Override

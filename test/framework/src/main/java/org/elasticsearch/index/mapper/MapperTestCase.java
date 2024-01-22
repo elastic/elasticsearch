@@ -72,6 +72,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -1285,8 +1287,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 }
 
                 @Override
-                public boolean forStats() {
-                    return columnReader;
+                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                    return columnReader ? DOC_VALUES : NONE;
                 }
 
                 @Override

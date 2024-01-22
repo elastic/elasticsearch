@@ -171,6 +171,15 @@ public final class Mapping implements ToXContentFragment {
         return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
+    public Mapping withFieldsBudget(long fieldsBudget) {
+        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, fieldsBudget);
+        return new Mapping(
+            root.withoutMappers().merge(root, MergeReason.MAPPING_RECOVERY, mergeContext),
+            Arrays.copyOf(metadataMappers, metadataMappers.length),
+            meta == null ? null : Map.copyOf(meta)
+        );
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         root.toXContent(builder, params, (b, params1) -> {

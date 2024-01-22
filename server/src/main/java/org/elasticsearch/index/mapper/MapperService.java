@@ -565,7 +565,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
         Mapping newMapping;
         if (currentMapper == null) {
-            newMapping = Mapping.EMPTY.merge(incomingMapping, reason, newFieldsBudget);
+            newMapping = incomingMapping.withFieldsBudget(newFieldsBudget);
         } else {
             newMapping = currentMapper.mapping().merge(incomingMapping, reason, newFieldsBudget);
         }

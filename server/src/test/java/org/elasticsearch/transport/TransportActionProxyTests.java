@@ -118,6 +118,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 assertEquals(request.sourceNode, "TS_A");
                 final SimpleTestResponse response = new SimpleTestResponse("TS_A");
                 channel.sendResponse(response);
+                response.decRef();
                 assertThat(response.hasReferences(), equalTo(false));
             }
         );
@@ -134,6 +135,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 assertEquals(request.sourceNode, "TS_A");
                 final SimpleTestResponse response = new SimpleTestResponse("TS_B");
                 channel.sendResponse(response);
+                response.decRef();
                 assertThat(response.hasReferences(), equalTo(false));
             }
         );
@@ -148,6 +150,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 assertEquals(request.sourceNode, "TS_A");
                 final SimpleTestResponse response = new SimpleTestResponse("TS_C");
                 channel.sendResponse(response);
+                response.decRef();
                 assertThat(response.hasReferences(), equalTo(false));
             }
         );
@@ -319,8 +322,10 @@ public class TransportActionProxyTests extends ESTestCase {
         );
         latch.await();
 
-        assertThat(response.get(), notNullValue());
-        assertBusy(() -> assertThat(response.get().hasReferences(), equalTo(false)));
+        final var responseInstance = response.get();
+        assertThat(responseInstance, notNullValue());
+        responseInstance.decRef();
+        assertBusy(() -> assertThat(responseInstance.hasReferences(), equalTo(false)));
     }
 
     public void testException() throws InterruptedException {
@@ -439,10 +444,10 @@ public class TransportActionProxyTests extends ESTestCase {
     public static class SimpleTestResponse extends TransportResponse {
 
         final String targetNode;
-        final RefCounted refCounted = new AbstractRefCounted() {
+        final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
             @Override
             protected void closeInternal() {}
-        };
+        });
 
         SimpleTestResponse(String targetNode) {
             this.targetNode = targetNode;

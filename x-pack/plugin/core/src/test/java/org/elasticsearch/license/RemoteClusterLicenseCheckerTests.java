@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RedirectToLocalClusterRemoteClusterClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -470,13 +471,20 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
     }
 
     private Client createMockClient(final ThreadPool threadPool) {
-        return createMockClient(threadPool, client -> when(client.getRemoteClusterClient(anyString(), any())).thenReturn(client));
+        return createMockClient(
+            threadPool,
+            client -> when(client.getRemoteClusterClient(anyString(), any())).thenReturn(
+                new RedirectToLocalClusterRemoteClusterClient(client)
+            )
+        );
     }
 
     private Client createMockClientThatThrowsOnGetRemoteClusterClient(final ThreadPool threadPool, final String clusterAlias) {
         return createMockClient(threadPool, client -> {
             when(client.getRemoteClusterClient(eq(clusterAlias), any())).thenThrow(new IllegalArgumentException());
-            when(client.getRemoteClusterClient(argThat(a -> not(clusterAlias).matches(a)), any())).thenReturn(client);
+            when(client.getRemoteClusterClient(argThat(a -> not(clusterAlias).matches(a)), any())).thenReturn(
+                new RedirectToLocalClusterRemoteClusterClient(client)
+            );
         });
     }
 

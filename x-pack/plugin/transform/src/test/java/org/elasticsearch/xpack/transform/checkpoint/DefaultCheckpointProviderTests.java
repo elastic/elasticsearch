@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -71,9 +72,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     private Clock clock;
     private Client client;
     private ParentTaskAssigningClient parentTaskClient;
-    private Client remoteClient1;
-    private Client remoteClient2;
-    private Client remoteClient3;
+    private RemoteClusterClient remoteClient1;
+    private RemoteClusterClient remoteClient2;
+    private RemoteClusterClient remoteClient3;
     private IndexBasedTransformConfigManager transformConfigManager;
     private MockTransformAuditor transformAuditor;
 
@@ -85,12 +86,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         parentTaskClient = new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456"));
-        remoteClient1 = mock(Client.class);
-        when(remoteClient1.threadPool()).thenReturn(threadPool);
-        remoteClient2 = mock(Client.class);
-        when(remoteClient2.threadPool()).thenReturn(threadPool);
-        remoteClient3 = mock(Client.class);
-        when(remoteClient3.threadPool()).thenReturn(threadPool);
+        remoteClient1 = mock(RemoteClusterClient.class);
+        remoteClient2 = mock(RemoteClusterClient.class);
+        remoteClient3 = mock(RemoteClusterClient.class);
         when(client.getRemoteClusterClient(eq("remote-1"), any())).thenReturn(remoteClient1);
         when(client.getRemoteClusterClient(eq("remote-2"), any())).thenReturn(remoteClient2);
         when(client.getRemoteClusterClient(eq("remote-3"), any())).thenReturn(remoteClient3);

@@ -1120,12 +1120,12 @@ public class TextFieldMapperTests extends MapperTestCase {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
         boolean storeTextField = randomBoolean();
         boolean storedKeywordField = storeTextField || randomBoolean();
-        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
+        boolean indexText = randomBoolean();
         Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
             ignoreAbove,
             storedKeywordField,
-            nullValue,
+            null,
             false == storeTextField
         );
         return new SyntheticSourceSupport() {
@@ -1137,7 +1137,12 @@ public class TextFieldMapperTests extends MapperTestCase {
                         delegate.inputValue(),
                         delegate.expectedForSyntheticSource(),
                         delegate.expectedForBlockLoader(),
-                        b -> b.field("type", "text").field("store", true)
+                        b -> {
+                            b.field("type", "text").field("store", true);
+                            if (indexText == false) {
+                                b.field("index", false);
+                            }
+                        }
                     );
                 }
                 // We'll load from _source if ignore_above is defined, otherwise we load from the keyword field.
@@ -1149,6 +1154,9 @@ public class TextFieldMapperTests extends MapperTestCase {
                     delegate.expectedForBlockLoader(),
                     b -> {
                         b.field("type", "text");
+                        if (indexText == false) {
+                            b.field("index", false);
+                        }
                         b.startObject("fields");
                         {
                             b.startObject(randomAlphaOfLength(4));
@@ -1372,6 +1380,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         testBlockLoaderFromParent(true, randomBoolean());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104158")
     public void testBlockLoaderParentFromRowStrideReader() throws IOException {
         testBlockLoaderFromParent(false, randomBoolean());
     }

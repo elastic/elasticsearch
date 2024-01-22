@@ -86,8 +86,6 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 service.acceptIncomingRequests();
 
                 final var client = new RemoteClusterAwareClient(
-                    Settings.EMPTY,
-                    threadPool,
                     service,
                     "cluster1",
                     threadPool.executor(TEST_THREAD_POOL_NAME),
@@ -142,14 +140,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
 
-                final var client = new RemoteClusterAwareClient(
-                    Settings.EMPTY,
-                    threadPool,
-                    service,
-                    "cluster1",
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    randomBoolean()
-                );
+                final var client = new RemoteClusterAwareClient(service, "cluster1", EsExecutors.DIRECT_EXECUTOR_SERVICE, randomBoolean());
 
                 int numThreads = 10;
                 ExecutorService executorService = Executors.newFixedThreadPool(numThreads);

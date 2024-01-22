@@ -710,7 +710,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             List<String> outList = store ? outPrimary : new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
             List<String> loadBlock;
             if (loadBlockFromSource) {
-                loadBlock = in;
+                // The block loader infrastructure will never return nulls. Just zap them all.
+                loadBlock = in.stream().filter(m -> m != null).toList();
             } else if (docValues) {
                 loadBlock = new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
             } else {

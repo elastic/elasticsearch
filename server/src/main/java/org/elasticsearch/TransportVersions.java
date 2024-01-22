@@ -20,6 +20,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.IntFunction;
 
 /**
  * <p>Transport version is used to coordinate compatible wire protocol communication between nodes, at a fine-grained level.  This replaces
@@ -188,6 +189,7 @@ public class TransportVersions {
     public static final TransportVersion PEERFINDER_REPORTS_PEERS_MASTERS = def(8_575_00_0);
     public static final TransportVersion ESQL_MULTI_CLUSTERS_ENRICH = def(8_576_00_0);
     public static final TransportVersion NESTED_KNN_MORE_INNER_HITS = def(8_577_00_0);
+    public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_578_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -307,6 +309,12 @@ public class TransportVersions {
 
     static Collection<TransportVersion> getAllVersions() {
         return VERSION_IDS.values();
+    }
+
+    private static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class);
+
+    public static String toReleaseVersion(TransportVersion version) {
+        return VERSION_LOOKUP.apply(version.id());
     }
 
     // no instance

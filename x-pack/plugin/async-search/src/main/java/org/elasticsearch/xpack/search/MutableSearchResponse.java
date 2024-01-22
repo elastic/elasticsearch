@@ -398,15 +398,20 @@ class MutableSearchResponse implements Releasable {
         if (this.failure != null) {
             reduceException.addSuppressed(this.failure);
         }
-        return new AsyncSearchResponse(
-            task.getExecutionId().getEncoded(),
-            buildResponse(task.getStartTimeNanos(), null),
-            reduceException,
-            isPartial,
-            frozen == false,
-            task.getStartTime(),
-            expirationTime
-        );
+        var response = buildResponse(task.getStartTimeNanos(), null);
+        try {
+            return new AsyncSearchResponse(
+                task.getExecutionId().getEncoded(),
+                response,
+                reduceException,
+                isPartial,
+                frozen == false,
+                task.getStartTime(),
+                expirationTime
+            );
+        } finally {
+            response.decRef();
+        }
     }
 
     private void failIfFrozen() {

@@ -50,10 +50,28 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
         // 503
         when(statusLine.getStatusCode()).thenReturn(503);
         var retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        assertTrue(retryException.shouldRetry());
+        assertThat(
+            retryException.getCause().getMessage(),
+            containsString("Received a server busy error status code for request [null] status [503]")
+        );
+        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
+        // 501
+        when(statusLine.getStatusCode()).thenReturn(501);
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
         assertFalse(retryException.shouldRetry());
         assertThat(
             retryException.getCause().getMessage(),
-            containsString("Received a server error status code for request [null] status [503]")
+            containsString("Received a server error status code for request [null] status [501]")
+        );
+        assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
+        // 500
+        when(statusLine.getStatusCode()).thenReturn(500);
+        retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(httpRequest, httpResult));
+        assertTrue(retryException.shouldRetry());
+        assertThat(
+            retryException.getCause().getMessage(),
+            containsString("Received a server error status code for request [null] status [500]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.BAD_REQUEST));
         // 429

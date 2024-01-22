@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -193,7 +194,7 @@ public class CcrLicenseChecker {
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer
     ) {
         try {
-            Client remoteClient = systemClient(
+            var remoteClient = systemClient(
                 client.getRemoteClusterClient(clusterAlias, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME))
             );
             checkRemoteClusterLicenseAndFetchClusterState(
@@ -251,7 +252,7 @@ public class CcrLicenseChecker {
                             onFailure
                         );
                         // following an index in remote cluster, so use remote client to fetch leader index metadata
-                        remoteClient.admin().cluster().state(request, clusterStateListener);
+                        remoteClient.execute(ClusterStateAction.INSTANCE, request, clusterStateListener);
                     } else {
                         onFailure.accept(nonCompliantLicense.apply(licenseCheck));
                     }
@@ -321,7 +322,7 @@ public class CcrLicenseChecker {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         request.indices(leaderIndex);
-        remoteClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, onFailure));
+        remoteClient.execute(IndicesStatsAction.INSTANCE, request, ActionListener.wrap(indicesStatsHandler, onFailure));
     }
 
     /**
@@ -345,7 +346,7 @@ public class CcrLicenseChecker {
             return;
         }
 
-        final User user = getUser(remoteClient);
+        final User user = getUser(remoteClient.threadPool().getThreadContext());
         if (user == null) {
             handler.accept(new IllegalStateException("missing or unable to read authentication info on request"));
             return;
@@ -385,10 +386,8 @@ public class CcrLicenseChecker {
         remoteClient.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(responseHandler, handler));
     }
 
-    User getUser(final Client remoteClient) {
-        final ThreadContext threadContext = remoteClient.threadPool().getThreadContext();
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        return securityContext.getUser();
+    User getUser(ThreadContext threadContext) {
+        return new SecurityContext(Settings.EMPTY, threadContext).getUser();
     }
 
     public static Client wrapClient(Client client, Map<String, String> headers, ClusterState clusterState) {

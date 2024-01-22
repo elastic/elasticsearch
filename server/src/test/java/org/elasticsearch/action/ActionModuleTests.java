@@ -31,6 +31,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
@@ -46,7 +47,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -370,9 +370,9 @@ public class ActionModuleTests extends ESTestCase {
         }
 
         @Override
-        public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
+        public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
             if (installInterceptor) {
-                return UnaryOperator.identity();
+                return (request, channel, targetHandler, listener) -> listener.onResponse(true);
             } else {
                 return null;
             }
@@ -380,14 +380,14 @@ public class ActionModuleTests extends ESTestCase {
 
         @Override
         public RestController getRestController(
-            UnaryOperator<RestHandler> handlerWrapper,
+            RestInterceptor interceptor,
             NodeClient client,
             CircuitBreakerService circuitBreakerService,
             UsageService usageService,
             Tracer tracer
         ) {
             if (installController) {
-                return new RestController(handlerWrapper, client, circuitBreakerService, usageService, tracer);
+                return new RestController(interceptor, client, circuitBreakerService, usageService, tracer);
             } else {
                 return null;
             }

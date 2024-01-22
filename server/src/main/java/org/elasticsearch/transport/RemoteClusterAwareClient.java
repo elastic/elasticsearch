@@ -12,14 +12,12 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.concurrent.Executor;
 
-final class RemoteClusterAwareClient extends AbstractClient {
+final class RemoteClusterAwareClient implements RemoteClusterClient {
 
     private final TransportService service;
     private final String clusterAlias;
@@ -27,14 +25,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
     private final Executor responseExecutor;
     private final boolean ensureConnected;
 
-    RemoteClusterAwareClient(
-        Settings settings,
-        TransportService service,
-        String clusterAlias,
-        Executor responseExecutor,
-        boolean ensureConnected
-    ) {
-        super(settings, service.getThreadPool());
+    RemoteClusterAwareClient(TransportService service, String clusterAlias, Executor responseExecutor, boolean ensureConnected) {
         this.service = service;
         this.clusterAlias = clusterAlias;
         this.remoteClusterService = service.getRemoteClusterService();
@@ -43,7 +34,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+    public <Request extends ActionRequest, Response extends ActionResponse> void execute(
         ActionType<Response> action,
         Request request,
         ActionListener<Response> listener
@@ -76,14 +67,9 @@ final class RemoteClusterAwareClient extends AbstractClient {
 
     private void maybeEnsureConnected(ActionListener<Void> ensureConnectedListener) {
         if (ensureConnected) {
-            remoteClusterService.ensureConnected(clusterAlias, ensureConnectedListener);
+            ActionListener.run(ensureConnectedListener, l -> remoteClusterService.ensureConnected(clusterAlias, l));
         } else {
             ensureConnectedListener.onResponse(null);
         }
-    }
-
-    @Override
-    public Client getRemoteClusterClient(String remoteClusterAlias, Executor responseExecutor) {
-        return remoteClusterService.getRemoteClusterClient(remoteClusterAlias, responseExecutor);
     }
 }

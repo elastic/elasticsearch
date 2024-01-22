@@ -173,11 +173,7 @@ public final class Mapping implements ToXContentFragment {
 
     public Mapping withFieldsBudget(long fieldsBudget) {
         MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, fieldsBudget);
-        return new Mapping(
-            root.withoutMappers().merge(root, MergeReason.MAPPING_RECOVERY, mergeContext),
-            metadataMappers,
-            meta
-        );
+        return new Mapping(root.withoutMappers().merge(root, MergeReason.MAPPING_RECOVERY, mergeContext), metadataMappers, meta);
     }
 
     @Override

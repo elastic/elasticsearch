@@ -78,6 +78,7 @@ final class CO2Calculator {
     private record Provider(double pue, Map<String, Double> co2TonsPerKWH) {}
 
     // values are taken from https://www.cloudcarbonfootprint.org/docs/methodology/
+    // updated from https://github.com/PaoloFrigo/cloud-carbon-footprint
     private static final Map<String, Provider> PROVIDERS;
     static {
         // noinspection (explicit type arguments speedup compilation and analysis time)
@@ -85,7 +86,6 @@ final class CO2Calculator {
             "aws",
             new Provider(
                 1.135d,
-                // data taken from https://github.com/PaoloFrigo/cloud-carbon-footprint/blob/cbd66a5f147d11068df9003dbc522065be633b13/packages/aws/src/domain/AwsFootprintEstimationConstants.ts#L154
                 Map.ofEntries(
                     entry("us-east-1", 0.000379069d),
                     entry("us-east-2", 0.000410608d),
@@ -120,7 +120,8 @@ final class CO2Calculator {
             "gcp",
             new Provider(
                 1.1d,
-                // These emission factors take into account Google Carbon Free Energy percentage in each region. Source: https://cloud.google.com/sustainability/region-carbon
+                // These emission factors take into account Google Carbon Free Energy percentage in each region.
+                // Source: https://cloud.google.com/sustainability/region-carbon
                 Map.ofEntries(
                     entry("us-central1", 0.0002152373529d),
                     entry("us-central2", 0.0002152373529d),

@@ -167,11 +167,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
 
-            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                threadPool,
-                "my_remote_cluster",
-                threadPool.generic()
-            );
+            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient("my_remote_cluster", threadPool.generic());
 
             // Creating a restore session fails if index is not accessible
             final ShardId privateShardId = new ShardId("private-index", privateIndexUUID, 0);
@@ -315,7 +311,6 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         try (MockTransportService service = startTransport("node", threadPool, (String) apiKeyMap.get("encoded"))) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                threadPool,
                 "my_remote_cluster",
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -389,7 +384,6 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
             final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                threadPool,
                 "my_remote_cluster",
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );

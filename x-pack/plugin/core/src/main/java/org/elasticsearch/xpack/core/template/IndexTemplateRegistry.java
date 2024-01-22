@@ -814,6 +814,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         templateName
                     );
                     RolloverRequest request = new RolloverRequest(rolloverTarget, null);
+                    request.lazy(true);
                     request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),

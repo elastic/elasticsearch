@@ -367,7 +367,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
             builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
             builder.field(LANGUAGE_FIELD.getPreferredName(), language);
-            builder.field(LAST_SEEN_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(lastSeen));
+            builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
             syncInfo.toXContent(builder, params);
             builder.field(NAME_FIELD.getPreferredName(), name);
             builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);

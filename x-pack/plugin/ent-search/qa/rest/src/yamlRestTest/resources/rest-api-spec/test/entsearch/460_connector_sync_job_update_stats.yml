@@ -182,7 +182,7 @@ setup:
   - match: { deleted_document_count: 10 }
   - match: { indexed_document_count: 20 }
   - match: { indexed_document_volume: 1000 }
-  - match: { last_seen: 2023-12-04T08:45:50.567149+00:00 }
+  - match: { last_seen: 2023-12-04T08:45:50.567149Z }
 
 ---
 "Update the ingestion stats for a Connector Sync Job - Connector Sync Job does not exist":

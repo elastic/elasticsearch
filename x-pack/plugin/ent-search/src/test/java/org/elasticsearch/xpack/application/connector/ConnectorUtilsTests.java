@@ -57,10 +57,4 @@ public class ConnectorUtilsTests extends ESTestCase {
         assertEquals(1673863200123L, instant.toEpochMilli());
     }
 
-    public void testFormatInstantToFrameworkDateTimeString() {
-        Instant instant = Instant.parse("2023-01-16T10:00:00.123456789Z");
-        String datetime = ConnectorUtils.formatInstantToFrameworkString(instant);
-        assertEquals("2023-01-16T10:00:00.123456+00:00", datetime);
-    }
-
 }

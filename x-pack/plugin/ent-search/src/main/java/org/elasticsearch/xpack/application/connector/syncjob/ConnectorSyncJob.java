@@ -484,16 +484,13 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         builder.startObject();
         {
             if (cancelationRequestedAt != null) {
-                builder.field(
-                    CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
-                    ConnectorUtils.formatInstantToFrameworkString(cancelationRequestedAt)
-                );
+                builder.field(CANCELATION_REQUESTED_AT_FIELD.getPreferredName(), cancelationRequestedAt);
             }
             if (canceledAt != null) {
-                builder.field(CANCELED_AT_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(canceledAt));
+                builder.field(CANCELED_AT_FIELD.getPreferredName(), canceledAt);
             }
             if (completedAt != null) {
-                builder.field(COMPLETED_AT_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(completedAt));
+                builder.field(COMPLETED_AT_FIELD.getPreferredName(), completedAt);
             }
 
             builder.startObject(CONNECTOR_FIELD.getPreferredName());
@@ -522,7 +519,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             }
             builder.endObject();
 
-            builder.field(CREATED_AT_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(createdAt));
+            builder.field(CREATED_AT_FIELD.getPreferredName(), createdAt);
             builder.field(DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(), deletedDocumentCount);
             if (error != null) {
                 builder.field(ERROR_FIELD.getPreferredName(), error);
@@ -532,11 +529,11 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             builder.field(INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName(), indexedDocumentVolume);
             builder.field(JOB_TYPE_FIELD.getPreferredName(), jobType);
             if (lastSeen != null) {
-                builder.field(LAST_SEEN_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(lastSeen));
+                builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
             }
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
             if (startedAt != null) {
-                builder.field(STARTED_AT_FIELD.getPreferredName(), ConnectorUtils.formatInstantToFrameworkString(startedAt));
+                builder.field(STARTED_AT_FIELD.getPreferredName(), startedAt);
             }
             builder.field(STATUS_FIELD.getPreferredName(), status);
             builder.field(TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName(), totalDocumentCount);

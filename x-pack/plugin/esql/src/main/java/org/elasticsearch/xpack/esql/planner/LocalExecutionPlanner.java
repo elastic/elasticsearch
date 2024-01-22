@@ -512,7 +512,7 @@ public class LocalExecutionPlanner {
         for (int index = 0, size = projections.size(); index < size; index++) {
             NamedExpression ne = projections.get(index);
 
-            NameId inputId;
+            NameId inputId = null;
             if (ne instanceof Alias a) {
                 inputId = ((NamedExpression) a.child()).id();
             } else {

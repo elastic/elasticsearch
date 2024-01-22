@@ -76,11 +76,12 @@ public class TagVersionsTask extends AbstractVersionsTask {
 
             LOGGER.lifecycle("Adding version record for {} to [{}]: [{},{}]", v.getKey(), recordFile, releaseVersion, v.getValue());
 
-            List<String> versionRecords = Files.readAllLines(rootDir.resolve(recordFile));
+            Path file = rootDir.resolve(recordFile);
+            List<String> versionRecords = Files.readAllLines(file);
             var modified = addVersionRecord(versionRecords, releaseVersion, v.getValue());
             if (modified.isPresent()) {
                 Files.write(
-                    recordFile,
+                    file,
                     modified.get(),
                     StandardOpenOption.CREATE,
                     StandardOpenOption.WRITE,

@@ -62,6 +62,7 @@ public class ReplicationResponse extends ActionResponse {
 
     public static class ShardInfo implements Writeable, ToXContentObject {
 
+        // cache the most commonly used instances where all shard operations succeeded to save allocations on the transport layer
         private static final ShardInfo[] COMMON_INSTANCES = IntStream.range(0, 10)
             .mapToObj(i -> new ShardInfo(i, i, NO_FAILURES))
             .toArray(ShardInfo[]::new);

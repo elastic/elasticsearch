@@ -629,7 +629,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     clusterAlias,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 );
-                remoteClient.execute(TermsEnumAction.INSTANCE, req, new ActionListener<>() {
+                remoteClient.execute(TermsEnumAction.REMOTE_TYPE, req, new ActionListener<>() {
                     @Override
                     public void onResponse(TermsEnumResponse termsEnumResponse) {
                         onRemoteClusterResponse(

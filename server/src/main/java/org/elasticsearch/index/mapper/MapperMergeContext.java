@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
@@ -20,13 +19,18 @@ import java.util.function.Consumer;
 public final class MapperMergeContext {
 
     private final MapperBuilderContext mapperBuilderContext;
-    private final AtomicLong remainingFieldsBudget;
+    private final NewFieldsBudget remainingFieldsBudget;
+
+    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, NewFieldsBudget remainingFieldsBudget) {
+        this.mapperBuilderContext = mapperBuilderContext;
+        this.remainingFieldsBudget = remainingFieldsBudget;
+    }
 
     /**
      * The root context, to be used when merging a tree of mappers
      */
-    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long newFieldsBudget) {
-        return new MapperMergeContext(MapperBuilderContext.root(isSourceSynthetic, isDataStream), new AtomicLong(newFieldsBudget));
+    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, NewFieldsBudget newFieldsBudget) {
+        return new MapperMergeContext(MapperBuilderContext.root(isSourceSynthetic, isDataStream), newFieldsBudget);
     }
 
     /**
@@ -36,12 +40,7 @@ public final class MapperMergeContext {
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
     public static MapperMergeContext from(MapperBuilderContext mapperBuilderContext, long newFieldsBudget) {
-        return new MapperMergeContext(mapperBuilderContext, new AtomicLong(newFieldsBudget));
-    }
-
-    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, AtomicLong remainingFieldsBudget) {
-        this.mapperBuilderContext = mapperBuilderContext;
-        this.remainingFieldsBudget = remainingFieldsBudget;
+        return new MapperMergeContext(mapperBuilderContext, NewFieldsBudget.of(newFieldsBudget));
     }
 
     /**
@@ -69,15 +68,12 @@ public final class MapperMergeContext {
     void removeRuntimeField(Map<String, RuntimeField> runtimeFields, String name) {
         if (runtimeFields.containsKey(name)) {
             runtimeFields.remove(name);
-            if (remainingFieldsBudget.get() != Long.MAX_VALUE) {
-                remainingFieldsBudget.incrementAndGet();
-            }
+            remainingFieldsBudget.increment(1);
         }
     }
 
     <M extends Mapper> boolean addFieldIfPossible(M mapper, Consumer<M> addField) {
-        if (canAddField(mapper.mapperSize())) {
-            remainingFieldsBudget.getAndAdd(mapper.mapperSize() * -1);
+        if (remainingFieldsBudget.decrementIfPossible(mapper.mapperSize())) {
             addField.accept(mapper);
             return true;
         }
@@ -85,13 +81,81 @@ public final class MapperMergeContext {
     }
 
     void addRuntimeFieldIfPossible(RuntimeField runtimeField, Consumer<RuntimeField> addField) {
-        if (canAddField(1)) {
-            remainingFieldsBudget.decrementAndGet();
+        if (remainingFieldsBudget.decrementIfPossible(1)) {
             addField.accept(runtimeField);
         }
     }
 
-    boolean canAddField(int fieldSize) {
-        return remainingFieldsBudget.get() >= fieldSize;
+    boolean hasRemainingBudget() {
+        return remainingFieldsBudget.hasRemainingBudget();
+    }
+
+    /**
+     * Keeps track of now many new fields can be added during mapper merge
+     */
+    public interface NewFieldsBudget {
+        static NewFieldsBudget unlimited() {
+            return Unlimited.INSTANCE;
+        }
+
+        static NewFieldsBudget of(long fieldsBudget) {
+            return new Limited(fieldsBudget);
+        }
+
+        boolean decrementIfPossible(long fieldSize);
+
+        void increment(long fieldSize);
+
+        boolean hasRemainingBudget();
+
+        class Unlimited implements NewFieldsBudget {
+
+            private static final Unlimited INSTANCE = new Unlimited();
+
+            private Unlimited() {}
+
+            @Override
+            public boolean decrementIfPossible(long fieldSize) {
+                return true;
+            }
+
+            @Override
+            public void increment(long fieldSize) {
+                // noop
+            }
+
+            @Override
+            public boolean hasRemainingBudget() {
+                return true;
+            }
+        }
+
+        class Limited implements NewFieldsBudget {
+
+            private long fieldsBudget;
+
+            public Limited(long fieldsBudget) {
+                this.fieldsBudget = fieldsBudget;
+            }
+
+            @Override
+            public boolean decrementIfPossible(long fieldSize) {
+                if (fieldsBudget >= fieldSize) {
+                    fieldsBudget -= fieldSize;
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public void increment(long fieldSize) {
+                fieldsBudget++;
+            }
+
+            @Override
+            public boolean hasRemainingBudget() {
+                return fieldsBudget >= 1;
+            }
+        }
     }
 }

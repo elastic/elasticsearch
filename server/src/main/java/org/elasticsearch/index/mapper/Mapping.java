@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperMergeContext.NewFieldsBudget;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -136,7 +137,7 @@ public final class Mapping implements ToXContentFragment {
      * @param newFieldsBudget how many new fields can be added during the merge process
      * @return the resulting merged mapping.
      */
-    Mapping merge(Mapping mergeWith, MergeReason reason, long newFieldsBudget) {
+    Mapping merge(Mapping mergeWith, MergeReason reason, NewFieldsBudget newFieldsBudget) {
         MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, newFieldsBudget);
         RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, mergeContext);
 
@@ -171,7 +172,7 @@ public final class Mapping implements ToXContentFragment {
         return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
-    public Mapping withFieldsBudget(long fieldsBudget) {
+    public Mapping withFieldsBudget(NewFieldsBudget fieldsBudget) {
         MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, fieldsBudget);
         return new Mapping(root.withoutMappers().merge(root, MergeReason.MAPPING_RECOVERY, mergeContext), metadataMappers, meta);
     }

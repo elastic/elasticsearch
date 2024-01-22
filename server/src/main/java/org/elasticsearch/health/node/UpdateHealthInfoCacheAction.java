@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -125,8 +126,14 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
 
         @Override
         public String getDescription() {
-            return "Update health info cache for node [%s] with disk health info [%s], DSL health info [%s], repositories health info [%s]."
-                .formatted(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo);
+            return String.format(
+                Locale.ROOT,
+                "Update health info cache for node [%s] with disk health info [%s], DSL health info [%s], repositories health info [%s].",
+                nodeId,
+                diskHealthInfo,
+                dslHealthInfo,
+                repositoriesHealthInfo
+            );
         }
 
         @Override

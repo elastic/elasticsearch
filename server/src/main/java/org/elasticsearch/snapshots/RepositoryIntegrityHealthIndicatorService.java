@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -201,7 +202,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 return null;
             }
 
-            return String.format("[%d] %s snapshot repositor%s", size, type, size > 1 ? "ies" : "y");
+            return String.format(Locale.ROOT, "[%d] %s snapshot repositor%s", size, type, size > 1 ? "ies" : "y");
         }
 
         public HealthIndicatorDetails getDetails(boolean verbose) {

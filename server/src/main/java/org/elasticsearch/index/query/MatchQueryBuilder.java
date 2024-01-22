@@ -21,7 +21,9 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -380,6 +382,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
             return termQueryBuilder.rewrite(context);
+        }
+
+        MappedFieldType fieldType = context.getFieldType(this.fieldName);
+        if (fieldType instanceof NumberFieldMapper.NumberFieldType || fieldType instanceof DateFieldMapper.DateFieldType) {
+            return QueryBuilders.rangeQuery(this.fieldName).gte(value).lte(value);
         }
         return this;
     }

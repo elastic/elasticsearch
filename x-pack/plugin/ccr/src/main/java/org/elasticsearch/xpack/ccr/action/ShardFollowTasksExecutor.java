@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -87,6 +88,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
+import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapRemoteClusterClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
 
 public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
@@ -559,9 +561,10 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
         return recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
     }
 
-    private Client remoteClient(ShardFollowTask params) {
+    private RemoteClusterClient remoteClient(ShardFollowTask params) {
         // TODO: do we need minNodeVersion here since it is for remote cluster
-        return wrapClient(
+        return wrapRemoteClusterClient(
+            client.threadPool().getThreadContext(),
             client.getRemoteClusterClient(
                 params.getRemoteCluster(),
                 // this client is only used for lightweight single-index metadata responses and for the shard-changes actions themselves

@@ -894,8 +894,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         public void markCommitDeleted(long generation) {
             long primaryTerm = generation == recoveredGeneration ? recoveredPrimaryTerm : allocationPrimaryTerm;
-            final var blobReference = primaryTermAndGenToBlobReference.get(new PrimaryTermAndGeneration(primaryTerm, generation));
-            assert blobReference != null : generation;
+            var primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
+            final var blobReference = primaryTermAndGenToBlobReference.get(primaryTermAndGeneration);
+            if (blobReference == null) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "Unable to mark commit with %s as deleted. "
+                            + "recoveredGeneration: %s, recoveredPrimaryTerm: %s, allocationPrimaryTerm: %s, "
+                            + "primaryTermAndGenToBlobReference: %s",
+                        primaryTermAndGeneration,
+                        recoveredGeneration,
+                        recoveredPrimaryTerm,
+                        allocationPrimaryTerm,
+                        primaryTermAndGenToBlobReference
+                    )
+                );
+            }
             blobReference.deleted();
         }
 

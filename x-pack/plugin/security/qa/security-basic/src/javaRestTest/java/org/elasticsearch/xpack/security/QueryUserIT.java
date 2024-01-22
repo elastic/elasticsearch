@@ -54,6 +54,7 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
         return request;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104603")
     public void testQuery() throws IOException {
         // No users to match yet
         assertQuery("", users -> assertThat(users, empty()));

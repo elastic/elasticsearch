@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;
@@ -68,8 +69,8 @@ public class ScriptRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RankCoordinatorContext buildRankCoordinatorContext(int size, int from) {
-        return new ScriptRankCoordinatorContext(size, from, windowSize(), script);
+    public RankCoordinatorContext buildRankCoordinatorContext(int size, int from, ScriptService scriptService) {
+        return new ScriptRankCoordinatorContext(size, from, windowSize(), scriptService, script);
     }
 
     @Override

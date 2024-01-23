@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 
@@ -25,6 +29,13 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRankDoc.NO_RANK;
  * Ranks and decorates search hits for RRF results on the coordinator.
  */
 public class RRFRankCoordinatorContext extends RankCoordinatorContext {
+    // An example of how this works. We output a sorted top docs.
+
+    /*
+    TODO
+        add a separate rank method (to here?) that will give the user the opportunity to execute something
+        after the fetch phase is returned.
+     */
 
     private final int rankConstant;
 
@@ -164,5 +175,10 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
         // return the top results where sort, collapse fields,
         // and completion suggesters are not allowed
         return new SortedTopDocs(topResults, false, null, null, null, 0);
+    }
+
+    @Override
+    public SearchHits getHits(SearchPhaseController.ReducedQueryPhase reducedQueryPhase, AtomicArray<? extends SearchPhaseResult> fetchResultsArray) {
+        throw new UnsupportedOperationException("TODO");
     }
 }

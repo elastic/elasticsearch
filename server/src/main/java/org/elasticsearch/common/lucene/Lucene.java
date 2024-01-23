@@ -274,6 +274,48 @@ public class Lucene {
         return new TotalHits(totalHits, totalHitsRelation);
     }
 
+    public static TopDocs readTopDocsWithoutMaxScore(StreamInput in) throws IOException {
+        byte type = in.readByte();
+        if (type == 0) {
+            TotalHits totalHits = readTotalHits(in);
+
+            final int scoreDocCount = in.readVInt();
+            final ScoreDoc[] scoreDocs;
+            if (scoreDocCount == 0) {
+                scoreDocs = EMPTY_SCORE_DOCS;
+            } else {
+                scoreDocs = new ScoreDoc[scoreDocCount];
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+                }
+            }
+            return new TopDocs(totalHits, scoreDocs);
+        } else if (type == 1) {
+            TotalHits totalHits = readTotalHits(in);
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
+            FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
+            for (int i = 0; i < fieldDocs.length; i++) {
+                fieldDocs[i] = readFieldDoc(in);
+            }
+            return new TopFieldDocs(totalHits, fieldDocs, fields);
+        } else if (type == 2) {
+            TotalHits totalHits = readTotalHits(in);
+
+            String field = in.readString();
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
+            int size = in.readVInt();
+            Object[] collapseValues = new Object[size];
+            FieldDoc[] fieldDocs = new FieldDoc[size];
+            for (int i = 0; i < fieldDocs.length; i++) {
+                fieldDocs[i] = readFieldDoc(in);
+                collapseValues[i] = readSortValue(in);
+            }
+            return new TopFieldGroups(field, totalHits, fieldDocs, fields, collapseValues);
+        } else {
+            throw new IllegalStateException("Unknown type " + type);
+        }
+    }
+
     public static TopDocsAndMaxScore readTopDocs(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
@@ -390,6 +432,35 @@ public class Lucene {
     public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
         out.writeVLong(totalHits.value);
         out.writeEnum(totalHits.relation);
+    }
+
+    public static void writeTopDocsWithoutMaxScore(StreamOutput out, TopDocs topDocs) throws IOException {
+        if (topDocs instanceof TopFieldGroups topFieldGroups) {
+            out.writeByte((byte) 2);
+
+            writeTotalHits(out, topDocs.totalHits);
+
+            out.writeString(topFieldGroups.field);
+            out.writeArray(Lucene::writeSortField, topFieldGroups.fields);
+
+            out.writeVInt(topDocs.scoreDocs.length);
+            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                ScoreDoc doc = topFieldGroups.scoreDocs[i];
+                writeFieldDoc(out, (FieldDoc) doc);
+                writeSortValue(out, topFieldGroups.groupValues[i]);
+            }
+        } else if (topDocs instanceof TopFieldDocs topFieldDocs) {
+            out.writeByte((byte) 1);
+
+            writeTotalHits(out, topDocs.totalHits);
+
+            out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
+            out.writeArray((o, doc) -> writeFieldDoc(o, (FieldDoc) doc), topFieldDocs.scoreDocs);
+        } else {
+            out.writeByte((byte) 0);
+            writeTotalHits(out, topDocs.totalHits);
+            out.writeArray(Lucene::writeScoreDoc, topDocs.scoreDocs);
+        }
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {

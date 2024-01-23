@@ -8,8 +8,12 @@
 
 package org.elasticsearch.search.rank;
 
+import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.List;
@@ -39,4 +43,10 @@ public abstract class RankCoordinatorContext {
      * of the query phase prior to the fetch phase.
      */
     public abstract SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats);
+    // don't think anything needs to change here, we expose this with rank
+
+    public abstract SearchHits getHits(
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+        AtomicArray<? extends SearchPhaseResult> fetchResultsArray
+    );
 }

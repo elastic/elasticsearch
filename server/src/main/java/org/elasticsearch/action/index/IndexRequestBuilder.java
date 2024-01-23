@@ -47,6 +47,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     private Boolean requireDataStream;
     private String routing;
     private WriteRequest.RefreshPolicy refreshPolicy;
+    private String refreshPolicyString;
     private Long ifSeqNo;
     private Long ifPrimaryTerm;
     private String timeoutString;
@@ -169,6 +170,9 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * </p>
      */
     public IndexRequestBuilder setSource(Object... source) {
+        if (source.length % 2 != 0) {
+            throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
+        }
         this.sourceArray = source;
         return this;
     }
@@ -273,6 +277,11 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         return this;
     }
 
+    public IndexRequestBuilder setRefreshPolicy(String refreshPolicy) {
+        this.refreshPolicyString = refreshPolicy;
+        return this;
+    }
+
     /*
      * The following come from ReplicationRequestBuilder and can be moved to a parent class again in the future
      */
@@ -296,6 +305,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     public final IndexRequestBuilder setIndex(String index) {
         this.index = index;
         return this;
+    }
+
+    public String getIndex() {
+        return index;
     }
 
     /**
@@ -359,6 +372,9 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
             }
             if (refreshPolicy != null) {
                 indexRequest.setRefreshPolicy(refreshPolicy);
+            }
+            if (refreshPolicyString != null) {
+                indexRequest.setRefreshPolicy(refreshPolicyString);
             }
             if (timeoutString != null) {
                 indexRequest.timeout(timeoutString);

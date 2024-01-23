@@ -46,24 +46,14 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
      * Short version of execute().actionGet().
      */
     public Response get() {
-        Request request = request();
-        try {
-            return execute().actionGet();
-        } finally {
-            request.decRef();
-        }
+        return execute().actionGet();
     }
 
     /**
      * Short version of execute().actionGet().
      */
     public Response get(TimeValue timeout) {
-        Request request = request();
-        try {
-            return execute().actionGet(timeout);
-        } finally {
-            request.decRef();
-        }
+        return execute().actionGet(timeout);
     }
 
     public void execute(ActionListener<Response> listener) {

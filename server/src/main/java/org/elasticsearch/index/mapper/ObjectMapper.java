@@ -547,13 +547,10 @@ public class ObjectMapper extends Mapper {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
 
                 if (mergeIntoMapper == null) {
-                    if (mergeWithMapper instanceof ObjectMapper om) {
-                        addNewObjectMapper(reason, objectMergeContext, mergedMappers, om);
-                    } else {
-                        objectMergeContext.addFieldIfPossible(
-                            mergeWithMapper,
-                            m -> mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper)
-                        );
+                    if (objectMergeContext.decrementIfPossible(mergeWithMapper.mapperSize())) {
+                        mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
+                    } else if (mergeWithMapper instanceof ObjectMapper om) {
+                        addPartialObjectMapper(reason, objectMergeContext, mergedMappers, om);
                     }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                     mergedMappers.put(objectMapper.simpleName(), objectMapper.merge(mergeWithMapper, reason, objectMergeContext));
@@ -577,25 +574,16 @@ public class ObjectMapper extends Mapper {
             return Map.copyOf(mergedMappers);
         }
 
-        private static void addNewObjectMapper(
+        private static void addPartialObjectMapper(
             MergeReason reason,
             MapperMergeContext objectMergeContext,
             Map<String, Mapper> mergedMappers,
             ObjectMapper objectMapper
         ) {
-            // first try to add the full object, with all it's sub-fields
-            boolean fullObjectAdded = objectMergeContext.addFieldIfPossible(objectMapper, o -> mergedMappers.put(o.simpleName(), o));
-            if (fullObjectAdded) {
-                return;
-            }
             // there's not enough capacity for the whole object mapper,
             // so we're just trying to add the shallow object, without it's sub-fields
             ObjectMapper shallowObjectMapper = objectMapper.withoutMappers();
-            boolean shallowObjectAdded = objectMergeContext.addFieldIfPossible(
-                shallowObjectMapper,
-                o -> mergedMappers.put(o.simpleName(), o)
-            );
-            if (shallowObjectAdded) {
+            if (objectMergeContext.decrementIfPossible(shallowObjectMapper.mapperSize())) {
                 // now trying to add the sub-fields one by one via a merge, until we hit the limit
                 mergedMappers.put(objectMapper.simpleName(), shallowObjectMapper.merge(objectMapper, reason, objectMergeContext));
             }

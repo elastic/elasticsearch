@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Map;
-import java.util.function.Consumer;
-
 /**
  * Holds context used when merging mappings.
  * As the merge process also involves building merged {@link Mapper.Builder}s,
@@ -19,18 +16,18 @@ import java.util.function.Consumer;
 public final class MapperMergeContext {
 
     private final MapperBuilderContext mapperBuilderContext;
-    private final NewFieldsBudget remainingFieldsBudget;
+    private final NewFieldsBudget newFieldsBudget;
 
-    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, NewFieldsBudget remainingFieldsBudget) {
+    private MapperMergeContext(MapperBuilderContext mapperBuilderContext, NewFieldsBudget newFieldsBudget) {
         this.mapperBuilderContext = mapperBuilderContext;
-        this.remainingFieldsBudget = remainingFieldsBudget;
+        this.newFieldsBudget = newFieldsBudget;
     }
 
     /**
      * The root context, to be used when merging a tree of mappers
      */
-    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, NewFieldsBudget newFieldsBudget) {
-        return new MapperMergeContext(MapperBuilderContext.root(isSourceSynthetic, isDataStream), newFieldsBudget);
+    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long newFieldsBudget) {
+        return new MapperMergeContext(MapperBuilderContext.root(isSourceSynthetic, isDataStream), NewFieldsBudget.of(newFieldsBudget));
     }
 
     /**
@@ -44,71 +41,52 @@ public final class MapperMergeContext {
     }
 
     /**
-     * Creates a new {@link MapperMergeContext} that is a child of this context
+     * Creates a new {@link MapperMergeContext} with a child {@link MapperBuilderContext}.
+     * The child {@link MapperMergeContext} context will share the same field limit.
      * @param name the name of the child context
      * @return a new {@link MapperMergeContext} with this context as its parent
      */
-    public MapperMergeContext createChildContext(String name) {
+    MapperMergeContext createChildContext(String name) {
         return createChildContext(mapperBuilderContext.createChildContext(name));
     }
 
     /**
-     * Creates a new {@link MapperMergeContext} with a given {@link MapperBuilderContext}
+     * Creates a new {@link MapperMergeContext} with a given child {@link MapperBuilderContext}
+     * The child {@link MapperMergeContext} context will share the same field limit.
      * @param childContext the child {@link MapperBuilderContext}
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
-    public MapperMergeContext createChildContext(MapperBuilderContext childContext) {
-        return new MapperMergeContext(childContext, remainingFieldsBudget);
+    MapperMergeContext createChildContext(MapperBuilderContext childContext) {
+        return new MapperMergeContext(childContext, newFieldsBudget);
     }
 
     MapperBuilderContext getMapperBuilderContext() {
         return mapperBuilderContext;
     }
 
-    void removeRuntimeField(Map<String, RuntimeField> runtimeFields, String name) {
-        if (runtimeFields.containsKey(name)) {
-            runtimeFields.remove(name);
-            remainingFieldsBudget.increment(1);
-        }
-    }
-
-    <M extends Mapper> boolean addFieldIfPossible(M mapper, Consumer<M> addField) {
-        if (remainingFieldsBudget.decrementIfPossible(mapper.mapperSize())) {
-            addField.accept(mapper);
-            return true;
-        }
-        return false;
-    }
-
-    void addRuntimeFieldIfPossible(RuntimeField runtimeField, Consumer<RuntimeField> addField) {
-        if (remainingFieldsBudget.decrementIfPossible(1)) {
-            addField.accept(runtimeField);
-        }
-    }
-
-    boolean hasRemainingBudget() {
-        return remainingFieldsBudget.hasRemainingBudget();
+    boolean decrementIfPossible(int fieldSize) {
+        return newFieldsBudget.decrementIfPossible(fieldSize);
     }
 
     /**
-     * Keeps track of now many new fields can be added during mapper merge
+     * Keeps track of how many new fields can be added during mapper merge.
+     * The field budget is shared across instances of {@link MapperMergeContext} that are created via
+     * {@link MapperMergeContext#createChildContext}.
+     * This ensures that fields that are consumed by one child object mapper also decrement the budget for another child object.
+     * Not thread safe.The same instance may not be modified by multiple threads.
      */
-    public interface NewFieldsBudget {
-        static NewFieldsBudget unlimited() {
-            return Unlimited.INSTANCE;
-        }
+    private interface NewFieldsBudget {
 
         static NewFieldsBudget of(long fieldsBudget) {
+            if (fieldsBudget == Long.MAX_VALUE) {
+                return Unlimited.INSTANCE;
+            }
             return new Limited(fieldsBudget);
         }
 
         boolean decrementIfPossible(long fieldSize);
 
-        void increment(long fieldSize);
-
-        boolean hasRemainingBudget();
-
-        class Unlimited implements NewFieldsBudget {
+        final class Unlimited implements NewFieldsBudget {
 
             private static final Unlimited INSTANCE = new Unlimited();
 
@@ -119,18 +97,9 @@ public final class MapperMergeContext {
                 return true;
             }
 
-            @Override
-            public void increment(long fieldSize) {
-                // noop
-            }
-
-            @Override
-            public boolean hasRemainingBudget() {
-                return true;
-            }
         }
 
-        class Limited implements NewFieldsBudget {
+        final class Limited implements NewFieldsBudget {
 
             private long fieldsBudget;
 
@@ -147,15 +116,6 @@ public final class MapperMergeContext {
                 return false;
             }
 
-            @Override
-            public void increment(long fieldSize) {
-                fieldsBudget++;
-            }
-
-            @Override
-            public boolean hasRemainingBudget() {
-                return fieldsBudget >= 1;
-            }
         }
     }
 }

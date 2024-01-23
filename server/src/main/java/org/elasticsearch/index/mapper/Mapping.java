@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.MapperMergeContext.NewFieldsBudget;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -137,7 +136,7 @@ public final class Mapping implements ToXContentFragment {
      * @param newFieldsBudget how many new fields can be added during the merge process
      * @return the resulting merged mapping.
      */
-    Mapping merge(Mapping mergeWith, MergeReason reason, NewFieldsBudget newFieldsBudget) {
+    Mapping merge(Mapping mergeWith, MergeReason reason, long newFieldsBudget) {
         MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, newFieldsBudget);
         RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, mergeContext);
 
@@ -172,8 +171,13 @@ public final class Mapping implements ToXContentFragment {
         return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
-    public Mapping withFieldsBudget(NewFieldsBudget fieldsBudget) {
+    /**
+     * Returns a copy of this mapper that ensures that the number of fields isn't greater than the provided fields budget.
+     * @param fieldsBudget the maximum number of fields this mapping may have
+     */
+    public Mapping withFieldsBudget(long fieldsBudget) {
         MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, fieldsBudget);
+        // calling merge to ensure we're only adding as many fields as allowed by the fields budget
         return new Mapping(root.withoutMappers().merge(root, MergeReason.MAPPING_RECOVERY, mergeContext), metadataMappers, meta);
     }
 

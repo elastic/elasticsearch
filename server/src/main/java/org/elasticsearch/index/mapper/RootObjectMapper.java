@@ -261,11 +261,13 @@ public class RootObjectMapper extends ObjectMapper {
         assert this.runtimeFields != mergeWithObject.runtimeFields || this.runtimeFields == Map.<String, RuntimeField>of();
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
-                parentMergeContext.removeRuntimeField(runtimeFields, runtimeField.getKey());
+                runtimeFields.remove(runtimeField.getKey());
             } else if (runtimeFields.containsKey(runtimeField.getKey())) {
                 runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
             } else {
-                parentMergeContext.addRuntimeFieldIfPossible(runtimeField.getValue(), r -> runtimeFields.put(r.name(), r));
+                if (parentMergeContext.decrementIfPossible(1)) {
+                    runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
+                }
             }
         }
 

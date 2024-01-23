@@ -25,7 +25,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.MapperMergeContext.NewFieldsBudget;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -560,15 +559,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
-        return mergeMappings(currentMapper, incomingMapping, reason, NewFieldsBudget.unlimited());
+        return mergeMappings(currentMapper, incomingMapping, reason, Long.MAX_VALUE);
     }
 
-    static Mapping mergeMappings(
-        DocumentMapper currentMapper,
-        Mapping incomingMapping,
-        MergeReason reason,
-        NewFieldsBudget newFieldsBudget
-    ) {
+    static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
         Mapping newMapping;
         if (currentMapper == null) {
             newMapping = incomingMapping.withFieldsBudget(newFieldsBudget);

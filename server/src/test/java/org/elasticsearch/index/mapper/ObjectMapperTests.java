@@ -15,7 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MapperMergeContext.NewFieldsBudget;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -126,7 +125,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             "_doc",
             new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))))
         );
-        Mapping merged = mapper.mapping().merge(mergeWith, reason, NewFieldsBudget.unlimited());
+        Mapping merged = mapper.mapping().merge(mergeWith, reason, Long.MAX_VALUE);
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
 
@@ -471,7 +470,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }))));
         MapperException exception = expectThrows(
             MapperException.class,
-            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, NewFieldsBudget.unlimited())
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [field]", exception.getMessage());
     }
@@ -485,7 +484,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }))));
         MapperException exception = expectThrows(
             MapperException.class,
-            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, NewFieldsBudget.unlimited())
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
     }

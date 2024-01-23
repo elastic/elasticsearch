@@ -127,6 +127,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                null,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
@@ -212,6 +213,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                null,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
@@ -299,6 +301,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                null,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,

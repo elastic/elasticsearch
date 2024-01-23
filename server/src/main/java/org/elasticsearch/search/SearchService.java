@@ -1751,6 +1751,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService;
     }
 
+    public ScriptService getScriptService() {
+        return scriptService;
+    }
+
     /**
      * Returns a builder for {@link AggregationReduceContext}.
      */

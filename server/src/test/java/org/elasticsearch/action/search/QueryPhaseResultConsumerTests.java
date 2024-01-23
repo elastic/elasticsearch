@@ -106,6 +106,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         try (
             QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
                 searchRequest,
+                null,
                 executor,
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 searchPhaseController,

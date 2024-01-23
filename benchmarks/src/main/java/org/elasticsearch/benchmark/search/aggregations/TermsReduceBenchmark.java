@@ -187,6 +187,7 @@ public class TermsReduceBenchmark {
         AtomicBoolean isCanceled = new AtomicBoolean();
         QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
             request,
+            null,
             executor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             controller,

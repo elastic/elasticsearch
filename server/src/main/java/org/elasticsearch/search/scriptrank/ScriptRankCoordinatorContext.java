@@ -12,6 +12,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 
@@ -20,22 +21,22 @@ import java.util.HashMap;
 import java.util.List;
 
 public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
-    List<PriorityQueue<ScoreDoc>> queues = new ArrayList<>();
 
+    private final ScriptService scriptService;
     private final Script script;
 
-    public ScriptRankCoordinatorContext(int size, int from, int windowSize, Script script) {
+    private List<PriorityQueue<ScoreDoc>> queues = new ArrayList<>();
+
+    public ScriptRankCoordinatorContext(int size, int from, int windowSize, ScriptService scriptService, Script script) {
         super(size, from, windowSize);
+        this.scriptService = scriptService;
         this.script = script;
     }
 
-    protected record RankKey(int doc, int shardIndex) {
-    }
+    protected record RankKey(int doc, int shardIndex) {}
 
     @Override
     public SearchPhaseController.SortedTopDocs rank(List<QuerySearchResult> querySearchResults, SearchPhaseController.TopDocsStats topDocStats) {
-
-
         for (QuerySearchResult querySearchResult : querySearchResults) {
             var topDocsList = ((ScriptRankShardResult) querySearchResult.getRankShardResult()).getTopDocsList();
 

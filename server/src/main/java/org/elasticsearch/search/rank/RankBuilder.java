@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -73,9 +74,9 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     public abstract RankShardContext buildRankShardContext(List<Query> queries, int from);
 
     /**
-     * Generates a context used to perform global ranking on the coordinator.
+     * Generates a context with the script service used to perform global ranking on the coordinator.
      */
-    public abstract RankCoordinatorContext buildRankCoordinatorContext(int size, int from);
+    public abstract RankCoordinatorContext buildRankCoordinatorContext(int size, int from, ScriptService scriptService);
 
     @Override
     public final boolean equals(Object obj) {

@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -788,6 +789,7 @@ public final class SearchPhaseController {
      * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
      */
     SearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(
+        ScriptService scriptService,
         Executor executor,
         CircuitBreaker circuitBreaker,
         Supplier<Boolean> isCanceled,
@@ -811,6 +813,7 @@ public final class SearchPhaseController {
         }
         return new QueryPhaseResultConsumer(
             request,
+            scriptService,
             executor,
             circuitBreaker,
             this,

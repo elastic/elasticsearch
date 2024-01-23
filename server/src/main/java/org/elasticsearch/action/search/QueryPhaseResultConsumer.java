@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -74,6 +75,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      */
     public QueryPhaseResultConsumer(
         SearchRequest request,
+        ScriptService scriptService,
         Executor executor,
         CircuitBreaker circuitBreaker,
         SearchPhaseController controller,
@@ -95,7 +97,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int from = source == null || source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
         this.rankCoordinatorContext = source == null || source.rankBuilder() == null
             ? null
-            : source.rankBuilder().buildRankCoordinatorContext(size, from);
+            : source.rankBuilder().buildRankCoordinatorContext(size, from, scriptService);
         this.hasTopDocs = (source == null || size != 0) && rankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;

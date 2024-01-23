@@ -243,7 +243,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testDownsampleIndex() throws IOException {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
-        SourceSupplier sourcatceSupplier = () -> {
+        SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
             int labelIntegerValue = randomInt();

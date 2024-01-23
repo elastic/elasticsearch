@@ -79,17 +79,13 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
 
     boolean useBloomFilter(String field) {
         IndexSettings indexSettings = mapperService.getIndexSettings();
-        if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {
-            // In case for time series indices, they _id isn't randomly generated,
-            // but based on dimension fields and timestamp field, so during indexing
-            // version/seq_no/term needs to be looked up and having a bloom filter
-            // can speed this up significantly.
-            return indexSettings.getMode() == IndexMode.TIME_SERIES
-                && IdFieldMapper.NAME.equals(field)
-                && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
-        } else {
-            return IdFieldMapper.NAME.equals(field) && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
+        if (IdFieldMapper.NAME.equals(field) && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings())) {
+            if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+                return indexSettings.getMode() == IndexMode.TIME_SERIES;
+            }
+            return true;
         }
+        return false;
     }
 
     @Override

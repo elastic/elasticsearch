@@ -650,19 +650,6 @@ public class IndexRoutingTests extends ESTestCase {
         byte[] suffix = randomSuffix();
         BytesReference sourceBytes = source(source);
         assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, sourceBytes), equalTo(expectedShard));
-        IndexRouting.ExtractFromSource r = (IndexRouting.ExtractFromSource) routing;
-        String idFromSource = r.createId(XContentType.JSON, sourceBytes, suffix);
-        assertThat(shardIdForReadFromSourceExtracting(routing, idFromSource), equalTo(expectedShard));
-        Map<String, Object> flattened = flatten(source);
-        String idFromFlattened = r.createId(flattened, suffix);
-        assertThat(idFromFlattened, equalTo(idFromSource));
-
-        IndexRouting.ExtractFromSource.Builder b = r.builder();
-        for (Map.Entry<String, Object> e : flattened.entrySet()) {
-            b.addMatching(e.getKey(), new BytesRef(e.getValue().toString()));
-        }
-        String idFromBuilder = b.createId(suffix, () -> { throw new AssertionError(); });
-        assertThat(idFromBuilder, equalTo(idFromSource));
     }
 
     private byte[] randomSuffix() {

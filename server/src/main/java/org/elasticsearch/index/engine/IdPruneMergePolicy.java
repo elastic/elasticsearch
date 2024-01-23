@@ -9,15 +9,12 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterCodecReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FilterNumericDocValues;
-import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
@@ -25,8 +22,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -36,39 +31,32 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
-    RecoverySourcePruneMergePolicy(
-        String recoverySourceField,
-        boolean pruneIdField,
-        Supplier<Query> retainSourceQuerySupplier,
-        MergePolicy in
-    ) {
+final class IdPruneMergePolicy extends OneMergeWrappingMergePolicy {
+    IdPruneMergePolicy(String idField, boolean pruneIdField, Supplier<Query> retainSourceQuerySupplier, MergePolicy in) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(recoverySourceField, pruneIdField, wrapped, retainSourceQuerySupplier);
+                return wrapReader(idField, pruneIdField, wrapped, retainSourceQuerySupplier);
             }
         });
     }
 
     private static CodecReader wrapReader(
-        String recoverySourceField,
+        String idField,
         boolean pruneIdField,
         CodecReader reader,
         Supplier<Query> retainSourceQuerySupplier
     ) throws IOException {
-        NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);
+        NumericDocValues recoverySource = reader.getNumericDocValues(idField);
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
         }
@@ -83,9 +71,9 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
                 return reader; // keep all source
             }
-            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, recoverySourceToKeep);
+            return new SourcePruningFilterCodecReader(idField, pruneIdField, reader, recoverySourceToKeep);
         } else {
-            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, null);
+            return new SourcePruningFilterCodecReader(idField, pruneIdField, reader, null);
         }
     }
 
@@ -150,55 +138,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 recoverySourceField,
                 pruneIdField
             );
-        }
-
-        @Override
-        public FieldsProducer getPostingsReader() {
-            FieldsProducer postingsReader = super.getPostingsReader();
-            if (postingsReader == null || pruneIdField == false) {
-                return postingsReader;
-            }
-            return new FieldsProducer() {
-                @Override
-                public void close() throws IOException {
-                    postingsReader.close();
-                }
-
-                @Override
-                public void checkIntegrity() throws IOException {
-                    postingsReader.checkIntegrity();
-                }
-
-                @Override
-                public Iterator<String> iterator() {
-                    return postingsReader.iterator();
-                }
-
-                @Override
-                public Terms terms(String field) throws IOException {
-                    Terms in = postingsReader.terms(field);
-                    if (IdFieldMapper.NAME.equals(field) && in != null) {
-                        return new FilterLeafReader.FilterTerms(in) {
-                            @Override
-                            public TermsEnum iterator() throws IOException {
-                                TermsEnum iterator = super.iterator();
-                                return new FilteredTermsEnum(iterator, false) {
-                                    @Override
-                                    protected AcceptStatus accept(BytesRef term) throws IOException {
-                                        return AcceptStatus.END;
-                                    }
-                                };
-                            }
-                        };
-                    }
-                    return in;
-                }
-
-                @Override
-                public int size() {
-                    return postingsReader.size();
-                }
-            };
         }
 
         @Override

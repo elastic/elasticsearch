@@ -102,7 +102,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 long timestamp = timestampDocValues.nextValue();
 
                 var routingBuilder = builders[i];
-                ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
+                ids[i] = TsidExtractingIdFieldMapper.createId(tsid, timestamp);
             }
             return new TsIdLeaf(docIdsInLeaf, ids);
         }

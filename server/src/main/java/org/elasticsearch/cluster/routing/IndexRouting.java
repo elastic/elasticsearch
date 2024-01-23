@@ -33,7 +33,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
@@ -256,20 +255,6 @@ public abstract class IndexRouting {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
             return hashToShardId(hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty));
-        }
-
-        public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
-            return hashSource(sourceType, source).createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
-        }
-
-        public String createId(Map<String, Object> flat, byte[] suffix) {
-            Builder b = builder();
-            for (Map.Entry<String, Object> e : flat.entrySet()) {
-                if (isRoutingPath.test(e.getKey())) {
-                    b.hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
-                }
-            }
-            return b.createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
         }
 
         private static int defaultOnEmpty() {

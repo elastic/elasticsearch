@@ -1,5 +1,6 @@
 pr: 104218
-summary: "Support reading spatial points from doc-values for STATS"
+summary: "Support ST_CENTROID over spatial points"
 area: "ES|QL"
 type: enhancement
-issues: []
+issues:
+ - 104656

@@ -219,7 +219,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertEquals(4, mergedAdd1.mapperSize());
     }
 
-    public void testMergeWithLimitObjectField() {
+    public void testMergeWithLimitTruncatedObjectField() {
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(false, false));
         RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
             new ObjectMapper.Builder("parent", Explicit.IMPLICIT_FALSE).add(
@@ -227,12 +227,15 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             ).add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
         ).build(MapperBuilderContext.root(false, false));
 
+        ObjectMapper mergedAdd0 = root.merge(mergeWith, MapperMergeContext.root(false, false, 0));
         ObjectMapper mergedAdd1 = root.merge(mergeWith, MapperMergeContext.root(false, false, 1));
         ObjectMapper mergedAdd2 = root.merge(mergeWith, MapperMergeContext.root(false, false, 2));
         ObjectMapper mergedAdd3 = root.merge(mergeWith, MapperMergeContext.root(false, false, 3));
         assertEquals(0, root.mapperSize());
+        assertEquals(0, mergedAdd0.mapperSize());
         assertEquals(1, mergedAdd1.mapperSize());
         assertEquals(2, mergedAdd2.mapperSize());
+        assertEquals(3, mergedAdd3.mapperSize());
 
         ObjectMapper parent1 = (ObjectMapper) mergedAdd1.getMapper("parent");
         assertNull(parent1.getMapper("child1"));

@@ -38,7 +38,7 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeFieldName(String name) throws IOException;
 
-    void writeFieldName(SerializedString name) throws IOException;
+    void writeFieldName(SerializableString name) throws IOException;
 
     void writeNull() throws IOException;
 
@@ -82,7 +82,7 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeString(char[] text, int offset, int len) throws IOException;
 
-    void writeSerializedString(SerializedString serializedString) throws IOException;
+    void writeSerializableString(SerializableString serializableString) throws IOException;
 
     void writeUTF8String(byte[] value, int offset, int length) throws IOException;
 
@@ -164,7 +164,4 @@ public interface XContentGenerator extends Closeable, Flushable {
      * Returns {@code true} if this XContentGenerator has been closed. A closed generator can not do any more output.
      */
     boolean isClosed();
-
-    // TODO: should this belong to another interface?
-    SerializedString serializeString(String name);
 }

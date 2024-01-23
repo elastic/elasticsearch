@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonStreamContext;
 import com.fasterxml.jackson.core.base.GeneratorBase;
 import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
+import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
@@ -20,7 +21,7 @@ import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
-import org.elasticsearch.xcontent.SerializedString;
+import org.elasticsearch.xcontent.SerializableString;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerationException;
@@ -60,7 +61,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     private final OutputStream os;
 
     private boolean writeLineFeedAtEnd;
-    private static final com.fasterxml.jackson.core.io.SerializedString LF = new com.fasterxml.jackson.core.io.SerializedString("\n");
+    private static final SerializedString LF = new SerializedString("\n");
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
 
@@ -191,20 +192,13 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeFieldName(SerializedString name) throws IOException {
+    public void writeFieldName(SerializableString name) throws IOException {
         try {
-            assert name instanceof JacksonSerializedString;
-            var jacksonSerializedString = ((JacksonSerializedString) name).serializedString;
+            var jacksonSerializedString = name.computeIfAbsent(SerializedString.class, SerializedString::new);
             generator.writeFieldName(jacksonSerializedString);
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }
-    }
-
-    @Override
-    public SerializedString serializeString(String s) {
-        com.fasterxml.jackson.core.io.SerializedString serializedString = new com.fasterxml.jackson.core.io.SerializedString(s);
-        return new JacksonSerializedString(serializedString);
     }
 
     @Override
@@ -382,10 +376,9 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeSerializedString(SerializedString value) throws IOException {
+    public void writeSerializableString(SerializableString value) throws IOException {
         try {
-            assert value instanceof JacksonSerializedString;
-            var jacksonSerializedString = ((JacksonSerializedString) value).serializedString;
+            var jacksonSerializedString = value.computeIfAbsent(SerializedString.class, SerializedString::new);
             generator.writeString(jacksonSerializedString);
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
@@ -623,13 +616,5 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public boolean isClosed() {
         return generator.isClosed();
-    }
-
-    private static class JacksonSerializedString implements SerializedString {
-        private final com.fasterxml.jackson.core.io.SerializedString serializedString;
-
-        JacksonSerializedString(com.fasterxml.jackson.core.io.SerializedString serializedString) {
-            this.serializedString = serializedString;
-        }
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -407,9 +408,9 @@ public class ExchangeServiceTests extends ESTestCase {
                                 }
                             }
                         }
-                        origResp.decRef();
-                        ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
-                        super.sendResponse(newResp);
+                        try (var newRespRef = ReleasableRef.of(new ExchangeResponse(page, origResp.finished()))) {
+                            super.sendResponse(newRespRef.get());
+                        }
                     }
                 };
                 handler.messageReceived(request, filterChannel, task);

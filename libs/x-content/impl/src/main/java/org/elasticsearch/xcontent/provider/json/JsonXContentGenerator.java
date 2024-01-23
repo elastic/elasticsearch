@@ -193,7 +193,9 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public void writeFieldName(SerializedString name) throws IOException {
         try {
-            name.writeField();
+            assert name instanceof JacksonSerializedString;
+            var jacksonSerializedString = ((JacksonSerializedString) name).serializedString;
+            generator.writeFieldName(jacksonSerializedString);
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }
@@ -202,16 +204,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public SerializedString serializeString(String s) {
         com.fasterxml.jackson.core.io.SerializedString serializedString = new com.fasterxml.jackson.core.io.SerializedString(s);
-        return new SerializedString() {
-            @Override
-            public void writeField() throws IOException {
-                generator.writeFieldName(serializedString);
-            }
-
-            public void writeValue() throws IOException {
-                generator.writeString(serializedString);
-            }
-        };
+        return new JacksonSerializedString(serializedString);
     }
 
     @Override
@@ -391,7 +384,9 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public void writeSerializedString(SerializedString value) throws IOException {
         try {
-            value.writeValue();
+            assert value instanceof JacksonSerializedString;
+            var jacksonSerializedString = ((JacksonSerializedString) value).serializedString;
+            generator.writeString(jacksonSerializedString);
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }
@@ -628,5 +623,13 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public boolean isClosed() {
         return generator.isClosed();
+    }
+
+    private static class JacksonSerializedString implements SerializedString {
+        private final com.fasterxml.jackson.core.io.SerializedString serializedString;
+
+        JacksonSerializedString(com.fasterxml.jackson.core.io.SerializedString serializedString) {
+            this.serializedString = serializedString;
+        }
     }
 }

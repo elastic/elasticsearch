@@ -178,8 +178,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 var type = EsqlDataTypes.widenSmallNumericTypes(t.getDataType());
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
                 // directly even if the data type is passed explicitly
-                DataType originalDataType = t.getDataType();
-                if (type != originalDataType) {
+                if (type != t.getDataType()) {
                     t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
                 }
 

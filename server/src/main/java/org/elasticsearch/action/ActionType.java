@@ -49,18 +49,16 @@ public class ActionType<Response extends ActionResponse> {
     }
 
     /**
-     * Construct an {@link ActionType} which callers can execute both on the local node (using {@link NodeClient}) and on a remote cluster
-     * (using a client obtained from {@link Client#getRemoteClusterClient}). If the action is only to be executed on the local cluster then
-     * declare it using {@link #localOnly} instead.
+     * Construct an {@link ActionType} and specify a method that can deserialize the response. This {@code responseReader} parameter is
+     * effectively unused. Use {@link #localOnly} instead.
      * <p>
      * There is no facility for directly executing an action on a different node in the local cluster. To achieve this, implement an action
      * which runs on the local node and knows how to use the {@link TransportService} to forward the request to a different node. There are
      * several utilities that help implement such an action, including {@link TransportNodesAction} or {@link TransportMasterNodeAction}.
      *
-     * @param name           The name of the action, which must be unique across actions. When executed on a remote cluster, this is the
-     *                       ID of the transport action which is sent to the handling node in the remote cluster.
-     * @param responseReader Defines how to deserialize responses received from executions of this action on remote clusters. Executions of
-     *                       this action on the local node receive the response object directly, without needing any deserialization.
+     * @param name           The name of the action, which must be unique across actions.
+     * @param responseReader Defines how to deserialize responses received from executions of this action on remote clusters. Effectively
+     *                       unused.
      */
     public ActionType(String name, Writeable.Reader<Response> responseReader) {
         this.name = name;

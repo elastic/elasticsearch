@@ -8,8 +8,10 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -22,10 +24,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.Locale;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -34,54 +38,230 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
  * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
  */
-public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> expandWildcards) implements ToXContentFragment {
+public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWildcards) implements ToXContentFragment {
 
-    public enum WildcardStates {
+    /**
+     * Controls the way the wildcard expressions will be resolved.
+     * @param includeOpen, open indices will be included
+     * @param includeClosed, closed indices will be included
+     * @param removeHidden, hidden indices will be removed from the result. This is a post filter it requires includeOpen or includeClosed
+     *                      to have an effect
+     * @param resolveAlias, aliases will be included in the result, if false we treat them like they do not exist
+     * @param allowEmptyExpressions, when an expression does not result in any indices, if false we throw an error if true we treat it as
+     *                               an empty result
+     */
+    public record WildcardOptions(
+        boolean includeOpen,
+        boolean includeClosed,
+        boolean removeHidden,
+        boolean resolveAlias,
+        boolean allowEmptyExpressions
+    ) implements Writeable {
+
+        public static final WildcardOptions DEFAULT_OPEN = new WildcardOptions.Builder().build();
+        public static final WildcardOptions DEFAULT_OPEN_HIDDEN = new WildcardOptions.Builder().removeHidden(false).build();
+        public static final WildcardOptions DEFAULT_OPEN_CLOSED = new WildcardOptions.Builder().includeClosed(true).build();
+        public static final WildcardOptions DEFAULT_OPEN_CLOSED_HIDDEN = new WildcardOptions.Builder().includeClosed(true)
+            .removeHidden(false)
+            .build();
+        public static final WildcardOptions DEFAULT_NONE = new WildcardOptions.Builder().none().build();
+
+        public static WildcardOptions read(StreamInput in) throws IOException {
+            return new WildcardOptions(in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readBoolean());
+        }
+
+        public static WildcardOptions parseParameters(Object expandWildcards, Object allowNoIndices, WildcardOptions defaultOptions) {
+            if (expandWildcards == null && allowNoIndices == null) {
+                return defaultOptions;
+            }
+            WildcardOptions.Builder builder = new Builder(defaultOptions);
+            if (expandWildcards != null) {
+                builder.none();
+                builder.expandStates(nodeStringArrayValue(expandWildcards));
+            }
+
+            if (allowNoIndices != null) {
+                builder.allowEmptyExpressions(nodeBooleanValue(allowNoIndices, "allow_no_indices"));
+            }
+            return builder.build();
+        }
+
+        /**
+         * This converter to XContent only includes the fields a user can interact, internal options like the resolveAlias
+         * are not added.
+         */
+        public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder) throws IOException {
+            Set<String> legacyStates = new HashSet<>(3);
+            if (options.includeOpen()) {
+                legacyStates.add("open");
+            }
+            if (options.includeClosed()) {
+                legacyStates.add("closed");
+            }
+            if (options.removeHidden() == false) {
+                legacyStates.add("hidden");
+            }
+            if (legacyStates.isEmpty()) {
+                builder.field("expand_wildcards", "none");
+            } else if (legacyStates.size() == 3) {
+                builder.field("expand_wildcards", "all");
+            } else {
+                builder.field("expand_wildcards", legacyStates);
+            }
+            builder.field("allow_no_indices", options.allowEmptyExpressions());
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(includeOpen);
+            out.writeBoolean(includeClosed);
+            out.writeBoolean(removeHidden);
+            out.writeBoolean(resolveAlias);
+            out.writeBoolean(allowEmptyExpressions);
+        }
+
+        public static class Builder {
+            private boolean includeOpen = true;
+            private boolean includeClosed = false;
+            private boolean removeHidden = true;
+            private boolean resolveAlias = true;
+            private boolean allowEmptyExpressions = true;
+
+            public Builder() {}
+
+            public Builder(WildcardOptions options) {
+                includeOpen = options.includeOpen;
+                includeClosed = options.includeClosed;
+                removeHidden = options.removeHidden;
+                resolveAlias = options.resolveAlias;
+                allowEmptyExpressions = options.allowEmptyExpressions;
+            }
+
+            /**
+             * Open indices will be included. Defaults to true.
+             */
+            public Builder includeOpen(boolean includeOpen) {
+                this.includeOpen = includeOpen;
+                return this;
+            }
+
+            /**
+             * Closed indices will be included. Default to false.
+             */
+            public Builder includeClosed(boolean includeClosed) {
+                this.includeClosed = includeClosed;
+                return this;
+            }
+
+            /**
+             * Hidden indices will be removed from the result. Defaults to true.
+             */
+            public Builder removeHidden(boolean removeHidden) {
+                this.removeHidden = removeHidden;
+                return this;
+            }
+
+            /**
+             * Aliases will be included in the result. Defaults to true.
+             */
+            public Builder resolveAlias(boolean resolveAlias) {
+                this.resolveAlias = resolveAlias;
+                return this;
+            }
+
+            /**
+             * If true, when each expression does not match any indices we consider it an empty result. If false,
+             * we throw an error. Defaults to true.
+             */
+            public Builder allowEmptyExpressions(boolean allowEmptyExpressions) {
+                this.allowEmptyExpressions = allowEmptyExpressions;
+                return this;
+            }
+
+            /**
+             * Disables expanding wildcards.
+             */
+            public Builder none() {
+                includeOpen = false;
+                includeClosed = false;
+                removeHidden = true;
+                return this;
+            }
+
+            /**
+             * Maximises the resolution of indices, we will match open, closed and hidden targets.
+             */
+            public Builder all() {
+                includeOpen = true;
+                includeClosed = true;
+                removeHidden = false;
+                return this;
+            }
+
+            /**
+             * Parses the list of wildcard states to expand as provided by the user.
+             * Logs a warning when the option 'none' is used along with other options because the position in the list
+             * changes the outcome.
+             */
+            public Builder expandStates(String[] expandStates) {
+                for (String expandState : expandStates) {
+                    switch (expandState) {
+                        case "open" -> includeOpen(true);
+                        case "closed" -> includeClosed(true);
+                        case "hidden" -> removeHidden(false);
+                        case "all" -> all();
+                        case "none" -> {
+                            none();
+                            if (expandStates.length > 1) {
+                                DEPRECATION_LOGGER.warn(
+                                    DeprecationCategory.API,
+                                    "expand_wildcards",
+                                    "Combining the value 'none' with other options is deprecated because it is order sensitive."
+                                );
+                            }
+                        }
+                    }
+                }
+                return this;
+            }
+
+            public WildcardOptions build() {
+                return new WildcardOptions(includeOpen, includeClosed, removeHidden, resolveAlias, allowEmptyExpressions);
+            }
+        }
+    }
+
+    /**
+     * This class is maintained for backwards compatibility purposes. We use it for serialisation before {@link WildcardOptions}
+     * was introduced.
+     */
+    private enum WildcardStates {
         OPEN,
         CLOSED,
         HIDDEN;
 
-        public static final EnumSet<WildcardStates> NONE = EnumSet.noneOf(WildcardStates.class);
-
-        public static EnumSet<WildcardStates> parseParameter(Object value, EnumSet<WildcardStates> defaultStates) {
-            if (value == null) {
-                return defaultStates;
-            }
-
+        static EnumSet<WildcardStates> fromWildcardOptions(WildcardOptions options) {
             EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
-            String[] wildcards = nodeStringArrayValue(value);
-            // TODO why do we let patterns like "none,all" or "open,none,closed" get used. The location of 'none' in the array changes the
-            // meaning of the resulting value
-            for (String wildcard : wildcards) {
-                updateSetForValue(states, wildcard);
+            if (options.includeOpen()) {
+                states.add(OPEN);
             }
-
+            if (options.includeClosed) {
+                states.add(CLOSED);
+            }
+            if (options.removeHidden() == false) {
+                states.add(HIDDEN);
+            }
             return states;
         }
 
-        public static XContentBuilder toXContent(EnumSet<WildcardStates> states, XContentBuilder builder) throws IOException {
-            if (states.isEmpty()) {
-                builder.field("expand_wildcards", "none");
-            } else if (states.containsAll(EnumSet.allOf(WildcardStates.class))) {
-                builder.field("expand_wildcards", "all");
-            } else {
-                builder.field(
-                    "expand_wildcards",
-                    states.stream().map(state -> state.toString().toLowerCase(Locale.ROOT)).collect(Collectors.joining(","))
-                );
-            }
-            return builder;
-        }
-
-        private static void updateSetForValue(EnumSet<WildcardStates> states, String wildcard) {
-            switch (wildcard) {
-                case "open" -> states.add(OPEN);
-                case "closed" -> states.add(CLOSED);
-                case "hidden" -> states.add(HIDDEN);
-                case "none" -> states.clear();
-                case "all" -> states.addAll(EnumSet.allOf(WildcardStates.class));
-                default -> throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
-            }
+        static WildcardOptions toWildcardOptions(EnumSet<WildcardStates> states, boolean allowNoIndices, boolean ignoreAlias) {
+            return new WildcardOptions.Builder().includeOpen(states.contains(OPEN))
+                .includeClosed(states.contains(CLOSED))
+                .removeHidden(states.contains(HIDDEN) == false)
+                .allowEmptyExpressions(allowNoIndices)
+                .resolveAlias(ignoreAlias == false)
+                .build();
         }
     }
 
@@ -100,53 +280,50 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
     private static final String IGNORE_THROTTLED_DEPRECATION_MESSAGE = "[ignore_throttled] parameter is deprecated "
         + "because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.";
 
-    public static final IndicesOptions STRICT_EXPAND_OPEN = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES),
-        EnumSet.of(WildcardStates.OPEN)
-    );
+    public static final IndicesOptions STRICT_EXPAND_OPEN = new IndicesOptions(EnumSet.noneOf(Option.class), WildcardOptions.DEFAULT_OPEN);
     public static final IndicesOptions LENIENT_EXPAND_OPEN = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
-        EnumSet.of(WildcardStates.OPEN)
+        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        WildcardOptions.DEFAULT_OPEN
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
-        EnumSet.of(WildcardStates.OPEN, WildcardStates.HIDDEN)
+        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        WildcardOptions.DEFAULT_OPEN_HIDDEN
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
-        EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED)
+        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        WildcardOptions.DEFAULT_OPEN_CLOSED
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
-        EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED, WildcardStates.HIDDEN)
+        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES),
-        EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED)
+        EnumSet.noneOf(Option.class),
+        WildcardOptions.DEFAULT_OPEN_CLOSED
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES),
-        EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED, WildcardStates.HIDDEN)
+        EnumSet.noneOf(Option.class),
+        WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES),
-        EnumSet.of(WildcardStates.OPEN)
+        EnumSet.of(Option.FORBID_CLOSED_INDICES),
+        WildcardOptions.DEFAULT_OPEN
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES),
-        EnumSet.of(WildcardStates.OPEN, WildcardStates.HIDDEN)
+        EnumSet.of(Option.FORBID_CLOSED_INDICES),
+        WildcardOptions.DEFAULT_OPEN_HIDDEN
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES, Option.IGNORE_THROTTLED),
-        EnumSet.of(WildcardStates.OPEN)
+        EnumSet.of(Option.FORBID_CLOSED_INDICES, Option.IGNORE_THROTTLED),
+        WildcardOptions.DEFAULT_OPEN
     );
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
         EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES, Option.FORBID_CLOSED_INDICES),
-        EnumSet.noneOf(WildcardStates.class)
+        WildcardOptions.DEFAULT_NONE
     );
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
         EnumSet.of(Option.FORBID_CLOSED_INDICES),
-        EnumSet.noneOf(WildcardStates.class)
+        WildcardOptions.DEFAULT_NONE
     );
 
     /**
@@ -163,21 +340,21 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
      * are allowed.
      */
     public boolean allowNoIndices() {
-        return options.contains(Option.DEPRECATED__ALLOW_NO_INDICES);
+        return expandWildcards.allowEmptyExpressions();
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to open indices
      */
     public boolean expandWildcardsOpen() {
-        return expandWildcards.contains(WildcardStates.OPEN);
+        return expandWildcards.includeOpen();
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to closed indices
      */
     public boolean expandWildcardsClosed() {
-        return expandWildcards.contains(WildcardStates.CLOSED);
+        return expandWildcards.includeClosed();
     }
 
     /**
@@ -193,7 +370,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
      * @return Whether wildcard expressions should get expanded to hidden indices
      */
     public boolean expandWildcardsHidden() {
-        return expandWildcards.contains(WildcardStates.HIDDEN);
+        return expandWildcards.removeHidden() == false;
     }
 
     /**
@@ -216,7 +393,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
      * @return whether aliases should be ignored (when resolving a wildcard)
      */
     public boolean ignoreAliases() {
-        return options.contains(Option.DEPRECATED__IGNORE_ALIASES);
+        return expandWildcards.resolveAlias() == false;
     }
 
     /**
@@ -227,10 +404,10 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
     }
 
     /**
-     * @return a copy of the {@link WildcardStates} that these indices options will expand to
+     * @return a copy of the {@link WildcardOptions} that these indices options will expand to
      */
-    public EnumSet<WildcardStates> expandWildcards() {
-        return EnumSet.copyOf(expandWildcards);
+    public WildcardOptions expandWildcards() {
+        return expandWildcards;
     }
 
     /**
@@ -241,14 +418,37 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        out.writeEnumSet(options);
-        out.writeEnumSet(expandWildcards);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.GROUP_WILDCARD_INDICES_OPTIONS)) {
+            out.writeEnumSet(options);
+            expandWildcards.writeTo(out);
+        } else {
+            EnumSet<Option> backwardsCompatibleOptions = options.clone();
+            if (allowNoIndices()) {
+                backwardsCompatibleOptions.add(Option.DEPRECATED__ALLOW_NO_INDICES);
+            }
+            if (ignoreAliases()) {
+                backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_ALIASES);
+            }
+            out.writeEnumSet(backwardsCompatibleOptions);
+            out.writeEnumSet(WildcardStates.fromWildcardOptions(expandWildcards));
+        }
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         EnumSet<Option> options = in.readEnumSet(Option.class);
-        EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
-        return new IndicesOptions(options, states);
+        WildcardOptions wildcardOptions;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.GROUP_WILDCARD_INDICES_OPTIONS)) {
+            wildcardOptions = WildcardOptions.read(in);
+        } else {
+            EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
+            wildcardOptions = WildcardStates.toWildcardOptions(
+                states,
+                options.contains(Option.DEPRECATED__ALLOW_NO_INDICES),
+                options.contains(Option.DEPRECATED__IGNORE_ALIASES)
+            );
+            options.removeAll(List.of(Option.DEPRECATED__IGNORE_ALIASES, Option.DEPRECATED__ALLOW_NO_INDICES));
+        }
+        return new IndicesOptions(options, wildcardOptions);
     }
 
     public static IndicesOptions fromOptions(
@@ -335,31 +535,22 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         boolean ignoreThrottled
     ) {
         final EnumSet<Option> opts = EnumSet.noneOf(Option.class);
-        final EnumSet<WildcardStates> wildcards = EnumSet.noneOf(WildcardStates.class);
+        final WildcardOptions wildcards = new WildcardOptions.Builder().allowEmptyExpressions(allowNoIndices)
+            .includeOpen(expandToOpenIndices)
+            .includeClosed(expandToClosedIndices)
+            .removeHidden(expandToHiddenIndices == false)
+            .resolveAlias(ignoreAliases == false)
+            .build();
 
         if (ignoreUnavailable) {
             opts.add(Option.IGNORE_UNAVAILABLE);
         }
-        if (allowNoIndices) {
-            opts.add(Option.DEPRECATED__ALLOW_NO_INDICES);
-        }
-        if (expandToOpenIndices) {
-            wildcards.add(WildcardStates.OPEN);
-        }
-        if (expandToClosedIndices) {
-            wildcards.add(WildcardStates.CLOSED);
-        }
-        if (expandToHiddenIndices) {
-            wildcards.add(WildcardStates.HIDDEN);
-        }
+
         if (allowAliasesToMultipleIndices == false) {
             opts.add(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
         }
         if (forbidClosedIndices) {
             opts.add(Option.FORBID_CLOSED_INDICES);
-        }
-        if (ignoreAliases) {
-            opts.add(Option.DEPRECATED__IGNORE_ALIASES);
         }
         if (ignoreThrottled) {
             opts.add(Option.IGNORE_THROTTLED);
@@ -417,15 +608,15 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             return defaultSettings;
         }
 
-        EnumSet<WildcardStates> wildcards = WildcardStates.parseParameter(wildcardsString, defaultSettings.expandWildcards);
+        WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.expandWildcards);
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
             nodeBooleanValue(ignoreUnavailableString, "ignore_unavailable", defaultSettings.ignoreUnavailable()),
-            nodeBooleanValue(allowNoIndicesString, "allow_no_indices", defaultSettings.allowNoIndices()),
-            wildcards.contains(WildcardStates.OPEN),
-            wildcards.contains(WildcardStates.CLOSED),
-            wildcards.contains(WildcardStates.HIDDEN),
+            wildcards.allowEmptyExpressions(),
+            wildcards.includeOpen(),
+            wildcards.includeClosed(),
+            wildcards.removeHidden() == false,
             defaultSettings.allowAliasesToMultipleIndices(),
             defaultSettings.forbidClosedIndices(),
             defaultSettings.ignoreAliases(),
@@ -435,13 +626,8 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startArray("expand_wildcards");
-        for (WildcardStates expandWildcard : expandWildcards) {
-            builder.value(expandWildcard.toString().toLowerCase(Locale.ROOT));
-        }
-        builder.endArray();
+        WildcardOptions.toXContent(expandWildcards, builder);
         builder.field("ignore_unavailable", ignoreUnavailable());
-        builder.field("allow_no_indices", allowNoIndices());
         builder.field("ignore_throttled", ignoreThrottled());
         return builder;
     }
@@ -457,7 +643,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
 
     public static IndicesOptions fromXContent(XContentParser parser, @Nullable IndicesOptions defaults) throws IOException {
         boolean parsedWildcardStates = false;
-        EnumSet<WildcardStates> wildcardStates = defaults == null ? null : defaults.expandWildcards();
+        WildcardOptions.Builder wildcardsBuilder = defaults == null ? null : new WildcardOptions.Builder(defaults.expandWildcards());
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
         boolean ignoreThrottled = defaults == null ? false : defaults.ignoreThrottled();
@@ -473,16 +659,18 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (parsedWildcardStates == false) {
                         parsedWildcardStates = true;
-                        wildcardStates = EnumSet.noneOf(WildcardStates.class);
+                        wildcardsBuilder = new WildcardOptions.Builder();
+                        List<String> values = new ArrayList<>();
                         while ((token = parser.nextToken()) != Token.END_ARRAY) {
                             if (token.isValue()) {
-                                WildcardStates.updateSetForValue(wildcardStates, parser.text());
+                                values.add(parser.text());
                             } else {
                                 throw new ElasticsearchParseException(
                                     "expected values within array for " + EXPAND_WILDCARDS_FIELD.getPreferredName()
                                 );
                             }
                         }
+                        wildcardsBuilder.expandStates(values.toArray(new String[] {}));
                     } else {
                         throw new ElasticsearchParseException("already parsed expand_wildcards");
                     }
@@ -495,8 +683,8 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (parsedWildcardStates == false) {
                         parsedWildcardStates = true;
-                        wildcardStates = EnumSet.noneOf(WildcardStates.class);
-                        WildcardStates.updateSetForValue(wildcardStates, parser.text());
+                        wildcardsBuilder = new WildcardOptions.Builder();
+                        wildcardsBuilder.expandStates(new String[] { parser.text() });
                     } else {
                         throw new ElasticsearchParseException("already parsed expand_wildcards");
                     }
@@ -516,8 +704,10 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             }
         }
 
-        if (wildcardStates == null) {
+        if (wildcardsBuilder == null) {
             throw new ElasticsearchParseException("indices options xcontent did not contain " + EXPAND_WILDCARDS_FIELD.getPreferredName());
+        } else {
+            wildcardsBuilder.allowEmptyExpressions(allowNoIndices);
         }
         if (ignoreUnavailable == null) {
             throw new ElasticsearchParseException(
@@ -528,12 +718,13 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             throw new ElasticsearchParseException("indices options xcontent did not contain " + ALLOW_NO_INDICES_FIELD.getPreferredName());
         }
 
+        WildcardOptions wildcardOptions = wildcardsBuilder.build();
         return IndicesOptions.fromOptions(
             ignoreUnavailable,
-            allowNoIndices,
-            wildcardStates.contains(WildcardStates.OPEN),
-            wildcardStates.contains(WildcardStates.CLOSED),
-            wildcardStates.contains(WildcardStates.HIDDEN),
+            wildcardOptions.allowEmptyExpressions(),
+            wildcardOptions.includeOpen(),
+            wildcardOptions.includeClosed(),
+            wildcardOptions.removeHidden() == false,
             true,
             false,
             false,

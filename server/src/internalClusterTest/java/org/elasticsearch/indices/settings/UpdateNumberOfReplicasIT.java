@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-import java.util.EnumSet;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -440,10 +439,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
     public void testUpdateNumberOfReplicasAllowNoIndices() {
         createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
-        final IndicesOptions options = new IndicesOptions(
-            EnumSet.of(IndicesOptions.Option.DEPRECATED__ALLOW_NO_INDICES),
-            EnumSet.of(IndicesOptions.WildcardStates.OPEN)
-        );
+        final IndicesOptions options = new IndicesOptions(IndicesOptions.Option.NONE, IndicesOptions.WildcardOptions.DEFAULT_OPEN);
         assertAcked(
             indicesAdmin().prepareUpdateSettings("non-existent-*")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1))

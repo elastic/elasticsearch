@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -23,8 +22,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -79,13 +76,17 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
-            Collection<Option> options = randomSubsetOf(Arrays.asList(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE));
-
+            boolean defaultResolveAliasForThisRequest = original.indicesOptions().ignoreAliases() == false;
             original.indicesOptions(
                 new IndicesOptions(
-                    options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
+                    randomBoolean() ? Option.NONE : EnumSet.of(Option.IGNORE_UNAVAILABLE),
+                    new IndicesOptions.WildcardOptions(
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        defaultResolveAliasForThisRequest,
+                        randomBoolean()
+                    )
                 )
             );
         }

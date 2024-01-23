@@ -17,7 +17,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
@@ -117,26 +116,21 @@ public class IndexResolver {
     public static final String SQL_VIEW = "VIEW";
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
-        EnumSet.of(
-            Option.DEPRECATED__ALLOW_NO_INDICES,
-            Option.IGNORE_UNAVAILABLE,
-            Option.DEPRECATED__IGNORE_ALIASES,
-            Option.IGNORE_THROTTLED
-        ),
-        EnumSet.of(WildcardStates.OPEN)
+        EnumSet.of(Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED),
+        new IndicesOptions.WildcardOptions.Builder().resolveAlias(false).build()
     );
     private static final IndicesOptions FROZEN_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.DEPRECATED__IGNORE_ALIASES),
-        EnumSet.of(WildcardStates.OPEN)
+        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        new IndicesOptions.WildcardOptions.Builder().resolveAlias(false).build()
     );
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED),
-        EnumSet.of(WildcardStates.OPEN)
+        EnumSet.of(Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED),
+        IndicesOptions.WildcardOptions.DEFAULT_OPEN
     );
     public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
-        EnumSet.of(WildcardStates.OPEN)
+        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        IndicesOptions.WildcardOptions.DEFAULT_OPEN
     );
 
     public static final Set<String> ALL_FIELDS = Set.of("*");

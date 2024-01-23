@@ -14,19 +14,19 @@ public class MapperMergeContextTests extends ESTestCase {
 
     public void testAddFieldIfPossibleUnderLimit() {
         MapperMergeContext context = MapperMergeContext.root(false, false, 1);
-        assertTrue(context.decrementIfPossible(1));
-        assertFalse(context.decrementIfPossible(1));
+        assertTrue(context.decrementFieldBudgetIfPossible(1));
+        assertFalse(context.decrementFieldBudgetIfPossible(1));
     }
 
     public void testAddFieldIfPossibleAtLimit() {
         MapperMergeContext context = MapperMergeContext.root(false, false, 0);
-        assertFalse(context.decrementIfPossible(1));
+        assertFalse(context.decrementFieldBudgetIfPossible(1));
     }
 
     public void testAddFieldIfPossibleUnlimited() {
         MapperMergeContext context = MapperMergeContext.root(false, false, Long.MAX_VALUE);
-        assertTrue(context.decrementIfPossible(Integer.MAX_VALUE));
-        assertTrue(context.decrementIfPossible(Integer.MAX_VALUE));
+        assertTrue(context.decrementFieldBudgetIfPossible(Integer.MAX_VALUE));
+        assertTrue(context.decrementFieldBudgetIfPossible(Integer.MAX_VALUE));
     }
 
 }

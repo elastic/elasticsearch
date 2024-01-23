@@ -64,7 +64,7 @@ public final class MapperMergeContext {
         return mapperBuilderContext;
     }
 
-    boolean decrementIfPossible(int fieldSize) {
+    boolean decrementFieldBudgetIfPossible(int fieldSize) {
         return newFieldsBudget.decrementIfPossible(fieldSize);
     }
 

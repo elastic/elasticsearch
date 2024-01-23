@@ -455,7 +455,7 @@ public abstract class FieldMapper extends Mapper {
 
             private void update(FieldMapper toMerge, MapperMergeContext context) {
                 if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
-                    if (context.decrementIfPossible(toMerge.mapperSize())) {
+                    if (context.decrementFieldBudgetIfPossible(toMerge.mapperSize())) {
                         add(toMerge);
                     }
                 } else {

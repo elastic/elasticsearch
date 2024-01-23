@@ -265,7 +265,7 @@ public class RootObjectMapper extends ObjectMapper {
             } else if (runtimeFields.containsKey(runtimeField.getKey())) {
                 runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
             } else {
-                if (parentMergeContext.decrementIfPossible(1)) {
+                if (parentMergeContext.decrementFieldBudgetIfPossible(1)) {
                     runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
                 }
             }

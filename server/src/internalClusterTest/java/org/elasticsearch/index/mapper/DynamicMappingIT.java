@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.field.WriteField;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
@@ -55,6 +55,7 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_F
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -148,13 +149,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
         );
         // every field is a multi-field (text + keyword)
         assertThat(properties, aMapWithSize(16));
-        SearchResponse response = client().prepareSearch("index")
-            .setQuery(new MatchAllQueryBuilder())
-            .setSize(numberOfFieldsToCreate)
-            .addFetchField("*")
-            .get();
-        long ignoredFields = Arrays.stream(response.getHits().getHits()).filter(hit -> hit.field("_ignored") != null).count();
-        assertEquals(16, ignoredFields);
+        assertResponse(
+            prepareSearch("index").setQuery(new MatchAllQueryBuilder()).setSize(numberOfFieldsToCreate).addFetchField("*"),
+            response -> {
+                long ignoredFields = Arrays.stream(response.getHits().getHits()).filter(hit -> hit.field("_ignored") != null).count();
+                assertEquals(16, ignoredFields);
+            }
+        );
     }
 
     private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings) throws Throwable {
@@ -292,67 +293,74 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
     }
 
-    public void testIgnoreDynamicBeyondLimitSingleMultiField() throws Exception {
-        var fields = indexIgnoreDynamicBeyond(1, orderedMap("field1", "text")).getFields();
-        assertThat(fields.keySet(), equalTo(Set.of("_ignored")));
-        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field1")));
+    public void testIgnoreDynamicBeyondLimitSingleMultiField() {
+        indexIgnoreDynamicBeyond(1, orderedMap("field1", "text"), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("_ignored")));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field1")));
+        });
     }
 
-    public void testIgnoreDynamicBeyondLimitMultiField() throws Exception {
-        var fields = indexIgnoreDynamicBeyond(2, orderedMap("field1", 1, "field2", "text")).getFields();
-        assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
-        assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
-        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+    public void testIgnoreDynamicBeyondLimitMultiField() {
+        indexIgnoreDynamicBeyond(2, orderedMap("field1", 1, "field2", "text"), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+            assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+        });
     }
 
-    public void testIgnoreDynamicArrayField() throws Exception {
-        var fields = indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2))).getFields();
-        assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
-        assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
-        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+    public void testIgnoreDynamicArrayField() {
+        indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2)), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+            assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+        });
     }
 
-    public void testIgnoreDynamicBeyondLimitObjectField() throws Exception {
-        var fields = indexIgnoreDynamicBeyond(3, orderedMap("a.b", 1, "a.c", 2, "a.d", 3)).getFields();
-        assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.c", "_ignored")));
-        assertThat(fields.get("a.b").getValues(), equalTo(List.of(1L)));
-        assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
-        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+    public void testIgnoreDynamicBeyondLimitObjectField() {
+        indexIgnoreDynamicBeyond(3, orderedMap("a.b", 1, "a.c", 2, "a.d", 3), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.c", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+        });
     }
 
-    public void testIgnoreDynamicBeyondLimitObjectField2() throws Exception {
-        var fields = indexIgnoreDynamicBeyond(3, orderedMap("a.b", 1, "a.c", 2, "b.a", 3)).getFields();
-        assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.c", "_ignored")));
-        assertThat(fields.get("a.b").getValues(), equalTo(List.of(1L)));
-        assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
-        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("b")));
+    public void testIgnoreDynamicBeyondLimitObjectField2() {
+        indexIgnoreDynamicBeyond(3, orderedMap("a.b", 1, "a.c", 2, "b.a", 3), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.c", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("b")));
+        });
     }
 
-    public void testIgnoreDynamicBeyondLimitDottedObjectMultiField() throws Exception {
-        var fields = indexIgnoreDynamicBeyond(4, orderedMap("a.b", "foo", "a.c", 2, "a.d", 3)).getFields();
-        assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.b.keyword", "a.c", "_ignored")));
-        assertThat(fields.get("a.b").getValues(), equalTo(List.of("foo")));
-        assertThat(fields.get("a.b.keyword").getValues(), equalTo(List.of("foo")));
-        assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
-        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+    public void testIgnoreDynamicBeyondLimitDottedObjectMultiField() {
+        indexIgnoreDynamicBeyond(4, orderedMap("a.b", "foo", "a.c", 2, "a.d", 3), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.b.keyword", "a.c", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("a.b.keyword").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+        });
     }
 
-    public void testIgnoreDynamicBeyondLimitObjectMultiField() throws Exception {
-        var fields = indexIgnoreDynamicBeyond(5, orderedMap("a", orderedMap("b", "foo", "c", "bar", "d", 3))).getFields();
-        assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.b.keyword", "a.c", "a.c.keyword", "_ignored")));
-        assertThat(fields.get("a.b").getValues(), equalTo(List.of("foo")));
-        assertThat(fields.get("a.b.keyword").getValues(), equalTo(List.of("foo")));
-        assertThat(fields.get("a.c").getValues(), equalTo(List.of("bar")));
-        assertThat(fields.get("a.c.keyword").getValues(), equalTo(List.of("bar")));
-        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+    public void testIgnoreDynamicBeyondLimitObjectMultiField() {
+        indexIgnoreDynamicBeyond(5, orderedMap("a", orderedMap("b", "foo", "c", "bar", "d", 3)), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.b.keyword", "a.c", "a.c.keyword", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("a.b.keyword").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("a.c").getValues(), equalTo(List.of("bar")));
+            assertThat(fields.get("a.c.keyword").getValues(), equalTo(List.of("bar")));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+        });
     }
 
-    public void testIgnoreDynamicBeyondLimitRuntimeFields() throws Exception {
-        var fields = indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2)), Map.of("dynamic", "runtime"))
-            .getFields();
-        assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
-        assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
-        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+    public void testIgnoreDynamicBeyondLimitRuntimeFields() {
+        indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2)), Map.of("dynamic", "runtime"), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+            assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+        });
     }
 
     public void testFieldLimitRuntimeAndDynamic() throws Exception {
@@ -384,12 +392,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 .source(orderedMap("dynamic.keyword", "foo", "mapped_obj.number", 1, "mapped_obj.string", "foo"))
         ).get();
 
-        var fields = client().prepareSearch("test").setQuery(new MatchAllQueryBuilder()).addFetchField("*").get().getHits().getHits()[0]
-            .getFields();
-        assertThat(fields.keySet(), equalTo(Set.of("dynamic.keyword", "mapped_obj.number", "_ignored")));
-        assertThat(fields.get("dynamic.keyword").getValues(), equalTo(List.of("foo")));
-        assertThat(fields.get("mapped_obj.number").getValues(), equalTo(List.of(1L)));
-        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("mapped_obj.string")));
+        assertResponse(prepareSearch("test").setQuery(new MatchAllQueryBuilder()).addFetchField("*"), r -> {
+            var fields = r.getHits().getHits()[0].getFields();
+            assertThat(fields.keySet(), equalTo(Set.of("dynamic.keyword", "mapped_obj.number", "_ignored")));
+            assertThat(fields.get("dynamic.keyword").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("mapped_obj.number").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("mapped_obj.string")));
+        });
     }
 
     private LinkedHashMap<String, Object> orderedMap(Object... entries) {
@@ -400,11 +409,16 @@ public class DynamicMappingIT extends ESIntegTestCase {
         return map;
     }
 
-    private SearchHit indexIgnoreDynamicBeyond(int fieldLimit, Map<String, Object> source) throws Exception {
-        return indexIgnoreDynamicBeyond(fieldLimit, source, Map.of());
+    private void indexIgnoreDynamicBeyond(int fieldLimit, Map<String, Object> source, Consumer<Map<String, DocumentField>> fieldsConsumer) {
+        indexIgnoreDynamicBeyond(fieldLimit, source, Map.of(), fieldsConsumer);
     }
 
-    private SearchHit indexIgnoreDynamicBeyond(int fieldLimit, Map<String, Object> source, Map<String, Object> mapping) throws Exception {
+    private void indexIgnoreDynamicBeyond(
+        int fieldLimit,
+        Map<String, Object> source,
+        Map<String, Object> mapping,
+        Consumer<Map<String, DocumentField>> fieldsConsumer
+    ) {
         client().admin()
             .indices()
             .prepareCreate("index")
@@ -418,7 +432,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
             .get();
         ensureGreen("index");
         client().prepareIndex("index").setId("1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(source).get();
-        return client().prepareSearch("index").setQuery(new MatchAllQueryBuilder()).addFetchField("*").get().getHits().getHits()[0];
+        assertResponse(
+            prepareSearch("index").setQuery(new MatchAllQueryBuilder()).addFetchField("*"),
+            r -> fieldsConsumer.accept(r.getHits().getHits()[0].getFields())
+        );
     }
 
     public void testTotalFieldsLimitWithRuntimeFields() {

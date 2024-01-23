@@ -154,7 +154,14 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
-        // Rare actions such as writeAndOverwrite and earlyReads can lead to CI instability
+        // The analysis can perform writeAndOverwrite and earlyRead as rare actions.
+        // Since an earlyRead can be in between of write and overwrite, it can return either
+        // the old (write) or the new (overwrite) content and both are considered as correct
+        // behaviours.
+        // This test disrupts reads and relies on the disrupted content to be different from
+        // correct contents to triggered the expected failure. However, in rare cases,
+        // the disrupted old content could be identical to the new content or vice versa which
+        // leads to CI failures. Therefore, we disable rare actions to improve CI stability.
         request.rareActionProbability(0.0);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));

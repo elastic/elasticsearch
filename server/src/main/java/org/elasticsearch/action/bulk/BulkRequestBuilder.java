@@ -8,7 +8,9 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -23,18 +25,32 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
 public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse> implements WriteRequestBuilder<BulkRequestBuilder> {
+    private final String globalIndex;
+    private final List<DocWriteRequest<?>> requests = new ArrayList<>();
+    private final List<FramedData> framedDataList = new ArrayList<>();
+    private final List<ActionRequestBuilder<?, ?>> requestBuilders = new ArrayList<>();
+    private ActiveShardCount waitForActiveShards;
+    private TimeValue timeout;
+    private String timeoutString;
+    private String globalPipeline;
+    private String globalRouting;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
-        super(client, BulkAction.INSTANCE, new BulkRequest(globalIndex));
+        super(client, BulkAction.INSTANCE, null);
+        this.globalIndex = globalIndex;
     }
 
     public BulkRequestBuilder(ElasticsearchClient client) {
-        super(client, BulkAction.INSTANCE, new BulkRequest());
+        this(client, null);
     }
 
     /**
@@ -42,7 +58,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkRequestBuilder add(IndexRequest request) {
-        super.request.add(request);
+        requests.add(request);
         return this;
     }
 
@@ -51,7 +67,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkRequestBuilder add(IndexRequestBuilder request) {
-        super.request.add(request.request());
+        requestBuilders.add(request);
         return this;
     }
 
@@ -59,7 +75,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
     public BulkRequestBuilder add(DeleteRequest request) {
-        super.request.add(request);
+        requests.add(request);
         return this;
     }
 
@@ -67,7 +83,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
     public BulkRequestBuilder add(DeleteRequestBuilder request) {
-        super.request.add(request.request());
+        requestBuilders.add(request);
         return this;
     }
 
@@ -75,7 +91,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
     public BulkRequestBuilder add(UpdateRequest request) {
-        super.request.add(request);
+        requests.add(request);
         return this;
     }
 
@@ -83,7 +99,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
     public BulkRequestBuilder add(UpdateRequestBuilder request) {
-        super.request.add(request.request());
+        requestBuilders.add(request);
         return this;
     }
 
@@ -91,7 +107,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * Adds a framed data in binary format
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, XContentType xContentType) throws Exception {
-        request.add(data, from, length, null, xContentType);
+        framedDataList.add(new FramedData(data, from, length, null, xContentType));
         return this;
     }
 
@@ -100,7 +116,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      */
     public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType)
         throws Exception {
-        request.add(data, from, length, defaultIndex, xContentType);
+        framedDataList.add(new FramedData(data, from, length, defaultIndex, xContentType));
         return this;
     }
 
@@ -109,7 +125,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
     public BulkRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
-        request.waitForActiveShards(waitForActiveShards);
+        this.waitForActiveShards = waitForActiveShards;
         return this;
     }
 
@@ -126,7 +142,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        this.timeout = timeout;
         return this;
     }
 
@@ -134,7 +150,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
+        this.timeoutString = timeout;
         return this;
     }
 
@@ -146,12 +162,62 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     public BulkRequestBuilder pipeline(String globalPipeline) {
-        request.pipeline(globalPipeline);
+        this.globalPipeline = globalPipeline;
         return this;
     }
 
     public BulkRequestBuilder routing(String globalRouting) {
-        request.routing(globalRouting);
+        this.globalRouting = globalRouting;
         return this;
+    }
+
+    @Override
+    public BulkRequest request() {
+        if (requests.isEmpty() == false && requestBuilders.isEmpty() == false) {
+            throw new IllegalStateException("Must use only requests or request builders within a single bulk request");
+        }
+        BulkRequest bulkRequest = new BulkRequest(globalIndex);
+        try {
+            for (ActionRequestBuilder<?, ?> requestBuilder : requestBuilders) {
+                ActionRequest request = requestBuilder.request();
+                try {
+                    bulkRequest.add((DocWriteRequest<?>) request);
+                } finally {
+                    request.decRef();
+                }
+            }
+            for (DocWriteRequest<?> request : requests) {
+                bulkRequest.add(request);
+            }
+            for (FramedData framedData : framedDataList) {
+                try {
+                    bulkRequest.add(framedData.data, framedData.from, framedData.length, framedData.defaultIndex, framedData.xContentType);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            if (waitForActiveShards == null) {
+                bulkRequest.waitForActiveShards(waitForActiveShards);
+            }
+            if (timeout != null) {
+                bulkRequest.timeout(timeout);
+            }
+            if (timeoutString != null) {
+                bulkRequest.timeout(timeoutString);
+            }
+            if (globalPipeline != null) {
+                bulkRequest.pipeline(globalPipeline);
+            }
+            if (globalRouting != null) {
+                bulkRequest.routing(globalRouting);
+            }
+            return bulkRequest;
+        } catch (Exception e) {
+            bulkRequest.decRef();
+            throw e;
+        }
+    }
+
+    private record FramedData(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) {
     }
 }

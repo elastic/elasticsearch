@@ -487,7 +487,7 @@ public class ConnectorIndexService {
     /**
      * Updates the index name property of a {@link Connector}.
      *
-     * @param request  The request for updating the connector's service type.
+     * @param request  The request for updating the connector's index name.
      * @param listener The listener for handling responses, including successful updates or errors.
      */
     public void updateConnectorIndexName(UpdateConnectorIndexNameAction.Request request, ActionListener<UpdateResponse> listener) {

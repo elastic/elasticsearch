@@ -1588,22 +1588,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
             assertViewIndexMetadata(kibanaRole, indexName);
         });
-
-        // Connector secrets. Kibana only has write access.
-        final IndexAbstraction dotConnectorSecretsIndex = mockIndexAbstraction(".connector-secrets");
-        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(dotConnectorSecretsIndex), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(dotConnectorSecretsIndex), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(dotConnectorSecretsIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotConnectorSecretsIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(dotConnectorSecretsIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(dotConnectorSecretsIndex), is(true));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(dotConnectorSecretsIndex), is(false));
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(dotConnectorSecretsIndex),
-            is(false)
-        );
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(dotConnectorSecretsIndex), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotConnectorSecretsIndex), is(false));
     }
 
     public void testKibanaAdminRole() {

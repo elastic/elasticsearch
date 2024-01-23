@@ -49,12 +49,6 @@ final class ElasticServiceAccounts {
                         ".elastic-connectors*"
                     )
                     .privileges("manage", "read", "write")
-                    .build(),
-                // Connector secrets. Enterprise Search can read and write to this index.
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".connector-secrets*")
-                    .privileges("read", "write", "delete", "create_index")
-                    .allowRestrictedIndices(true)
                     .build() },
             null,
             null,

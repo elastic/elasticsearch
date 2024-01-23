@@ -280,7 +280,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         {
             "cluster": [
                 "manage",
-                "manage_security"
+                "manage_security",
+                "read_connector_secrets",
+                "write_connector_secrets"
             ],
             "indices": [
                 {
@@ -309,18 +311,6 @@ public class ServiceAccountIT extends ESRestTestCase {
                         "write"
                     ],
                     "allow_restricted_indices": false
-                },
-                {
-                    "names": [
-                        ".connector-secrets*"
-                    ],
-                    "privileges": [
-                        "read",
-                        "write",
-                        "delete",
-                        "create_index"
-                    ],
-                    "allow_restricted_indices": true
                 }
             ],
             "applications": [],

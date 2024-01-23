@@ -384,8 +384,6 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for endpoints.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build(),
-                // For connectors telemetry. Will be removed once we switched to connectors API
-                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
                 // Connector secrets. Kibana can only write to this index.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".connector-secrets*")

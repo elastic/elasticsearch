@@ -60,6 +60,7 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
@@ -223,6 +224,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final var maxSize = (int) NettyAllocator.suggestedMaxAllocationSize() / 2;
         final var content = new ZeroBytesReference(between(0, maxSize));
         final var response = request.createResponse(RestStatus.OK, content);
+        assertThat(response, instanceOf(FullHttpResponse.class));
         final var promise = embeddedChannel.newPromise();
         embeddedChannel.writeAndFlush(response, promise);
         assertTrue(promise.isDone());
@@ -238,18 +240,19 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final var minSize = (int) NettyAllocator.suggestedMaxAllocationSize();
         final var content = new ZeroBytesReference(between(minSize, minSize * 2));
         final var response = request.createResponse(RestStatus.OK, content);
+        assertThat(response, instanceOf(FullHttpResponse.class));
         final var promise = embeddedChannel.newPromise();
         embeddedChannel.writeAndFlush(response, promise);
         assertTrue(promise.isDone());
         assertThat(messagesSeen, hasSize(3));
-        assertEquals(RestStatus.OK.getStatus(), asInstanceOf(DefaultHttpResponse.class, messagesSeen.get(0)).status().code());
-        assertEquals(
-            content.length(),
-            asInstanceOf(DefaultHttpContent.class, messagesSeen.get(1)).content().readableBytes() + asInstanceOf(
-                DefaultLastHttpContent.class,
-                messagesSeen.get(2)
-            ).content().readableBytes()
-        );
+        final var headersMessage = asInstanceOf(DefaultHttpResponse.class, messagesSeen.get(0));
+        assertEquals(RestStatus.OK.getStatus(), headersMessage.status().code());
+        assertThat(headersMessage, not(instanceOf(FullHttpResponse.class)));
+        final var chunk1 = asInstanceOf(DefaultHttpContent.class, messagesSeen.get(1));
+        final var chunk2 = asInstanceOf(DefaultLastHttpContent.class, messagesSeen.get(2));
+        assertEquals(content.length(), chunk1.content().readableBytes() + chunk2.content().readableBytes());
+        assertThat(chunk1, not(instanceOf(FullHttpResponse.class)));
+        assertThat(chunk2, not(instanceOf(FullHttpResponse.class)));
     }
 
     public void testDecoderErrorSurfacedAsNettyInboundError() {

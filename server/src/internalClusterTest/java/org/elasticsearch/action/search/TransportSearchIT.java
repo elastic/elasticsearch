@@ -319,8 +319,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareSearch("testFailedAlias").setWaitForCheckpoints(Collections.singletonMap("testFailedAlias", validCheckpoints))
-                .get()
+            prepareSearch("testFailedAlias").setWaitForCheckpoints(Collections.singletonMap("testFailedAlias", validCheckpoints))
         );
         assertThat(
             e.getMessage(),
@@ -332,7 +331,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareSearch("test1").setWaitForCheckpoints(Collections.singletonMap("test1", new long[2])).get()
+            prepareSearch("test1").setWaitForCheckpoints(Collections.singletonMap("test1", new long[2]))
         );
         assertThat(
             e2.getMessage(),
@@ -346,7 +345,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e3 = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", new long[2])).get()
+            prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", new long[2]))
         );
         assertThat(
             e3.getMessage(),
@@ -360,7 +359,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e4 = expectThrows(
             IllegalArgumentException.class,
-            () -> prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("test2", validCheckpoints)).get()
+            prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("test2", validCheckpoints))
         );
         assertThat(
             e4.getMessage(),
@@ -383,7 +382,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
             updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1));
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> prepareSearch("test1").get());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, prepareSearch("test1"));
             assertThat(
                 e.getMessage(),
                 containsString("Trying to query " + numPrimaries1 + " shards, which is over the limit of " + (numPrimaries1 - 1))
@@ -394,7 +393,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             // no exception
             prepareSearch("test1").get().decRef();
 
-            e = expectThrows(IllegalArgumentException.class, () -> prepareSearch("test1", "test2").get());
+            e = expectThrows(IllegalArgumentException.class, prepareSearch("test1", "test2"));
             assertThat(
                 e.getMessage(),
                 containsString(
@@ -478,7 +477,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertBusy(() -> {
                 Exception exc = expectThrows(
                     Exception.class,
-                    () -> client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test")).get().decRef()
+                    client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                 );
                 assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
             });

@@ -144,7 +144,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             if (weightedTokensSupplier.get() == null) {
                 return this;
             }
-            return weightedTokensToQuery(fieldName, weightedTokensSupplier.get(), queryRewriteContext);
+            return weightedTokensToQuery(fieldName, weightedTokensSupplier.get());
         }
 
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
@@ -196,11 +196,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         return new TextExpansionQueryBuilder(this, textExpansionResultsSupplier);
     }
 
-    private QueryBuilder weightedTokensToQuery(
-        String fieldName,
-        TextExpansionResults textExpansionResults,
-        QueryRewriteContext queryRewriteContext
-    ) {
+    private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
         if (tokenPruningConfig != null) {
             WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
                 fieldName,

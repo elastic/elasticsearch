@@ -33,8 +33,29 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
         MvOrdering mvOrdering,
         BlockFactory blockFactory
     ) {
+        this(
+            new BytesRefArrayVector(values, firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount], blockFactory),
+            positionCount,
+            firstValueIndexes,
+            nulls,
+            mvOrdering,
+            blockFactory
+        );
+    }
+
+    private BytesRefArrayBlock(
+        BytesRefArrayVector vector,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.vector = new BytesRefArrayVector(values, (int) values.size(), blockFactory);
+        this.vector = vector;
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
     @Override
@@ -83,22 +104,28 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
             incRef();
             return this;
         }
-        // TODO use reference counting to share the vector
-        final BytesRef scratch = new BytesRef();
-        try (var builder = blockFactory().newBytesRefBlockBuilder(firstValueIndexes[getPositionCount()])) {
-            for (int pos = 0; pos < getPositionCount(); pos++) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int first = getFirstValueIndex(pos);
-                int end = first + getValueCount(pos);
-                for (int i = first; i < end; i++) {
-                    builder.appendBytesRef(getBytesRef(i, scratch));
-                }
-            }
-            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
+        if (nullsMask == null) {
+            vector.incRef();
+            return vector.asBlock();
         }
+
+        // The following line is correct because positions with multi-values are never null.
+        int expandedPositionCount = vector.getPositionCount();
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate);
+
+        BytesRefArrayBlock expanded = new BytesRefArrayBlock(
+            vector,
+            expandedPositionCount,
+            null,
+            shiftNullsToExpandedPositions(),
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+            blockFactory()
+        );
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
+        return expanded;
     }
 
     private long ramBytesUsedOnlyBlock() {
@@ -143,7 +170,7 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

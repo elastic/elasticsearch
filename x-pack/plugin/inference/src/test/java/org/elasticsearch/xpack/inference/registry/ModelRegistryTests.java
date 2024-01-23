@@ -63,7 +63,7 @@ public class ModelRegistryTests extends ESTestCase {
 
     public void testGetUnparsedModelMap_ThrowsResourceNotFound_WhenNoHitsReturned() {
         var client = mockClient();
-        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[0]));
+        mockClientExecuteSearch(client, mockSearchResponse(SearchHits.EMPTY));
 
         var registry = new ModelRegistry(client);
 
@@ -299,7 +299,7 @@ public class ModelRegistryTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> actionListener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-            actionListener.onResponse(searchResponse);
+            ActionListener.respondAndRelease(actionListener, searchResponse);
             return Void.TYPE;
         }).when(client).execute(any(), any(), any());
     }
@@ -314,10 +314,13 @@ public class ModelRegistryTests extends ESTestCase {
     }
 
     private static SearchResponse mockSearchResponse(SearchHit[] hits) {
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1);
-
         var searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1);
+        try {
+            when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+        } finally {
+            searchHits.decRef();
+        }
 
         return searchResponse;
     }

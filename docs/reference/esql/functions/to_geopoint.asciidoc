@@ -17,3 +17,7 @@ include::{esql-specs}/spatial.csv-spec[tag=to_geopoint-str]
 |===
 include::{esql-specs}/spatial.csv-spec[tag=to_geopoint-str-result]
 |===
+
+Supported types:
+
+include::types/to_geopoint.asciidoc[]

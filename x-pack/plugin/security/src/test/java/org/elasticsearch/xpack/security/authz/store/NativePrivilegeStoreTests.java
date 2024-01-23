@@ -196,8 +196,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     public void testGetMissingPrivilege() throws InterruptedException, ExecutionException, TimeoutException {
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.getPrivileges(List.of("myapp"), List.of("admin"), future);
-        final SearchHit[] hits = new SearchHit[0];
-        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(SearchHits.EMPTY));
 
         final Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = future.get(1, TimeUnit.SECONDS);
         assertThat(applicationPrivilegeDescriptors, empty());
@@ -298,8 +297,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(query, containsString("{\"exists\":{\"field\":\"application\""));
         assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
 
-        final SearchHit[] hits = new SearchHit[0];
-        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(SearchHits.EMPTY));
     }
 
     public void testGetAllPrivileges() throws Exception {
@@ -820,22 +818,12 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     private static SearchResponse buildSearchResponse(SearchHit[] hits) {
-        return new SearchResponse(
-            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-            null,
-            null,
-            false,
-            false,
-            null,
-            1,
-            "_scrollId1",
-            1,
-            1,
-            0,
-            1,
-            null,
-            null
-        );
+        var searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f);
+        try {
+            return new SearchResponse(searchHits.asUnpooled(), null, null, false, false, null, 1, "_scrollId1", 1, 1, 0, 1, null, null);
+        } finally {
+            searchHits.decRef();
+        }
     }
 
     private void handleBulkRequest(int expectedCount, Predicate<DocWriteRequest<?>> isCreated) {

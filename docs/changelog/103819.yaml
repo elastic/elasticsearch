@@ -1,0 +1,5 @@
+pr: 103819
+summary: Add retry logic for 500 and 503 errors for OpenAI
+area: Machine Learning
+type: bug
+issues: []

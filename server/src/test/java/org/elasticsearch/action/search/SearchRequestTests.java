@@ -154,7 +154,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             // Versions before 8.8 don't support rank
             searchRequest.source().rankBuilder(null);
         }
-        if (version.before(TransportVersions.V_8_500_020) && searchRequest.source() != null) {
+        if (version.before(TransportVersions.V_8_9_X) && searchRequest.source() != null) {
             // Versions before 8_500_999 don't support queries
             searchRequest.source().subSearches(new ArrayList<>());
         }

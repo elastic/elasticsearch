@@ -31,6 +31,7 @@ abstract class AbstractBlock extends AbstractNonThreadSafeRefCounted implements 
         this.blockFactory = blockFactory;
         this.firstValueIndexes = null;
         this.nullsMask = null;
+        assert assertInvariants();
     }
 
     /**
@@ -43,6 +44,26 @@ abstract class AbstractBlock extends AbstractNonThreadSafeRefCounted implements 
         this.firstValueIndexes = firstValueIndexes;
         this.nullsMask = nullsMask == null || nullsMask.isEmpty() ? null : nullsMask;
         assert nullsMask != null || firstValueIndexes != null : "Create VectorBlock instead";
+        assert assertInvariants();
+    }
+
+    private boolean assertInvariants() {
+        if (firstValueIndexes != null) {
+            assert firstValueIndexes.length == getPositionCount() + 1;
+            for (int i = 0; i < getPositionCount(); i++) {
+                assert (firstValueIndexes[i + 1] - firstValueIndexes[i]) >= 0;
+            }
+        }
+        if (nullsMask != null) {
+            assert nullsMask.nextSetBit(getPositionCount() + 1) == -1;
+        }
+        if (firstValueIndexes != null && nullsMask != null) {
+            for (int i = 0; i < getPositionCount(); i++) {
+                // Either we have multi-values or a null but never both.
+                assert ((nullsMask.get(i) == false) || (firstValueIndexes[i + 1] - firstValueIndexes[i]) == 1);
+            }
+        }
+        return true;
     }
 
     @Override

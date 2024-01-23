@@ -17,8 +17,8 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -1545,7 +1545,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 new DeleteIndexRequest("remote:foo").indicesOptions(options),
                 TransportDeleteIndexAction.TYPE.name()
             ),
-            new Tuple<TransportRequest, String>(new PutMappingRequest("remote:foo").indicesOptions(options), PutMappingAction.NAME)
+            new Tuple<TransportRequest, String>(
+                new PutMappingRequest("remote:foo").indicesOptions(options),
+                TransportPutMappingAction.TYPE.name()
+            )
         );
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
@@ -1562,7 +1565,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 new DeleteIndexRequest("*:*").indicesOptions(options),
                 TransportDeleteIndexAction.TYPE.name()
             ),
-            new Tuple<TransportRequest, String>(new PutMappingRequest("*:*").indicesOptions(options), PutMappingAction.NAME)
+            new Tuple<TransportRequest, String>(new PutMappingRequest("*:*").indicesOptions(options), TransportPutMappingAction.TYPE.name())
         );
         final ResolvedIndices resolved = resolveIndices(tuple.v1(), buildAuthorizedIndices(user, tuple.v2()));
         assertNoIndices((IndicesRequest.Replaceable) tuple.v1(), resolved);
@@ -1765,7 +1768,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testDynamicPutMappingRequestFromAlias() {
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index("foofoo", UUIDs.base64UUID()));
         User user = new User("alias-writer", "alias_read_write");
-        AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, PutMappingAction.NAME);
+        AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportPutMappingAction.TYPE.name());
 
         String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, metadata);
         assertEquals("barbaz", putMappingIndexOrAlias);

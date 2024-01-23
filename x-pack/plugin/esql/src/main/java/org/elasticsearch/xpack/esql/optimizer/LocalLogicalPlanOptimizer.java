@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -25,9 +26,12 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
@@ -39,6 +43,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanup;
@@ -58,7 +63,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             Limiter.ONCE,
             new ReplaceTopNWithLimitAndSort(),
             new ReplaceMissingFieldWithNull(),
-            new InferIsNotNull()
+            new InferIsNotNull(),
+            new InferNonNullAggConstraint()
         );
 
         var rules = new ArrayList<Batch<LogicalPlan>>();
@@ -182,6 +188,54 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 wrapper.accept(value);
                 blocks.add(wrapper.builder().build());
             }
+        }
+    }
+
+    /**
+     * The vast majority of aggs ignore null entries - this rule adds a pushable filter, as it is cheap
+     * to execute, to filter this entries out to begin with.
+     * STATS x = min(a), y = sum(b)
+     * becomes
+     * | WHERE a IS NOT NULL OR b IS NOT NULL
+     * | STATS x = min(a), y = sum(b)
+     * <br>
+     * Unfortunately this optimization cannot be applied when grouping is necessary since it can filter out
+     * groups containing only null values
+     */
+    static class InferNonNullAggConstraint extends ParameterizedOptimizerRule<Aggregate, LocalLogicalOptimizerContext> {
+
+        @Override
+        protected LogicalPlan rule(Aggregate aggregate, LocalLogicalOptimizerContext context) {
+            // only look at aggregates with default grouping
+            if (aggregate.groupings().size() > 0) {
+                return aggregate;
+            }
+
+            SearchStats stats = context.searchStats();
+            LogicalPlan plan = aggregate;
+            var aggs = aggregate.aggregates();
+            Set<Expression> nonNullAggFields = Sets.newLinkedHashSetWithExpectedSize(aggs.size());
+            for (var agg : aggs) {
+                if (Alias.unwrap(agg) instanceof AggregateFunction af) {
+                    Expression field = af.field();
+                    // ignore literals (e.g. COUNT(1))
+                    // make sure the field exists at the source and is indexed (not runtime)
+                    if (field.foldable() == false && field instanceof FieldAttribute fa && stats.isIndexed(fa.name())) {
+                        nonNullAggFields.add(field);
+                    } else {
+                        // otherwise bail out since unless disjunction needs to cover _all_ fields, things get filtered out
+                        return plan;
+                    }
+                }
+            }
+
+            if (nonNullAggFields.size() > 0) {
+                Expression condition = Predicates.combineOr(
+                    nonNullAggFields.stream().map(f -> (Expression) new IsNotNull(aggregate.source(), f)).toList()
+                );
+                plan = aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), condition));
+            }
+            return plan;
         }
     }
 

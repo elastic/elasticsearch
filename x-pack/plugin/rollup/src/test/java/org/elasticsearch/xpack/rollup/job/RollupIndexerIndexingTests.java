@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -865,23 +866,25 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            SearchResponse response = new SearchResponse(
-                null,
-                new Aggregations(Collections.singletonList(result)),
-                null,
-                false,
-                null,
-                null,
-                1,
-                null,
-                1,
-                1,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                null
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(
+                    SearchHits.EMPTY_WITH_TOTAL_HITS,
+                    new Aggregations(Collections.singletonList(result)),
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    null
+                )
             );
-            listener.onResponse(response);
         }
 
         @Override

@@ -78,7 +78,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             mock(ShardsAllocator.class)
         ).masterOperation(mock(Task.class), new DesiredBalanceRequest(), ClusterState.EMPTY_STATE, listener);
 
-        var exception = expectThrows(ResourceNotFoundException.class, listener::actionGet);
+        var exception = expectThrows(ResourceNotFoundException.class, listener);
         assertThat(exception.getMessage(), equalTo("Desired balance allocator is not in use, no desired balance found"));
     }
 

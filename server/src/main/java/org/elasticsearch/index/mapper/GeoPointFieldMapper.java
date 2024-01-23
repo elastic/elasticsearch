@@ -357,14 +357,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         return CONTENT_TYPE;
     }
 
-    public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
+    public static class GeoPointFieldType extends AbstractPointFieldType<GeoPoint> implements GeoShapeQueryable {
         private final TimeSeriesParams.MetricType metricType;
 
         public static final GeoFormatterFactory<GeoPoint> GEO_FORMATTER_FACTORY = new GeoFormatterFactory<>(
             List.of(new SimpleVectorTileFormatter())
         );
 
-        private final GeoPoint nullValue;
         private final FieldValues<GeoPoint> scriptValues;
         private final IndexMode indexMode;
 
@@ -380,8 +379,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             TimeSeriesParams.MetricType metricType,
             IndexMode indexMode
         ) {
-            super(name, indexed, stored, hasDocValues, parser, meta);
-            this.nullValue = nullValue;
+            super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
             this.scriptValues = scriptValues;
             this.metricType = metricType;
             this.indexMode = indexMode;
@@ -480,17 +478,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
-        }
-
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
-            }
-            // TODO: Currently we use longs in the compute engine and render to WKT in ESQL
-            return new BlockSourceReader.LongsBlockLoader(
-                valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
-            );
         }
 
         @Override

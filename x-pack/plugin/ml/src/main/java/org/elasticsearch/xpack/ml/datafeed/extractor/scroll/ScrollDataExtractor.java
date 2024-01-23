@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
@@ -126,8 +127,7 @@ class ScrollDataExtractor implements DataExtractor {
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
             scrollId = searchResponse.getScrollId();
-            SearchHit hits[] = searchResponse.getHits().getHits();
-            return processAndConsumeSearchHits(hits);
+            return processAndConsumeSearchHits(searchResponse.getHits());
         } finally {
             searchResponse.decRef();
         }
@@ -184,9 +184,9 @@ class ScrollDataExtractor implements DataExtractor {
     /**
      * IMPORTANT: This is not an idempotent method. This method changes the input array by setting each element to <code>null</code>.
      */
-    private InputStream processAndConsumeSearchHits(SearchHit hits[]) throws IOException {
+    private InputStream processAndConsumeSearchHits(SearchHits hits) throws IOException {
 
-        if (hits == null || hits.length == 0) {
+        if (hits.getHits().length == 0) {
             hasNext = false;
             clearScroll();
             return null;
@@ -194,11 +194,10 @@ class ScrollDataExtractor implements DataExtractor {
 
         BytesStreamOutput outputStream = new BytesStreamOutput();
 
-        SearchHit lastHit = hits[hits.length - 1];
+        SearchHit lastHit = hits.getAt(hits.getHits().length - 1);
         lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
-            for (int i = 0; i < hits.length; i++) {
-                SearchHit hit = hits[i];
+            for (SearchHit hit : hits) {
                 if (isCancelled) {
                     Long timestamp = context.extractedFields.timeFieldValue(hit);
                     if (timestamp != null) {
@@ -212,9 +211,6 @@ class ScrollDataExtractor implements DataExtractor {
                     }
                 }
                 hitProcessor.process(hit);
-                // hack to remove the reference from object. This object can be big and consume alot of memory.
-                // We are removing it as soon as we process it.
-                hits[i] = null;
             }
         }
         return outputStream.bytes().streamInput();
@@ -237,8 +233,7 @@ class ScrollDataExtractor implements DataExtractor {
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
             scrollId = searchResponse.getScrollId();
-            SearchHit hits[] = searchResponse.getHits().getHits();
-            return processAndConsumeSearchHits(hits);
+            return processAndConsumeSearchHits(searchResponse.getHits());
         } finally {
             if (searchResponse != null) {
                 searchResponse.decRef();

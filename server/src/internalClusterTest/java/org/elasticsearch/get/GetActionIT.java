@@ -10,7 +10,6 @@ package org.elasticsearch.get;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -205,10 +205,7 @@ public class GetActionIT extends ESIntegTestCase {
         DocWriteResponse indexResponse = prepareIndex("index1").setId("id").setSource(Collections.singletonMap("foo", "bar")).get();
         assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().prepareGet("alias1", "_alias_id").get()
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, client().prepareGet("alias1", "_alias_id"));
         assertThat(exception.getMessage(), endsWith("can't execute a single index op"));
     }
 
@@ -550,13 +547,13 @@ public class GetActionIT extends ESIntegTestCase {
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get()
+            client().prepareGet(indexOrAlias(), "1").setStoredFields("field1")
         );
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
 
         flush();
 
-        exc = expectThrows(IllegalArgumentException.class, () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get());
+        exc = expectThrows(IllegalArgumentException.class, client().prepareGet(indexOrAlias(), "1").setStoredFields("field1"));
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
     }
 
@@ -644,7 +641,7 @@ public class GetActionIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("flushing");
-        FlushResponse flushResponse = indicesAdmin().prepareFlush("my-index").setForce(true).get();
+        BroadcastResponse flushResponse = indicesAdmin().prepareFlush("my-index").setForce(true).get();
         if (flushResponse.getSuccessfulShards() == 0) {
             StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [").append(
                 flushResponse.getTotalShards()
@@ -822,7 +819,7 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetRemoteIndex() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> client().prepareGet("cluster:index", "id").get());
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, client().prepareGet("cluster:index", "id"));
         assertEquals(
             "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
             iae.getMessage()

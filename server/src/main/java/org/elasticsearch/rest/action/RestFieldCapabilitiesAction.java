@@ -72,7 +72,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         }
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.fieldCaps(fieldRequest, new RestChunkedToXContentListener<>(channel));
+            cancelClient.fieldCaps(fieldRequest, new RestRefCountedChunkedToXContentListener<>(channel));
         };
     }
 

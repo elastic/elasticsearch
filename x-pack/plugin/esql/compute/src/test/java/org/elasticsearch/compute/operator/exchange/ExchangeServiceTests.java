@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -54,8 +55,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -95,11 +94,8 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeSink sink1 = sinkExchanger.createExchangeSink();
         ExchangeSink sink2 = sinkExchanger.createExchangeSink();
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor(ESQL_TEST_EXECUTOR));
-        assertThat(sourceExchanger.refCount(), equalTo(1));
         ExchangeSource source = sourceExchanger.createExchangeSource();
-        assertThat(sourceExchanger.refCount(), equalTo(2));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
-        assertThat(sourceExchanger.refCount(), equalTo(3));
         SubscribableListener<Void> waitForReading = source.waitForReading();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
@@ -137,13 +133,7 @@ public class ExchangeServiceTests extends ESTestCase {
         sink2.finish();
         assertTrue(sink2.isFinished());
         assertTrue(source.isFinished());
-        assertBusy(() -> assertThat(sourceExchanger.refCount(), equalTo(2)));
         source.finish();
-        assertThat(sourceExchanger.refCount(), equalTo(1));
-        CountDownLatch latch = new CountDownLatch(1);
-        sourceExchanger.addCompletionListener(ActionListener.releasing(latch::countDown));
-        sourceExchanger.decRef();
-        assertTrue(latch.await(1, TimeUnit.SECONDS));
         ESTestCase.terminate(threadPool);
         for (Page page : pages) {
             page.releaseBlocks();
@@ -418,9 +408,9 @@ public class ExchangeServiceTests extends ESTestCase {
                                 }
                             }
                         }
-                        origResp.decRef();
-                        ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
-                        super.sendResponse(newResp);
+                        try (var newRespRef = ReleasableRef.of(new ExchangeResponse(page, origResp.finished()))) {
+                            super.sendResponse(newRespRef.get());
+                        }
                     }
                 };
                 handler.messageReceived(request, filterChannel, task);
@@ -476,11 +466,6 @@ public class ExchangeServiceTests extends ESTestCase {
         @Override
         public String getProfileName() {
             return in.getProfileName();
-        }
-
-        @Override
-        public String getChannelType() {
-            return in.getChannelType();
         }
 
         @Override

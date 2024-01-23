@@ -167,12 +167,15 @@ public class TriggeredWatchStore {
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
                 request.scroll(scrollTimeout);
+                response.decRef();
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
             if (response != null) {
+                final String scrollId = response.getScrollId();
+                response.decRef();
                 ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-                clearScrollRequest.addScrollId(response.getScrollId());
+                clearScrollRequest.addScrollId(scrollId);
                 client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }

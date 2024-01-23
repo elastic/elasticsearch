@@ -10,23 +10,33 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -46,10 +56,9 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
 
     @Override
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
         request.query(esqlCommands);
         request.pragmas(pragmas);
-        request.async(true);
         // deliberately small timeout, to frequently trigger incomplete response
         request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
         request.keepOnCompletion(randomBoolean());
@@ -59,12 +68,26 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
 
         var response = run(request);
         if (response.asyncExecutionId().isPresent()) {
+            List<ColumnInfo> initialColumns = null;
+            List<Page> initialPages = null;
             String id = response.asyncExecutionId().get();
-            assertThat(response.isRunning(), is(true));
-            assertThat(response.columns(), is(empty())); // no partial results
-            assertThat(response.pages(), is(empty()));
+            if (response.isRunning() == false) {
+                assertThat(request.keepOnCompletion(), is(true));
+                initialColumns = List.copyOf(response.columns());
+                initialPages = deepCopyOf(response.pages(), TestBlockFactory.getNonBreakingInstance());
+            } else {
+                assertThat(response.columns(), is(empty())); // no partial results
+                assertThat(response.pages(), is(empty()));
+            }
             response.close();
             var getResponse = getAsyncResponse(id);
+
+            // assert initial contents, if any, are the same as async get contents
+            if (initialColumns != null) {
+                assertEquals(initialColumns, getResponse.columns());
+                assertEquals(initialPages, getResponse.pages());
+            }
+
             assertDeletable(id);
             return getResponse;
         } else {
@@ -92,29 +115,49 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
     AcknowledgedResponse deleteAsyncId(String id) {
         try {
             DeleteAsyncResultRequest request = new DeleteAsyncResultRequest(id);
-            return client().execute(DeleteAsyncResultAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+            return client().execute(TransportDeleteAsyncResultAction.TYPE, request).actionGet(30, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102455")
-    // junit.framework.AssertionFailedError: Unexpected exception type, expected VerificationException but got
-    // org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper: verification_exception: Found 1 problem
+    // Overridden to allow for not-serializable wrapper.
     @Override
-    public void testOverlappingIndexPatterns() throws Exception {
-        super.testOverlappingIndexPatterns();
+    protected Exception assertVerificationException(String esqlCommand) {
+        var e = expectThrowsAnyOf(List.of(NotSerializableExceptionWrapper.class, VerificationException.class), () -> run(esqlCommand));
+        if (e instanceof NotSerializableExceptionWrapper wrapper) {
+            assertThat(wrapper.unwrapCause().getMessage(), containsString("verification_exception"));
+        }
+        return e;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102455")
+    // Overridden to allow for not-serializable wrapper.
     @Override
-    public void testIndexPatterns() throws Exception {
-        super.testOverlappingIndexPatterns();
+    protected Exception assertParsingException(String esqlCommand) {
+        var e = expectThrowsAnyOf(List.of(NotSerializableExceptionWrapper.class, ParsingException.class), () -> run(esqlCommand));
+        if (e instanceof NotSerializableExceptionWrapper wrapper) {
+            assertThat(wrapper.unwrapCause().getMessage(), containsString("parsing_exception"));
+        }
+        return e;
     }
 
     public static class LocalStateEsqlAsync extends LocalStateCompositeXPackPlugin {
         public LocalStateEsqlAsync(final Settings settings, final Path configPath) {
             super(settings, configPath);
         }
+    }
+
+    // -- TODO: eventually remove and use common compute test infra
+
+    public static List<Page> deepCopyOf(List<Page> pages, BlockFactory blockFactory) {
+        return pages.stream().map(page -> deepCopyOf(page, blockFactory)).toList();
+    }
+
+    public static Page deepCopyOf(Page page, BlockFactory blockFactory) {
+        Block[] blockCopies = new Block[page.getBlockCount()];
+        for (int i = 0; i < blockCopies.length; i++) {
+            blockCopies[i] = BlockUtils.deepCopyOf(page.getBlock(i), blockFactory);
+        }
+        return new Page(blockCopies);
     }
 }

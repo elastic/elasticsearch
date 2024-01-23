@@ -53,12 +53,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
@@ -195,17 +198,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.fields()));
-        List<NamedExpression> groupings = visitGrouping(ctx.grouping());
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         if (aggregates.isEmpty() && groupings.isEmpty()) {
             throw new ParsingException(source(ctx), "At least one aggregation or grouping expression required in [{}]", ctx.getText());
         }
         // grouping keys are automatically added as aggregations however the user is not allowed to specify them
         if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
-            var groupNames = Expressions.names(groupings);
+            var groupNames = new LinkedHashSet<>(Expressions.names(Expressions.references(groupings)));
 
             for (NamedExpression aggregate : aggregates) {
-                if (aggregate instanceof Alias a && a.child() instanceof UnresolvedAttribute ua && groupNames.contains(ua.name())) {
+                if (Alias.unwrap(aggregate) instanceof UnresolvedAttribute ua && groupNames.contains(ua.name())) {
                     throw new ParsingException(ua.source(), "Cannot specify grouping expression [{}] as an aggregate", ua.name());
                 }
             }
@@ -216,8 +219,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.fields()));
-        List<NamedExpression> groupings = visitGrouping(ctx.grouping());
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
         return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
@@ -226,11 +229,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) {
         Expression expression = expression(ctx.booleanExpression());
         return input -> new Filter(source(ctx), input, expression);
-    }
-
-    @Override
-    public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
-        return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
     }
 
     @Override
@@ -311,27 +309,57 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
         return p -> {
-            String policyName = visitFromIdentifier(ctx.policyName);
+            String policyName = ctx.policyName.getText();
             var source = source(ctx);
+            Mode mode = enrichMode(ctx.setting());
+
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField.name().contains("*")) {
-                throw new ParsingException(
-                    source(ctx),
-                    "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]",
-                    matchField.name()
-                );
+                throw new ParsingException(source, "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", matchField.name());
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
             return new Enrich(
                 source,
                 p,
+                mode,
                 new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD),
                 matchField,
                 null,
+                Map.of(),
                 keepClauses.isEmpty() ? List.of() : keepClauses
             );
         };
+    }
+
+    private Mode enrichMode(List<EsqlBaseParser.SettingContext> setting) {
+        if (setting == null || setting.isEmpty()) {
+            return null;
+        }
+        var s = setting.get(0);
+        var source = source(s);
+        if (setting.size() > 1) {
+            throw new ParsingException(source, "Only one setting allowed for now in ENRICH");
+        }
+        String mode = "ccq.mode";
+
+        var nameText = s.name.getText();
+        if (mode.equals(nameText.toLowerCase(Locale.ROOT)) == false) {
+            throw new ParsingException(source(s.name), "Unsupported setting [{}], expected [{}]", nameText, mode);
+        }
+
+        var valueText = s.value.getText();
+        Enrich.Mode m = Enrich.Mode.from(valueText);
+        if (m == null) {
+            throw new ParsingException(
+                source(s.value),
+                "Unrecognized value [{}], ENRICH [{}] needs to be one of {}",
+                valueText,
+                nameText,
+                Enrich.Mode.values()
+            );
+        }
+        return m;
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

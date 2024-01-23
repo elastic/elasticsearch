@@ -159,7 +159,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         // the old (write) or the new (overwrite) content and both are considered as correct
         // behaviours.
         // This test disrupts reads and relies on the disrupted content to be different from
-        // correct contents to triggered the expected failure. However, in rare cases,
+        // correct contents to trigger the expected failure. However, in rare cases,
         // the disrupted old content could be identical to the new content or vice versa which
         // leads to CI failures. Therefore, we disable rare actions to improve CI stability.
         request.rareActionProbability(0.0);

@@ -54,7 +54,7 @@ class ITUDateTimeFormatter implements DateTimeFormatter {
 
     @Override
     public DateTimeFormatter withLocale(Locale locale) {
-        if (locale.equals(Locale.getDefault()) == false) throw new UnsupportedOperationException("Cannot change locale");
+        //if (locale.equals(Locale.getDefault()) == false) throw new UnsupportedOperationException("Cannot change locale");
         return this;
     }
 

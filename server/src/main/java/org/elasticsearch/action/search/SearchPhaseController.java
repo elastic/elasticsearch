@@ -48,6 +48,7 @@ import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.scriptrank.ScriptRankCoordinatorContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -365,7 +366,15 @@ public final class SearchPhaseController {
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         var fetchResults = fetchResultsArray.asList();
-        final SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+        final SearchHits hits;
+        if (reducedQueryPhase.rankCoordinatorContext instanceof ScriptRankCoordinatorContext) {
+            // needs reducedQueryPhase and fetch results array
+            // need to get the hits back from it (without the script)
+            hits = reducedQueryPhase.rankCoordinatorContext.getHits(reducedQueryPhase, fetchResultsArray);
+        } else {
+            hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+        }
+
         try {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
                 mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
@@ -410,7 +419,7 @@ public final class SearchPhaseController {
         assert currentOffset == sortedDocs.length : "expected no more score doc slices";
     }
 
-    private static SearchHits getHits(
+    public static SearchHits getHits(
         ReducedQueryPhase reducedQueryPhase,
         boolean ignoreFrom,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray
@@ -454,8 +463,8 @@ public final class SearchPhaseController {
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
-                if (reducedQueryPhase.rankCoordinatorContext != null) {
-                    assert shardDoc instanceof RankDoc;
+                if (reducedQueryPhase.rankCoordinatorContext != null && shardDoc instanceof RankDoc) {
+//                    assert shardDoc instanceof RankDoc;
                     searchHit.setRank(((RankDoc) shardDoc).rank);
                 } else if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;

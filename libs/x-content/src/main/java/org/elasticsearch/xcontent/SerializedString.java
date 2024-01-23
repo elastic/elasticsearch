@@ -8,5 +8,4 @@
 
 package org.elasticsearch.xcontent;
 
-public interface SerializedString {
-}
+public interface SerializedString {}

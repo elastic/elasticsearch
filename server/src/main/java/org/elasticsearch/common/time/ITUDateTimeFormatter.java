@@ -10,7 +10,6 @@ package org.elasticsearch.common.time;
 
 import com.ethlo.time.ITU;
 
-import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
@@ -54,7 +53,7 @@ class ITUDateTimeFormatter implements DateTimeFormatter {
 
     @Override
     public DateTimeFormatter withLocale(Locale locale) {
-        //if (locale.equals(Locale.getDefault()) == false) throw new UnsupportedOperationException("Cannot change locale");
+        // if (locale.equals(Locale.getDefault()) == false) throw new UnsupportedOperationException("Cannot change locale");
         return this;
     }
 
@@ -65,16 +64,12 @@ class ITUDateTimeFormatter implements DateTimeFormatter {
 
     @Override
     public TemporalAccessor parse(CharSequence str) throws DateTimeParseException {
-        return new ITUAccessor(ITU.parseLenient(str.toString()));
+        return tryParse(str).orElseThrow(() -> new DateTimeParseException("Could not parse " + str, str, 0));
     }
 
     @Override
     public Optional<TemporalAccessor> tryParse(CharSequence str) {
-        try {
-            return Optional.of(parse(str));
-        } catch (DateTimeException e) {
-            return Optional.empty();
-        }
+        return Optional.ofNullable(DateTimeParser.tryParse(str));
     }
 
     @Override

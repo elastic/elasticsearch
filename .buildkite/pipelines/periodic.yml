@@ -1324,7 +1324,7 @@ steps:
       buildDirectory: /dev/shm/bk
     if: build.branch == "main" || build.branch == "7.17"
   - label: Build and deploy test fixture docker images
-    command: .ci/scripts/fixture-deploy.sh
+    command: .buildkite/scripts/fixture-deploy.sh
     env:
       USE_PROD_DOCKER_CREDENTIALS: "true"
     timeout_in_minutes: 60

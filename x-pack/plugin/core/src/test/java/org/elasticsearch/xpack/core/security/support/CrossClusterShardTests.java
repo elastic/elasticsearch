@@ -69,6 +69,7 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
                             System.out.println("********************");
                             System.out.println(action.getClass().getName());
                             System.out.println(actionName);
+                            //TODO: check that these actions implement CrossClusterShardAction
                         }
                     }
                 }

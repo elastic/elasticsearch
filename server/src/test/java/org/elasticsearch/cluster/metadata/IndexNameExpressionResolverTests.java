@@ -1483,9 +1483,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions.fromOptions(
                 true,
                 contextICE.getOptions().allowNoIndices(),
-                contextICE.getOptions().expandWildcardsOpen(),
-                contextICE.getOptions().expandWildcardsClosed(),
-                contextICE.getOptions()
+                contextICE.getOptions().delegate().expandWildcardsOpen(),
+                contextICE.getOptions().delegate().expandWildcardsClosed(),
+                contextICE.getOptions().delegate()
             ),
             SystemIndexAccessLevel.NONE
         );
@@ -1522,9 +1522,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions.fromOptions(
                 true,
                 context.getOptions().allowNoIndices(),
-                context.getOptions().expandWildcardsOpen(),
-                context.getOptions().expandWildcardsClosed(),
-                context.getOptions()
+                context.getOptions().delegate().expandWildcardsOpen(),
+                context.getOptions().delegate().expandWildcardsClosed(),
+                context.getOptions().delegate()
             ),
             SystemIndexAccessLevel.NONE
         );

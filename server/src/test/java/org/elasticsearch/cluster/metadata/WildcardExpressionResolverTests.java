@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexResolutionContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
@@ -560,7 +561,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         }
 
         {
-            IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(
+            IndexResolutionContext indicesAndAliasesOptions = new IndexResolutionContext(IndicesOptions.fromOptions(
                 randomBoolean(),
                 randomBoolean(),
                 true,
@@ -569,7 +570,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false,
                 false,
                 false
-            );
+            ));
             IndexNameExpressionResolver.Context indicesAliasesAndDataStreamsContext = new IndexNameExpressionResolver.Context(
                 state,
                 indicesAndAliasesOptions,
@@ -616,7 +617,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         }
 
         {
-            IndicesOptions indicesAliasesAndExpandHiddenOptions = IndicesOptions.fromOptions(
+            IndexResolutionContext indicesAliasesAndExpandHiddenOptions = new IndexResolutionContext(IndicesOptions.fromOptions(
                 randomBoolean(),
                 randomBoolean(),
                 true,
@@ -626,7 +627,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false,
                 false,
                 false
-            );
+            ));
             IndexNameExpressionResolver.Context indicesAliasesDataStreamsAndHiddenIndices = new IndexNameExpressionResolver.Context(
                 state,
                 indicesAliasesAndExpandHiddenOptions,

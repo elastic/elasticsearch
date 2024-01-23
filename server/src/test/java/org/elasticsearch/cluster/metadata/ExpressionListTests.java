@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexResolutionContext;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ExpressionList;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ExpressionList.Expression;
@@ -302,7 +303,7 @@ public class ExpressionListTests extends ESTestCase {
 
     private Context getContextWithOptions(IndicesOptions indicesOptions) {
         Context context = mock(Context.class);
-        when(context.getOptions()).thenReturn(indicesOptions);
+        when(context.getOptions()).thenReturn(new IndexResolutionContext(indicesOptions));
         return context;
     }
 }

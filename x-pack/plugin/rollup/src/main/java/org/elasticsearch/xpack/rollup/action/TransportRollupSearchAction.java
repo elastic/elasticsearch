@@ -454,6 +454,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         channel.sendResponse(response);
                     } catch (Exception e) {
                         onFailure(e);
+                    } finally {
+                        // TODO - avoid the implicit incref elsewhere and then replace this whole thing with a ChannelActionListener
+                        response.decRef();
                     }
                 }
 

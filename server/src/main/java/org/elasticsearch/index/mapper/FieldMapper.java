@@ -481,10 +481,6 @@ public abstract class FieldMapper extends Mapper {
                     return new MultiFields(mappers);
                 }
             }
-
-            public int mapperSize() {
-                return mapperBuilders.size();
-            }
         }
 
         private final FieldMapper[] mappers;

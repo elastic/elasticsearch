@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
@@ -33,17 +34,22 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
@@ -58,10 +64,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAccessRequired;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -252,12 +260,10 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
     }
 
-    // TODO: update this IT once we have a `TransportGetFromTranslogAction` to assert Archive functionality using
-    // higher level checks.
     public void testLiveVersionMapArchive() throws Exception {
         final int numberOfShards = 1;
         var indexNode = startIndexNode();
-        startSearchNode();
+        var searchNode = startSearchNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
             prepareCreate(indexName, indexSettings(numberOfShards, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)).get()
@@ -270,19 +276,76 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
         var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
         var map = indexEngine.getLiveVersionMap();
+        if (randomBoolean()) {
+            // Make sure the map is marked as unsafe
+            indexDocs(indexName, randomIntBetween(1, 10));
+            assertTrue(isUnsafe(map));
+        }
+        // Enforce safe access mode
+        client().prepareIndex(indexName).setId(randomIdentifier()).setSource("field1", randomUnicodeOfLength(10)).get();
+        assertTrue(isSafeAccessRequired(map));
         var bulkResponse = client().prepareBulk()
             .add(new IndexRequest(indexName).id("1").source("k1", "v1"))
             .setRefreshPolicy("false")
             .get();
         assertNoFailures(bulkResponse);
         assertNotNull(get(map, "1"));
+        assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
+        // A local refresh doesn't prune the LVM archive
         indexEngine.refresh("test");
         assertNotNull(get(map, "1"));
-        // An explicit refresh would also flush
+        assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
+        final long lastUnsafeGenerationForGets = indexEngine.getLastUnsafeSegmentGenerationForGets();
+        // Create a new commit explicitly where once ack'ed by the unpronmotables we are sure the docs that were
+        // in the archive are visible on the unpromotable shards.
+        var newCommitSeen = new CountDownLatch(1);
+        AtomicLong newCommitGen = new AtomicLong();
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                final var compoundCommit = ((NewCommitNotificationRequest) request).getCompoundCommit();
+                assertEquals(compoundCommit.shardId().getIndexName(), indexName);
+                handler.messageReceived(
+                    request,
+                    new TestTransportChannel(ActionListener.runAfter(new ChannelActionListener<>(channel), () -> {
+                        if (compoundCommit.generation() == newCommitGen.get()) {
+                            newCommitSeen.countDown();
+                        }
+                    })),
+                    task
+                );
+            });
+        indexDocs(indexName, randomIntBetween(1, 10));
+        newCommitGen.set(indexEngine.getLastCommittedSegmentInfos().getGeneration() + 1);
         client().admin().indices().refresh(new RefreshRequest(indexName)).get();
-        // For now use assertBusy to wait for the flush to get propagated to the unpromotables
-        // TODO: replace if this part stays the same when updating the test
-        assertBusy(() -> assertNull(get(map, "1")));
+        safeAwait(newCommitSeen);
+        var getFromTranslogResponse = getFromTranslog(indexShard, "1");
+        assertNull(get(map, "1"));
+        assertNull(getFromTranslogResponse.getResult());
+        assertEquals(getFromTranslogResponse.segmentGeneration(), lastUnsafeGenerationForGets);
+    }
+
+    private TransportGetFromTranslogAction.Response getFromTranslog(IndexShard indexShard, String id) throws Exception {
+        var shardId = indexShard.shardId();
+        var state = clusterService().state();
+        var shardRouting = state.routingTable().shardRoutingTable(shardId).primaryShard();
+        var getRequest = client().prepareGet(shardId.getIndexName(), id).request();
+        var node = state.nodes().get(shardRouting.currentNodeId());
+        assertNotNull(node);
+        TransportGetFromTranslogAction.Request request = new TransportGetFromTranslogAction.Request(getRequest, shardId);
+        var transportService = internalCluster().getInstance(TransportService.class);
+        PlainActionFuture<TransportGetFromTranslogAction.Response> response = new PlainActionFuture<>();
+        // We cannot use a Client since we need to directly send the request to the node where the promotable shard is.
+        transportService.sendRequest(
+            node,
+            TransportGetFromTranslogAction.NAME,
+            request,
+            new ActionListenerResponseHandler<>(
+                response,
+                TransportGetFromTranslogAction.Response::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.SAME)
+            )
+        );
+        return response.get();
     }
 
     public void testRealTimeGetLocalRefreshDuringUnpromotableRefresh() throws Exception {

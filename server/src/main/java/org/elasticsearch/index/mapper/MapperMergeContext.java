@@ -103,7 +103,7 @@ public final class MapperMergeContext {
 
             private long fieldsBudget;
 
-            public Limited(long fieldsBudget) {
+            Limited(long fieldsBudget) {
                 this.fieldsBudget = fieldsBudget;
             }
 

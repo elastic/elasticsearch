@@ -20,7 +20,7 @@ import java.util.Objects;
 public abstract class SpatialAggregateFunction extends AggregateFunction {
     protected final boolean useDocValues;
 
-    public SpatialAggregateFunction(Source source, Expression field, boolean useDocValues) {
+    protected SpatialAggregateFunction(Source source, Expression field, boolean useDocValues) {
         super(source, field);
         this.useDocValues = useDocValues;
     }

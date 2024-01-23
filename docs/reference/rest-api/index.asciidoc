@@ -55,7 +55,6 @@ not be included yet.
 * <<synonyms-apis,Synonyms APIs>>
 * <<text-structure-apis,Text structure APIs>>
 * <<transform-apis,{transform-cap} APIs>>
-* <<test-grok-pattern,Test Grok pattern API>>
 * <<usage-api,Usage API>>
 * <<watcher-api,Watcher APIs>>
 --

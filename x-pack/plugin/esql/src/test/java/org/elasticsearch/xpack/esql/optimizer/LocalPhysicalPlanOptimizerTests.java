@@ -406,7 +406,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
      * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
      *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
-     *       \_EsQueryExec[test], query[{"bool":{"must_not":[{"exists":{"field":"emp_no","boost":1.0}}],"boost":1.0}}][_doc{f}#13], limit[500], sort[] estimatedRowSize[324]
+     *       \_EsQueryExec[test], query[{"bool":{"must_not":[{"exists":{"field":"emp_no","boost":1.0}}],"boost":1.0}}][_doc{f}#13],
+     *         limit[500], sort[] estimatedRowSize[324]
      */
     public void testIsNullPushdownFilter() {
         var plan = plan("from test | where emp_no is null");

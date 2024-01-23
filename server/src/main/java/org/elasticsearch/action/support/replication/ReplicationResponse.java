@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.SerializableString;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -62,9 +63,13 @@ public class ReplicationResponse extends ActionResponse {
     public static class ShardInfo implements Writeable, ToXContentObject {
 
         private static final String TOTAL = "total";
+        private static final SerializableString TOTAL_FIELD = SerializableString.create(TOTAL);
         private static final String SUCCESSFUL = "successful";
+        private static final SerializableString SUCCESSFUL_FIELD = SerializableString.create(SUCCESSFUL);
         private static final String FAILED = "failed";
+        private static final SerializableString FAILED_FIELD = SerializableString.create(FAILED);
         private static final String FAILURES = "failures";
+        private static final SerializableString FAILURES_FIELD = SerializableString.create(FAILURES);
 
         private int total;
         private int successful;
@@ -141,11 +146,11 @@ public class ReplicationResponse extends ActionResponse {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(TOTAL, total);
-            builder.field(SUCCESSFUL, successful);
-            builder.field(FAILED, getFailed());
+            builder.field(TOTAL_FIELD, total);
+            builder.field(SUCCESSFUL_FIELD, successful);
+            builder.field(FAILED_FIELD, getFailed());
             if (failures.length > 0) {
-                builder.startArray(FAILURES);
+                builder.field(FAILURES_FIELD).startArray();
                 for (Failure failure : failures) {
                     failure.toXContent(builder, params);
                 }
@@ -201,11 +206,17 @@ public class ReplicationResponse extends ActionResponse {
         public static class Failure extends ShardOperationFailedException implements ToXContentObject {
 
             private static final String _INDEX = "_index";
+            private static final SerializableString _INDEX_FIELD = SerializableString.create(_INDEX);
             private static final String _SHARD = "_shard";
+            private static final SerializableString _SHARD_FIELD = SerializableString.create(_SHARD);
             private static final String _NODE = "_node";
+            private static final SerializableString _NODE_FIELD = SerializableString.create(_NODE);
             private static final String REASON = "reason";
+            private static final SerializableString REASON_FIELD = SerializableString.create(REASON);
             private static final String STATUS = "status";
+            private static final SerializableString STATUS_FIELD = SerializableString.create(STATUS);
             private static final String PRIMARY = "primary";
+            private static final SerializableString PRIMARY_FIELD = SerializableString.create(PRIMARY);
 
             private final ShardId shardId;
             private final String nodeId;
@@ -260,15 +271,15 @@ public class ReplicationResponse extends ActionResponse {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(_INDEX, shardId.getIndexName());
-                builder.field(_SHARD, shardId.id());
-                builder.field(_NODE, nodeId);
-                builder.field(REASON);
-                builder.startObject();
+                builder.field(_INDEX_FIELD, shardId.getIndexName());
+                builder.field(_SHARD_FIELD, shardId.id());
+                builder.field(_NODE_FIELD, nodeId);
+                builder.field(REASON_FIELD).startObject();
                 ElasticsearchException.generateThrowableXContent(builder, params, cause);
                 builder.endObject();
-                builder.field(STATUS, status);
-                builder.field(PRIMARY, primary);
+                builder.field(STATUS_FIELD);
+                RestStatus.generateXContent(builder, params, status);
+                builder.field(PRIMARY_FIELD).value(primary);
                 builder.endObject();
                 return builder;
             }

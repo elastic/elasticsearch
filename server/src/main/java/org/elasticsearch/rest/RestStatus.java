@@ -12,9 +12,14 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.xcontent.SerializableString;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -526,7 +531,10 @@ public enum RestStatus {
         CODE_TO_STATUS = unmodifiableMap(codeToStatus);
     }
 
-    private int status;
+    private static final Map<RestStatus, SerializableString> STATUS_TO_SERIALIZABLE_STRING = Arrays.stream(RestStatus.values())
+        .collect(Collectors.toUnmodifiableMap(x -> x, x -> SerializableString.create(x.toString())));
+
+    private final int status;
 
     RestStatus(int status) {
         this.status = (short) status;
@@ -569,5 +577,9 @@ public enum RestStatus {
      */
     public static RestStatus fromCode(int code) {
         return CODE_TO_STATUS.get(code);
+    }
+
+    public static void generateXContent(XContentBuilder builder, ToXContent.Params params, RestStatus restStatus) throws IOException {
+        builder.value(restStatus == null ? null : STATUS_TO_SERIALIZABLE_STRING.get(restStatus));
     }
 }

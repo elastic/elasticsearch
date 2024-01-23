@@ -81,6 +81,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class BaseXContentTestCase extends ESTestCase {
 
+    private static final String NULL_STRING = null;
+
     protected abstract XContentType xcontentType();
 
     protected XContentBuilder builder() throws IOException {
@@ -131,7 +133,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     public void testField() throws IOException {
         expectValueException(() -> BytesReference.bytes(builder().field("foo")));
-        expectNonNullFieldException(() -> BytesReference.bytes(builder().field(null)));
+        expectNonNullFieldException(() -> BytesReference.bytes(builder().field(NULL_STRING)));
         expectUnclosedException(() -> BytesReference.bytes(builder().startObject().field("foo")));
 
         assertResult("{'foo':'bar'}", () -> builder().startObject().field("foo").value("bar").endObject());
@@ -139,7 +141,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     public void testNullField() throws IOException {
         expectValueException(() -> BytesReference.bytes(builder().nullField("foo")));
-        expectNonNullFieldException(() -> BytesReference.bytes(builder().nullField(null)));
+        expectNonNullFieldException(() -> BytesReference.bytes(builder().nullField(NULL_STRING)));
         expectUnclosedException(() -> BytesReference.bytes(builder().startObject().nullField("foo")));
 
         assertResult("{'foo':null}", () -> builder().startObject().nullField("foo").endObject());
@@ -929,7 +931,11 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testEnsureNameNotNull() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureNameNotNull(null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureNameNotNull(NULL_STRING));
+        assertThat(e.getMessage(), containsString("Field name cannot be null"));
+
+        ParseField nullField = null;
+        e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureNameNotNull(nullField));
         assertThat(e.getMessage(), containsString("Field name cannot be null"));
     }
 

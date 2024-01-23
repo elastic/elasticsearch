@@ -26,22 +26,33 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.SerializableString;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  */
 public class BulkItemResponse implements Writeable, ToXContentObject {
-
-    private static final String _INDEX = "_index";
-    private static final String _ID = "_id";
+    private static final SerializableString _INDEX_FIELD = SerializableString.create("_index");
+    private static final SerializableString _ID_FIELD = SerializableString.create("_id");
     static final String STATUS = "status";
+    private static final SerializableString STATUS_FIELD = SerializableString.create(STATUS);
     static final String ERROR = "error";
+    private static final SerializableString ERROR_FIELD = SerializableString.create(ERROR);
+
+    public static final SerializableString TYPE_FIELD = SerializableString.create(MapperService.TYPE_FIELD_NAME);
+    public static final SerializableString TYPE_VALUE = SerializableString.create(MapperService.SINGLE_MAPPING_NAME);
+
+    private static final Map<OpType, SerializableString> OP_TYPE__TO_SERIALIZABLE_STRING = Arrays.stream(OpType.values())
+        .collect(Collectors.toUnmodifiableMap(op -> op, op -> SerializableString.create(op.getLowercase())));
 
     public RestStatus status() {
         return failure == null ? response.status() : failure.getStatus();
@@ -50,19 +61,19 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(opType.getLowercase());
+        builder.field(OP_TYPE__TO_SERIALIZABLE_STRING.get(opType)).startObject();
         if (failure == null) {
             response.innerToXContent(builder, params);
-            builder.field(STATUS, response.status().getStatus());
+            builder.field(STATUS_FIELD, response.status().getStatus());
         } else {
-            builder.field(_INDEX, failure.getIndex());
+            builder.field(_INDEX_FIELD, failure.getIndex());
             if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+                builder.field(TYPE_FIELD).value(TYPE_VALUE);
             }
 
-            builder.field(_ID, failure.getId());
-            builder.field(STATUS, failure.getStatus().getStatus());
-            builder.startObject(ERROR);
+            builder.field(_ID_FIELD, failure.getId());
+            builder.field(STATUS_FIELD, failure.getStatus().getStatus());
+            builder.field(ERROR_FIELD).startObject();
             ElasticsearchException.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();
         }

@@ -13,7 +13,6 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonStreamContext;
 import com.fasterxml.jackson.core.base.GeneratorBase;
 import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
-import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
@@ -21,6 +20,7 @@ import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.xcontent.SerializedString;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerationException;
@@ -60,7 +60,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     private final OutputStream os;
 
     private boolean writeLineFeedAtEnd;
-    private static final SerializedString LF = new SerializedString("\n");
+    private static final com.fasterxml.jackson.core.io.SerializedString LF = new com.fasterxml.jackson.core.io.SerializedString("\n");
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
 
@@ -188,6 +188,12 @@ public class JsonXContentGenerator implements XContentGenerator {
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }
+    }
+
+    @Override
+    public SerializedString serializeString(String s) {
+        com.fasterxml.jackson.core.io.SerializedString serializedString = new com.fasterxml.jackson.core.io.SerializedString(s);
+        return () -> generator.writeFieldName(serializedString);
     }
 
     @Override
@@ -359,6 +365,15 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeString(String value) throws IOException {
         try {
             generator.writeString(value);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
+    }
+
+    @Override
+    public void writeSerializedString(SerializedString value) throws IOException {
+        try {
+            value.write();
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }

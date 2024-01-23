@@ -31,6 +31,8 @@ public class ParseField {
 
     private static final String[] EMPTY = new String[0];
 
+    private final SerializableString serializableName;
+
     private ParseField(
         String name,
         Predicate<RestApiVersion> forRestApiVersion,
@@ -39,6 +41,7 @@ public class ParseField {
         String allReplacedWith
     ) {
         this.name = name;
+        this.serializableName = SerializableString.create(name);
         this.fullyDeprecated = fullyDeprecated;
         this.allReplacedWith = allReplacedWith;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
@@ -72,6 +75,10 @@ public class ParseField {
      */
     public String getPreferredName() {
         return name;
+    }
+
+    public SerializableString getSerializableName() {
+        return serializableName;
     }
 
     /**

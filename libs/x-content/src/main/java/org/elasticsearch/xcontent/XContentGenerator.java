@@ -80,6 +80,8 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeString(char[] text, int offset, int len) throws IOException;
 
+    void writeSerializedString(SerializedString serializedString) throws IOException;
+
     void writeUTF8String(byte[] value, int offset, int length) throws IOException;
 
     void writeBinaryField(String name, byte[] value) throws IOException;
@@ -161,4 +163,6 @@ public interface XContentGenerator extends Closeable, Flushable {
      */
     boolean isClosed();
 
+    // TODO: should this belong to another interface?
+    SerializedString serializeString(String name);
 }

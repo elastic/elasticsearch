@@ -12,5 +12,6 @@ import java.io.IOException;
 
 public interface SerializedString {
     void writeField() throws IOException;
+
     void writeValue() throws IOException;
 }

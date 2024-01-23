@@ -154,6 +154,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
+        // Rare actions such as writeAndOverwrite and earlyReads can lead to CI instability
+        request.rareActionProbability(0.0);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
 

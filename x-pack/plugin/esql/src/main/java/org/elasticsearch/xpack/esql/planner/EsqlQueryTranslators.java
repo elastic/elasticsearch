@@ -62,7 +62,7 @@ public class EsqlQueryTranslators {
 
             // Comparisons with multi-values always return null in ESQL.
             if (value instanceof List<?>) {
-                return new MatchAll(Source.EMPTY).negate(source);
+                return new MatchAll(source).negate(source);
             }
 
             DataType valueType = bc.right().dataType();
@@ -76,7 +76,7 @@ public class EsqlQueryTranslators {
             }
 
             if (Double.isNaN(((Number) value).doubleValue())) {
-                return new MatchAll(Source.EMPTY).negate(source);
+                return new MatchAll(source).negate(source);
             }
 
             boolean matchAllOrNone;
@@ -92,7 +92,7 @@ public class EsqlQueryTranslators {
                 throw new QlIllegalArgumentException("Unknown binary comparison [{}]", bc);
             }
 
-            return matchAllOrNone ? new MatchAll(source) : new MatchAll(Source.EMPTY).negate(source);
+            return matchAllOrNone ? new MatchAll(source) : new MatchAll(source).negate(source);
         }
 
         private static final BigDecimal HALF_FLOAT_MAX = BigDecimal.valueOf(65504);

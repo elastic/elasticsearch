@@ -88,8 +88,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final String DOCUMENT_TEMPLATE = """
         {"index":{"_id":"{}"}}
         {"boolean": {}, "byte": {}, "date": {}, "double": {}, "float": {}, "half_float": {}, "scaled_float": {}, "integer": {},""" + """
-        "ip": "127.0.0.{}", "keyword": "keyword{}", "long": {}, "unsigned_long": {}, "short": {}, "text": "text{}",""" + """
-         "version": "1.2.{}", "wildcard": "wildcard{}"}
+        "ip": {}, "keyword": {}, "long": {}, "unsigned_long": {}, "short": {}, "text": {},""" + """
+         "version": {}, "wildcard": {}}
         """;
 
     // larger than any (unsigned) long
@@ -351,13 +351,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String humongousPositiveLiteral = randomBoolean() ? HUMONGOUS_DOUBLE : INFINITY;
         String nanOrNull = randomBoolean() ? NAN : "to_double(null)";
 
-        List<String> trueForSingleValuesComparisons = List.of(
+        List<String> trueForSingleValuesPredicates = List.of(
             lessOrLessEqual + humongousPositiveLiteral,
             largerOrLargerEqual + " -" + humongousPositiveLiteral,
             inEqualPlusMinus + humongousPositiveLiteral,
             inEqualPlusMinus + NAN
         );
-        List<String> alwaysFalseComparisons = List.of(
+        List<String> alwaysFalsePredicates = List.of(
             lessOrLessEqual + " -" + humongousPositiveLiteral,
             largerOrLargerEqual + humongousPositiveLiteral,
             equalPlusMinus + humongousPositiveLiteral,
@@ -368,37 +368,30 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
 
         for (String fieldWithType : dataTypes) {
-            for (String trueComparison : trueForSingleValuesComparisons) {
-                var query = builder().query(
-                    LoggerMessageFormat.format(null, "from {} | where {} {}", testIndexName(), fieldWithType, trueComparison)
+            for (String truePredicate : trueForSingleValuesPredicates) {
+                String comparison = fieldWithType + truePredicate;
+                var query = builder().query(LoggerMessageFormat.format(null, "from {} | where {}", testIndexName(), comparison));
+                List<String> expectedWarnings = List.of(
+                    "Line 1:29: evaluation of [" + comparison + "] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value"
                 );
-                var result = runEsql(query);
+                var result = runEsql(query, expectedWarnings, mode);
 
                 var values = (ArrayList) result.get("values");
                 assertThat(
-                    LoggerMessageFormat.format(
-                        null,
-                        "Comparison [{} {}] should return all rows with single values.",
-                        fieldWithType,
-                        trueComparison
-                    ),
+                    LoggerMessageFormat.format(null, "Comparison [{}] should return all rows with single values.", comparison),
                     values.size(),
                     is(NUM_SINGLE_VALUE_ROWS)
                 );
             }
 
-            for (String falseComparison : alwaysFalseComparisons) {
-                var query = builder().query(
-                    LoggerMessageFormat.format(null, "from {} | where {} {}", testIndexName(), fieldWithType, falseComparison)
-                );
+            for (String falsePredicate : alwaysFalsePredicates) {
+                String comparison = fieldWithType + falsePredicate;
+                var query = builder().query(LoggerMessageFormat.format(null, "from {} | where {}", testIndexName(), comparison));
                 var result = runEsql(query);
 
                 var values = (ArrayList) result.get("values");
-                assertThat(
-                    LoggerMessageFormat.format(null, "Comparison [{} {}] should return no rows.", fieldWithType, falseComparison),
-                    values.size(),
-                    is(0)
-                );
+                assertThat(LoggerMessageFormat.format(null, "Comparison [{}] should return no rows.", comparison), values.size(), is(0));
             }
         }
     }
@@ -865,14 +858,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             (i + 0.1),
             (i + 0.1),
             i,
-            (i % 256),
-            i,
+            "\"127.0.0." + (i % 256) + "\"",
+            "\"keyword" + i + "\"",
             i,
             i,
             (i % Short.MAX_VALUE),
-            i,
-            i,
-            i
+            "\"text" + i + "\"",
+            "\"1.2." + i + "\"",
+            "\"wildcard" + i + "\""
         );
     }
 
@@ -888,14 +881,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             repeatValueAsMV(i + 0.1),
             repeatValueAsMV(i + 0.1),
             repeatValueAsMV(i),
-            repeatValueAsMV(i % 256),
-            repeatValueAsMV(i),
+            repeatValueAsMV("\"127.0.0." + (i % 256) + "\""),
+            repeatValueAsMV("\"keyword" + i + "\""),
             repeatValueAsMV(i),
             repeatValueAsMV(i),
             repeatValueAsMV(i % Short.MAX_VALUE),
-            repeatValueAsMV(i),
-            repeatValueAsMV(i),
-            repeatValueAsMV(i)
+            repeatValueAsMV("\"text" + i + "\""),
+            repeatValueAsMV("\"1.2." + i + "\""),
+            repeatValueAsMV("\"wildcard" + i + "\"")
         );
     }
 

@@ -34,7 +34,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
@@ -48,14 +47,13 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         String recoverySourceField,
         boolean pruneIdField,
         Supplier<Query> retainSourceQuerySupplier,
-        LocalCheckpointTracker checkpointTracker,
         MergePolicy in
     ) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(recoverySourceField, pruneIdField, wrapped, retainSourceQuerySupplier, checkpointTracker);
+                return wrapReader(recoverySourceField, pruneIdField, wrapped, retainSourceQuerySupplier);
             }
         });
     }
@@ -64,8 +62,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         String recoverySourceField,
         boolean pruneIdField,
         CodecReader reader,
-        Supplier<Query> retainSourceQuerySupplier,
-        LocalCheckpointTracker checkpointTracker
+        Supplier<Query> retainSourceQuerySupplier
     ) throws IOException {
         NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
@@ -83,9 +80,9 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
                 return reader; // keep all source
             }
-            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, recoverySourceToKeep, checkpointTracker);
+            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, recoverySourceToKeep);
         } else {
-            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, null, checkpointTracker);
+            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, null);
         }
     }
 
@@ -93,20 +90,12 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         private final BitSet recoverySourceToKeep;
         private final String recoverySourceField;
         private final boolean pruneIdField;
-        private final LocalCheckpointTracker checkpointTracker;
 
-        SourcePruningFilterCodecReader(
-            String recoverySourceField,
-            boolean pruneIdField,
-            CodecReader reader,
-            BitSet recoverySourceToKeep,
-            LocalCheckpointTracker checkpointTracker
-        ) {
+        SourcePruningFilterCodecReader(String recoverySourceField, boolean pruneIdField, CodecReader reader, BitSet recoverySourceToKeep) {
             super(reader);
             this.recoverySourceField = recoverySourceField;
             this.recoverySourceToKeep = recoverySourceToKeep;
             this.pruneIdField = pruneIdField;
-            this.checkpointTracker = checkpointTracker;
         }
 
         @Override
@@ -163,7 +152,9 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         @Override
         public FieldsProducer getPostingsReader() {
             FieldsProducer postingsReader = super.getPostingsReader();
-            if (postingsReader == null || pruneIdField == false) {
+            if (postingsReader == null
+                || pruneIdField == false
+                || (recoverySourceToKeep != null && recoverySourceToKeep.cardinality() > 0)) {
                 return postingsReader;
             }
             return new FieldsProducer() {
@@ -184,11 +175,10 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
                 @Override
                 public Terms terms(String field) throws IOException {
-                    Terms in = postingsReader.terms(field);
-                    if (IdFieldMapper.NAME.equals(field) && in != null && checkpointTracker.hasProcessed(checkpointTracker.getMaxSeqNo())) {
+                    if (IdFieldMapper.NAME.equals(field)) {
                         return null;
                     }
-                    return in;
+                    return postingsReader.terms(field);
                 }
 
                 @Override

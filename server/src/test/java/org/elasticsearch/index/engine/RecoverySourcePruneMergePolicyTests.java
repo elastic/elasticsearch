@@ -33,7 +33,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.NullInfoStream;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -51,7 +50,6 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                 "extra_source",
                 pruneIdField,
                 MatchNoDocsQuery::new,
-                new LocalCheckpointTracker(0, 0),
                 newLogMergePolicy()
             );
             iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
@@ -130,7 +128,6 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                     "extra_source",
                     pruneIdField,
                     () -> new TermQuery(new Term("even", "true")),
-                    new LocalCheckpointTracker(0, 0),
                     iwc.getMergePolicy()
                 )
             );
@@ -176,15 +173,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneNone() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setMergePolicy(
-                new RecoverySourcePruneMergePolicy(
-                    "extra_source",
-                    false,
-                    MatchAllDocsQuery::new,
-                    new LocalCheckpointTracker(0, 0),
-                    iwc.getMergePolicy()
-                )
-            );
+            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source", false, MatchAllDocsQuery::new, iwc.getMergePolicy()));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {

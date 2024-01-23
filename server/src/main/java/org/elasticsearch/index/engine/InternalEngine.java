@@ -2678,7 +2678,6 @@ public class InternalEngine extends Engine {
             SourceFieldMapper.RECOVERY_SOURCE_NAME,
             engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
             softDeletesPolicy::getRetentionQuery,
-            getLocalCheckpointTracker(),
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,
                 softDeletesPolicy::getRetentionQuery,

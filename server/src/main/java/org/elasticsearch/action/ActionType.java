@@ -28,7 +28,6 @@ import org.elasticsearch.transport.TransportService;
 public class ActionType<Response extends ActionResponse> {
 
     private final String name;
-    private final Writeable.Reader<Response> responseReader;
 
     /**
      * Construct an {@link ActionType} which callers can execute on the local node (using {@link NodeClient}).
@@ -57,12 +56,9 @@ public class ActionType<Response extends ActionResponse> {
      * several utilities that help implement such an action, including {@link TransportNodesAction} or {@link TransportMasterNodeAction}.
      *
      * @param name           The name of the action, which must be unique across actions.
-     * @param responseReader Defines how to deserialize responses received from executions of this action on remote clusters. Effectively
-     *                       unused.
      */
-    public ActionType(String name, Writeable.Reader<Response> responseReader) {
+    public ActionType(String name, Writeable.Reader<Response> ignored) {
         this.name = name;
-        this.responseReader = responseReader;
     }
 
     /**
@@ -70,13 +66,6 @@ public class ActionType<Response extends ActionResponse> {
      */
     public String name() {
         return this.name;
-    }
-
-    /**
-     * Get a reader that can read a response from a {@link org.elasticsearch.common.io.stream.StreamInput}.
-     */
-    public Writeable.Reader<Response> getResponseReader() {
-        return responseReader;
     }
 
     @Override

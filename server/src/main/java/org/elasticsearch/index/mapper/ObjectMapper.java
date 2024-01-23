@@ -408,7 +408,7 @@ public class ObjectMapper extends Mapper {
      * This is typically used in the context of a mapper merge when there's not enough budget to add the entire object.
      */
     ObjectMapper withoutMappers() {
-        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, null);
+        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, Map.of());
     }
 
     @Override

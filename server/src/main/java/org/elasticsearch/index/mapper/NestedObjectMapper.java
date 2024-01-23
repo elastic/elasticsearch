@@ -191,7 +191,7 @@ public class NestedObjectMapper extends ObjectMapper {
         return new NestedObjectMapper(
             simpleName(),
             fullPath(),
-            null,
+            Map.of(),
             enabled,
             dynamic,
             includeInParent,

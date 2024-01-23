@@ -1,0 +1,12 @@
+[role="xpack"]
+[[text-structure-apis]]
+== Text structure APIs
+
+You can use the following APIs to find text structures:
+
+* <<find-structure>>
+* <<text-grok-pattern>>
+
+include::find-structure.asciidoc[leveloffset=+1]
+include::test-grok-pattern.asciidoc[leveloffset=+1]
+

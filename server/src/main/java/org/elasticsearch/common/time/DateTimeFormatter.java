@@ -20,6 +20,8 @@ interface DateTimeFormatter {
 
     Locale getLocale();
 
+    String getFormatString();
+
     DateTimeFormatter withZone(ZoneId zoneId);
 
     DateTimeFormatter withLocale(Locale locale);

@@ -40,7 +40,7 @@ class JavaDateFormatter implements DateFormatter {
     * without this logic, the rounding would result in a conflict as HOUR_OF_DAY would be missing, but CLOCK_HOUR_OF_AMPM would be provided
     */
     private static final BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> DEFAULT_ROUND_UP = (builder, parser) -> {
-        String parserAsString = parser.toString();
+        String parserAsString = parser.getFormatString();
         if (parserAsString.contains(ChronoField.DAY_OF_YEAR.toString())) {
             builder.parseDefaulting(ChronoField.DAY_OF_YEAR, 1L);
             // TODO ideally we should make defaulting for weekbased year here too,

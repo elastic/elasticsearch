@@ -8,66 +8,77 @@
 
 package org.elasticsearch.common.time;
 
-import java.text.ParsePosition;
+import com.ethlo.time.ITU;
+
+import java.time.DateTimeException;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 
-class JavaTimeDateTimeFormatter implements DateTimeFormatter {
+class ITUDateTimeFormatter implements DateTimeFormatter {
 
-    private final java.time.format.DateTimeFormatter formatter;
+    private final ZoneId zoneId;
 
-    JavaTimeDateTimeFormatter(java.time.format.DateTimeFormatter formatter) {
-        this.formatter = formatter;
+    ITUDateTimeFormatter() {
+        zoneId = null;
+    }
+
+    private ITUDateTimeFormatter(ZoneId zoneId) {
+        this.zoneId = zoneId;
     }
 
     @Override
     public ZoneId getZone() {
-        return formatter.getZone();
+        return zoneId;
     }
 
     @Override
     public Locale getLocale() {
-        return formatter.getLocale();
+        return Locale.getDefault();
     }
 
     @Override
     public String getFormatString() {
-        return formatter.toString();
+        return java.time.format.DateTimeFormatter.ISO_DATE_TIME.toString();
     }
 
     @Override
     public DateTimeFormatter withZone(ZoneId zoneId) {
-        return new JavaTimeDateTimeFormatter(formatter.withZone(zoneId));
+        return Objects.equals(zoneId, this.zoneId) ? this : new ITUDateTimeFormatter(zoneId);
     }
 
     @Override
     public DateTimeFormatter withLocale(Locale locale) {
-        return new JavaTimeDateTimeFormatter(formatter.withLocale(locale));
+        if (locale.equals(Locale.getDefault()) == false) throw new UnsupportedOperationException("Cannot change locale");
+        return this;
     }
 
     @Override
     public void applyToBuilder(DateTimeFormatterBuilder builder) {
-        builder.append(formatter);
+        builder.append(java.time.format.DateTimeFormatter.ISO_DATE_TIME);
     }
 
     @Override
     public TemporalAccessor parse(CharSequence str) throws DateTimeParseException {
-        return formatter.parse(str);
+        return ITU.parseLenient(str.toString());
     }
 
     @Override
     public Optional<TemporalAccessor> tryParse(CharSequence str) {
-        ParsePosition pos = new ParsePosition(0);
-        return Optional.ofNullable((TemporalAccessor) formatter.toFormat().parseObject(str.toString(), pos))
-            .filter(ta -> pos.getIndex() == str.length());
+        try {
+            return Optional.of(parse(str));
+        } catch (DateTimeException e) {
+            return Optional.empty();
+        }
     }
 
     @Override
     public String format(TemporalAccessor accessor) {
-        return formatter.format(accessor);
+        return ITU.format(OffsetDateTime.from(accessor));
     }
 }

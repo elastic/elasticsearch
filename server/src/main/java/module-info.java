@@ -37,6 +37,7 @@ module org.elasticsearch.server {
     requires jopt.simple;
     requires log4j2.ecs.layout;
     requires org.lz4.java;
+    requires com.ethlo.time;
 
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;

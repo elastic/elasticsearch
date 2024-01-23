@@ -157,8 +157,8 @@ public class DateFormatters {
      */
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME = new JavaDateFormatter(
         "strict_date_optional_time",
-        STRICT_DATE_OPTIONAL_TIME_PRINTER,
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER
+        new ITUDateTimeFormatter(),
+        new ITUDateTimeFormatter()
     );
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS = new DateTimeFormatterBuilder().append(
@@ -213,8 +213,8 @@ public class DateFormatters {
      */
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter(
         "strict_date_optional_time_nanos",
-        STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS,
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS
+        new ITUDateTimeFormatter(),
+        new ITUDateTimeFormatter()
     );
 
     /**

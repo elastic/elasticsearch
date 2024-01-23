@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -57,7 +56,7 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(QueryApiKeyAction.NAME, transportService, actionFilters, QueryApiKeyRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(QueryApiKeyAction.NAME, actionFilters, transportService.getTaskManager());
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }

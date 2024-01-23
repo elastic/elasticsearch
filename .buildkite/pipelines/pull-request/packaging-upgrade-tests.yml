@@ -5,7 +5,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / $BWC_VERSION / packaging-tests-upgrade"
         key: "packaging-tests-upgrade:$BWC_VERSION_SNAKE"
-        command: ./.ci/scripts/packaging-test.sh destructiveDistroUpgradeTest.v$BWC_VERSION
+        command: docker buildx create --use && ./.ci/scripts/packaging-test.sh destructiveDistroUpgradeTest.v$BWC_VERSION
         timeout_in_minutes: 300
         bwc_template: true
         matrix:

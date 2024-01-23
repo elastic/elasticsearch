@@ -808,12 +808,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 );
                 for (String rolloverTarget : rolloverTargets) {
                     logger.info(
-                        "rolling over data stream [{}] as a followup to the upgrade of the [{}] index template [{}]",
+                        "rolling over data stream [{}] lazily as a followup to the upgrade of the [{}] index template [{}]",
                         rolloverTarget,
                         getOrigin(),
                         templateName
                     );
                     RolloverRequest request = new RolloverRequest(rolloverTarget, null);
+                    request.lazy(true);
                     request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),

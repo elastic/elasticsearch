@@ -145,7 +145,7 @@ public final class EsqlTestUtils {
     }
 
     public static EnrichResolution emptyPolicyResolution() {
-        return new EnrichResolution(Set.of(), Set.of());
+        return new EnrichResolution();
     }
 
     public static SearchStats statsForMissingField(String... names) {

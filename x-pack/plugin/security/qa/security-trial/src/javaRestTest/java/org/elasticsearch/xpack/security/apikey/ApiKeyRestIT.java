@@ -732,6 +732,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         for (String restTypeQuery : List.of("""
             {"query": {"term": {"type": "rest" }}}""", """
             {"query": {"bool": {"must_not": {"term": {"type": "cross_cluster"}}}}}""", """
+            {"query": {"simple_query_string": {"query": "re* rest -cross_cluster", "fields": ["ty*"]}}}""", """
+            {"query": {"simple_query_string": {"query": "-cross*", "fields": ["type"]}}}""", """
             {"query": {"prefix": {"type": "re" }}}""", """
             {"query": {"wildcard": {"type": "r*t" }}}""", """
             {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
@@ -747,6 +749,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         for (String crossClusterTypeQuery : List.of("""
             {"query": {"term": {"type": "cross_cluster" }}}""", """
             {"query": {"bool": {"must_not": {"term": {"type": "rest"}}}}}""", """
+            {"query": {"simple_query_string": {"query": "cro* cross_cluster -re*", "fields": ["ty*"]}}}""", """
+            {"query": {"simple_query_string": {"query": "-re*", "fields": ["type"]}}}""", """
             {"query": {"prefix": {"type": "cro" }}}""", """
             {"query": {"wildcard": {"type": "*oss_*er" }}}""", """
             {"query": {"range": {"type": {"gte": "cross", "lte": "zzzz"}}}}""")) {

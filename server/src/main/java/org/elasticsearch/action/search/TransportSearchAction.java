@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -24,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -112,7 +112,8 @@ import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
     public static final String NAME = "indices:data/read/search";
-    public static final ActionType<SearchResponse> TYPE = new ActionType<>(NAME, SearchResponse::new);
+    public static final ActionType<SearchResponse> TYPE = ActionType.localOnly(NAME);
+    public static final RemoteClusterActionType<SearchResponse> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, SearchResponse::new);
     private static final Logger logger = LogManager.getLogger(TransportSearchAction.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportSearchAction.class);
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
@@ -526,12 +527,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider.absoluteStartMillis(),
                 true
             );
-            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                threadPool,
-                clusterAlias,
-                remoteClientResponseExecutor
-            );
-            remoteClusterClient.search(ccsSearchRequest, new ActionListener<>() {
+            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(clusterAlias, remoteClientResponseExecutor);
+            remoteClusterClient.execute(TransportSearchAction.REMOTE_TYPE, ccsSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // overwrite the existing cluster entry with the updated one
@@ -609,12 +606,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task.getProgressListener(),
                     listener
                 );
-                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                    threadPool,
-                    clusterAlias,
-                    remoteClientResponseExecutor
-                );
-                remoteClusterClient.search(ccsSearchRequest, ccsListener);
+                final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(clusterAlias, remoteClientResponseExecutor);
+                remoteClusterClient.execute(TransportSearchAction.REMOTE_TYPE, ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
@@ -716,7 +709,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     final String[] indices = entry.getValue().indices();
                     final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                     // TODO: support point-in-time
-                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                             indices,
                             indicesOptions,

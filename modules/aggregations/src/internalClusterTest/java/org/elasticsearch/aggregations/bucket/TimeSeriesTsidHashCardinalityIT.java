@@ -163,9 +163,14 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
             .setSize(0)
             .addAggregation(new TimeSeriesAggregationBuilder("ts"))
             .get();
-        final InternalTimeSeries beforeTimeSeries = searchBefore.getAggregations().get("ts");
-        final InternalTimeSeries afterTimeSeries = searchAfter.getAggregations().get("ts");
-        assertEquals(beforeTimeSeries.getBuckets().size(), afterTimeSeries.getBuckets().size());
+        try {
+            final InternalTimeSeries beforeTimeSeries = searchBefore.getAggregations().get("ts");
+            final InternalTimeSeries afterTimeSeries = searchAfter.getAggregations().get("ts");
+            assertEquals(beforeTimeSeries.getBuckets().size(), afterTimeSeries.getBuckets().size());
+        } finally {
+            searchBefore.decRef();
+            searchAfter.decRef();
+        }
     }
 
     static class Dimension implements Comparable<Dimension> {

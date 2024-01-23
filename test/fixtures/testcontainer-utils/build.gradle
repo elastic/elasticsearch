@@ -11,8 +11,6 @@ dependencies {
   implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "com.github.docker-java:docker-java-api:${versions.dockerJava}"
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   runtimeOnly "com.github.docker-java:docker-java-transport-zerodep:${versions.dockerJava}"
   runtimeOnly "com.github.docker-java:docker-java-transport:${versions.dockerJava}"
   runtimeOnly "com.github.docker-java:docker-java-core:${versions.dockerJava}"

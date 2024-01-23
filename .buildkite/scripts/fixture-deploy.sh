@@ -6,4 +6,4 @@ echo "$DOCKER_REGISTRY_PASSWORD" | docker login -u "$DOCKER_REGISTRY_USERNAME" -
 unset DOCKER_REGISTRY_USERNAME DOCKER_REGISTRY_PASSWORD
 
 docker buildx create --use
-.ci/scripts/run-gradle.sh buildAndPublishFixtureDockerImages
+.ci/scripts/run-gradle.sh deployFixtureDockerImages

@@ -217,7 +217,7 @@ public abstract class DockerBuildTask extends DefaultTask {
             // to do proper up-to-date checks in Gradle.
             try {
                 // multi-platform image builds do not end up in local registry, so we need to pull the just build image
-                // first to get the checksum
+                // first to get the checksum and also serves as a test for the image being pushed correctly
                 if (parameters.getPlatforms().get().size() > 1 && parameters.getPush().getOrElse(false)) {
                     pullBaseImage(tags.get(0));
                 }

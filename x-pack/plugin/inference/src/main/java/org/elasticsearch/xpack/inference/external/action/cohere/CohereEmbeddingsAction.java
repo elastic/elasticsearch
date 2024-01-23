@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.getErrorMessage;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class CohereEmbeddingsAction implements ExecutableAction {
@@ -37,13 +37,19 @@ public class CohereEmbeddingsAction implements ExecutableAction {
 
     private final CohereAccount account;
     private final CohereEmbeddingsModel model;
-    private final String errorMessage;
+    private final String failedToSendRequestErrorMessage;
     private final RetryingHttpSender sender;
 
     public CohereEmbeddingsAction(Sender sender, CohereEmbeddingsModel model, ServiceComponents serviceComponents) {
         this.model = Objects.requireNonNull(model);
-        this.account = new CohereAccount(this.model.getServiceSettings().uri(), this.model.getSecretSettings().apiKey());
-        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri(), "Cohere embeddings");
+        this.account = new CohereAccount(
+            this.model.getServiceSettings().getCommonSettings().getUri(),
+            this.model.getSecretSettings().apiKey()
+        );
+        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
+            this.model.getServiceSettings().getCommonSettings().getUri(),
+            "Cohere embeddings"
+        );
         this.sender = new RetryingHttpSender(
             Objects.requireNonNull(sender),
             serviceComponents.throttlerManager(),
@@ -56,14 +62,23 @@ public class CohereEmbeddingsAction implements ExecutableAction {
     @Override
     public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
-            CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(account, input, model.getTaskSettings());
-            ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
+            CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(
+                account,
+                input,
+                model.getTaskSettings(),
+                model.getServiceSettings().getCommonSettings().getModel(),
+                model.getServiceSettings().getEmbeddingType()
+            );
+            ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(
+                failedToSendRequestErrorMessage,
+                listener
+            );
 
             sender.send(request, HANDLER, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {
-            listener.onFailure(createInternalServerError(e, errorMessage));
+            listener.onFailure(createInternalServerError(e, failedToSendRequestErrorMessage));
         }
     }
 

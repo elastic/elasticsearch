@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_UrlDefined() throws URISyntaxException, IOException {
-        var request = createRequest("url", "secret", List.of("abc"), CohereEmbeddingsTaskSettings.EMPTY_SETTINGS);
+        var request = createRequest("url", "secret", List.of("abc"), CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null);
 
         var httpRequest = request.createRequest();
         MatcherAssert.assertThat(httpRequest, instanceOf(HttpPost.class));
@@ -52,7 +52,9 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
             "url",
             "secret",
             List.of("abc"),
-            new CohereEmbeddingsTaskSettings("model", InputType.INGEST, CohereEmbeddingType.FLOAT, CohereTruncation.START)
+            new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START),
+            "model",
+            CohereEmbeddingType.FLOAT
         );
 
         var httpRequest = request.createRequest();
@@ -89,7 +91,9 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
             "url",
             "secret",
             List.of("abc"),
-            new CohereEmbeddingsTaskSettings("model", InputType.SEARCH, CohereEmbeddingType.INT8, CohereTruncation.END)
+            new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.END),
+            "model",
+            CohereEmbeddingType.INT8
         );
 
         var httpRequest = request.createRequest();
@@ -126,7 +130,9 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
             "url",
             "secret",
             List.of("abc"),
-            new CohereEmbeddingsTaskSettings(null, null, null, CohereTruncation.NONE)
+            new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE),
+            null,
+            null
         );
 
         var httpRequest = request.createRequest();
@@ -146,11 +152,13 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         @Nullable String url,
         String apiKey,
         List<String> input,
-        CohereEmbeddingsTaskSettings taskSettings
+        CohereEmbeddingsTaskSettings taskSettings,
+        @Nullable String model,
+        @Nullable CohereEmbeddingType embeddingType
     ) throws URISyntaxException {
         var uri = url == null ? null : new URI(url);
 
         var account = new CohereAccount(uri, new SecureString(apiKey.toCharArray()));
-        return new CohereEmbeddingsRequest(account, input, taskSettings);
+        return new CohereEmbeddingsRequest(account, input, taskSettings, model, embeddingType);
     }
 }

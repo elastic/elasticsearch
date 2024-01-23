@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
@@ -138,8 +139,12 @@ public class ServiceUtils {
     }
 
     // TODO improve URI validation logic
-    public static URI convertToUri(String url, String settingName, String settingScope, ValidationException validationException) {
+    public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
+            if (url == null) {
+                return null;
+            }
+
             return createUri(url);
         } catch (IllegalArgumentException ignored) {
             validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope));

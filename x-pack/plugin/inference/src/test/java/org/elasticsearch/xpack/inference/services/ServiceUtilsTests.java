@@ -105,10 +105,11 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(uri.toString(), is("www.elastic.co"));
     }
 
-    public void testConvertToUri_ThrowsNullPointerException_WhenPassedNull() {
+    public void testConvertToUri_DoesNotThrowNullPointerException_WhenPassedNull() {
         var validation = new ValidationException();
-        expectThrows(NullPointerException.class, () -> convertToUri(null, "name", "scope", validation));
+        var uri = convertToUri(null, "name", "scope", validation);
 
+        assertNull(uri);
         assertTrue(validation.validationErrors().isEmpty());
     }
 

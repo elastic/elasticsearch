@@ -14,7 +14,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -32,7 +31,7 @@ public class CohereEmbeddingsModel extends CohereModel {
             modelId,
             taskType,
             service,
-            CohereServiceSettings.fromMap(serviceSettings),
+            CohereEmbeddingsServiceSettings.fromMap(serviceSettings),
             CohereEmbeddingsTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );
@@ -43,7 +42,7 @@ public class CohereEmbeddingsModel extends CohereModel {
         String modelId,
         TaskType taskType,
         String service,
-        CohereServiceSettings serviceSettings,
+        CohereEmbeddingsServiceSettings serviceSettings,
         CohereEmbeddingsTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
@@ -54,13 +53,13 @@ public class CohereEmbeddingsModel extends CohereModel {
         super(model, taskSettings);
     }
 
-    public CohereEmbeddingsModel(CohereEmbeddingsModel model, CohereServiceSettings serviceSettings) {
+    public CohereEmbeddingsModel(CohereEmbeddingsModel model, CohereEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
     }
 
     @Override
-    public CohereServiceSettings getServiceSettings() {
-        return (CohereServiceSettings) super.getServiceSettings();
+    public CohereEmbeddingsServiceSettings getServiceSettings() {
+        return (CohereEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
     @Override

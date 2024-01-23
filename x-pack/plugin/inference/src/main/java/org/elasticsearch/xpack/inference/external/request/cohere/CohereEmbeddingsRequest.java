@@ -13,9 +13,11 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 
 import java.net.URI;
@@ -33,12 +35,22 @@ public class CohereEmbeddingsRequest implements Request {
     private final List<String> input;
     private final URI uri;
     private final CohereEmbeddingsTaskSettings taskSettings;
+    private final String model;
+    private final CohereEmbeddingType embeddingType;
 
-    public CohereEmbeddingsRequest(CohereAccount account, List<String> input, CohereEmbeddingsTaskSettings taskSettings) {
+    public CohereEmbeddingsRequest(
+        CohereAccount account,
+        List<String> input,
+        CohereEmbeddingsTaskSettings taskSettings,
+        @Nullable String model,
+        @Nullable CohereEmbeddingType embeddingType
+    ) {
         this.account = Objects.requireNonNull(account);
         this.input = Objects.requireNonNull(input);
         this.uri = buildUri(this.account.url(), "Cohere", CohereEmbeddingsRequest::buildDefaultUri);
         this.taskSettings = Objects.requireNonNull(taskSettings);
+        this.model = model;
+        this.embeddingType = embeddingType;
     }
 
     @Override
@@ -46,7 +58,7 @@ public class CohereEmbeddingsRequest implements Request {
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new CohereEmbeddingsRequestEntity(input, taskSettings)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new CohereEmbeddingsRequestEntity(input, taskSettings, model, embeddingType)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

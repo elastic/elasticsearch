@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTy
 
 public class CohereServiceSettings implements ServiceSettings {
     public static final String NAME = "cohere_service_settings";
+    public static final String MODEL = "model";
 
     public static CohereServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -44,50 +45,44 @@ public class CohereServiceSettings implements ServiceSettings {
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-
-        // Throw if any of the settings were empty strings or invalid
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        // the url is optional and only for testing
-        if (url == null) {
-            return new CohereServiceSettings((URI) null, similarity, dims, maxInputTokens);
-        }
-
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String model = extractOptionalString(map, MODEL, ModelConfigurations.TASK_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens);
+        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, model);
     }
 
     private final URI uri;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
+    private final String model;
 
     public CohereServiceSettings(
         @Nullable URI uri,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        @Nullable String model
     ) {
         this.uri = uri;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
+        this.model = model;
     }
 
     public CohereServiceSettings(
         @Nullable String url,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        @Nullable String model
     ) {
-        this(createOptionalUri(url), similarity, dimensions, maxInputTokens);
+        this(createOptionalUri(url), similarity, dimensions, maxInputTokens, model);
     }
 
     public CohereServiceSettings(StreamInput in) throws IOException {
@@ -95,22 +90,27 @@ public class CohereServiceSettings implements ServiceSettings {
         similarity = in.readOptionalEnum(SimilarityMeasure.class);
         dimensions = in.readOptionalVInt();
         maxInputTokens = in.readOptionalVInt();
+        model = in.readOptionalString();
     }
 
-    public URI uri() {
+    public URI getUri() {
         return uri;
     }
 
-    public SimilarityMeasure similarity() {
+    public SimilarityMeasure getSimilarity() {
         return similarity;
     }
 
-    public Integer dimensions() {
+    public Integer getDimensions() {
         return dimensions;
     }
 
-    public Integer maxInputTokens() {
+    public Integer getMaxInputTokens() {
         return maxInputTokens;
+    }
+
+    public String getModel() {
+        return model;
     }
 
     @Override
@@ -122,6 +122,13 @@ public class CohereServiceSettings implements ServiceSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
+        toXContentFragment(builder);
+
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder toXContentFragment(XContentBuilder builder) throws IOException {
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
@@ -134,8 +141,10 @@ public class CohereServiceSettings implements ServiceSettings {
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+        if (model != null) {
+            builder.field(MODEL, model);
+        }
 
-        builder.endObject();
         return builder;
     }
 
@@ -151,6 +160,7 @@ public class CohereServiceSettings implements ServiceSettings {
         out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
+        out.writeOptionalString(model);
     }
 
     @Override
@@ -161,11 +171,12 @@ public class CohereServiceSettings implements ServiceSettings {
         return Objects.equals(uri, that.uri)
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(maxInputTokens, that.maxInputTokens);
+            && Objects.equals(maxInputTokens, that.maxInputTokens)
+            && Objects.equals(model, that.model);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, similarity, dimensions, maxInputTokens);
+        return Objects.hash(uri, similarity, dimensions, maxInputTokens, model);
     }
 }

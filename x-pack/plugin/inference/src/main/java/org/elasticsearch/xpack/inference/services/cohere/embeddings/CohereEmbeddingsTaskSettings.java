@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.MODEL;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.TRUNCATE;
 
 /**
@@ -34,22 +32,14 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFie
  * <a href="https://docs.cohere.com/reference/embed">See api docs for details.</a>
  * </p>
  *
- * @param model the id of the model to use in the requests to cohere
  * @param inputType Specifies the type of input you're giving to the model
- * @param embeddingType Specifies the type of embeddings you want to get back (we only support retrieving a single type)
  * @param truncation Specifies how the API will handle inputs longer than the maximum token length
  */
-public record CohereEmbeddingsTaskSettings(
-    @Nullable String model,
-    @Nullable InputType inputType,
-    @Nullable CohereEmbeddingType embeddingType,
-    @Nullable CohereTruncation truncation
-) implements TaskSettings {
+public record CohereEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable CohereTruncation truncation) implements TaskSettings {
 
     public static final String NAME = "cohere_embeddings_task_settings";
-    public static final CohereEmbeddingsTaskSettings EMPTY_SETTINGS = new CohereEmbeddingsTaskSettings(null, null, null, null);
+    public static final CohereEmbeddingsTaskSettings EMPTY_SETTINGS = new CohereEmbeddingsTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
-    static final String EMBEDDING_TYPE = "embedding_type";
 
     public static CohereEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map.isEmpty()) {
@@ -58,21 +48,12 @@ public record CohereEmbeddingsTaskSettings(
 
         ValidationException validationException = new ValidationException();
 
-        String model = extractOptionalString(map, MODEL, ModelConfigurations.TASK_SETTINGS, validationException);
         InputType inputType = extractOptionalEnum(
             map,
             INPUT_TYPE,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
             InputType.values(),
-            validationException
-        );
-        CohereEmbeddingType embeddingTypes = extractOptionalEnum(
-            map,
-            EMBEDDING_TYPE,
-            ModelConfigurations.TASK_SETTINGS,
-            CohereEmbeddingType::fromString,
-            CohereEmbeddingType.values(),
             validationException
         );
         CohereTruncation truncation = extractOptionalEnum(
@@ -88,31 +69,18 @@ public record CohereEmbeddingsTaskSettings(
             throw validationException;
         }
 
-        return new CohereEmbeddingsTaskSettings(model, inputType, embeddingTypes, truncation);
+        return new CohereEmbeddingsTaskSettings(inputType, truncation);
     }
 
     public CohereEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(
-            in.readOptionalString(),
-            in.readOptionalEnum(InputType.class),
-            in.readOptionalEnum(CohereEmbeddingType.class),
-            in.readOptionalEnum(CohereTruncation.class)
-        );
+        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(CohereTruncation.class));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (model != null) {
-            builder.field(MODEL, model);
-        }
-
         if (inputType != null) {
             builder.field(INPUT_TYPE, inputType);
-        }
-
-        if (embeddingType != null) {
-            builder.field(EMBEDDING_TYPE, embeddingType);
         }
 
         if (truncation != null) {
@@ -134,18 +102,14 @@ public record CohereEmbeddingsTaskSettings(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(model);
         out.writeOptionalEnum(inputType);
-        out.writeOptionalEnum(embeddingType);
         out.writeOptionalEnum(truncation);
     }
 
     public CohereEmbeddingsTaskSettings overrideWith(CohereEmbeddingsTaskSettings requestTaskSettings) {
-        var modelToUse = requestTaskSettings.model() == null ? model : requestTaskSettings.model();
         var inputTypeToUse = requestTaskSettings.inputType() == null ? inputType : requestTaskSettings.inputType();
-        var embeddingTypesToUse = requestTaskSettings.embeddingType() == null ? embeddingType : requestTaskSettings.embeddingType();
         var truncationToUse = requestTaskSettings.truncation() == null ? truncation : requestTaskSettings.truncation();
 
-        return new CohereEmbeddingsTaskSettings(modelToUse, inputTypeToUse, embeddingTypesToUse, truncationToUse);
+        return new CohereEmbeddingsTaskSettings(inputTypeToUse, truncationToUse);
     }
 }

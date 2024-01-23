@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -157,11 +158,15 @@ public class CohereService extends SenderService {
     }
 
     private CohereEmbeddingsModel updateModelWithEmbeddingDetails(CohereEmbeddingsModel model, int embeddingSize) {
-        CohereServiceSettings serviceSettings = new CohereServiceSettings(
-            model.getServiceSettings().uri(),
-            SimilarityMeasure.DOT_PRODUCT,
-            embeddingSize,
-            model.getServiceSettings().maxInputTokens()
+        CohereEmbeddingsServiceSettings serviceSettings = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings(
+                model.getServiceSettings().getCommonSettings().getUri(),
+                SimilarityMeasure.DOT_PRODUCT,
+                embeddingSize,
+                model.getServiceSettings().getCommonSettings().getMaxInputTokens(),
+                model.getServiceSettings().getCommonSettings().getModel()
+            ),
+            model.getServiceSettings().getEmbeddingType()
         );
 
         return new CohereEmbeddingsModel(model, serviceSettings);

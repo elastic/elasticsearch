@@ -66,7 +66,7 @@ public class CohereActionCreatorTests extends ESTestCase {
         webServer.close();
     }
 
-    public void testCreate_OpenAiEmbeddingsModel() throws IOException {
+    public void testCreate_CohereEmbeddingsModel() throws IOException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var sender = senderFactory.createSender("test_service")) {
@@ -102,17 +102,14 @@ public class CohereActionCreatorTests extends ESTestCase {
             var model = CohereEmbeddingsModelTests.createModel(
                 getUrl(webServer),
                 "secret",
-                new CohereEmbeddingsTaskSettings("model", InputType.INGEST, CohereEmbeddingType.FLOAT, CohereTruncation.START),
+                new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START),
                 1024,
-                1024
+                1024,
+                "model",
+                CohereEmbeddingType.FLOAT
             );
             var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(
-                "model",
-                InputType.SEARCH,
-                CohereEmbeddingType.INT8,
-                CohereTruncation.END
-            );
+            var overriddenTaskSettings = CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH, CohereTruncation.END);
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -141,7 +138,7 @@ public class CohereActionCreatorTests extends ESTestCase {
                         "input_type",
                         "search_query",
                         "embedding_types",
-                        List.of("int8"),
+                        List.of("float"),
                         "truncate",
                         "end"
                     )

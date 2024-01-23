@@ -46,10 +46,7 @@ public class TextEmbeddingResultsTests extends AbstractBWCWireSerializationTestC
     public static TextEmbeddingResults createRandomResults() {
         var embeddingType = randomFrom(EmbeddingType.values());
         var createFunction = EMBEDDING_TYPE_BUILDERS.get(embeddingType);
-
-        if (createFunction == null) {
-            createFunction = TextEmbeddingResultsTests::createRandomFloatEmbedding;
-        }
+        assert createFunction != null : "the embeddings type map is missing a value from the EmbeddingType enum";
 
         return createRandomResults(createFunction);
     }

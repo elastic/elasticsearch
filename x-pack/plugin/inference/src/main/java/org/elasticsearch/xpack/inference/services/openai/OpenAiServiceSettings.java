@@ -50,17 +50,6 @@ public class OpenAiServiceSettings implements ServiceSettings {
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-
-        // Throw if any of the settings were empty strings or invalid
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        // the url is optional and only for testing
-        if (url == null) {
-            return new OpenAiServiceSettings((URI) null, organizationId, similarity, dims, maxInputTokens);
-        }
-
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {

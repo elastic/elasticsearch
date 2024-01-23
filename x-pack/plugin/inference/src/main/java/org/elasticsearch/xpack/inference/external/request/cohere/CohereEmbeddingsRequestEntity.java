@@ -7,30 +7,36 @@
 
 package org.elasticsearch.xpack.inference.external.request.cohere;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
-public record CohereEmbeddingsRequestEntity(List<String> input, CohereEmbeddingsTaskSettings taskSettings) implements ToXContentObject {
+public record CohereEmbeddingsRequestEntity(
+    List<String> input,
+    CohereEmbeddingsTaskSettings taskSettings,
+    @Nullable String model,
+    @Nullable CohereEmbeddingType embeddingType
+) implements ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "search_document";
     private static final String SEARCH_QUERY = "search_query";
     /**
-     * Maps the {@link InputType} to the expected value for cohere for the input_type field in the request
+     * Maps the {@link InputType} to the expected value for cohere for the input_type field in the request using the enum's ordinal.
+     * The order of these entries is important and needs to match the order in the enum
      */
-    private static final Map<InputType, String> INPUT_TYPE_MAPPING = Map.of(
-        InputType.INGEST,
-        SEARCH_DOCUMENT,
-        InputType.SEARCH,
-        SEARCH_QUERY
-    );
+    private static final String[] INPUT_TYPE_MAPPING = { SEARCH_DOCUMENT, SEARCH_QUERY };
+    static {
+        assert INPUT_TYPE_MAPPING.length == InputType.values().length : "input type mapping was incorrectly defined";
+    }
+
     private static final String TEXTS_FIELD = "texts";
 
     static final String INPUT_TYPE_FIELD = "input_type";
@@ -45,16 +51,16 @@ public record CohereEmbeddingsRequestEntity(List<String> input, CohereEmbeddings
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
-        if (taskSettings.model() != null) {
-            builder.field(CohereServiceFields.MODEL, taskSettings.model());
+        if (model != null) {
+            builder.field(CohereServiceFields.MODEL, model);
         }
 
         if (taskSettings.inputType() != null) {
             builder.field(INPUT_TYPE_FIELD, covertToString(taskSettings.inputType()));
         }
 
-        if (taskSettings.embeddingType() != null) {
-            builder.field(EMBEDDING_TYPES_FIELD, List.of(taskSettings.embeddingType()));
+        if (embeddingType != null) {
+            builder.field(EMBEDDING_TYPES_FIELD, List.of(embeddingType));
         }
 
         if (taskSettings.truncation() != null) {
@@ -66,12 +72,6 @@ public record CohereEmbeddingsRequestEntity(List<String> input, CohereEmbeddings
     }
 
     private static String covertToString(InputType inputType) {
-        var stringValue = INPUT_TYPE_MAPPING.get(inputType);
-
-        if (stringValue == null) {
-            return SEARCH_DOCUMENT;
-        }
-
-        return stringValue;
+        return INPUT_TYPE_MAPPING[inputType.ordinal()];
     }
 }

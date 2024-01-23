@@ -23,8 +23,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.getErrorMessage;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class OpenAiEmbeddingsAction implements ExecutableAction {
@@ -43,7 +43,7 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
             this.model.getSecretSettings().apiKey()
         );
         this.client = new OpenAiClient(Objects.requireNonNull(sender), Objects.requireNonNull(serviceComponents));
-        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri(), "OpenAI embeddings");
+        this.errorMessage = constructFailedToSendRequestMessage(this.model.getServiceSettings().uri(), "OpenAI embeddings");
         this.truncator = Objects.requireNonNull(serviceComponents.truncator());
     }
 

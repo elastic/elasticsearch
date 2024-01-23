@@ -39,7 +39,7 @@ public class ActionUtils {
         return new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR, e);
     }
 
-    public static String getErrorMessage(@Nullable URI uri, String message) {
+    public static String constructFailedToSendRequestMessage(@Nullable URI uri, String message) {
         if (uri != null) {
             return Strings.format("Failed to send %s request to [%s]", message, uri);
         }

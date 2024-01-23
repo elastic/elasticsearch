@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -110,7 +111,9 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             var action = createAction(
                 getUrl(webServer),
                 "secret",
-                new CohereEmbeddingsTaskSettings("model", InputType.INGEST, CohereEmbeddingType.FLOAT, CohereTruncation.START),
+                new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START),
+                "model",
+                CohereEmbeddingType.FLOAT,
                 sender
             );
 
@@ -185,7 +188,9 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             var action = createAction(
                 getUrl(webServer),
                 "secret",
-                new CohereEmbeddingsTaskSettings("model", InputType.INGEST, CohereEmbeddingType.INT8, CohereTruncation.START),
+                new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START),
+                "model",
+                CohereEmbeddingType.INT8,
                 sender
             );
 
@@ -228,7 +233,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         try (var sender = mock(Sender.class)) {
             var thrownException = expectThrows(
                 IllegalArgumentException.class,
-                () -> createAction("^^", "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, sender)
+                () -> createAction("^^", "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender)
             );
             MatcherAssert.assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
         }
@@ -238,7 +243,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
 
-        var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, sender);
+        var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
@@ -259,7 +264,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, sender);
+        var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
@@ -283,7 +288,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var action = createAction(null, "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, sender);
+        var action = createAction(null, "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
@@ -297,7 +302,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
 
-        var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, sender);
+        var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
@@ -314,7 +319,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
 
-        var action = createAction(null, "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, sender);
+        var action = createAction(null, "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
@@ -324,8 +329,15 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request"));
     }
 
-    private CohereEmbeddingsAction createAction(String url, String apiKey, CohereEmbeddingsTaskSettings taskSettings, Sender sender) {
-        var model = CohereEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024);
+    private CohereEmbeddingsAction createAction(
+        String url,
+        String apiKey,
+        CohereEmbeddingsTaskSettings taskSettings,
+        @Nullable String modelName,
+        @Nullable CohereEmbeddingType embeddingType,
+        Sender sender
+    ) {
+        var model = CohereEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
 
         return new CohereEmbeddingsAction(sender, model, createWithEmptySettings(threadPool));
     }

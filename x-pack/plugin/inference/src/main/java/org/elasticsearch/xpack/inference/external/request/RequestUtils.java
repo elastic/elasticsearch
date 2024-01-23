@@ -29,11 +29,8 @@ public class RequestUtils {
         try {
             return accountUri == null ? uriBuilder.get() : accountUri;
         } catch (URISyntaxException e) {
-            throw new ElasticsearchStatusException(
-                Strings.format("Failed to construct %s URL", service),
-                RestStatus.INTERNAL_SERVER_ERROR,
-                e
-            );
+            // using bad request here so that potentially sensitive URL information does not get logged
+            throw new ElasticsearchStatusException(Strings.format("Failed to construct %s URL", service), RestStatus.BAD_REQUEST, e);
         }
     }
 

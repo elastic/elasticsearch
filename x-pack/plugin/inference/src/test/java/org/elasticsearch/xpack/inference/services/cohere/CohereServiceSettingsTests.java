@@ -47,7 +47,9 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
             dims = 1536;
         }
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-        return new CohereServiceSettings(ServiceUtils.createUri(url), similarityMeasure, dims, maxInputTokens);
+        var model = randomBoolean() ? randomAlphaOfLength(15) : null;
+
+        return new CohereServiceSettings(ServiceUtils.createOptionalUri(url), similarityMeasure, dims, maxInputTokens, model);
     }
 
     public void testFromMap() {
@@ -55,6 +57,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var dims = 1536;
         var maxInputTokens = 512;
+        var model = "model";
         var serviceSettings = CohereServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
@@ -65,20 +68,22 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     ServiceFields.DIMENSIONS,
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens
+                    maxInputTokens,
+                    CohereServiceSettings.MODEL,
+                    model
                 )
             )
         );
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens))
+            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model))
         );
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
         var serviceSettings = CohereServiceSettings.fromMap(new HashMap<>(Map.of()));
-        assertNull(serviceSettings.uri());
+        assertNull(serviceSettings.getUri());
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {
@@ -139,11 +144,15 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         return createRandomWithNonNullUrl();
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url) {
+    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {
         var map = new HashMap<String, Object>();
 
         if (url != null) {
             map.put(ServiceFields.URL, url);
+        }
+
+        if (model != null) {
+            map.put(CohereServiceSettings.MODEL, model);
         }
 
         return map;

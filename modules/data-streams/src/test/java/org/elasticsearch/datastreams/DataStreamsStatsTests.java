@@ -269,7 +269,10 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamsStatsAction.Request request = new DataStreamsStatsAction.Request();
         if (includeHidden) {
             request.indicesOptions(
-                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
+                new IndicesOptions(
+                    EnumSet.of(IndicesOptions.Option.DEPRECATED__ALLOW_NO_INDICES),
+                    EnumSet.of(IndicesOptions.WildcardStates.HIDDEN)
+                )
             );
         }
         return client().execute(DataStreamsStatsAction.INSTANCE, request).get();

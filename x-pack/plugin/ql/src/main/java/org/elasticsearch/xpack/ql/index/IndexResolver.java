@@ -117,20 +117,25 @@ public class IndexResolver {
     public static final String SQL_VIEW = "VIEW";
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES, Option.IGNORE_THROTTLED),
+        EnumSet.of(
+            Option.DEPRECATED__ALLOW_NO_INDICES,
+            Option.IGNORE_UNAVAILABLE,
+            Option.DEPRECATED__IGNORE_ALIASES,
+            Option.IGNORE_THROTTLED
+        ),
         EnumSet.of(WildcardStates.OPEN)
     );
     private static final IndicesOptions FROZEN_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.DEPRECATED__IGNORE_ALIASES),
         EnumSet.of(WildcardStates.OPEN)
     );
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED),
         EnumSet.of(WildcardStates.OPEN)
     );
     public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
         EnumSet.of(WildcardStates.OPEN)
     );
 

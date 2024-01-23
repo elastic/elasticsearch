@@ -87,8 +87,8 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
 
     public enum Option {
         IGNORE_UNAVAILABLE,
-        IGNORE_ALIASES,
-        ALLOW_NO_INDICES,
+        DEPRECATED__IGNORE_ALIASES,     // Please use WildcardOptions for this
+        DEPRECATED__ALLOW_NO_INDICES,   // Please use WildcardOptions for this
         FORBID_ALIASES_TO_MULTIPLE_INDICES,
         FORBID_CLOSED_INDICES,
         IGNORE_THROTTLED;
@@ -101,43 +101,43 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         + "because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.";
 
     public static final IndicesOptions STRICT_EXPAND_OPEN = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES),
         EnumSet.of(WildcardStates.OPEN)
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
         EnumSet.of(WildcardStates.OPEN)
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
         EnumSet.of(WildcardStates.OPEN, WildcardStates.HIDDEN)
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
         EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED)
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
         EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED, WildcardStates.HIDDEN)
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES),
         EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED)
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES),
         EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED, WildcardStates.HIDDEN)
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES),
         EnumSet.of(WildcardStates.OPEN)
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES),
         EnumSet.of(WildcardStates.OPEN, WildcardStates.HIDDEN)
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = new IndicesOptions(
-        EnumSet.of(Option.ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES, Option.IGNORE_THROTTLED),
+        EnumSet.of(Option.DEPRECATED__ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES, Option.IGNORE_THROTTLED),
         EnumSet.of(WildcardStates.OPEN)
     );
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
@@ -163,7 +163,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
      * are allowed.
      */
     public boolean allowNoIndices() {
-        return options.contains(Option.ALLOW_NO_INDICES);
+        return options.contains(Option.DEPRECATED__ALLOW_NO_INDICES);
     }
 
     /**
@@ -216,7 +216,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
      * @return whether aliases should be ignored (when resolving a wildcard)
      */
     public boolean ignoreAliases() {
-        return options.contains(Option.IGNORE_ALIASES);
+        return options.contains(Option.DEPRECATED__IGNORE_ALIASES);
     }
 
     /**
@@ -341,7 +341,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             opts.add(Option.IGNORE_UNAVAILABLE);
         }
         if (allowNoIndices) {
-            opts.add(Option.ALLOW_NO_INDICES);
+            opts.add(Option.DEPRECATED__ALLOW_NO_INDICES);
         }
         if (expandToOpenIndices) {
             wildcards.add(WildcardStates.OPEN);
@@ -359,7 +359,7 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
             opts.add(Option.FORBID_CLOSED_INDICES);
         }
         if (ignoreAliases) {
-            opts.add(Option.IGNORE_ALIASES);
+            opts.add(Option.DEPRECATED__IGNORE_ALIASES);
         }
         if (ignoreThrottled) {
             opts.add(Option.IGNORE_THROTTLED);

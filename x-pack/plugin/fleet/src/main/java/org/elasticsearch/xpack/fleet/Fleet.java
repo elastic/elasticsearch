@@ -304,7 +304,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 );
                 EnumSet<Option> options = request.indicesOptions().options();
                 options.add(Option.IGNORE_UNAVAILABLE);
-                options.add(Option.ALLOW_NO_INDICES);
+                options.add(Option.DEPRECATED__ALLOW_NO_INDICES);
                 request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
 
                 client.execute(

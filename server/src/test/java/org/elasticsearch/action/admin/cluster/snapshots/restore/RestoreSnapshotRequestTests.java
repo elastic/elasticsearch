@@ -83,7 +83,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
                 Arrays.asList(IndicesOptions.WildcardStates.values())
             );
             Collection<IndicesOptions.Option> options = randomSubsetOf(
-                Arrays.asList(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE)
+                Arrays.asList(IndicesOptions.Option.DEPRECATED__ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE)
             );
 
             instance.indicesOptions(

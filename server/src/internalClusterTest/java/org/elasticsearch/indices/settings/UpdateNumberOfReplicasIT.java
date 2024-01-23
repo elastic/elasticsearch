@@ -441,7 +441,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
     public void testUpdateNumberOfReplicasAllowNoIndices() {
         createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
         final IndicesOptions options = new IndicesOptions(
-            EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
+            EnumSet.of(IndicesOptions.Option.DEPRECATED__ALLOW_NO_INDICES),
             EnumSet.of(IndicesOptions.WildcardStates.OPEN)
         );
         assertAcked(

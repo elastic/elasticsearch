@@ -363,7 +363,7 @@ public class IndicesOptionsTests extends ESTestCase {
         }
         assertEquals(wildcardStates.contains(WildcardStates.HIDDEN), ((List<?>) map.get("expand_wildcards")).contains("hidden"));
         assertEquals(map.get("ignore_unavailable"), options.contains(Option.IGNORE_UNAVAILABLE));
-        assertEquals(map.get("allow_no_indices"), options.contains(Option.ALLOW_NO_INDICES));
+        assertEquals(map.get("allow_no_indices"), options.contains(Option.DEPRECATED__ALLOW_NO_INDICES));
         assertEquals(map.get("ignore_throttled"), options.contains(Option.IGNORE_THROTTLED));
     }
 

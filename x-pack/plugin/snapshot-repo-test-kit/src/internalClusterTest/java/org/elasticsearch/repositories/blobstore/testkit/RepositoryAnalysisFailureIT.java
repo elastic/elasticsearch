@@ -154,10 +154,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
-        // The analysis can perform writeAndOverwrite and earlyRead as rare actions.
-        // Since an earlyRead can be in between of write and overwrite, it can return either
-        // the old (write) or the new (overwrite) content and both are considered as correct
-        // behaviours.
+        // The analysis can perform writeAndOverwrite as a rare action.
+        // Since a read is performed towards the end of overwrite or write (rarely),
+        // it can return either the old (write) or the new (overwrite) content and both
+        // are considered to be correct.
         // This test disrupts reads and relies on the disrupted content to be different from
         // correct contents to trigger the expected failure. However, in rare cases,
         // the disrupted old content could be identical to the new content or vice versa which

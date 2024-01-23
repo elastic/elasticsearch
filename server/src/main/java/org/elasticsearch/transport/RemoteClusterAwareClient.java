@@ -10,8 +10,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
@@ -34,8 +33,8 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> void execute(
-        ActionType<Response> action,
+    public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+        RemoteClusterActionType<Response> action,
         Request request,
         ActionListener<Response> listener
     ) {

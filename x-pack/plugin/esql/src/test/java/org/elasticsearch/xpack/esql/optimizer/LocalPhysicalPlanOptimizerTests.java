@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -434,18 +435,18 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 String comparison = testCase.fieldName + truePredicate;
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
-                String expectedLuceneQuery = """
+                String expectedLuceneQuery = LoggerMessageFormat.format(null, """
                     {
                       "esql_single_value" : {
-                        "field" : "%s",
+                        "field" : "{}",
                         "next" : {
                           "match_all" : {
                             "boost" : 1.0
                           }
                         },
-                        "source" : "%s"
+                        "source" : "{}"
                       }
-                    }""".formatted(testCase.fieldName, expectedSource);
+                    }""", testCase.fieldName, expectedSource);
                 doTestOutOfRangeFilterPushdown(query, expectedLuceneQuery);
             }
 
@@ -453,10 +454,10 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 String comparison = testCase.fieldName + falsePredicate;
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
-                String expectedLuceneQuery = """
+                String expectedLuceneQuery = LoggerMessageFormat.format(null, """
                     {
                       "esql_single_value" : {
-                        "field" : "%s",
+                        "field" : "{}",
                         "next" : {
                           "bool" : {
                             "must_not" : [
@@ -469,9 +470,9 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                             "boost" : 1.0
                           }
                         },
-                        "source" : "%s"
+                        "source" : "{}"
                       }
-                    }""".formatted(testCase.fieldName, expectedSource);
+                    }""", testCase.fieldName, expectedSource);
                 doTestOutOfRangeFilterPushdown(query, expectedLuceneQuery);
             }
         }

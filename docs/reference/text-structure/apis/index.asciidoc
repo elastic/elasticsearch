@@ -5,7 +5,7 @@
 You can use the following APIs to find text structures:
 
 * <<find-structure>>
-* <<text-grok-pattern>>
+* <<test-grok-pattern>>
 
 include::find-structure.asciidoc[leveloffset=+1]
 include::test-grok-pattern.asciidoc[leveloffset=+1]

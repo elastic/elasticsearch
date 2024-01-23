@@ -1,0 +1,6 @@
+pr: 102894
+summary: Add `glacier_ir` and `outposts` S3 storage classes
+area: Snapshot/Restore
+type: enhancement
+issues:
+ - 81351

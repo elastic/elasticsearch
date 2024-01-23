@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -439,13 +441,28 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     }
 
     public void testInvalidStorageClass() {
-        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("whatever"));
-        assertThat(ex.getMessage(), equalTo("`whatever` is not a valid S3 Storage Class."));
+        assertThat(
+            expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("whatever")).getMessage(),
+            equalTo("`whatever` is not a supported S3 Storage Class.")
+        );
     }
 
-    public void testRejectGlacierStorageClass() {
-        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("glacier"));
-        assertThat(ex.getMessage(), equalTo("Glacier storage class is not supported"));
+    public void testUnsupportedStorageClasses() {
+        // enumerate the unsupported classes, complementing the list of supported ones in prod code, so that we make a positive decision
+        // about new ones as they are added in SDK upgrades
+        final Set<StorageClass> unsupportedStorageClasses = Set.of(StorageClass.Glacier, StorageClass.DeepArchive);
+
+        for (final var storageClass : StorageClass.values()) {
+            if (unsupportedStorageClasses.contains(storageClass)) {
+                assertThat(
+                    expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass(storageClass.toString())).getMessage(),
+                    equalTo("`" + storageClass.toString() + "` is not a supported S3 Storage Class.")
+                );
+            } else {
+                assertEquals(storageClass, S3BlobStore.initStorageClass(storageClass.toString()));
+                assertEquals(storageClass, S3BlobStore.initStorageClass(storageClass.toString().toLowerCase(Locale.ROOT)));
+            }
+        }
     }
 
     private static void assertNumberOfMultiparts(final int expectedParts, final long expectedRemaining, long totalSize, long partSize) {

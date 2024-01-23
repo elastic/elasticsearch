@@ -31,7 +31,7 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     }
 
     public ActionFuture<Response> execute() {
-        return client.execute(action, request);
+        return client.execute(action, request());
     }
 
     /**
@@ -49,6 +49,6 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     }
 
     public void execute(ActionListener<Response> listener) {
-        client.execute(action, request, listener);
+        client.execute(action, request(), listener);
     }
 }

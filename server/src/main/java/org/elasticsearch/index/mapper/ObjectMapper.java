@@ -546,14 +546,15 @@ public class ObjectMapper extends Mapper {
                 Mapper mergeWithMapper = iterator.next();
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
 
+                Mapper merged = null;
                 if (mergeIntoMapper == null) {
                     if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.mapperSize())) {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
+                        merged = mergeWithMapper;
                     } else if (mergeWithMapper instanceof ObjectMapper om) {
-                        addPartialObjectMapper(reason, objectMergeContext, mergedMappers, om);
+                        merged = truncateObjectMapper(reason, objectMergeContext, om);
                     }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                    mergedMappers.put(objectMapper.simpleName(), objectMapper.merge(mergeWithMapper, reason, objectMergeContext));
+                    merged = objectMapper.merge(mergeWithMapper, reason, objectMergeContext);
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                     if (mergeWithMapper instanceof NestedObjectMapper) {
@@ -565,28 +566,27 @@ public class ObjectMapper extends Mapper {
                     // If we're merging template mappings when creating an index, then a field definition always
                     // replaces an existing one.
                     if (reason == MergeReason.INDEX_TEMPLATE) {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
+                        merged = mergeWithMapper;
                     } else {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
+                        merged = mergeIntoMapper.merge(mergeWithMapper, objectMergeContext);
                     }
+                }
+                if (merged != null) {
+                    mergedMappers.put(merged.simpleName(), merged);
                 }
             }
             return Map.copyOf(mergedMappers);
         }
 
-        private static void addPartialObjectMapper(
-            MergeReason reason,
-            MapperMergeContext objectMergeContext,
-            Map<String, Mapper> mergedMappers,
-            ObjectMapper objectMapper
-        ) {
+        private static ObjectMapper truncateObjectMapper(MergeReason reason, MapperMergeContext context, ObjectMapper objectMapper) {
             // there's not enough capacity for the whole object mapper,
             // so we're just trying to add the shallow object, without it's sub-fields
             ObjectMapper shallowObjectMapper = objectMapper.withoutMappers();
-            if (objectMergeContext.decrementFieldBudgetIfPossible(shallowObjectMapper.mapperSize())) {
+            if (context.decrementFieldBudgetIfPossible(shallowObjectMapper.mapperSize())) {
                 // now trying to add the sub-fields one by one via a merge, until we hit the limit
-                mergedMappers.put(objectMapper.simpleName(), shallowObjectMapper.merge(objectMapper, reason, objectMergeContext));
+                return shallowObjectMapper.merge(objectMapper, reason, context);
             }
+            return null;
         }
     }
 

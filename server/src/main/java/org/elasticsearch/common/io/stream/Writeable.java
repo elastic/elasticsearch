@@ -25,7 +25,7 @@ public interface Writeable {
     /**
      * Reference to a method that can write some object to a {@link StreamOutput}.
      * <p>
-     * By convention this is a method from {@link StreamOutput} itself (e.g., {@link StreamOutput#writeString(String)). If the value can be
+     * By convention this is a method from {@link StreamOutput} itself (e.g., {@link StreamOutput#writeString(String)}. If the value can be
      * {@code null}, then the "optional" variant of methods should be used!
      * <p>
      * Most classes should implement {@link Writeable} and the {@link Writeable#writeTo(StreamOutput)} method should <em>use</em>

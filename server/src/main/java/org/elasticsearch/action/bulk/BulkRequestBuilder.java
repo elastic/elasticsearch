@@ -160,7 +160,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * The number of actions currently in the bulk.
      */
     public int numberOfActions() {
-        return request.numberOfActions();
+        return requests.size() + requestBuilders.size() + framedDataList.size();
     }
 
     public BulkRequestBuilder pipeline(String globalPipeline) {

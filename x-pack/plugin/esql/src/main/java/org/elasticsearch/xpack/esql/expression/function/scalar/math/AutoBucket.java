@@ -90,8 +90,8 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         Source source,
         @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,
         @Param(name = "buckets", type = { "integer" }) Expression buckets,
-        @Param(name = "from", type = { "integer", "long", "double", "date" }) Expression from,
-        @Param(name = "to", type = { "integer", "long", "double", "date" }) Expression to
+        @Param(name = "from", type = { "integer", "long", "double", "date", "string" }) Expression from,
+        @Param(name = "to", type = { "integer", "long", "double", "date", "string" }) Expression to
     ) {
         super(source, List.of(field, buckets, from, to));
         this.field = field;
@@ -115,8 +115,8 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         int b = ((Number) buckets.fold()).intValue();
 
         if (field.dataType() == DataTypes.DATETIME) {
-            long f = convertToLong(from);
-            long t = convertToLong(to);
+            long f = foldToLong(from);
+            long t = foldToLong(to);
             return DateTrunc.evaluator(
                 source(),
                 toEvaluator.apply(field),
@@ -219,7 +219,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
     public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return TypeResolutions.isType(
             e,
-            exp -> { return DataTypes.isString(exp) || DataTypes.isDateTime(exp); },
+            exp -> DataTypes.isString(exp) || DataTypes.isDateTime(exp),
             operationName,
             paramOrd,
             "datetime",
@@ -227,7 +227,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
         );
     }
 
-    private long convertToLong(Expression e) {
+    private long foldToLong(Expression e) {
         Object value = Foldables.valueOf(e);
         return DataTypes.isDateTime(e.dataType())
             ? ((Number) value).longValue()

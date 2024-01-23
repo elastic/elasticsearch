@@ -84,8 +84,8 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
         Literal from;
         Literal to;
         if (arg.dataType() == DataTypes.DATETIME) {
-            from = fromOrTo("2023-02-01T00:00:00.00Z");
-            to = fromOrTo("2023-03-01T09:00:00.00Z");
+            from = stringOrDateTime("2023-02-01T00:00:00.00Z");
+            to = stringOrDateTime("2023-03-01T09:00:00.00Z");
         } else {
             from = new Literal(Source.EMPTY, 0, DataTypes.DOUBLE);
             to = new Literal(Source.EMPTY, 1000, DataTypes.DOUBLE);
@@ -93,7 +93,7 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
         return new AutoBucket(source, arg, new Literal(Source.EMPTY, 50, DataTypes.INTEGER), from, to);
     }
 
-    private Literal fromOrTo(String date) {
+    private Literal stringOrDateTime(String date) {
         if (randomBoolean()) {
             return new Literal(Source.EMPTY, new BytesRef(date), randomBoolean() ? DataTypes.KEYWORD : DataTypes.TEXT);
         }

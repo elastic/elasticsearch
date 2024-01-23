@@ -315,6 +315,17 @@ from employees | where birth_date > now() | sort emp_no asc | keep emp_no, birth
 emp_no:integer  | birth_date:date
 ;
 
+autoBucketYearInAgg
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket = AUTO_BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
+| STATS COUNT(*) by bucket
+| sort bucket;
+
+COUNT(*):long            | bucket:date
+1                        | 1999-01-01T00:00:00.000Z
+;
+
 
 autoBucketMonthInAgg
 // tag::auto_bucket_in_agg[]
@@ -910,7 +921,7 @@ docsAutoBucketLast24hr
 //tag::docsAutoBucketLast24hr[]
 FROM sample_data 
 | WHERE @timestamp >= NOW() - 1 day and @timestamp < NOW()
-| EVAL bucket = AUTO_BUCKET(@timestamp, 25, DATE_FORMAT(NOW() - 1 day), DATE_FORMAT(NOW()))
+| EVAL bucket = AUTO_BUCKET(@timestamp, 25, NOW() - 1 day, NOW())
 | STATS COUNT(*) BY bucket
 //end::docsAutoBucketLast24hr[]
 ;
@@ -922,7 +933,7 @@ docsGettingStartedAutoBucket
 // tag::gs-auto_bucket[]
 FROM sample_data
 | KEEP @timestamp
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
 // end::gs-auto_bucket[]
 | LIMIT 0
 ;
@@ -934,7 +945,7 @@ docsGettingStartedAutoBucketStatsBy
 // tag::gs-auto_bucket-stats-by[]
 FROM sample_data
 | KEEP @timestamp, event_duration
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
 | STATS COUNT(*) BY bucket
 // end::gs-auto_bucket-stats-by[]
 | SORT bucket
@@ -949,7 +960,7 @@ docsGettingStartedAutoBucketStatsByMedian
 // tag::gs-auto_bucket-stats-by-median[]
 FROM sample_data
 | KEEP @timestamp, event_duration
-| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
 | STATS median_duration = MEDIAN(event_duration) BY bucket
 // end::gs-auto_bucket-stats-by-median[]
 | SORT bucket

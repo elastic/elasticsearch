@@ -67,10 +67,10 @@ grant codeBase "${codebase.elasticsearch-cli}" {
   permission java.util.PropertyPermission "*", "read,write";
 };
 
-grant codeBase "${codebase.jna}" {
+/*grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
-};
+};*/
 
 grant codeBase "${codebase.log4j-api}" {
   permission java.lang.RuntimePermission "getClassLoader";

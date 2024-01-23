@@ -33,13 +33,13 @@ public class Preallocate {
     }
 
     public static void preallocate(final Path cacheFile, final long fileSize) throws IOException {
-        if (IS_LINUX) {
+        /*if (IS_LINUX) {
             preallocate(cacheFile, fileSize, new LinuxPreallocator());
         } else if (IS_MACOS) {
             preallocate(cacheFile, fileSize, new MacOsPreallocator());
-        } else {
+        } else {*/
             preallocate(cacheFile, fileSize, new NoNativePreallocator());
-        }
+        //}
     }
 
     @SuppressForbidden(reason = "need access to fd on FileOutputStream")

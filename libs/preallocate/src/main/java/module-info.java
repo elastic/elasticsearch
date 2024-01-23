@@ -9,7 +9,7 @@
 module org.elasticsearch.preallocate {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
-    requires com.sun.jna;
+    requires static com.sun.jna;
 
     exports org.elasticsearch.preallocate to org.elasticsearch.blobcache, com.sun.jna;
 

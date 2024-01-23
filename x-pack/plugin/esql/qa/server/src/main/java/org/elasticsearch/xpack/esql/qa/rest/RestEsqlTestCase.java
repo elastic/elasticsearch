@@ -73,70 +73,17 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static final List<String> NO_WARNINGS = List.of();
 
-    private static final String MAPPING_ALL_TYPES = """
-        {
-          "mappings": {
-            "properties" : {
-              "alias_integer": {
-                "type": "alias",
-                "path": "integer"
-              },
-              "boolean": {
-                "type": "boolean"
-              },
-              "byte" : {
-                "type" : "byte"
-              },
-              "constant_keyword-foo": {
-                "type": "constant_keyword",
-                "value": "foo"
-              },
-              "date": {
-                "type": "date"
-              },
-              "double": {
-                "type": "double"
-              },
-              "float": {
-                "type": "float"
-              },
-              "half_float": {
-                "type": "half_float"
-              },
-              "scaled_float": {
-                "type": "scaled_float",
-                "scaling_factor": 100
-              },
-              "integer" : {
-                "type" : "integer"
-              },
-              "ip": {
-                "type": "ip"
-              },
-              "keyword" : {
-                "type" : "keyword"
-              },
-              "long": {
-                "type": "long"
-              },
-              "unsigned_long": {
-                "type": "unsigned_long"
-              },
-              "short": {
-                "type": "short"
-              },
-              "text" : {
-                "type" : "text"
-              },
-              "version": {
-                "type": "version"
-              },
-              "wildcard": {
-                "type": "wildcard"
-              }
-            }
-          }
-        }""";
+    private static final String MAPPING_ALL_TYPES;
+
+    static {
+        try {
+            InputStream mappingPropertiesStream = RestEsqlTestCase.class.getResourceAsStream("/mapping-all-types.json");
+            String properties = new String(mappingPropertiesStream.readAllBytes(), StandardCharsets.UTF_8);
+            MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 
     private static final String DOCUMENT_TEMPLATE = """
         {"index":{"_id":"{}"}}

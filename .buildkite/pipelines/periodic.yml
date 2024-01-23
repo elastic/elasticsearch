@@ -1323,7 +1323,7 @@ steps:
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
     if: build.branch == "main" || build.branch == "7.17"
-  - label: Build and deploy test fixture docker images
+  - label: Deploy test fixture docker images
     command: .buildkite/scripts/fixture-deploy.sh
     env:
       USE_PROD_DOCKER_CREDENTIALS: "true"
@@ -1333,7 +1333,7 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-    #if: build.branch == "main" || build.branch == "debug-saml-tests"
+    if: build.branch == "main"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15

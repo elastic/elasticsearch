@@ -46,7 +46,7 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     private final String index;
 
-    protected CreateIndexResponse(StreamInput in) throws IOException {
+    public CreateIndexResponse(StreamInput in) throws IOException {
         super(in, true);
         index = in.readString();
     }

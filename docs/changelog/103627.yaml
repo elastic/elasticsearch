@@ -1,0 +1,5 @@
+pr: 103627
+summary: Add gradle tasks and code to modify and access mappings between version ids and release versions
+area: Infra/Core
+type: feature
+issues: []

@@ -1007,7 +1007,8 @@ public abstract class Engine implements Closeable {
         stats.addIndexWriterMemoryInBytes(0);
     }
 
-    /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
+    /** How much heap is used that would be freed by a refresh. This includes both the current memory being freed and any remaining
+     * memory usage that could be freed, e.g., by refreshing. Note that this may throw {@link AlreadyClosedException}. */
     public abstract long getIndexBufferRAMBytesUsed();
 
     final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,11 +51,6 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
 
     PutPipelineRequest() {
         this(null, null, null, null);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     public String getId() {

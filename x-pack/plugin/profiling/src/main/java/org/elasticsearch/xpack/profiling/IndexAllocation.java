@@ -55,6 +55,11 @@ final class IndexAllocation {
      * @return <code>true</code> iff at least one index is allocated to either a warm or cold data node.
      */
     static boolean isAnyOnWarmOrColdTier(ClusterState state, List<Index> indices) {
-        return isAnyAssignedToNode(state, indices, n -> DataTier.isWarmNode(n) || DataTier.isColdNode(n));
+        return isAnyAssignedToNode(
+            state,
+            indices,
+            // a content node is never considered a warm or cold node
+            n -> DataTier.isContentNode(n) == false && (DataTier.isWarmNode(n) || DataTier.isColdNode(n))
+        );
     }
 }

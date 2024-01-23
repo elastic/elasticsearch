@@ -29,12 +29,15 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
 public class MvMin extends AbstractMultivalueFunction {
-    @FunctionInfo(returnType = "?", description = "Reduce a multivalued field to a single valued field containing the minimum value.")
+    @FunctionInfo(
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+        description = "Reduce a multivalued field to a single valued field containing the minimum value."
+    )
     public MvMin(
         Source source,
         @Param(
             name = "v",
-            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" }
         ) Expression field
     ) {
         super(source, field);

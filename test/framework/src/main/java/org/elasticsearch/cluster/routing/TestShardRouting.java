@@ -287,6 +287,31 @@ public class TestShardRouting {
         );
     }
 
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        RecoverySource recoverySource,
+        UnassignedInfo unassignedInfo,
+        AllocationId allocationId
+    ) {
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            relocatingNodeId,
+            primary,
+            state,
+            recoverySource,
+            unassignedInfo,
+            buildRelocationFailureInfo(state),
+            allocationId,
+            -1,
+            ShardRouting.Role.DEFAULT
+        );
+    }
+
     public static ShardRouting relocate(ShardRouting shardRouting, String relocatingNodeId, long expectedShardSize) {
         return shardRouting.relocate(relocatingNodeId, expectedShardSize);
     }

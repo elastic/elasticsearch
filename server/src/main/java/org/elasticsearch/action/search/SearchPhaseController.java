@@ -360,15 +360,19 @@ public final class SearchPhaseController {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray
     ) {
         if (reducedQueryPhase.isEmptyResult) {
-            return new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1);
+            return SearchResponseSections.EMPTY_WITH_TOTAL_HITS;
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         var fetchResults = fetchResultsArray.asList();
-        SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
-        if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
-            mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
+        final SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+        try {
+            if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
+                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
+            }
+            return reducedQueryPhase.buildResponse(hits, fetchResults);
+        } finally {
+            hits.decRef();
         }
-        return reducedQueryPhase.buildResponse(hits, fetchResults);
     }
 
     private static void mergeSuggest(
@@ -462,10 +466,11 @@ public final class SearchPhaseController {
                     searchHit.score(shardDoc.score);
                 }
                 hits.add(searchHit);
+                searchHit.incRef();
             }
         }
         return new SearchHits(
-            hits.toArray(new SearchHit[0]),
+            hits.toArray(SearchHits.EMPTY),
             reducedQueryPhase.totalHits,
             reducedQueryPhase.maxScore,
             sortedTopDocs.sortFields,

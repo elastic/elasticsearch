@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,6 +37,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -128,6 +132,14 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
+        var assignments = TrainedModelAssignmentUtils.modelAssignments(request.getModelId(), clusterService.state());
+        if ((assignments == null || assignments.isEmpty()) == false) {
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
+            );
+            return;
+        }
+
         if (service.get().isInClusterService()) {
             // Find the cluster platform as the service may need that
             // information when creating the model
@@ -175,11 +187,20 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         );
     }
 
-    private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
-        service.start(
-            model,
-            listener.delegateFailureAndWrap((l, ok) -> l.onResponse(new PutInferenceModelAction.Response(model.getConfigurations())))
-        );
+    private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> finalListener) {
+        SubscribableListener.<Boolean>newForked((listener1) -> { service.putModel(model, listener1); }).<
+            PutInferenceModelAction.Response>andThen((listener2, modelDidPut) -> {
+                if (modelDidPut) {
+                    service.start(
+                        model,
+                        listener2.delegateFailureAndWrap(
+                            (l3, ok) -> l3.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()))
+                        )
+                    );
+                } else {
+                    logger.warn("Failed to put model [{}]", model.getModelId());
+                }
+            }).addListener(finalListener);
     }
 
     private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {

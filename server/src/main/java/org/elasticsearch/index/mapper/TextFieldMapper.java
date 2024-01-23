@@ -937,9 +937,15 @@ public final class TextFieldMapper extends FieldMapper {
             return fielddata;
         }
 
+        public boolean canUseSyntheticSourceDelegateForQuerying() {
+            return syntheticSourceDelegate != null
+                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
+                && (syntheticSourceDelegate.isIndexed() || syntheticSourceDelegate.isStored());
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (syntheticSourceDelegate != null) {
+            if (canUseSyntheticSourceDelegateForQuerying()) {
                 return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
                     @Override
                     protected String delegatingTo() {
@@ -988,10 +994,11 @@ public final class TextFieldMapper extends FieldMapper {
          * using whatever
          */
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
-            if (getTextSearchInfo().hasNorms()) {
-                return BlockSourceReader.lookupFromNorms(name());
-            }
-            if (isIndexed() == false && isStored() == false) {
+            if (isIndexed()) {
+                if (getTextSearchInfo().hasNorms()) {
+                    return BlockSourceReader.lookupFromNorms(name());
+                }
+            } else if (isStored() == false) {
                 return BlockSourceReader.lookupMatchingAll();
             }
             return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());

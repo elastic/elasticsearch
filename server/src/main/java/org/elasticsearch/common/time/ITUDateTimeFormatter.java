@@ -65,7 +65,7 @@ class ITUDateTimeFormatter implements DateTimeFormatter {
 
     @Override
     public TemporalAccessor parse(CharSequence str) throws DateTimeParseException {
-        return ITU.parseLenient(str.toString());
+        return new ITUAccessor(ITU.parseLenient(str.toString()));
     }
 
     @Override

@@ -106,5 +106,5 @@ the `time_series` aggregation. For example the filter by filter optimization or 
 `multi_terms` aggregation forcefully use the depth first collect mode).
 
 The following aggregations also fail to work if used in combination with the `time_series` aggregation:
-`auto_date_histogram`, `variable_width_histogram`, `rare_terms`, `global`, `composite`, `sampler`, random_sampler` and
+`auto_date_histogram`, `variable_width_histogram`, `rare_terms`, `global`, `composite`, `sampler`, `random_sampler` and
 `diversified_sampler`.

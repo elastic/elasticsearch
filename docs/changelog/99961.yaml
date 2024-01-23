@@ -1,5 +1,5 @@
 pr: 99961
-summary: "ESQL: Prevent pushdown for filter not supported in Lucene"
+summary: "ESQL: Correct out-of-range filter pushdowns"
 area: ES|QL
 type: bug
 issues:

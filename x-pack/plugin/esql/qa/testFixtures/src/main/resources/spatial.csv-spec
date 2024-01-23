@@ -2,29 +2,18 @@
 # Tests for GEO_POINT type
 #
 
-# This first test is only here to verify type support in older versions, all other tests are for newer versions
-convertToAndFromLong#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
-row long = 1512146573982606908
-| eval pt = to_geopoint(long)
-| eval l = to_long(pt)
-| keep long, l;
+convertFromStringQuantize#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
+row wkt = "POINT(42.97109629958868 14.7552534006536)"
+| eval pt = to_geopoint(wkt);
 
-long:long           |l:long
-1512146573982606908 |1512146573982606908
-;
-
-convertFromLong#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
-row long = 1512146573982606908
-| eval pt = to_geopoint(long);
-
-long:long           |pt:geo_point
-1512146573982606908 |POINT(42.97109629958868 14.7552534006536)
+wkt:keyword           |pt:geo_point
+POINT(42.97109629958868 14.7552534006536) |POINT(42.97109629958868 14.7552534006536)
 ;
 
 convertFromString#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
 // tag::to_geopoint-str[]
-row wkt = "POINT(42.97109630194 14.7552534413725)"
-| eval pt = to_geopoint(wkt)
+ROW wkt = "POINT(42.97109630194 14.7552534413725)"
+| EVAL pt = TO_GEOPOINT(wkt)
 // end::to_geopoint-str[]
 ;
 
@@ -32,14 +21,6 @@ row wkt = "POINT(42.97109630194 14.7552534413725)"
 wkt:keyword                              |pt:geo_point
 "POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
 // end::to_geopoint-str-result[]
-;
-
-convertFromLongArray#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
-row long = [1512146573982606908, 2329183180959557901]
-| eval pt = to_geopoint(long);
-
-long:long                                  |pt:geo_point
-[1512146573982606908, 2329183180959557901] |[POINT(42.97109629958868 14.7552534006536), POINT(75.80929149873555 22.72774917539209)]
 ;
 
 convertFromStringArray#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
@@ -124,30 +105,11 @@ wkt:keyword                               |pt:geo_point
 # Tests for CARTESIAN_POINT type
 #
 
-# This first test is only here to verify type support in older versions, all other tests are for newer versions
-convertCartesianToAndFromLong#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
-row long = 5009771769843126025
-| eval pt = to_cartesianpoint(long)
-| eval l = to_long(pt)
-| keep long, l;
-
-long:long           |l:long
-5009771769843126025 |5009771769843126025
-;
-
-convertCartesianFromLong#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
-row long = 5009771769843126025
-| eval pt = to_cartesianpoint(long);
-
-long:long           |pt:cartesian_point
-5009771769843126025 |POINT(4297.10986328125 -1475.530029296875)
-;
-
 convertCartesianFromString#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
 // tag::to_cartesianpoint-str[]
-row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
-| mv_expand wkt
-| eval pt = to_cartesianpoint(wkt)
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
 // end::to_cartesianpoint-str[]
 ;
 
@@ -156,14 +118,6 @@ wkt:keyword               |pt:cartesian_point
 "POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
 "POINT(7580.93 2272.77)"  |POINT(7580.93 2272.77)
 // end::to_cartesianpoint-str-result[]
-;
-
-convertCartesianFromLongArray#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
-row long = [5009771769843126025, 5038656556796611666]
-| eval pt = to_cartesianpoint(long);
-
-long:long                                  |pt:cartesian_point
-[5009771769843126025, 5038656556796611666] |[POINT(4297.10986328125 -1475.530029296875), POINT(7580.93017578125 2272.77001953125)]
 ;
 
 convertCartesianFromStringArray#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]

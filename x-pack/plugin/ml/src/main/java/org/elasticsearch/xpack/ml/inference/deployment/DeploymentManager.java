@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.ml.inference.deployment;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -74,6 +77,7 @@ public class DeploymentManager {
 
     private static final Logger logger = LogManager.getLogger(DeploymentManager.class);
     private static final AtomicLong requestIdCounter = new AtomicLong(1);
+    public static final int NUM_RESTART_ATTEMPTS = 3;
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -131,6 +135,14 @@ public class DeploymentManager {
     }
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
+        startDeployment(task, null, finalListener);
+    }
+
+    public void startDeployment(
+        TrainedModelDeploymentTask task,
+        Integer startsCount,
+        ActionListener<TrainedModelDeploymentTask> finalListener
+    ) {
         logger.info("[{}] Starting model deployment of model [{}]", task.getDeploymentId(), task.getModelId());
 
         if (processContextByAllocation.size() >= maxProcesses) {
@@ -144,7 +156,7 @@ public class DeploymentManager {
             return;
         }
 
-        ProcessContext processContext = new ProcessContext(task);
+        ProcessContext processContext = new ProcessContext(task, startsCount);
         if (addProcessContext(task.getId(), processContext) != null) {
             finalListener.onFailure(
                 ExceptionsHelper.serverError("[{}] Could not create inference process as one already exists", task.getDeploymentId())
@@ -451,6 +463,8 @@ public class DeploymentManager {
     class ProcessContext {
 
         private static final String PROCESS_NAME = "inference process";
+        private static final TimeValue COMPLETION_TIMEOUT = TimeValue.timeValueMinutes(3);
+
         private final TrainedModelDeploymentTask task;
         private final SetOnce<PyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
@@ -461,14 +475,13 @@ public class DeploymentManager {
         private final PriorityProcessWorkerExecutorService priorityProcessWorker;
         private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
         private final AtomicInteger timeoutCount = new AtomicInteger();
+        private final AtomicInteger startsCount = new AtomicInteger();
         private volatile Instant startTime;
         private volatile Integer numThreadsPerAllocation;
         private volatile Integer numAllocations;
         private volatile boolean isStopped;
 
-        private static final TimeValue COMPLETION_TIMEOUT = TimeValue.timeValueMinutes(3);
-
-        ProcessContext(TrainedModelDeploymentTask task) {
+        ProcessContext(TrainedModelDeploymentTask task, Integer startsCount) {
             this.task = Objects.requireNonNull(task);
             resultProcessor = new PyTorchResultProcessor(task.getDeploymentId(), threadSettings -> {
                 this.numThreadsPerAllocation = threadSettings.numThreadsPerAllocation();
@@ -485,6 +498,7 @@ public class DeploymentManager {
                 PROCESS_NAME,
                 task.getParams().getQueueCapacity()
             );
+            this.startsCount.set(startsCount == null ? 1 : startsCount);
         }
 
         PyTorchResultProcessor getResultProcessor() {
@@ -507,7 +521,7 @@ public class DeploymentManager {
                     task,
                     executorServiceForProcess,
                     () -> resultProcessor.awaitCompletion(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES),
-                    this::onProcessCrash
+                    onProcessCrashHandleRestarts(startsCount)
                 )
             );
             startTime = Instant.now();
@@ -528,6 +542,57 @@ public class DeploymentManager {
             } catch (Exception e) {
                 loadedListener.onFailure(e);
             }
+        }
+
+        private Consumer<String> onProcessCrashHandleRestarts(AtomicInteger startsCount) {
+            return (reason) -> {
+                if (isThisProcessOlderThan1Day()) {
+                    startsCount.set(1);
+                    logger.error(
+                        "[{}] inference process crashed due to reason [{}]. This process was started more than 24 hours ago; "
+                            + "the starts count is reset to 1.",
+                        task.getDeploymentId(),
+                        reason
+                    );
+                } else {
+                    logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
+                }
+
+                processContextByAllocation.remove(task.getId());
+                isStopped = true;
+                resultProcessor.stop();
+                stateStreamer.cancel();
+
+                if (startsCount.get() <= NUM_RESTART_ATTEMPTS) {
+                    logger.info("[{}] restarting inference process after [{}] starts", task.getDeploymentId(), startsCount.get());
+                    priorityProcessWorker.shutdownNow(); // TODO what to do with these tasks?
+                    ActionListener<TrainedModelDeploymentTask> errorListener = ActionListener.wrap((trainedModelDeploymentTask -> {
+                        logger.debug("Completed restart of inference process, the [{}] start", startsCount);
+                    }),
+                        (e) -> finishClosingProcess(
+                            startsCount,
+                            "Failed to restart inference process because of error [" + e.getMessage() + "]"
+                        )
+                    );
+
+                    startDeployment(task, startsCount.incrementAndGet(), errorListener);
+                } else {
+                    finishClosingProcess(startsCount, reason);
+                }
+            };
+        }
+
+        private boolean isThisProcessOlderThan1Day() {
+            return startTime.isBefore(Instant.now().minus(Duration.ofDays(1)));
+        }
+
+        private void finishClosingProcess(AtomicInteger startsCount, String reason) {
+            logger.warn("[{}] inference process failed after [{}] starts, not restarting again", task.getDeploymentId(), startsCount.get());
+            priorityProcessWorker.shutdownNowWithError(new IllegalStateException(reason));
+            if (nlpTaskProcessor.get() != null) {
+                nlpTaskProcessor.get().close();
+            }
+            task.setFailed("inference process crashed due to reason [" + reason + "]");
         }
 
         void startPriorityProcessWorker() {
@@ -641,19 +706,6 @@ public class DeploymentManager {
                 logger.error(format("[%s] Failed to stop process gracefully, attempting to kill it", task.getDeploymentId()), e);
                 killProcessIfPresent();
             }
-        }
-
-        private void onProcessCrash(String reason) {
-            logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
-            processContextByAllocation.remove(task.getId());
-            isStopped = true;
-            resultProcessor.stop();
-            stateStreamer.cancel();
-            priorityProcessWorker.shutdownNowWithError(new IllegalStateException(reason));
-            if (nlpTaskProcessor.get() != null) {
-                nlpTaskProcessor.get().close();
-            }
-            task.setFailed("inference process crashed due to reason [" + reason + "]");
         }
 
         void loadModel(TrainedModelLocation modelLocation, ActionListener<Boolean> listener) {

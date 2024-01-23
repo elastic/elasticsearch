@@ -1,0 +1,5 @@
+pr: 104460
+summary: Dyamically adjust node metrics cache expire
+area: Search
+type: enhancement
+issues: []

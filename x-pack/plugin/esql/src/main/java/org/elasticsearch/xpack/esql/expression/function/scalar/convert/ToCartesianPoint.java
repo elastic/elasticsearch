@@ -21,7 +21,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 
@@ -29,13 +28,12 @@ public class ToCartesianPoint extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
-        Map.entry(LONG, ToCartesianPointFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToCartesianPointFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "cartesian_point")
-    public ToCartesianPoint(Source source, @Param(name = "v", type = { "cartesian_point", "long", "keyword", "text" }) Expression field) {
+    @FunctionInfo(returnType = "cartesian_point", description = "Converts an input value to a point value.")
+    public ToCartesianPoint(Source source, @Param(name = "v", type = { "cartesian_point", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 
@@ -61,11 +59,6 @@ public class ToCartesianPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return CARTESIAN.stringAsWKB(in.utf8ToString());
-    }
-
-    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromLong(long encoded) {
-        return CARTESIAN.longAsWKB(encoded);
+        return CARTESIAN.wktToWkb(in.utf8ToString());
     }
 }

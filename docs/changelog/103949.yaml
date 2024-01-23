@@ -1,0 +1,5 @@
+pr: 103949
+summary: "ESQL: Introduce mode setting for ENRICH"
+area: ES|QL
+type: feature
+issues: []

@@ -147,12 +147,12 @@ public class Connector implements NamedWriteable, ToXContentObject {
     ) {
         this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
-        this.configuration = Objects.requireNonNull(configuration, "[configuration] cannot be null");
-        this.customScheduling = Objects.requireNonNull(customScheduling, "[custom_scheduling] cannot be null");
+        this.configuration = configuration;
+        this.customScheduling = customScheduling;
         this.description = description;
         this.error = error;
         this.features = features;
-        this.filtering = Objects.requireNonNull(filtering, "[filtering] cannot be null");
+        this.filtering = filtering;
         this.indexName = indexName;
         this.isNative = isNative;
         this.language = language;
@@ -160,9 +160,9 @@ public class Connector implements NamedWriteable, ToXContentObject {
         this.syncInfo = syncInfo;
         this.name = name;
         this.pipeline = pipeline;
-        this.scheduling = Objects.requireNonNull(scheduling, "[scheduling] cannot be null");
+        this.scheduling = scheduling;
         this.serviceType = serviceType;
-        this.status = Objects.requireNonNull(status, "[status] cannot be null");
+        this.status = status;
         this.syncCursor = syncCursor;
         this.syncNow = syncNow;
     }
@@ -273,7 +273,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), LANGUAGE_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, Connector.LAST_SEEN_FIELD.getPreferredName()),
             Connector.LAST_SEEN_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -281,7 +281,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_ERROR);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(
+                p,
+                ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()
+            ),
             ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -294,7 +297,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -302,7 +305,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -314,7 +317,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_SYNCED_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_SYNCED_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -549,19 +552,19 @@ public class Connector implements NamedWriteable, ToXContentObject {
         private String description;
         private String error;
         private ConnectorFeatures features;
-        private List<ConnectorFiltering> filtering = List.of(ConnectorFiltering.getDefaultConnectorFilteringConfig());
+        private List<ConnectorFiltering> filtering;
         private String indexName;
-        private boolean isNative = false;
+        private boolean isNative;
         private String language;
         private Instant lastSeen;
         private ConnectorSyncInfo syncInfo = new ConnectorSyncInfo.Builder().build();
         private String name;
         private ConnectorIngestPipeline pipeline;
-        private ConnectorScheduling scheduling = ConnectorScheduling.getDefaultConnectorScheduling();
+        private ConnectorScheduling scheduling;
         private String serviceType;
         private ConnectorStatus status = ConnectorStatus.CREATED;
         private Object syncCursor;
-        private boolean syncNow = false;
+        private boolean syncNow;
 
         public Builder setConnectorId(String connectorId) {
             this.connectorId = connectorId;
@@ -610,9 +613,6 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
         public Builder setIsNative(boolean isNative) {
             this.isNative = isNative;
-            if (isNative) {
-                this.status = ConnectorStatus.NEEDS_CONFIGURATION;
-            }
             return this;
         }
 
@@ -632,7 +632,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         }
 
         public Builder setName(String name) {
-            this.name = Objects.requireNonNullElse(name, "");
+            this.name = name;
             return this;
         }
 

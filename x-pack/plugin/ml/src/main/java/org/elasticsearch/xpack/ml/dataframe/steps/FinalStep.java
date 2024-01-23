@@ -13,10 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -60,7 +60,7 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
     @Override
     protected void doExecute(ActionListener<StepResponse> listener) {
 
-        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
+        ActionListener<BroadcastResponse> refreshListener = ActionListener.wrap(
             refreshResponse -> listener.onResponse(new StepResponse(false)),
             listener::onFailure
         );
@@ -89,7 +89,7 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
         }
     }
 
-    private void refreshIndices(ActionListener<RefreshResponse> listener) {
+    private void refreshIndices(ActionListener<BroadcastResponse> listener) {
         RefreshRequest refreshRequest = new RefreshRequest(
             AnomalyDetectorsIndex.jobStateIndexPattern(),
             MlStatsIndex.indexPattern(),

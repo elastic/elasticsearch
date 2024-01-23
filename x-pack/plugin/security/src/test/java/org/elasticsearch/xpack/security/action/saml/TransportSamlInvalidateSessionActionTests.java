@@ -16,7 +16,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -34,6 +33,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -197,25 +197,30 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     SearchRequest searchRequest = (SearchRequest) request;
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
-                    ActionListener.respondAndRelease(
-                        listener,
-                        (Response) new SearchResponse(
-                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                            null,
-                            null,
-                            false,
-                            false,
-                            null,
-                            1,
-                            "_scrollId1",
-                            1,
-                            1,
-                            0,
-                            1,
-                            null,
-                            null
-                        )
-                    );
+                    final var searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f);
+                    try {
+                        ActionListener.respondAndRelease(
+                            listener,
+                            (Response) new SearchResponse(
+                                searchHits,
+                                null,
+                                null,
+                                false,
+                                false,
+                                null,
+                                1,
+                                "_scrollId1",
+                                1,
+                                1,
+                                0,
+                                1,
+                                null,
+                                null
+                            )
+                        );
+                    } finally {
+                        searchHits.decRef();
+                    }
                 } else if (TransportSearchScrollAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
                     ActionListener.respondAndRelease(
@@ -245,7 +250,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     listener.onResponse((Response) response);
                 } else if (RefreshAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(RefreshRequest.class));
-                    listener.onResponse((Response) mock(RefreshResponse.class));
+                    listener.onResponse((Response) mock(BroadcastResponse.class));
                 } else {
                     super.doExecute(action, request, listener);
                 }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
@@ -171,7 +172,7 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
 
     private static SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
         return new SearchResponse(
-            null,
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             new Aggregations(Arrays.asList(minTimestamp, maxTimestamp)),
             null,
             false,

@@ -25,7 +25,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.util.ByteUtils;
@@ -72,26 +71,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
         throws IOException {
         this.uidField = uidField;
         final Terms terms = reader.terms(uidField);
-        if (terms == null) {
-            // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
-            final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
-            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-            // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
-            final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
-            if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
-                throw new IllegalArgumentException(
-                    "reader does not have _uid terms but not a no-op segment; "
-                        + "_soft_deletes ["
-                        + softDeletesDV
-                        + "], _tombstone ["
-                        + tombstoneDV
-                        + "]"
-                );
-            }
-            termsEnum = null;
-        } else {
-            termsEnum = terms.iterator();
-        }
+        this.termsEnum = (terms == null) ? null : terms.iterator();
         if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
             throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field; _uid terms [" + terms + "]");
         }

@@ -15,9 +15,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterCodecReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FilterNumericDocValues;
-import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
@@ -26,7 +24,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -36,8 +33,8 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
@@ -51,13 +48,14 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         String recoverySourceField,
         boolean pruneIdField,
         Supplier<Query> retainSourceQuerySupplier,
+        LocalCheckpointTracker checkpointTracker,
         MergePolicy in
     ) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(recoverySourceField, pruneIdField, wrapped, retainSourceQuerySupplier);
+                return wrapReader(recoverySourceField, pruneIdField, wrapped, retainSourceQuerySupplier, checkpointTracker);
             }
         });
     }
@@ -66,12 +64,14 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         String recoverySourceField,
         boolean pruneIdField,
         CodecReader reader,
-        Supplier<Query> retainSourceQuerySupplier
+        Supplier<Query> retainSourceQuerySupplier,
+        LocalCheckpointTracker checkpointTracker
     ) throws IOException {
         NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
         }
+
         IndexSearcher s = new IndexSearcher(reader);
         s.setQueryCache(null);
         Weight weight = s.createWeight(s.rewrite(retainSourceQuerySupplier.get()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
@@ -83,9 +83,9 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
                 return reader; // keep all source
             }
-            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, recoverySourceToKeep);
+            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, recoverySourceToKeep, checkpointTracker);
         } else {
-            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, null);
+            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, null, checkpointTracker);
         }
     }
 
@@ -93,12 +93,20 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         private final BitSet recoverySourceToKeep;
         private final String recoverySourceField;
         private final boolean pruneIdField;
+        private final LocalCheckpointTracker checkpointTracker;
 
-        SourcePruningFilterCodecReader(String recoverySourceField, boolean pruneIdField, CodecReader reader, BitSet recoverySourceToKeep) {
+        SourcePruningFilterCodecReader(
+            String recoverySourceField,
+            boolean pruneIdField,
+            CodecReader reader,
+            BitSet recoverySourceToKeep,
+            LocalCheckpointTracker checkpointTracker
+        ) {
             super(reader);
             this.recoverySourceField = recoverySourceField;
             this.recoverySourceToKeep = recoverySourceToKeep;
             this.pruneIdField = pruneIdField;
+            this.checkpointTracker = checkpointTracker;
         }
 
         @Override
@@ -177,19 +185,8 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 @Override
                 public Terms terms(String field) throws IOException {
                     Terms in = postingsReader.terms(field);
-                    if (IdFieldMapper.NAME.equals(field) && in != null) {
-                        return new FilterLeafReader.FilterTerms(in) {
-                            @Override
-                            public TermsEnum iterator() throws IOException {
-                                TermsEnum iterator = super.iterator();
-                                return new FilteredTermsEnum(iterator, false) {
-                                    @Override
-                                    protected AcceptStatus accept(BytesRef term) throws IOException {
-                                        return AcceptStatus.END;
-                                    }
-                                };
-                            }
-                        };
+                    if (IdFieldMapper.NAME.equals(field) && in != null && checkpointTracker.hasProcessed(checkpointTracker.getMaxSeqNo())) {
+                        return null;
                     }
                     return in;
                 }

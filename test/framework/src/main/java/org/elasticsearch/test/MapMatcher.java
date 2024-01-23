@@ -186,18 +186,14 @@ public class MapMatcher extends TypeSafeMatcher<Map<?, ?>> {
 
     @Override
     protected boolean matchesSafely(Map<?, ?> item) {
-        if (extraOk) {
-            if (false == item.keySet().containsAll(matchers.keySet())) {
-                return false;
-            }
-        } else {
+        if (extraOk == false) {
             if (false == item.keySet().equals(matchers.keySet())) {
                 return false;
             }
         }
         for (Map.Entry<Object, Matcher<?>> e : matchers.entrySet()) {
             if (false == item.containsKey(e.getKey())) {
-                return false;
+                return e.getValue().toString().equals(nullValue().toString());
             }
             Object v = item.get(e.getKey());
             if (false == e.getValue().matches(v)) {

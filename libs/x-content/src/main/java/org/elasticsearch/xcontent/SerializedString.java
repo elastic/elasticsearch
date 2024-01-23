@@ -11,5 +11,6 @@ package org.elasticsearch.xcontent;
 import java.io.IOException;
 
 public interface SerializedString {
-    void write() throws IOException;
+    void writeField() throws IOException;
+    void writeValue() throws IOException;
 }

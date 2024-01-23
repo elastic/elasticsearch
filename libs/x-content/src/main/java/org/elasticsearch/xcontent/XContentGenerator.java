@@ -38,6 +38,8 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeFieldName(String name) throws IOException;
 
+    void writeFieldName(SerializedString name) throws IOException;
+
     void writeNull() throws IOException;
 
     void writeNullField(String name) throws IOException;

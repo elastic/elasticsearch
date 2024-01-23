@@ -191,9 +191,27 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
+    public void writeFieldName(SerializedString name) throws IOException {
+        try {
+            name.writeField();
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
+    }
+
+    @Override
     public SerializedString serializeString(String s) {
         com.fasterxml.jackson.core.io.SerializedString serializedString = new com.fasterxml.jackson.core.io.SerializedString(s);
-        return () -> generator.writeFieldName(serializedString);
+        return new SerializedString() {
+            @Override
+            public void writeField() throws IOException {
+                generator.writeFieldName(serializedString);
+            }
+
+            public void writeValue() throws IOException {
+                generator.writeString(serializedString);
+            }
+        };
     }
 
     @Override
@@ -373,7 +391,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public void writeSerializedString(SerializedString value) throws IOException {
         try {
-            value.write();
+            value.writeValue();
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }

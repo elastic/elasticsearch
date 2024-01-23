@@ -493,6 +493,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                             "fields",
                             matchesMap().extraOk()
                                 .entry("_id", matchesMap().extraOk().entry("stored_fields_in_bytes", greaterThanOrEqualTo(1)))
+                                .entry("_seq_no", matchesMap().extraOk().entry("points_in_bytes", greaterThanOrEqualTo(1)))
                         )
                 )
         );
@@ -527,7 +528,17 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
         assertMap(
             map,
-            matchesMap().extraOk().entry(indexName, matchesMap().extraOk().entry("fields", matchesMap().extraOk().entry("_id", null)))
+            matchesMap().extraOk()
+                .entry(
+                    indexName,
+                    matchesMap().extraOk()
+                        .entry(
+                            "fields",
+                            matchesMap().extraOk()
+                                .entry("_id", null)
+                                .entry("_seq_no", matchesMap().extraOk().entry("points_in_bytes", equalTo(0)))
+                        )
+                )
         );
 
         // Check the search api can synthesize _id

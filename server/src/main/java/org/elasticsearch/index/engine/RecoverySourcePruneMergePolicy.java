@@ -10,6 +10,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
+import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
@@ -19,6 +20,7 @@ import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -34,6 +36,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
@@ -184,6 +187,33 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 @Override
                 public int size() {
                     return postingsReader.size();
+                }
+            };
+        }
+
+        @Override
+        public PointsReader getPointsReader() {
+            PointsReader pointsReader = super.getPointsReader();
+            if (pointsReader == null || pruneIdField == false || (recoverySourceToKeep != null && recoverySourceToKeep.cardinality() > 0)) {
+                return pointsReader;
+            }
+            return new PointsReader() {
+                @Override
+                public void checkIntegrity() throws IOException {
+                    pointsReader.checkIntegrity();
+                }
+
+                @Override
+                public PointValues getValues(String field) throws IOException {
+                    if (SeqNoFieldMapper.NAME.equals(field)) {
+                        return null;
+                    }
+                    return pointsReader.getValues(field);
+                }
+
+                @Override
+                public void close() throws IOException {
+                    pointsReader.close();
                 }
             };
         }

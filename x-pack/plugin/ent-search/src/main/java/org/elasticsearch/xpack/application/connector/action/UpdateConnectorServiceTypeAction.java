@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -93,7 +94,6 @@ public class UpdateConnectorServiceTypeAction extends ActionType<ConnectorUpdate
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(Connector.ID_FIELD.getPreferredName(), connectorId);
                 builder.field(Connector.SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
             }
             builder.endObject();
@@ -120,6 +120,19 @@ public class UpdateConnectorServiceTypeAction extends ActionType<ConnectorUpdate
             super.writeTo(out);
             out.writeString(connectorId);
             out.writeString(serviceType);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(connectorId, request.connectorId) && Objects.equals(serviceType, request.serviceType);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(connectorId, serviceType);
         }
     }
 }

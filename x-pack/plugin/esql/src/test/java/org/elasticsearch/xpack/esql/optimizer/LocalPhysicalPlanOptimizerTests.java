@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -81,8 +80,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     private Analyzer analyzer;
     private LogicalPlanOptimizer logicalOptimizer;
     private PhysicalPlanOptimizer physicalPlanOptimizer;
+    private EsqlFunctionRegistry functionRegistry;
     private Mapper mapper;
-    private Map<String, EsField> mapping;
 
     private final EsqlConfiguration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
@@ -111,13 +110,9 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     @Before
     public void init() {
         parser = new EsqlParser();
-
-        mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
-        FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
         EnrichResolution enrichResolution = new EnrichResolution();
         enrichResolution.addResolvedPolicy(
@@ -130,10 +125,15 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
         enrichResolution.addExistingPolicies(Set.of("foo"));
-        analyzer = new Analyzer(
-            new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution),
-            new Verifier(new Metrics())
-        );
+        analyzer = makeAnalyzer("mapping-basic.json", enrichResolution);
+    }
+
+    private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
+        var mapping = loadMapping(mappingFileName);
+        EsIndex test = new EsIndex("test", mapping);
+        IndexResolution getIndexResult = IndexResolution.valid(test);
+
+        return new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), new Verifier(new Metrics()));
     }
 
     /**
@@ -383,10 +383,110 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
-    public void testOutOfRangeFilter() {
-        var plan = plan("from test | where emp_no < 1E300");
+    private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
+
+    public void testOutOfRangeFilterPushdown() {
+        String largerThanInteger = ((Long) randomLongBetween(Integer.MAX_VALUE + 1L, Long.MAX_VALUE)).toString();
+        String smallerThanInteger = ((Long) randomLongBetween(Long.MIN_VALUE, Integer.MIN_VALUE - 1L)).toString();
+
+        // These values are already out of bounds for longs due to rounding errors.
+        double longLowerBoundExclusive = (double) Long.MIN_VALUE;
+        double longUpperBoundExclusive = (double) Long.MAX_VALUE;
+        String largerThanLong = ((Double) randomDoubleBetween(longUpperBoundExclusive, Double.MAX_VALUE, true)).toString();
+        String smallerThanLong = ((Double) randomDoubleBetween(-Double.MAX_VALUE, longLowerBoundExclusive, true)).toString();
+
+        List<OutOfRangeTestCase> cases = List.of(
+            new OutOfRangeTestCase("byte", smallerThanInteger, largerThanInteger),
+            new OutOfRangeTestCase("short", smallerThanInteger, largerThanInteger),
+            new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
+            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong),
+            // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
+            // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
+            new OutOfRangeTestCase("double", "-1.0/0.0", "1.0/0.0"),
+            new OutOfRangeTestCase("scaled_float", "-1.0/0.0", "1.0/0.0")
+        );
+
+        for (OutOfRangeTestCase testCase : cases) {
+            List<String> trueForSingleValuesPredicates = List.of(
+                "<" + testCase.tooHigh,
+                "<=" + testCase.tooHigh,
+                ">" + testCase.tooLow,
+                ">=" + testCase.tooLow,
+                "!=" + testCase.tooHigh,
+                "!=" + testCase.tooLow,
+                "!= 0.0/0.0"
+            );
+            List<String> alwaysFalsePredicates = List.of(
+                "<" + testCase.tooLow,
+                "<=" + testCase.tooLow,
+                ">" + testCase.tooHigh,
+                ">=" + testCase.tooHigh,
+                "==" + testCase.tooHigh,
+                "==" + testCase.tooLow,
+                "< 0.0/0.0",
+                "<= 0.0/0.0",
+                "> 0.0/0.0",
+                ">= 0.0/0.0",
+                "== 0.0/0.0"
+            );
+
+            for (String truePredicate : trueForSingleValuesPredicates) {
+                String comparison = testCase.fieldName + truePredicate;
+                var query = "from test | where " + comparison;
+                Source expectedSource = new Source(1, 18, comparison);
+                String expectedLuceneQuery = """
+                    {
+                      "esql_single_value" : {
+                        "field" : "%s",
+                        "next" : {
+                          "match_all" : {
+                            "boost" : 1.0
+                          }
+                        },
+                        "source" : "%s"
+                      }
+                    }""".formatted(testCase.fieldName, expectedSource);
+                doTestOutOfRangeFilterPushdown(query, expectedLuceneQuery);
+            }
+
+            for (String falsePredicate : alwaysFalsePredicates) {
+                String comparison = testCase.fieldName + falsePredicate;
+                var query = "from test | where " + comparison;
+                Source expectedSource = new Source(1, 18, comparison);
+                String expectedLuceneQuery = """
+                    {
+                      "esql_single_value" : {
+                        "field" : "%s",
+                        "next" : {
+                          "bool" : {
+                            "must_not" : [
+                              {
+                                "match_all" : {
+                                  "boost" : 1.0
+                                }
+                              }
+                            ],
+                            "boost" : 1.0
+                          }
+                        },
+                        "source" : "%s"
+                      }
+                    }""".formatted(testCase.fieldName, expectedSource);
+                doTestOutOfRangeFilterPushdown(query, expectedLuceneQuery);
+            }
+        }
+    }
+
+    private void doTestOutOfRangeFilterPushdown(String query, String expectedLuceneQuery) {
+        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+
+        var plan = plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var luceneQuery = as(exchange.child(), EsQueryExec.class);
+
+        assertThat(luceneQuery.query().toString(), is(expectedLuceneQuery));
     }
 
     private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {
@@ -409,7 +509,11 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query, SearchStats stats) {
-        var physical = optimizedPlan(physicalPlan(query), stats);
+        return plan(query, stats, analyzer);
+    }
+
+    private PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer) {
+        var physical = optimizedPlan(physicalPlan(query, analyzer), stats);
         return physical;
     }
 
@@ -432,7 +536,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         return l;
     }
 
-    private PhysicalPlan physicalPlan(String query) {
+    private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
         var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);

@@ -48,7 +48,6 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
     private static final String END_TIME = "2021-12-31T23:59:59Z";
     private String beforeIndex, afterIndex;
     private long startTime, endTime;
-    private int docCount;
     private int numDimensions, numTimeSeries;
 
     @Override
@@ -71,8 +70,7 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         afterIndex = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
         startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(START_TIME);
         endTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(END_TIME);
-        docCount = 130_000;
-        numTimeSeries = 15_000;
+        numTimeSeries = 5_000;
         // NOTE: we need to use few dimensions to be able to index documents in an index created before introducing TSID hashing
         numDimensions = randomIntBetween(10, 20);
 

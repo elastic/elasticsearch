@@ -131,6 +131,7 @@ public class Constants {
         "cluster:admin/xpack/connector/update_configuration",
         "cluster:admin/xpack/connector/update_error",
         "cluster:admin/xpack/connector/update_filtering",
+        "cluster:admin/xpack/connector/update_index_name",
         "cluster:admin/xpack/connector/update_last_seen",
         "cluster:admin/xpack/connector/update_last_sync_stats",
         "cluster:admin/xpack/connector/update_name",

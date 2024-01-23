@@ -10,6 +10,8 @@
 
 # These two whitelists are required for painless to find the classes
 class org.apache.lucene.search.ScoreDoc {
+    (int, float)
+    (int float, int)
     float score
     int doc
     int shardIndex

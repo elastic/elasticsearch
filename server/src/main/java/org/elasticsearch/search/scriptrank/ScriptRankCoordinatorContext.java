@@ -44,7 +44,10 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
      * @return
      */
     @Override
-    public SearchPhaseController.SortedTopDocs rank(List<QuerySearchResult> querySearchResults, SearchPhaseController.TopDocsStats topDocStats) {
+    public SearchPhaseController.SortedTopDocs rank(
+        List<QuerySearchResult> querySearchResults,
+        SearchPhaseController.TopDocsStats topDocStats
+    ) {
         for (QuerySearchResult querySearchResult : querySearchResults) {
             // this is the results for each retriever, the whole thing is for an individual shard.
             var topDocsList = ((ScriptRankShardResult) querySearchResult.getRankShardResult()).getTopDocsList();
@@ -128,7 +131,36 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
         RankScript.Factory factory = scriptService.compile(script, RankScript.CONTEXT);
         RankScript rankScript = factory.newInstance(script.getParams());
 
+        /*
+            def results = [:];
+            for (def queue : queues) {
+                int index = 1;
+                for (def scoreDoc : queue) {
+                    results.compute(
+                        new RankKey(scoreDoc.doc, scoreDoc.shardIndex),
+                        (key, value) -> {
+                            if (value == null) {
+                                value = new ScoreDoc(scoreDoc.doc, 0f, scoreDoc.shardIndex);
+                            }
+                            value.score += 1.0f / (60 + index);
+                            return value;
+                        }
+                    );
+                    ++index;
+                }
+            }
+            def output = results.values();
+            output.sort((ScoreDoc rrf1, ScoreDoc rrf2) -> {
+                if (rrf1.score != rrf2.score) {
+                    return rrf1.score < rrf2.score ? 1 : -1;
+                }
+            });
+            return output;
+
+         */
+
         var scriptResult = rankScript.execute((List<Iterable<ScoreDoc>>) (Object) queues);
+
 
         var sortedTopDocs = new SearchPhaseController.SortedTopDocs(
             scriptResult.toArray(ScoreDoc[]::new),

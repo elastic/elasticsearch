@@ -403,6 +403,10 @@ public class ObjectMapper extends Mapper {
         return builder;
     }
 
+    /**
+     * Returns a copy of this object mapper that doesn't have any fields and runtime fields.
+     * This is typically used in the context of a mapper merge when there's not enough budget to add the entire object.
+     */
     ObjectMapper withoutMappers() {
         return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, null);
     }

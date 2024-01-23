@@ -177,8 +177,10 @@ public final class Mapping implements ToXContentFragment {
      */
     public Mapping withFieldsBudget(long fieldsBudget) {
         MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, fieldsBudget);
-        // calling merge to ensure we're only adding as many fields as allowed by the fields budget
-        return new Mapping(root.withoutMappers().merge(root, MergeReason.MAPPING_RECOVERY, mergeContext), metadataMappers, meta);
+        // get a copy of the root mapper, without any fields
+        RootObjectMapper shallowRoot = root.withoutMappers();
+        // calling merge on the shallow root to ensure we're only adding as many fields as allowed by the fields budget
+        return new Mapping(shallowRoot.merge(root, MergeReason.MAPPING_RECOVERY, mergeContext), metadataMappers, meta);
     }
 
     @Override

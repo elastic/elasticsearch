@@ -160,28 +160,16 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         blobStore.setDisruption(new Disruption() {
             @Override
             public byte[] onRead(byte[] actualContents, long position, long length) {
-                final byte[] disruptedContents;
-                final boolean isCountedDown = countDown.countDown();
-                if (isCountedDown) {
-                    if (actualContents != null) {
-                        disruptedContents = Arrays.copyOf(actualContents, actualContents.length);
-                        // CRC32 should always detect a single bit flip
-                        disruptedContents[Math.toIntExact(position + randomLongBetween(0, length - 1))] ^= (byte) (1 << between(0, 7));
-                    } else {
-                        disruptedContents = randomByteArrayOfLength(1);
-                    }
-                } else {
-                    disruptedContents = actualContents;
+                final byte[] disruptedContents = actualContents == null ? null : Arrays.copyOf(actualContents, actualContents.length);
+                if (actualContents != null && countDown.countDown()) {
+                    // CRC32 should always detect a single bit flip
+                    disruptedContents[Math.toIntExact(position + randomLongBetween(0, length - 1))] ^= (byte) (1 << between(0, 7));
                 }
                 return disruptedContents;
             }
         });
 
-        expectThrows(
-            RepositoryVerificationException.class,
-            "countDown has reached to zero: " + countDown.isCountedDown(),
-            () -> analyseRepository(request)
-        );
+        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
     }
 
     public void testFailsOnWriteException() {

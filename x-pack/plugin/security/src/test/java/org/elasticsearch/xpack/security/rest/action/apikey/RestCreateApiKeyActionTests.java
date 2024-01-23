@@ -22,7 +22,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -96,7 +95,7 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
             ) {
                 CreateApiKeyRequest createApiKeyRequest = (CreateApiKeyRequest) request;
                 @SuppressWarnings("unchecked")
-                RestToXContentListener<CreateApiKeyResponse> actionListener = (RestToXContentListener<CreateApiKeyResponse>) listener;
+                ActionListener<CreateApiKeyResponse> actionListener = (ActionListener<CreateApiKeyResponse>) listener;
                 assertThat(createApiKeyRequest.getType(), is(ApiKey.Type.REST));
                 if (createApiKeyRequest.getName().equals("my-api-key")) {
                     actionListener.onResponse(expected);

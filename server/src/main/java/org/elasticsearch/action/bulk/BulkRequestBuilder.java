@@ -16,6 +16,7 @@ import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -43,6 +44,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     private String timeoutString;
     private String globalPipeline;
     private String globalRouting;
+    private WriteRequest.RefreshPolicy refreshPolicy;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
         super(client, BulkAction.INSTANCE, null);
@@ -171,6 +173,11 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
         return this;
     }
 
+    public BulkRequestBuilder setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
+        return this;
+    }
+
     @Override
     public BulkRequest request() {
         if (requests.isEmpty() == false && requestBuilders.isEmpty() == false) {
@@ -196,7 +203,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
                     throw new RuntimeException(e);
                 }
             }
-            if (waitForActiveShards == null) {
+            if (waitForActiveShards != null) {
                 bulkRequest.waitForActiveShards(waitForActiveShards);
             }
             if (timeout != null) {
@@ -211,6 +218,9 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
             if (globalRouting != null) {
                 bulkRequest.routing(globalRouting);
             }
+            if (refreshPolicy != null) {
+                bulkRequest.setRefreshPolicy(refreshPolicy);
+            }
             return bulkRequest;
         } catch (Exception e) {
             bulkRequest.decRef();
@@ -218,6 +228,5 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
         }
     }
 
-    private record FramedData(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) {
-    }
+    private record FramedData(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) {}
 }

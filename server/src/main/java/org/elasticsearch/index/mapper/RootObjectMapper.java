@@ -258,7 +258,6 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicTemplates = this.dynamicTemplates;
         }
         final Map<String, RuntimeField> runtimeFields = new HashMap<>(this.runtimeFields);
-        assert this.runtimeFields != mergeWithObject.runtimeFields || this.runtimeFields == Map.<String, RuntimeField>of();
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
                 runtimeFields.remove(runtimeField.getKey());

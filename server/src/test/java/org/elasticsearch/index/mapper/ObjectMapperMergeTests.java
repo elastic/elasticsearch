@@ -250,6 +250,33 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertNotNull(parent3.getMapper("child2"));
     }
 
+    public void testMergeSameObjectDifferentFields() {
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(new KeywordFieldMapper.Builder("child1", IndexVersion.current()))
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(
+                new KeywordFieldMapper.Builder("child1", IndexVersion.current()).ignoreAbove(42)
+            ).add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
+        ).build(MapperBuilderContext.root(false, false));
+
+        ObjectMapper mergedAdd0 = root.merge(mergeWith, MapperMergeContext.root(false, false, 0));
+        ObjectMapper mergedAdd1 = root.merge(mergeWith, MapperMergeContext.root(false, false, 1));
+        assertEquals(2, root.mapperSize());
+        assertEquals(2, mergedAdd0.mapperSize());
+        assertEquals(3, mergedAdd1.mapperSize());
+
+        ObjectMapper parent0 = (ObjectMapper) mergedAdd0.getMapper("parent");
+        assertNotNull(parent0.getMapper("child1"));
+        assertEquals(42, ((KeywordFieldMapper) parent0.getMapper("child1")).fieldType().ignoreAbove());
+        assertNull(parent0.getMapper("child2"));
+
+        ObjectMapper parent1 = (ObjectMapper) mergedAdd1.getMapper("parent");
+        assertNotNull(parent1.getMapper("child1"));
+        assertEquals(42, ((KeywordFieldMapper) parent1.getMapper("child1")).fieldType().ignoreAbove());
+        assertNotNull(parent1.getMapper("child2"));
+    }
+
     public void testMergeWithLimitMultiField() {
         RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
             createTextKeywordMultiField("text", "keyword1")
@@ -265,6 +292,23 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper mergedAdd1 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 1));
         assertEquals(2, mergedAdd0.mapperSize());
         assertEquals(3, mergedAdd1.mapperSize());
+    }
+
+    public void testMergeWithLimitRuntimeField() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).addRuntimeField(
+            new TestRuntimeField("existing_runtime_field", "keyword")
+        ).add(createTextKeywordMultiField("text", "keyword1")).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).addRuntimeField(
+            new TestRuntimeField("existing_runtime_field", "keyword")
+        ).addRuntimeField(new TestRuntimeField("new_runtime_field", "keyword")).build(MapperBuilderContext.root(false, false));
+
+        assertEquals(3, mergeInto.mapperSize());
+        assertEquals(2, mergeWith.mapperSize());
+
+        ObjectMapper mergedAdd0 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 0));
+        ObjectMapper mergedAdd1 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 1));
+        assertEquals(3, mergedAdd0.mapperSize());
+        assertEquals(4, mergedAdd1.mapperSize());
     }
 
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {

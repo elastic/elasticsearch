@@ -16,7 +16,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 
 /**
@@ -69,9 +67,11 @@ public class WatcherSearchTemplateService {
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
             try (
-                InputStream stream = source.streamInput();
-                XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                    source,
+                    XContentHelper.xContentType(source)
+                )
             ) {
                 sourceBuilder.parseXContent(parser, true);
                 searchRequest.source(sourceBuilder);

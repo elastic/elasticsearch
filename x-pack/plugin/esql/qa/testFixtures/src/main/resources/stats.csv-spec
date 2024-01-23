@@ -791,3 +791,180 @@ FROM sample_data
 count(`event_duration`):l
 7
 ;
+
+docsStats
+// tag::stats[]
+FROM employees
+| STATS count = COUNT(emp_no) BY languages
+| SORT languages
+// end::stats[]
+;
+
+// tag::stats-result[]
+    count:long | languages:integer
+15             |1
+19             |2
+17             |3
+18             |4
+21             |5
+10             |null
+// end::stats-result[]
+;
+
+docsStatsWithoutBy
+// tag::statsWithoutBy[]
+FROM employees
+| STATS avg_lang = AVG(languages)
+// end::statsWithoutBy[]
+;
+
+// tag::statsWithoutBy-result[]
+avg_lang:double
+3.1222222222222222
+// end::statsWithoutBy-result[]
+;
+
+docsStatsMultiple
+// tag::statsCalcMultipleValues[]
+FROM employees
+| STATS avg_lang = AVG(languages), max_lang = MAX(languages)
+// end::statsCalcMultipleValues[]
+;
+
+avg_lang:double | max_lang:integer
+3.1222222222222222|5
+;
+
+docsStatsGroupByMultipleValues
+// tag::statsGroupByMultipleValues[]
+FROM employees
+| EVAL hired = DATE_FORMAT("YYYY", hire_date)
+| STATS avg_salary = AVG(salary) BY hired, languages.long
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT hired, languages.long
+// end::statsGroupByMultipleValues[]
+| LIMIT 4
+;
+
+hired:keyword |languages.long:long | avg_salary:double
+1985           |1              |54668.0        
+1985           |3              |47723.0        
+1985           |4              |44817.0        
+1985           |5              |47720.0  
+;
+
+docsStatsUnnamedColumn
+// tag::statsUnnamedColumn[]
+FROM employees
+| STATS AVG(salary)
+// end::statsUnnamedColumn[]
+;
+
+// tag::statsUnnamedColumn-result[]
+AVG(salary):double
+48248.55
+// end::statsUnnamedColumn-result[]
+;
+
+docsStatsUnnamedColumnEval
+// tag::statsUnnamedColumnEval[]
+FROM employees
+| STATS AVG(salary)
+| EVAL avg_salary_rounded = ROUND(`AVG(salary)`)
+// end::statsUnnamedColumnEval[]
+;
+
+// tag::statsUnnamedColumnEval-result[]
+AVG(salary):double | avg_salary_rounded:double
+48248.55           | 48249.0
+// end::statsUnnamedColumnEval-result[]
+;
+
+nestedExpressionNoGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS s = SUM(emp_no + 3), c = COUNT(emp_no)
+;
+
+s: long | c: long
+1005350 | 100
+;
+
+nestedExpressionInSurrogateAgg#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS a = AVG(emp_no % 5), s = SUM(emp_no % 5), c = COUNT(emp_no % 5)
+;
+
+a:double | s:long | c:long
+2.0      | 200    | 100
+;
+
+nestedExpressionInGroupingWithAlias#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS s = SUM(emp_no % 5), c = COUNT(emp_no % 5) BY l = languages + 20
+| SORT l
+;
+
+s:long | c:long | l : i
+39     | 15     | 21  
+36     | 19     | 22  
+30     | 17     | 23  
+32     | 18     | 24  
+43     | 21     | 25  
+20     | 10     | null
+;
+
+nestedMultiExpressionInGroupingsAndAggs#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees 
+| EVAL sal = salary + 10000 
+| STATS sum(sal), sum(salary + 10000) BY left(first_name, 1), concat(gender,   to_string(languages))
+| SORT `left(first_name, 1)`, `concat(gender,   to_string(languages))`
+| LIMIT 5
+;
+
+sum(sal):l | sum(salary + 10000):l | left(first_name, 1):s  | concat(gender,   to_string(languages)):s
+54307      | 54307                  |  A                    | F2
+70335      | 70335                  |  A                    | F3
+76817      | 76817                  |  A                    | F5
+123675     | 123675                 |  A                    | M3
+43370      | 43370                  |  B                    | F2
+;
+
+groupByNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, c = null
+| STATS COUNT(a) BY c;
+
+COUNT(a):long | c:null
+            1 | null
+;
+
+groupByNullAndString#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, b = "foo", c = null
+| STATS COUNT(a) BY c, b;
+
+COUNT(a):long | c:null | b:keyword
+            1 | null   | foo
+;
+
+groupByStringAndNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, b = "foo", c = null
+| STATS COUNT(a) BY b, c;
+
+COUNT(a):long | b:keyword | c:null
+            1 | foo       | null
+;
+
+countNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, c = null
+| STATS COUNT(c) BY a;
+
+COUNT(c):long | a:integer
+            0 | 1
+;
+
+countDistinctNull#[skip:-8.99.99,reason:not yet fixed]
+ROW a = 1, c = null
+| STATS COUNT_DISTINCT(c) BY a;
+
+COUNT(c):long | a:integer
+            0 | 1
+;

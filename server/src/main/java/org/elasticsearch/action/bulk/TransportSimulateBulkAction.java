@@ -69,7 +69,8 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         BulkRequest bulkRequest,
         String executorName,
         ActionListener<BulkResponse> listener,
-        Set<String> autoCreateIndices,
+        Map<String, Boolean> indicesToAutoCreate,
+        Set<String> dataStreamsToRollover,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {

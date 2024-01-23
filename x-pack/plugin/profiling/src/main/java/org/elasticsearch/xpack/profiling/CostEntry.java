@@ -14,22 +14,19 @@ import java.io.IOException;
 import java.util.Map;
 
 final class CostEntry implements ToXContentObject {
-    final double co2Factor;
     final double costFactor;
 
-    CostEntry(double co2Factor, double costFactor) {
-        this.co2Factor = co2Factor;
+    CostEntry(double costFactor) {
         this.costFactor = costFactor;
     }
 
     public static CostEntry fromSource(Map<String, Object> source) {
-        return new CostEntry((Double) source.get("co2_factor"), (Double) source.get("cost_factor"));
+        return new CostEntry((Double) source.get("cost_factor"));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("co2_factor", this.co2Factor);
         builder.field("cost_factor", this.costFactor);
         builder.endObject();
         return builder;

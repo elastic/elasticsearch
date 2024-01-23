@@ -11,8 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.dissect.DissectParser;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -34,7 +32,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
@@ -86,20 +83,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomResolvedExpression(randomBoolean() ? FieldAttribute.class : Literal.class);
         } else if (isPlanNodeClass(toBuildClass) && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(argClass);
-        } else if (argClass == EnrichPolicyResolution.class) {
-            // EnrichPolicyResolution is a record
-            return new EnrichPolicyResolution(
-                randomAlphaOfLength(5),
-                new EnrichPolicy(
-                    randomAlphaOfLength(10),
-                    null,
-                    List.of(randomAlphaOfLength(5)),
-                    randomAlphaOfLength(5),
-                    List.of(randomAlphaOfLength(5), randomAlphaOfLength(5))
-                ),
-                IndexResolution.invalid(randomAlphaOfLength(5))
-            );
-
         } else if (argClass == Stat.class) {
             // record field
             return new Stat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);

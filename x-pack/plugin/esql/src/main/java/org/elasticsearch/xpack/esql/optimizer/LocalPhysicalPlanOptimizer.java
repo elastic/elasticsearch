@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
@@ -54,16 +56,19 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Queries;
 import org.elasticsearch.xpack.ql.util.Queries.Clause;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -110,7 +115,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
-        var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction());
+        var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction(), new SpatialDocValuesExtraction());
         return asList(pushdown, fieldExtraction);
     }
 
@@ -193,15 +198,18 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
     }
 
-    public static class PushFiltersToSource extends OptimizerRule<FilterExec> {
+    public static class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        FilterExec,
+        LocalPhysicalOptimizerContext> {
+
         @Override
-        protected PhysicalPlan rule(FilterExec filterExec) {
+        protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = filterExec;
             if (filterExec.child() instanceof EsQueryExec queryExec) {
                 List<Expression> pushable = new ArrayList<>();
                 List<Expression> nonPushable = new ArrayList<>();
                 for (Expression exp : splitAnd(filterExec.condition())) {
-                    (canPushToSource(exp) ? pushable : nonPushable).add(exp);
+                    (canPushToSource(exp, x -> hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(exp);
                 }
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable));
@@ -227,26 +235,30 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        public static boolean canPushToSource(Expression exp) {
+        public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
             if (exp instanceof BinaryComparison bc) {
-                return isAttributePushable(bc.left(), bc) && bc.right().foldable();
+                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
-                return canPushToSource(bl.left()) && canPushToSource(bl.right());
+                return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
             } else if (exp instanceof In in) {
-                return isAttributePushable(in.value(), null) && Expressions.foldable(in.list());
+                return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
             } else if (exp instanceof Not not) {
-                return canPushToSource(not.field());
+                return canPushToSource(not.field(), hasIdenticalDelegate);
             } else if (exp instanceof UnaryScalarFunction usf) {
                 if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
-                    return isAttributePushable(usf.field(), usf);
+                    return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
                 }
             }
             return false;
         }
 
-        private static boolean isAttributePushable(Expression expression, Expression operation) {
-            if (expression instanceof FieldAttribute f && f.getExactInfo().hasExact()) {
-                return isAggregatable(f);
+        private static boolean isAttributePushable(
+            Expression expression,
+            Expression operation,
+            Predicate<FieldAttribute> hasIdenticalDelegate
+        ) {
+            if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
+                return true;
             }
             if (expression instanceof MetadataAttribute ma && ma.searchable()) {
                 return operation == null
@@ -282,15 +294,17 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
     }
 
-    private static class PushTopNToSource extends OptimizerRule<TopNExec> {
+    private static class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        TopNExec,
+        LocalPhysicalOptimizerContext> {
         @Override
-        protected PhysicalPlan rule(TopNExec topNExec) {
+        protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = topNExec;
             PhysicalPlan child = topNExec.child();
 
             boolean canPushDownTopN = child instanceof EsQueryExec
                 || (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec);
-            if (canPushDownTopN && canPushDownOrders(topNExec.order())) {
+            if (canPushDownTopN && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, ctx.searchStats()))) {
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();
 
@@ -303,10 +317,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        private boolean canPushDownOrders(List<Order> orders) {
+        private boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
             // allow only exact FieldAttributes (no expressions) for sorting
-            return orders.stream()
-                .allMatch(o -> o.child() instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa));
+            return orders.stream().allMatch(o -> isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {
@@ -405,4 +418,63 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
     }
 
+    public static boolean hasIdenticalDelegate(FieldAttribute attr, SearchStats stats) {
+        return stats.hasIdenticalDelegate(attr.name());
+    }
+
+    public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
+        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
+            return fa.dataType() != DataTypes.TEXT || hasIdenticalDelegate.test(fa);
+        }
+        return false;
+    }
+
+    private static class SpatialDocValuesExtraction extends OptimizerRule<AggregateExec> {
+        @Override
+        protected PhysicalPlan rule(AggregateExec aggregate) {
+            var foundAttributes = new HashSet<Attribute>();
+
+            PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
+                if (exec instanceof AggregateExec agg) {
+                    var orderedAggregates = new ArrayList<NamedExpression>();
+                    var changedAggregates = false;
+                    for (NamedExpression aggExpr : agg.aggregates()) {
+                        if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
+                            if (af.field() instanceof FieldAttribute fieldAttribute) {
+                                // We need to both mark the field to load differently, and change the spatial function to know to use it
+                                foundAttributes.add(fieldAttribute);
+                                changedAggregates = true;
+                                orderedAggregates.add(as.replaceChild(af.withDocValues()));
+                            } else {
+                                orderedAggregates.add(aggExpr);
+                            }
+                        } else {
+                            orderedAggregates.add(aggExpr);
+                        }
+                    }
+                    if (changedAggregates) {
+                        exec = new AggregateExec(
+                            agg.source(),
+                            agg.child(),
+                            agg.groupings(),
+                            orderedAggregates,
+                            agg.getMode(),
+                            agg.estimatedRowSize()
+                        );
+                    }
+                }
+                if (exec instanceof FieldExtractExec fieldExtractExec) {
+                    // Tell the field extractor that it should extract the field from doc-values instead of source values
+                    for (Attribute found : foundAttributes) {
+                        if (fieldExtractExec.attributesToExtract().contains(found)) {
+                            fieldExtractExec = fieldExtractExec.preferDocValues(found);
+                        }
+                    }
+                    exec = fieldExtractExec;
+                }
+                return exec;
+            });
+            return plan;
+        }
+    }
 }

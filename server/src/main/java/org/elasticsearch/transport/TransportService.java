@@ -1456,6 +1456,10 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
+    public static boolean isDirectResponseChannel(TransportChannel transportChannel) {
+        return transportChannel instanceof DirectResponseChannel;
+    }
+
     static class DirectResponseChannel implements TransportChannel {
         final DiscoveryNode localNode;
         private final String action;
@@ -1478,43 +1482,39 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
-            try {
-                service.onResponseSent(requestId, action, response);
-                try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
-                    if (shutdownBlock == null) {
-                        // already shutting down, the handler will be completed by sendRequestInternal or doStop
-                        return;
-                    }
-                    final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
-                    if (handler == null) {
-                        // handler already completed, likely by a timeout which is logged elsewhere
-                        return;
-                    }
-                    final var executor = handler.executor(threadPool);
-                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                        processResponse(handler, response);
-                    } else {
-                        response.mustIncRef();
-                        executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
-                            @Override
-                            protected void doRun() {
-                                processResponse(handler, response);
-                            }
-
-                            @Override
-                            public void onAfter() {
-                                response.decRef();
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "delivery of response to [" + requestId + "][" + action + "]: " + response;
-                            }
-                        });
-                    }
+            service.onResponseSent(requestId, action, response);
+            try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
+                if (shutdownBlock == null) {
+                    // already shutting down, the handler will be completed by sendRequestInternal or doStop
+                    return;
                 }
-            } finally {
-                response.decRef();
+                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
+                if (handler == null) {
+                    // handler already completed, likely by a timeout which is logged elsewhere
+                    return;
+                }
+                final var executor = handler.executor(threadPool);
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                    processResponse(handler, response);
+                } else {
+                    response.mustIncRef();
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
+                        @Override
+                        protected void doRun() {
+                            processResponse(handler, response);
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            response.decRef();
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "delivery of response to [" + requestId + "][" + action + "]: " + response;
+                        }
+                    });
+                }
             }
         }
 
@@ -1572,11 +1572,6 @@ public class TransportService extends AbstractLifecycleComponent
             } catch (Exception e) {
                 logger.error(() -> format("failed to handle exception for action [%s], handler [%s]", action, handler), e);
             }
-        }
-
-        @Override
-        public String getChannelType() {
-            return "direct";
         }
 
         @Override

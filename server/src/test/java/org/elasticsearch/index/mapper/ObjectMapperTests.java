@@ -14,9 +14,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -125,7 +127,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             "_doc",
             new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))))
         );
-        Mapping merged = mapper.mapping().merge(mergeWith, reason, mapperService.getIndexSettings().getMappingTotalFieldsLimit());
+        Mapping merged = mapper.mapping().merge(mergeWith, reason, Long.MAX_VALUE);
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
 
@@ -537,5 +539,35 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             )
         );
         assertThat(mapperBuilder.build(MapperBuilderContext.root(false, false)).mapperSize(), equalTo(5));
+    }
+
+    public void testWithoutMappers() throws IOException {
+        ObjectMapper shallowObject = createObjectMapperWithAllParametersSet(b -> {});
+        ObjectMapper object = createObjectMapperWithAllParametersSet(b -> {
+            b.startObject("keyword");
+            {
+                b.field("type", "keyword");
+            }
+            b.endObject();
+        });
+        assertThat(object.withoutMappers().toString(), equalTo(shallowObject.toString()));
+    }
+
+    private ObjectMapper createObjectMapperWithAllParametersSet(CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)
+        throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("object");
+            {
+                b.field("type", "object");
+                b.field("subobjects", false);
+                b.field("enabled", false);
+                b.field("dynamic", false);
+                b.startObject("properties");
+                propertiesBuilder.accept(b);
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        return (ObjectMapper) mapper.mapping().getRoot().getMapper("object");
     }
 }

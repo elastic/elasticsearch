@@ -11,9 +11,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 public enum ILMActions {
     ;
-    public static final ActionType<AcknowledgedResponse> START = ActionType.acknowledgedResponse("cluster:admin/ilm/start");
-    public static final ActionType<AcknowledgedResponse> STOP = ActionType.acknowledgedResponse("cluster:admin/ilm/stop");
-    public static final ActionType<AcknowledgedResponse> RETRY = ActionType.acknowledgedResponse("indices:admin/ilm/retry");
-    public static final ActionType<AcknowledgedResponse> MOVE_TO_STEP = ActionType.acknowledgedResponse("cluster:admin/ilm/_move/post");
-    public static final ActionType<AcknowledgedResponse> PUT = ActionType.acknowledgedResponse("cluster:admin/ilm/put");
+    public static final ActionType<AcknowledgedResponse> START = ActionType.localOnly("cluster:admin/ilm/start");
+    public static final ActionType<AcknowledgedResponse> STOP = ActionType.localOnly("cluster:admin/ilm/stop");
+    public static final ActionType<AcknowledgedResponse> RETRY = ActionType.localOnly("indices:admin/ilm/retry");
+    public static final ActionType<AcknowledgedResponse> MOVE_TO_STEP = ActionType.localOnly("cluster:admin/ilm/_move/post");
+    public static final ActionType<AcknowledgedResponse> PUT = ActionType.localOnly("cluster:admin/ilm/put");
 }

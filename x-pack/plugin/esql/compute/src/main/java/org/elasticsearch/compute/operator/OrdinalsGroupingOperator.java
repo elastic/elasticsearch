@@ -59,8 +59,7 @@ public class OrdinalsGroupingOperator implements Operator {
         int docChannel,
         String groupingField,
         List<Factory> aggregators,
-        int maxPageSize,
-        BigArrays bigArrays
+        int maxPageSize
     ) implements OperatorFactory {
 
         @Override
@@ -73,7 +72,6 @@ public class OrdinalsGroupingOperator implements Operator {
                 groupingField,
                 aggregators,
                 maxPageSize,
-                bigArrays,
                 driverContext
             );
         }
@@ -92,7 +90,6 @@ public class OrdinalsGroupingOperator implements Operator {
     private final List<Factory> aggregatorFactories;
     private final ElementType groupingElementType;
     private final Map<SegmentID, OrdinalSegmentAggregator> ordinalAggregators;
-    private final BigArrays bigArrays;
 
     private final DriverContext driverContext;
 
@@ -110,7 +107,6 @@ public class OrdinalsGroupingOperator implements Operator {
         String groupingField,
         List<GroupingAggregator.Factory> aggregatorFactories,
         int maxPageSize,
-        BigArrays bigArrays,
         DriverContext driverContext
     ) {
         Objects.requireNonNull(aggregatorFactories);
@@ -122,7 +118,6 @@ public class OrdinalsGroupingOperator implements Operator {
         this.aggregatorFactories = aggregatorFactories;
         this.ordinalAggregators = new HashMap<>();
         this.maxPageSize = maxPageSize;
-        this.bigArrays = bigArrays;
         this.driverContext = driverContext;
     }
 
@@ -151,7 +146,7 @@ public class OrdinalsGroupingOperator implements Operator {
                                 driverContext.blockFactory(),
                                 this::createGroupingAggregators,
                                 () -> blockLoader.ordinals(shardContexts.get(k.shardIndex).reader().leaves().get(k.segmentIndex)),
-                                bigArrays
+                                driverContext.bigArrays()
                             );
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);

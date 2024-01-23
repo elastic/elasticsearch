@@ -403,8 +403,12 @@ public class ObjectMapper extends Mapper {
         return builder;
     }
 
-    public ObjectMapper withoutMappers() {
-        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, null);
+    /**
+     * Returns a copy of this object mapper that doesn't have any fields and runtime fields.
+     * This is typically used in the context of a mapper merge when there's not enough budget to add the entire object.
+     */
+    ObjectMapper withoutMappers() {
+        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, Map.of());
     }
 
     @Override
@@ -447,8 +451,8 @@ public class ObjectMapper extends Mapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperBuilderContext) {
-        return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperBuilderContext);
+    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
+        return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperMergeContext);
     }
 
     @Override
@@ -458,12 +462,12 @@ public class ObjectMapper extends Mapper {
         }
     }
 
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperBuilderContext, String name) {
-        return mapperBuilderContext.createChildContext(name);
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        return mapperMergeContext.createChildContext(name);
     }
 
-    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {
-        var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
+        var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
         return new ObjectMapper(
             simpleName(),
             fullPath,
@@ -537,23 +541,24 @@ public class ObjectMapper extends Mapper {
             MergeReason reason,
             MapperMergeContext objectMergeContext
         ) {
-            // need to preserve order to make it deterministic which fields are ignored
+            Iterator<Mapper> iterator = mergeWith.iterator();
+            if (iterator.hasNext() == false) {
+                return Map.copyOf(existing.mappers);
+            }
             Map<String, Mapper> mergedMappers = new HashMap<>(existing.mappers);
-            for (Mapper mergeWithMapper : mergeWith) {
+            while (iterator.hasNext()) {
+                Mapper mergeWithMapper = iterator.next();
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
 
+                Mapper merged = null;
                 if (mergeIntoMapper == null) {
-                    if (mergeWithMapper instanceof ObjectMapper om) {
-                        ObjectMapper withoutMappers = om.withoutMappers();
-                        boolean added = objectMergeContext.addFieldIfPossible(mergedMappers, withoutMappers);
-                        if (added) {
-                            mergedMappers.put(om.simpleName(), withoutMappers.merge(mergeWithMapper, reason, objectMergeContext));
-                        }
-                    } else {
-                        objectMergeContext.addFieldIfPossible(mergedMappers, mergeWithMapper);
+                    if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.mapperSize())) {
+                        merged = mergeWithMapper;
+                    } else if (mergeWithMapper instanceof ObjectMapper om) {
+                        merged = truncateObjectMapper(reason, objectMergeContext, om);
                     }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                    mergedMappers.put(objectMapper.simpleName(), objectMapper.merge(mergeWithMapper, reason, objectMergeContext));
+                    merged = objectMapper.merge(mergeWithMapper, reason, objectMergeContext);
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                     if (mergeWithMapper instanceof NestedObjectMapper) {
@@ -565,13 +570,27 @@ public class ObjectMapper extends Mapper {
                     // If we're merging template mappings when creating an index, then a field definition always
                     // replaces an existing one.
                     if (reason == MergeReason.INDEX_TEMPLATE) {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
+                        merged = mergeWithMapper;
                     } else {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
+                        merged = mergeIntoMapper.merge(mergeWithMapper, objectMergeContext);
                     }
+                }
+                if (merged != null) {
+                    mergedMappers.put(merged.simpleName(), merged);
                 }
             }
             return Map.copyOf(mergedMappers);
+        }
+
+        private static ObjectMapper truncateObjectMapper(MergeReason reason, MapperMergeContext context, ObjectMapper objectMapper) {
+            // there's not enough capacity for the whole object mapper,
+            // so we're just trying to add the shallow object, without it's sub-fields
+            ObjectMapper shallowObjectMapper = objectMapper.withoutMappers();
+            if (context.decrementFieldBudgetIfPossible(shallowObjectMapper.mapperSize())) {
+                // now trying to add the sub-fields one by one via a merge, until we hit the limit
+                return shallowObjectMapper.merge(objectMapper, reason, context);
+            }
+            return null;
         }
     }
 

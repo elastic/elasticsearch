@@ -35,11 +35,46 @@ public class ClusterInfoSimulator {
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
         this.allocation = allocation;
-        this.leastAvailableSpaceUsage = new HashMap<>(allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
-        this.mostAvailableSpaceUsage = new HashMap<>(allocation.clusterInfo().getNodeMostAvailableDiskUsages());
+        this.leastAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
+        this.mostAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeMostAvailableDiskUsages());
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
         this.shardDataSetSizes = Map.copyOf(allocation.clusterInfo().shardDataSetSizes);
         this.dataPath = Map.copyOf(allocation.clusterInfo().dataPath);
+    }
+
+    /**
+     * Cluster info contains a reserved space that is necessary to finish initializing shards (that are currently in progress).
+     * for all initializing shards sum(expected size) = reserved space + already used space
+     * This deducts already used space from disk usage as when shard start is simulated it is going to add entire expected shard size.
+     */
+    private static Map<String, DiskUsage> getAdjustedDiskSpace(RoutingAllocation allocation, Map<String, DiskUsage> diskUsage) {
+        var diskUsageCopy = new HashMap<>(diskUsage);
+        for (var entry : diskUsageCopy.entrySet()) {
+            var nodeId = entry.getKey();
+            var usage = entry.getValue();
+
+            var reserved = allocation.clusterInfo().getReservedSpace(nodeId, usage.path());
+            if (reserved.total() == 0) {
+                continue;
+            }
+            var node = allocation.routingNodes().node(nodeId);
+            if (node == null) {
+                continue;
+            }
+
+            long adjustment = 0;
+            for (ShardId shardId : reserved.shardIds()) {
+                var shard = node.getByShardId(shardId);
+                if (shard != null) {
+                    var expectedSize = getExpectedShardSize(shard, 0, allocation);
+                    adjustment += expectedSize;
+                }
+            }
+            adjustment -= reserved.total();
+
+            entry.setValue(updateWithFreeBytes(usage, adjustment));
+        }
+        return diskUsageCopy;
     }
 
     /**
@@ -87,14 +122,14 @@ public class ClusterInfoSimulator {
         if (diskUsage == null) {
             return;
         }
-        var path = diskUsage.getPath();
+        var path = diskUsage.path();
         updateDiskUsage(leastAvailableSpaceUsage, nodeId, path, freeDelta);
         updateDiskUsage(mostAvailableSpaceUsage, nodeId, path, freeDelta);
     }
 
     private void updateDiskUsage(Map<String, DiskUsage> availableSpaceUsage, String nodeId, String path, long freeDelta) {
         var usage = availableSpaceUsage.get(nodeId);
-        if (usage != null && Objects.equals(usage.getPath(), path)) {
+        if (usage != null && Objects.equals(usage.path(), path)) {
             // ensure new value is within bounds
             availableSpaceUsage.put(nodeId, updateWithFreeBytes(usage, freeDelta));
         }
@@ -104,7 +139,7 @@ public class ClusterInfoSimulator {
         // free bytes might go out of range in case when multiple data path are used
         // we might not know exact disk used to allocate a shard and conservatively update
         // most used disk on a target node and least used disk on a source node
-        var freeBytes = withinRange(0, usage.getTotalBytes(), usage.freeBytes() + delta);
+        var freeBytes = withinRange(0, usage.totalBytes(), usage.freeBytes() + delta);
         return usage.copyWithFreeBytes(freeBytes);
     }
 

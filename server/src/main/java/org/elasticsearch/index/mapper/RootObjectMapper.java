@@ -155,14 +155,15 @@ public class RootObjectMapper extends ObjectMapper {
         return builder;
     }
 
-    public RootObjectMapper withoutMappers() {
+    @Override
+    RootObjectMapper withoutMappers() {
         return new RootObjectMapper(
             simpleName(),
             enabled,
             subobjects,
             dynamic,
-            null,
-            null,
+            Map.of(),
+            Map.of(),
             dynamicDateTimeFormatters,
             dynamicTemplates,
             dateDetection,
@@ -213,8 +214,8 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {
-        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
+        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
         final Explicit<Boolean> numericDetection;
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
@@ -257,12 +258,13 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicTemplates = this.dynamicTemplates;
         }
         final Map<String, RuntimeField> runtimeFields = new HashMap<>(this.runtimeFields);
-        assert this.runtimeFields != mergeWithObject.runtimeFields;
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
-                parentBuilderContext.removeRuntimeField(runtimeFields, runtimeField.getKey());
-            } else {
-                parentBuilderContext.addRuntimeFieldIfPossible(runtimeFields, runtimeField.getValue());
+                runtimeFields.remove(runtimeField.getKey());
+            } else if (runtimeFields.containsKey(runtimeField.getKey())) {
+                runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
+            } else if (parentMergeContext.decrementFieldBudgetIfPossible(1)) {
+                runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
             }
         }
 
@@ -520,7 +522,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public int mapperSize() {
-        int size = runtimeFields.size();
+        int size = runtimeFields().size();
         for (Mapper mapper : this) {
             size += mapper.mapperSize();
         }

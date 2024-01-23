@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -177,7 +178,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         return metadata;
     }
 
-    private Client getRemoteClusterClient() {
+    private RemoteClusterClient getRemoteClusterClient() {
         return client.getRemoteClusterClient(remoteClusterAlias, remoteClientResponseExecutor);
     }
 
@@ -454,7 +455,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final ShardId shardId,
         final String retentionLeaseId,
         final ShardId leaderShardId,
-        final Client remoteClient
+        final RemoteClusterClient remoteClient
     ) {
         logger.trace(() -> format("%s requesting leader to add retention lease [%s]", shardId, retentionLeaseId));
         final TimeValue timeout = ccrSettings.getRecoveryActionTimeout();
@@ -549,7 +550,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public void awaitIdle() {}
 
     private void updateMappings(
-        Client leaderClient,
+        RemoteClusterClient leaderClient,
         Index leaderIndex,
         long leaderMappingVersion,
         Client followerClient,
@@ -572,7 +573,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     void openSession(
         String repositoryName,
-        Client remoteClient,
+        RemoteClusterClient remoteClient,
         ShardId leaderShardId,
         ShardId indexShardId,
         RecoveryState recoveryState,
@@ -611,7 +612,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private static class RestoreSession extends FileRestoreContext {
 
-        private final Client remoteClient;
+        private final RemoteClusterClient remoteClient;
         private final String sessionUUID;
         private final DiscoveryNode node;
         private final Store.MetadataSnapshot sourceMetadata;
@@ -624,7 +625,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         RestoreSession(
             String repositoryName,
-            Client remoteClient,
+            RemoteClusterClient remoteClient,
             String sessionUUID,
             DiscoveryNode node,
             ShardId shardId,

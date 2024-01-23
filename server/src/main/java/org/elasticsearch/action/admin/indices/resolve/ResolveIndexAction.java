@@ -493,7 +493,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     String clusterAlias = remoteIndices.getKey();
                     OriginalIndices originalIndices = remoteIndices.getValue();
                     var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                        threadPool,
                         clusterAlias,
                         EsExecutors.DIRECT_EXECUTOR_SERVICE
                     );

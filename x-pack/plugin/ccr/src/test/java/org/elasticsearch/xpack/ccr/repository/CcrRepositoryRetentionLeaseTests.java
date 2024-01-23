@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -68,7 +69,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         );
 
         // simulate that the retention lease already exists on the leader, and verify that we attempt to renew it
-        final Client remoteClient = mock(Client.class);
+        final RemoteClusterClient remoteClient = mock(RemoteClusterClient.class);
         final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor = ArgumentCaptor.forClass(
             RetentionLeaseActions.AddRequest.class
         );
@@ -139,7 +140,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         );
 
         // simulate that the retention lease already exists on the leader, expires before we renew, and verify that we attempt to add it
-        final Client remoteClient = mock(Client.class);
+        final RemoteClusterClient remoteClient = mock(RemoteClusterClient.class);
         final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor = ArgumentCaptor.forClass(
             RetentionLeaseActions.AddRequest.class
         );

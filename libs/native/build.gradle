@@ -6,6 +6,12 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.transform.UnzipTransform
+import org.elasticsearch.gradle.internal.GenerateProviderManifest
+import org.gradle.api.internal.artifacts.ArtifactAttributes
+
+import java.util.stream.Collectors
+
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 
@@ -13,9 +19,63 @@ sourceSets {
   java22
 }
 
+def isImplAttr = Attribute.of("is.impl", Boolean)
+
+configurations {
+  jnaImpl {
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    attributes.attribute(isImplAttr, true)
+  }
+}
+
 dependencies {
+  registerTransform(
+    UnzipTransform.class, transformSpec -> {
+    transformSpec.getFrom()
+      .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE)
+      .attribute(isImplAttr, true)
+    transformSpec.getTo()
+      .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+      .attribute(isImplAttr, true)
+    transformSpec.parameters(parameters -> {
+      parameters.includeArtifactName.set(true)
+    })
+
+  })
+
+  api project(':libs:elasticsearch-core')
+  java22Implementation sourceSets.main.output
+  jnaImpl project(':libs:elasticsearch-native:jna')
   testImplementation(project(":test:framework"))
 }
+
+tasks {
+  jar {
+    dependsOn("compileJava22Java")
+    into("META-INF/versions/22") {
+      from(sourceSets.java22.output)
+    }
+    manifest {
+      attributes "Multi-Release": "true"
+    }
+  }
+
+}
+
+Directory generatedResourcesDir = layout.buildDirectory.dir('generated-resources').get()
+def generateProviderManifest = tasks.register("generateJnaProviderManifest", GenerateProviderManifest.class) {
+  manifestFile = generatedResourcesDir.file("LISTING.TXT")
+  getProviderImplClasspath().from(configurations.jnaImpl)
+}
+
+def generateProviderImpl = tasks.register("generateProviderImpl", Sync) {
+  destinationDir = generatedResourcesDir.dir("jna-impl").getAsFile()
+  into("IMPL-JARS/native-access-jna") {
+    from(configurations.jnaImpl)
+    from(generateProviderManifest)
+  }
+}
+sourceSets.main.output.dir(generateProviderImpl)
 
 tasks.named('forbiddenApisMain').configure {
   // :libs:elasticsearch-logging does not depend on server
@@ -23,7 +83,7 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 tasks.named("compileJava22Java").configure {
-  javaCompiler = javaToolchains {}.compilerFor {
+  javaCompiler = javaToolchains.compilerFor {
     languageVersion = JavaLanguageVersion.of("22")
   }
 }

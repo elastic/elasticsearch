@@ -30,6 +30,7 @@ dependencies {
   api project(':libs:elasticsearch-core')
   api project(':libs:elasticsearch-logging')
   api project(':libs:elasticsearch-secure-sm')
+  api project(':libs:elasticsearch-native')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
   api project(":libs:elasticsearch-lz4")

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.toolchain;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainDownload;
 import org.gradle.jvm.toolchain.JavaToolchainRequest;
@@ -22,8 +21,6 @@ import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public abstract class OracleOpenJdkEarlyAccessToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
@@ -38,9 +35,7 @@ public abstract class OracleOpenJdkEarlyAccessToolchainResolver extends Abstract
      * */
     @Override
     public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {
-        logger.warn("Trying EA toolchain");
         if (requestIsSupported(request) == false) {
-            logger.warn("EA toolchain not supported");
             return Optional.empty();
         }
 
@@ -68,30 +63,17 @@ public abstract class OracleOpenJdkEarlyAccessToolchainResolver extends Abstract
         );
     }
 
-    /**
-     * Check if request can be full-filled by this resolver:
-     * 1. BundledJdkVendor should match openjdk
-     * 2. language version should match bundled jdk version
-     * 3. vendor must be any or oracle
-     * 4. Aarch64 windows images are not supported
-     */
     private boolean requestIsSupported(JavaToolchainRequest request) {
         JavaToolchainSpec javaToolchainSpec = request.getJavaToolchainSpec();
         if (javaToolchainSpec.getLanguageVersion().get().equals(eaMajorVersion) == false) {
-            logger.warn("EA version not supported");
             return false;
         }
         if (anyVendorOr(javaToolchainSpec.getVendor().get(), JvmVendorSpec.ORACLE) == false) {
-            logger.warn("EA vendor not supported");
             return false;
         }
         BuildPlatform buildPlatform = request.getBuildPlatform();
         Architecture architecture = buildPlatform.getArchitecture();
         OperatingSystem operatingSystem = buildPlatform.getOperatingSystem();
-        var supported = Architecture.AARCH64 != architecture || OperatingSystem.WINDOWS != operatingSystem;
-        if (supported == false) {
-            logger.warn("EA arch/os not supported");
-        }
-        return supported;
+        return Architecture.AARCH64 != architecture || OperatingSystem.WINDOWS != operatingSystem;
     }
 }

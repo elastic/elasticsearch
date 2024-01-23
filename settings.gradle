@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkEarlyAccessToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 
@@ -31,6 +32,9 @@ dependencyResolutionManagement {
 toolchainManagement {
   jvm {
     javaRepositories {
+      repository('oracleOpendJdkEarlyAccess') {
+        resolverClass = OracleOpenJdkEarlyAccessToolchainResolver
+      }
       repository('bundledOracleOpendJdk') {
         resolverClass = OracleOpenJdkToolchainResolver
       }

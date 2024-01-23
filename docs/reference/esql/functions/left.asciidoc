@@ -10,7 +10,7 @@ image::esql/functions/signature/left.svg[Embedded,opts=inline]
 *Parameters*
 
 `str`::
-The string from which to returns a substring.
+The string from which to return a substring.
 
 `length`::
 The number of characters to return.

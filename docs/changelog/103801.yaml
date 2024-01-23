@@ -1,5 +1,0 @@
-pr: 103801
-summary: Upgrade Bouncy Castle jars for plugin cli
-area: "Security"
-type: upgrade
-issues: []

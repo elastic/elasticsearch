@@ -1,5 +1,0 @@
-pr: 104086
-summary: "[7.x] Sync `discovery_gce` versions with main"
-area: Discovery-Plugins
-type: upgrade
-issues: []

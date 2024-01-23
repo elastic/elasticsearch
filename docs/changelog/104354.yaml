@@ -1,6 +1,0 @@
-pr: 104354
-summary: Fix snapshot version in `createSnapshotLegacy`
-area: Snapshot/Restore
-type: bug
-issues:
- - 86889

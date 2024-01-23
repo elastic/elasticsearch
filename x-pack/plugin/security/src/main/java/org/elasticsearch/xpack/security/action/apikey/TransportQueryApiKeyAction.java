@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.action.apikey;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
-public final class TransportQueryApiKeyAction extends HandledTransportAction<QueryApiKeyRequest, QueryApiKeyResponse> {
+public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKeyRequest, QueryApiKeyResponse> {
 
     // API keys with no "type" field are implicitly of type "rest" (this is the case for all API Keys created before v8.9).
     // The below runtime field ensures that the "type" field can be used by the {@link RestQueryApiKeyAction},

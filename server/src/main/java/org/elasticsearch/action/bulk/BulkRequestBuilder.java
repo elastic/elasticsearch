@@ -58,7 +58,9 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     /**
      * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     * @deprecated use {@link #add(IndexRequestBuilder)} instead
      */
+    @Deprecated
     public BulkRequestBuilder add(IndexRequest request) {
         requests.add(request);
         return this;
@@ -75,7 +77,9 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
 
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
+     * @deprecated use {@link #add(DeleteRequestBuilder)} instead
      */
+    @Deprecated
     public BulkRequestBuilder add(DeleteRequest request) {
         requests.add(request);
         return this;
@@ -91,7 +95,9 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
 
     /**
      * Adds an {@link UpdateRequest} to the list of actions to execute.
+     * @deprecated use {@link #add(UpdateRequestBuilder)} instead
      */
+    @Deprecated
     public BulkRequestBuilder add(UpdateRequest request) {
         requests.add(request);
         return this;

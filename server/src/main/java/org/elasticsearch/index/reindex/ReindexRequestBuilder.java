@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortOrder;
 
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
@@ -171,20 +170,6 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
      */
     public ReindexRequestBuilder setSlices(int slices) {
         this.slices = slices;
-        return this;
-    }
-
-    /**
-     * Add a sort against the given field name in the source.
-     *
-     * @param name The name of the field to sort by
-     * @param order The order in which to sort
-     * @deprecated Specifying a sort field for reindex is deprecated. If using this in combination with maxDocs, consider using a
-     * query filter instead.
-     */
-    @Deprecated
-    public ReindexRequestBuilder addSourceSortField(String name, SortOrder order) {
-        source().addSort(name, order);
         return this;
     }
 

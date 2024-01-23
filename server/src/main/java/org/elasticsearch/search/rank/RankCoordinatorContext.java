@@ -45,8 +45,10 @@ public abstract class RankCoordinatorContext {
     public abstract SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats);
     // don't think anything needs to change here, we expose this with rank
 
-    public abstract SearchHits getHits(
+    public  SearchHits getHits(
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray
-    );
+    ){
+        return null;
+    };
 }

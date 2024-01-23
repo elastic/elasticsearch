@@ -15,8 +15,8 @@ class org.apache.lucene.search.ScoreDoc {
     int shardIndex
 }
 class org.elasticsearch.search.scriptrank.RankKey {
-    (int doc, int shardIndex)
-    int doc
-    int shardIndex
+    (int, int)
+    int doc()
+    int shardIndex()
 }
 

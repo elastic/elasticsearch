@@ -63,7 +63,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -836,11 +835,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      */
     public Map<String, List<DataStreamAlias>> findDataStreamAliases(final String[] aliases, final String[] dataStreams) {
         ImmutableOpenMap.Builder<String, List<DataStreamAlias>> mapBuilder = ImmutableOpenMap.builder();
-        Collection<DataStreamAlias> allDataStreamAliases = dataStreamAliases().values();
+        Map<String, List<DataStreamAlias>> dataStreamAliases = dataStreamAliasesByDataStream();
 
-        AliasInfoGetter getter = dataStream -> allDataStreamAliases.stream()
-            .filter(alias -> alias.getDataStreams().contains(dataStream))
-            .toList();
+        AliasInfoGetter getter = dataStream -> dataStreamAliases.getOrDefault(dataStream, new ArrayList<>());
 
         AliasInfoSetter setter = (dataStream, foundAliases) -> {
             List<DataStreamAlias> dsAliases = new ArrayList<>();
@@ -853,6 +850,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return mapBuilder.build();
     }
 
+    /**
+     * Find the aliases that point to the specified data streams or indices. Called from findAliases or findDataStreamAliases.
+     *
+     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
+     * @param possibleMatches The data streams or indices that the aliases must point to in order to be returned
+     * @param getter A function that is used to get the alises for a given data stream or index
+     * @param setter A function that is used to keep track of the found aliases
+     */
     private void findAliasInfo(final String[] aliases, final String[] possibleMatches, AliasInfoGetter getter, AliasInfoSetter setter) {
         assert aliases != null;
         assert possibleMatches != null;
@@ -1320,6 +1325,25 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     public Map<String, DataStreamAlias> dataStreamAliases() {
         return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
+    }
+
+    /**
+     * Return a map of DataStreamAlias objects by DataStream name
+     * @return a map of DataStreamAlias objects by DataStream name
+     */
+    public Map<String, List<DataStreamAlias>> dataStreamAliasesByDataStream() {
+        Map<String, List<DataStreamAlias>> dataStreamAliases = new HashMap<>();
+
+        for (DataStreamAlias dsAlias : dataStreamAliases().values()) {
+            for (String dataStream : dsAlias.getDataStreams()) {
+                if (dataStreamAliases.containsKey(dataStream) == false) {
+                    dataStreamAliases.put(dataStream, new ArrayList<>());
+                }
+                dataStreamAliases.get(dataStream).add(dsAlias);
+            }
+        }
+
+        return dataStreamAliases;
     }
 
     public NodesShutdownMetadata nodeShutdowns() {

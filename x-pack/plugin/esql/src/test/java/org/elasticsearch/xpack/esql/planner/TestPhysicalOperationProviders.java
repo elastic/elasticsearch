@@ -204,7 +204,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         @Override
         public String describe() {
-            return "TestFieldExtractOperator";
+            return "TestFieldExtractOperator(" + columnName + ")";
         }
     }
 

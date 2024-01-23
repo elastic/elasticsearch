@@ -149,8 +149,11 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
     public void testTimeSeriesAggregation() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts");
         final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
+        try {
+            assertTimeSeriesAggregation((InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0));
+        } finally {
+            aggregationResponse.decRef();
+        }
     }
 
     public void testSumByTsid() {
@@ -160,8 +163,12 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
         final SearchResponse searchResponse = client().prepareSearch("index").setQuery(new MatchAllQueryBuilder()).get();
         assertNotEquals(numberOfDocuments, searchResponse.getHits().getHits().length);
         final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
+        try {
+            assertTimeSeriesAggregation((InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0));
+        } finally {
+            searchResponse.decRef();
+            aggregationResponse.decRef();
+        }
     }
 
     public void testTermsByTsid() {
@@ -169,8 +176,11 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
             new TermsAggregationBuilder("terms").field("dim_0")
         );
         final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
+        try {
+            assertTimeSeriesAggregation((InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0));
+        } finally {
+            aggregationResponse.decRef();
+        }
     }
 
     public void testDateHistogramByTsid() {
@@ -178,8 +188,11 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
             new DateHistogramAggregationBuilder("date_histogram").field("@timestamp").calendarInterval(DateHistogramInterval.MINUTE)
         );
         final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
-        assertTimeSeriesAggregation(ts);
+        try {
+            assertTimeSeriesAggregation((InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0));
+        } finally {
+            aggregationResponse.decRef();
+        }
     }
 
     public void testCardinalityByTsid() {
@@ -187,9 +200,13 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
             new CardinalityAggregationBuilder("dim_n_cardinality").field("dim_" + (numberOfDimensions - 1))
         );
         final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        ((InternalTimeSeries) aggregationResponse.getAggregations().get("ts")).getBuckets().forEach(bucket -> {
-            assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 1);
-        });
+        try {
+            ((InternalTimeSeries) aggregationResponse.getAggregations().get("ts")).getBuckets().forEach(bucket -> {
+                assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 1);
+            });
+        } finally {
+            aggregationResponse.decRef();
+        }
     }
 
     private static void assertTimeSeriesAggregation(final InternalTimeSeries timeSeriesAggregation) {

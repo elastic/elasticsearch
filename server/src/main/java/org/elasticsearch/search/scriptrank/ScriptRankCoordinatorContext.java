@@ -133,33 +133,31 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
 
         /*
             def results = [:];
-            for (def queue : queues) {
+            for (def queue : docs) {
                 int index = 1;
-                for (def scoreDoc : queue) {
+                while(queue.size() != 0) {
+                    def scoreDoc = queue.pop();
                     results.compute(
                         new RankKey(scoreDoc.doc, scoreDoc.shardIndex),
                         (key, value) -> {
-                            if (value == null) {
-                                value = new ScoreDoc(scoreDoc.doc, 0f, scoreDoc.shardIndex);
+                            def v = value;
+                            if (v == null) {
+                                v = new ScoreDoc(scoreDoc.doc, 0f, scoreDoc.shardIndex);
                             }
-                            value.score += 1.0f / (60 + index);
-                            return value;
+                            v.score += 1.0f / (60 + index);
+                            return v;
                         }
                     );
                     ++index;
                 }
             }
-            def output = results.values();
-            output.sort((ScoreDoc rrf1, ScoreDoc rrf2) -> {
-                if (rrf1.score != rrf2.score) {
-                    return rrf1.score < rrf2.score ? 1 : -1;
-                }
-            });
+            def output = new ArrayList(results.values());
+            output.sort((ScoreDoc sd1, ScoreDoc sd2) -> { return sd1.score < sd2.score ? 1 : -1; });
             return output;
 
          */
 
-        var scriptResult = rankScript.execute((List<Iterable<ScoreDoc>>) (Object) queues);
+        List<ScoreDoc>  scriptResult = rankScript.execute(queues);
 
 
         var sortedTopDocs = new SearchPhaseController.SortedTopDocs(

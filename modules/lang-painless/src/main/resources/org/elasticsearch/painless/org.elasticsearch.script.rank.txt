@@ -11,7 +11,7 @@
 # These two whitelists are required for painless to find the classes
 class org.apache.lucene.search.ScoreDoc {
     (int, float)
-    (int float, int)
+    (int, float, int)
     float score
     int doc
     int shardIndex
@@ -20,5 +20,11 @@ class org.elasticsearch.search.scriptrank.RankKey {
     (int, int)
     int doc()
     int shardIndex()
+}
+
+class org.apache.lucene.util.PriorityQueue @no_import{
+    def pop()
+    def top()
+    int size()
 }
 

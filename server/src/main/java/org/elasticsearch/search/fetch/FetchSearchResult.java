@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.scriptrank.RankFetchResult;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
@@ -25,6 +26,8 @@ import java.io.IOException;
 public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
+
+    private RankFetchResult rankFetchResult;
     // client side counter
     private transient int counter;
 
@@ -49,6 +52,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId = new ShardSearchContextId(in);
         hits = SearchHits.readFrom(in, true);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
+        rankFetchResult = in.readOptionalNamedWriteable(RankFetchResult.class);
     }
 
     @Override
@@ -57,6 +61,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
+        out.writeOptionalNamedWriteable(rankFetchResult);
     }
 
     @Override
@@ -115,5 +120,9 @@ public final class FetchSearchResult extends SearchPhaseResult {
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
+    }
+
+    public RankFetchResult getRankFetchResult() {
+        return rankFetchResult;
     }
 }

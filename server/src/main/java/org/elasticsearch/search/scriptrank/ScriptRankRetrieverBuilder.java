@@ -22,8 +22,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetrieverBuilder> {
     public static final String NAME = "script_rank";
@@ -34,6 +36,7 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
     public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
 
     public static final ObjectParser<ScriptRankRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
         NAME,
@@ -54,6 +57,10 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
             (parser, context) -> Script.parse(parser),
             SCRIPT_FIELD
         );
+        PARSER.declareStringArray(
+            (b, v) -> b.fields = v,
+            FIELDS_FIELD
+        );
 
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
@@ -65,6 +72,7 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
     private List<? extends RetrieverBuilder<?>> retrieverBuilders = Collections.emptyList();
     private int windowSize = ScriptRankRetrieverBuilder.DEFAULT_WINDOW_SIZE;
     private Script script = null;
+    private List<String> fields = new ArrayList<>();
 
     public ScriptRankRetrieverBuilder() {
     }
@@ -76,10 +84,16 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
         this.script = original.script;
     }
 
-    public ScriptRankRetrieverBuilder(List<? extends RetrieverBuilder<?>> retrieverBuilders, int windowSize, Script script) {
+    public ScriptRankRetrieverBuilder(
+        List<? extends RetrieverBuilder<?>> retrieverBuilders,
+        int windowSize,
+        Script script,
+        List<String> fields
+    ) {
         this.retrieverBuilders = retrieverBuilders;
         this.windowSize = windowSize;
         this.script = script;
+        this.fields = fields;
     }
 
     @SuppressWarnings("unchecked")
@@ -88,8 +102,8 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
         this.retrieverBuilders = (List<RetrieverBuilder<?>>) (Object) in.readNamedWriteableCollectionAsList(RetrieverBuilder.class);
         this.windowSize = in.readVInt();
         this.script = new Script(in);
+        this.fields = in.readStringCollectionAsList();
     }
-
 
     @Override
     public String getWriteableName() {
@@ -106,6 +120,7 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
         out.writeNamedWriteableCollection(retrieverBuilders);
         out.writeVInt(windowSize);
         script.writeTo(out);
+        out.writeStringCollection(fields);
     }
 
     @Override
@@ -118,6 +133,7 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
 
         builder.field(WINDOW_SIZE_FIELD.getPreferredName(), windowSize);
         builder.field(SCRIPT_FIELD.getPreferredName(), script);
+        builder.field(FIELDS_FIELD.getPreferredName(), fields);
     }
 
     @Override
@@ -136,5 +152,19 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
         } else {
             throw new IllegalStateException("[rank] cannot be declared as a retriever value and as a global value");
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        ScriptRankRetrieverBuilder that = (ScriptRankRetrieverBuilder) o;
+        return windowSize == that.windowSize && Objects.equals(retrieverBuilders, that.retrieverBuilders) && Objects.equals(script, that.script) && Objects.equals(fields, that.fields);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), retrieverBuilders, windowSize, script, fields);
     }
 }

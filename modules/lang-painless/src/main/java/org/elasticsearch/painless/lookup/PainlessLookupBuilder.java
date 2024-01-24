@@ -327,21 +327,19 @@ public final class PainlessLookupBuilder {
             if (importClassName) {
                 throw new IllegalArgumentException("must use no_import parameter on class [" + canonicalClassName + "] with no package");
             }
-        } else {
+        } else if (importClassName) {
             Class<?> importedClass = canonicalClassNamesToClasses.get(importedCanonicalClassName);
 
             if (importedClass == null) {
-                if (importClassName) {
-                    if (existingPainlessClassBuilder != null) {
-                        throw new IllegalArgumentException("inconsistent no_import parameter found for class [" + canonicalClassName + "]");
-                    }
+                if (existingPainlessClassBuilder != null) {
+                    throw new IllegalArgumentException("inconsistent no_import parameter found for class [" + canonicalClassName + "]");
+                }
 
-                    canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
-                    if (annotations.get(AliasAnnotation.class) instanceof AliasAnnotation alias) {
-                        Class<?> existing = canonicalClassNamesToClasses.put(alias.alias(), clazz);
-                        if (existing != null) {
-                            throw lookupException("Cannot add alias [%s] for [%s] that shadows class [%s]", alias.alias(), clazz, existing);
-                        }
+                canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
+                if (annotations.get(AliasAnnotation.class) instanceof AliasAnnotation alias) {
+                    Class<?> existing = canonicalClassNamesToClasses.put(alias.alias(), clazz);
+                    if (existing != null) {
+                        throw lookupException("Cannot add alias [%s] for [%s] that shadows class [%s]", alias.alias(), clazz, existing);
                     }
                 }
             } else if (importedClass != clazz) {

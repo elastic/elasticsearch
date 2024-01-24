@@ -226,14 +226,18 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.LinearCombinationRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
-import org.elasticsearch.search.scriptrank.ScriptRankRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
+import org.elasticsearch.search.scriptrank.RankFetchResult;
+import org.elasticsearch.search.scriptrank.ScriptRankFetchResult;
+import org.elasticsearch.search.scriptrank.ScriptRankRetrieverBuilder;
+import org.elasticsearch.search.scriptrank.ScriptRankShardResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -326,6 +330,8 @@ public class SearchModule {
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankFetchResult.class, "ScriptRankFetchResult", ScriptRankFetchResult::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankShardResult.class, "ScriptRankShardResult", ScriptRankShardResult::new));
         registerGenericNamedWriteable(new SearchPlugin.GenericNamedWriteableSpec("GeoBoundingBox", GeoBoundingBox::new));
     }
 

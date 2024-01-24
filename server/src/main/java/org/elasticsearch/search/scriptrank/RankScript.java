@@ -14,6 +14,7 @@ import org.elasticsearch.script.ScriptContext;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.lucene.util.PriorityQueue;
 
 public abstract class RankScript {
 
@@ -25,7 +26,7 @@ public abstract class RankScript {
         this.params = params;
     }
 
-    public abstract List<ScoreDoc> execute(List<Iterable<ScoreDoc>> docs);
+    public abstract List<ScoreDoc> execute(List<PriorityQueue<ScoreDoc>> docs);
 
     public Map<String, Object> getParams() {
         return params;

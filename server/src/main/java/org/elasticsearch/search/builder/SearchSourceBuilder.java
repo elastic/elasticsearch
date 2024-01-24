@@ -1311,7 +1311,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(),
                         parser
                     );
-                    searchUsage.trackSectionUsage(STORED_FIELDS_FIELD.getPreferredName());
+                    if (storedFieldsContext.fetchFields() == false || storedFieldsContext.fieldNames().size() > 0) {
+                        searchUsage.trackSectionUsage(STORED_FIELDS_FIELD.getPreferredName());
+                    }
                 } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     sort(parser.text());
                 } else if (PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1467,7 +1469,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     storedFieldsContext = StoredFieldsContext.fromXContent(STORED_FIELDS_FIELD.getPreferredName(), parser);
-                    if (storedFieldsContext.fieldNames().size() > 0 || storedFieldsContext.fetchFields() == false) {
+                    if (storedFieldsContext.fetchFields() == false || storedFieldsContext.fieldNames().size() > 0) {
                         searchUsage.trackSectionUsage(STORED_FIELDS_FIELD.getPreferredName());
                     }
                 } else if (DOCVALUE_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

@@ -17,3 +17,7 @@ dependencies {
   testImplementation project(':test:framework')
   testImplementation('org.apache.arrow:arrow-memory-unsafe:15.0.0')
 }
+
+test {
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}

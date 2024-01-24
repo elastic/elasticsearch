@@ -11,7 +11,12 @@ import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.ipc.ArrowWriter;
 import org.apache.arrow.vector.ipc.message.IpcOption;
+import org.apache.arrow.vector.types.FloatingPointPrecision;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.arrow.shim.Shim;
 import org.apache.arrow.vector.compression.NoCompressionCodec;
@@ -89,10 +94,10 @@ public class ArrowResponse implements Releasable {
 
         SchemaResponse schemaResponse = new SchemaResponse(this);
         List<ChunkedRestResponseBody> rest = new ArrayList<>(pages.size());
-        for (int p = 0; p < pages.size() - 1; p++) {
-            rest.add(new PageResponse(this, pages.get(p), false));
+        for (int p = 0; p < pages.size(); p++) {
+            rest.add(new PageResponse(this, pages.get(p)));
         }
-        rest.add(new PageResponse(this, pages.get(this.pages.size() - 1), true));
+        rest.add(new EndResponse(this));
 
         return ChunkedRestResponseBody.fromMany(schemaResponse, rest.iterator());
     }
@@ -195,26 +200,16 @@ public class ArrowResponse implements Releasable {
 
     private static class PageResponse extends AbstractArrowChunkedResponse {
         private final Page page;
-        private final boolean finalPage;
         private boolean done = false;
 
-        PageResponse(ArrowResponse response, Page page, boolean finalPage) {
+        PageResponse(ArrowResponse response, Page page) {
             super(response);
             this.page = page;
-            this.finalPage = finalPage;
         }
 
         @Override
         public boolean isDone() {
             return done;
-        }
-
-        @Override
-        public final void close() {
-            if (finalPage) {
-                // TODO close the pages as we go
-                Releasables.closeExpectNoException(response);
-            }
         }
 
         interface WriteBuf {
@@ -250,7 +245,7 @@ public class ArrowResponse implements Releasable {
                 }
             };
             for (int b = 0; b < page.getBlockCount(); b++) {
-                accumulateBlock(out, nodes, writeBufs, bufs, page.getBlock(b));
+                accumulateBlock(out, nodes, bufs, writeBufs, page.getBlock(b));
             }
             ArrowRecordBatch batch = new ArrowRecordBatch(
                 page.getPositionCount(),
@@ -261,9 +256,6 @@ public class ArrowResponse implements Releasable {
                 false
             );
             MessageSerializer.serialize(arrowOut, batch);
-            if (finalPage) {
-                ArrowStreamWriter.writeEndOfStream(arrowOut, IpcOption.DEFAULT);
-            }
             done = true; // one day we should respect sizeHint here. kindness.
         }
 
@@ -274,18 +266,28 @@ public class ArrowResponse implements Releasable {
         private void accumulateBlock(
             RecyclerBytesStreamOutput out,
             List<ArrowFieldNode> nodes,
-            List<WriteBuf> writeBufs,
             List<ArrowBuf> bufs,
+            List<WriteBuf> writeBufs,
             Block block
         ) {
             nodes.add(new ArrowFieldNode(block.getPositionCount(), block.nullValuesCount()));
             switch (block.elementType()) {
+                case DOUBLE -> {
+                    DoubleBlock b = (DoubleBlock) block;
+                    DoubleVector v = b.asVector();
+                    if (v != null) {
+                        accumulateVectorValidity(out, bufs, writeBufs, v);
+                        bufs.add(dummy().writerIndex(Long.BYTES * block.getPositionCount()));
+                        writeBufs.add(() -> writeVector(out, v));
+                        return;
+                    }
+                    throw new UnsupportedOperationException();
+                }
                 case LONG -> {
                     LongBlock b = (LongBlock) block;
                     LongVector v = b.asVector();
                     if (v != null) {
-                        bufs.add(dummy().writerIndex(validityCount(v.getPositionCount())));
-                        writeBufs.add(() -> writeAllTrueValidity(out, v.getPositionCount()));
+                        accumulateVectorValidity(out, bufs, writeBufs, v);
                         bufs.add(dummy().writerIndex(Long.BYTES * block.getPositionCount()));
                         writeBufs.add(() -> writeVector(out, v));
                         return;
@@ -294,6 +296,11 @@ public class ArrowResponse implements Releasable {
                 }
                 default -> throw new UnsupportedOperationException();
             }
+        }
+
+        private void accumulateVectorValidity(RecyclerBytesStreamOutput out, List<ArrowBuf> bufs, List<WriteBuf> writeBufs, Vector v) {
+            bufs.add(dummy().writerIndex(validityCount(v.getPositionCount())));
+            writeBufs.add(() -> writeAllTrueValidity(out, v.getPositionCount()));
         }
 
         private long writeAllTrueValidity(RecyclerBytesStreamOutput out, int valueCount) {
@@ -312,7 +319,15 @@ public class ArrowResponse implements Releasable {
         private long writeVector(RecyclerBytesStreamOutput out, LongVector vector) throws IOException {
             // TODO could we "just" get the memory of the array and dump it?
             for (int i = 0; i < vector.getPositionCount(); i++) {
-                out.writeLong(vector.getLong(i));
+                out.writeLongLE(vector.getLong(i));
+            }
+            return vector.getPositionCount() * Long.BYTES;
+        }
+
+        private long writeVector(RecyclerBytesStreamOutput out, DoubleVector vector) throws IOException {
+            // TODO could we "just" get the memory of the array and dump it?
+            for (int i = 0; i < vector.getPositionCount(); i++) {
+                out.writeDoubleLE(vector.getDouble(i));
             }
             return vector.getPositionCount() * Long.BYTES;
         }
@@ -322,8 +337,33 @@ public class ArrowResponse implements Releasable {
         }
     }
 
+    private class EndResponse extends AbstractArrowChunkedResponse {
+        private boolean done = false;
+
+        private EndResponse(ArrowResponse response) {
+            super(response);
+        }
+
+        @Override
+        public boolean isDone() {
+            return done;
+        }
+
+        @Override
+        protected void encodeChunk(int sizeHint, RecyclerBytesStreamOutput out) throws IOException {
+            ArrowStreamWriter.writeEndOfStream(new WriteChannel(arrowOut(out)), IpcOption.DEFAULT);
+            done = true;
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(response);
+        }
+    }
+
     static FieldType arrowFieldType(String fieldType) {
         return switch (fieldType) {
+            case "double" -> FieldType.nullable(Types.MinorType.FLOAT8.getType());
             case "long" -> FieldType.nullable(Types.MinorType.BIGINT.getType());
             default -> throw new UnsupportedOperationException("NOCOMMIT");
         };

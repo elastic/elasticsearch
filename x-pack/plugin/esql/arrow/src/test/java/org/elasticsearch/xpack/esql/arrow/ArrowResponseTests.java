@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.arrow;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -21,6 +22,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -32,17 +35,79 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.IntToDoubleFunction;
+import java.util.function.IntToLongFunction;
 import java.util.function.LongSupplier;
 import java.util.function.LongUnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ArrowResponseTests extends ESTestCase {
+    public void testLongNoPages() throws IOException {
+        compareSerializationToArrow(new ArrowResponse(List.of(new ArrowResponse.Column("long", "a")), List.of(), () -> {}));
+    }
+
     public void testLongZeros() throws IOException {
         compareSerializationToArrow(
             new ArrowResponse(
                 List.of(new ArrowResponse.Column("long", "a")),
                 List.of(new Page(longVector(10, i -> 0L).asBlock())),
+                () -> {}
+            )
+        );
+    }
+
+    public void testLongIncrement() throws IOException {
+        compareSerializationToArrow(
+            new ArrowResponse(List.of(new ArrowResponse.Column("long", "a")), List.of(new Page(longVector(10, i -> i).asBlock())), () -> {})
+        );
+    }
+
+    public void testLongRandom() throws IOException {
+        compareSerializationToArrow(
+            new ArrowResponse(
+                List.of(new ArrowResponse.Column("long", "a")),
+                List.of(new Page(longVector(10, i -> randomLong()).asBlock())),
+                () -> {}
+            )
+        );
+    }
+
+    public void testLongZerosTwoPage() throws IOException {
+        compareSerializationToArrow(
+            new ArrowResponse(
+                List.of(new ArrowResponse.Column("long", "a")),
+                List.of(new Page(longVector(10, i -> 0L).asBlock()), new Page(longVector(10, i -> 0L).asBlock())),
+                () -> {}
+            )
+        );
+    }
+
+    public void testRandomLong() throws IOException {
+        int pageCount = between(0, 100);
+        List<Page> pages = new ArrayList<>(pageCount);
+        for (int p = 0; p < pageCount; p++) {
+            int positions = between(1, 10_000);
+            pages.add(new Page(longVector(positions, i -> randomLong()).asBlock()));
+        }
+        compareSerializationToArrow(new ArrowResponse(List.of(new ArrowResponse.Column("long", "a")), pages, () -> {}));
+    }
+
+    public void testDoubleZeros() throws IOException {
+        compareSerializationToArrow(
+            new ArrowResponse(
+                List.of(new ArrowResponse.Column("double", "a")),
+                List.of(new Page(doubleVector(10, i -> 0.0).asBlock())),
+                () -> {}
+            )
+        );
+    }
+
+    public void testDoubleIncrement() throws IOException {
+        compareSerializationToArrow(
+            new ArrowResponse(
+                List.of(new ArrowResponse.Column("double", "a")),
+                List.of(new Page(doubleVector(10, i -> i).asBlock())),
                 () -> {}
             )
         );
@@ -116,6 +181,19 @@ public class ArrowResponseTests extends ESTestCase {
                     schemaRoot.clear();
                     for (int c = 0; c < response.columns().size(); c++) {
                         switch (response.columns().get(c).esqlType()) {
+                            case "double" -> {
+                                DoubleBlock b = page.getBlock(c);
+                                DoubleVector v = b.asVector();
+                                if (v == null) {
+                                    throw new IllegalArgumentException();
+                                }
+                                Float8Vector arrow = (Float8Vector) schemaRoot.getVector(c);
+                                arrow.allocateNew(v.getPositionCount());
+                                for (int p = 0; p < v.getPositionCount(); p++) {
+                                    arrow.set(p, v.getDouble(p));
+                                }
+                                arrow.setValueCount(v.getPositionCount());
+                            }
                             case "long" -> {
                                 LongBlock b = page.getBlock(c);
                                 LongVector v = b.asVector();
@@ -161,13 +239,22 @@ public class ArrowResponseTests extends ESTestCase {
         return new Page(blocks);
     }
 
-    private LongVector longVector(int positions, LongUnaryOperator supplier) {
+    private LongVector longVector(int positions, IntToLongFunction v) {
         LongVector.FixedBuilder builder = BLOCK_FACTORY.newLongVectorFixedBuilder(positions);
         for (int i = 0; i < positions; i++) {
-            builder.appendLong(supplier.applyAsLong(i));
+            builder.appendLong(v.applyAsLong(i));
         }
         return builder.build();
     }
+
+    private DoubleVector doubleVector(int positions, IntToDoubleFunction v) {
+        DoubleVector.FixedBuilder builder = BLOCK_FACTORY.newDoubleVectorFixedBuilder(positions);
+        for (int i = 0; i < positions; i++) {
+            builder.appendDouble(v.applyAsDouble(i));
+        }
+        return builder.build();
+    }
+
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
         new NoopCircuitBreaker("test-noop"),

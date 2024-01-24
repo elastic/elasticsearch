@@ -10,7 +10,7 @@ package org.elasticsearch.test.fixtures.idp;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.Network;
-import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.images.RemoteDockerImage;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -29,12 +29,7 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
     }
 
     public OpenLdapTestContainer(Network network) {
-        super(
-            new ImageFromDockerfile("es-openldap-testfixture").withDockerfileFromBuilder(builder -> builder.from(DOCKER_BASE_IMAGE).build())
-                .withFileFromClasspath("openldap/certs", "/openldap/certs/")
-                .withFileFromClasspath("openldap/ldif/users.ldif", "/openldap/ldif/users.ldif")
-                .withFileFromClasspath("openldap/ldif/config.ldif", "/openldap/ldif/config.ldif")
-        );
+        super(new RemoteDockerImage(DOCKER_BASE_IMAGE));
         withNetworkAliases("openldap");
         withNetwork(network);
         withExposedPorts(389, 636);

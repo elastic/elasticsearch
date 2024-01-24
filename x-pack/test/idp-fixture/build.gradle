@@ -17,7 +17,7 @@ tasks.register("deployIdpFixtureDockerImages", DockerBuildTask) {
     baseImages = ["openjdk:11.0.16-jre"]
     noCache = BuildParams.isCi
     tags = ["docker.elastic.co/elasticsearch-dev/idp-fixture:1.0"]
-    getPush().set(BuildParams.isCi)
+    push = BuildParams.isCI
     getPlatforms().addAll( Architecture.values().collect{ it.dockerPlatform } )
 }
 
@@ -27,7 +27,7 @@ tasks.register("deployOpenLdapFixtureDockerImages", DockerBuildTask) {
   baseImages = ["osixia/openldap:1.4.0"]
   noCache = BuildParams.isCi
   tags = ["docker.elastic.co/elasticsearch-dev/openldap-fixture:1.0"]
-  getPush().set(true)
+  push = BuildParams.isCI
   getPlatforms().addAll( Architecture.values().collect{ it.dockerPlatform } )
 }
 

@@ -11,7 +11,7 @@ import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTest
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.images.RemoteDockerImage;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -32,14 +32,7 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
     }
 
     public IdpTestContainer(Network network) {
-        super(
-            new ImageFromDockerfile("es-idp-testfixture").withDockerfileFromBuilder(builder -> builder.from(DOCKER_BASE_IMAGE).build())
-                .withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
-                .withFileFromClasspath("idp/jetty-custom/keystore", "/idp/jetty-custom/keystore")
-                .withFileFromClasspath("idp/shib-jetty-base/", "/idp/shib-jetty-base/")
-                .withFileFromClasspath("idp/shibboleth-idp/", "/idp/shibboleth-idp/")
-                .withFileFromClasspath("idp/bin/", "/idp/bin/")
-        );
+        super(new RemoteDockerImage(DOCKER_BASE_IMAGE));
         withNetworkAliases("idp");
         withNetwork(network);
         waitingFor(Wait.forListeningPorts(4443));

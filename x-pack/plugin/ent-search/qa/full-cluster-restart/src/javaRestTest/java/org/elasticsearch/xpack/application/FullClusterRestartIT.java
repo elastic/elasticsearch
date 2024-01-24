@@ -49,7 +49,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testBehavioralAnalyticsDataRetention() throws Exception {
-        System.out.println("TEST START");
         assumeTrue(
             "Data retention changed by default to DSL in " + DSL_DEFAULT_RETENTION_VERSION,
             getOldClusterTestVersion().before(DSL_DEFAULT_RETENTION_VERSION.toString())
@@ -58,7 +57,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         String legacyAnalyticsCollectionName = "oldstuff";
         String newAnalyticsCollectionName = "newstuff";
 
-        System.out.println("INDEX TEMPLATE1: " + client().performRequest(new Request("GET", "_index_template/behav*")).toString());
         if (isRunningAgainstOldCluster()) {
             // Create an analytics collection
             Request legacyPutRequest = new Request("PUT", "_application/analytics/" + legacyAnalyticsCollectionName);

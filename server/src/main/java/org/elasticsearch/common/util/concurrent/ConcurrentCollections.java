@@ -45,7 +45,7 @@ public abstract class ConcurrentCollections {
     }
 
     public static <V> Set<V> newConcurrentSet() {
-        return new ConcurrentHashMap<V, Boolean>().keySet(Boolean.TRUE);
+        return ConcurrentHashMap.newKeySet();
     }
 
     public static <T> Queue<T> newQueue() {

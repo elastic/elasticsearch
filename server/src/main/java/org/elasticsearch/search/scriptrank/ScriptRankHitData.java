@@ -14,12 +14,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class ScriptRankFetchResult implements RankFetchResult {
-    public ScriptRankFetchResult() {
-    }
+public class ScriptRankHitData implements RankHitData {
+    public ScriptRankHitData() {}
 
-    public ScriptRankFetchResult(StreamInput in) {
-    }
+    public ScriptRankHitData(StreamInput in) {}
 
     @Override
     public String getWriteableName() {

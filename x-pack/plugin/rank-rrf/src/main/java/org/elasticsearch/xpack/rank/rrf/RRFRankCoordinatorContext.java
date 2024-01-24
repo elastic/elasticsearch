@@ -178,7 +178,10 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
     }
 
     @Override
-    public SearchHits getHits(SearchPhaseController.ReducedQueryPhase reducedQueryPhase, AtomicArray<? extends SearchPhaseResult> fetchResultsArray) {
+    public SearchHits getHits(
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+        AtomicArray<? extends SearchPhaseResult> fetchResultsArray
+    ) {
         throw new UnsupportedOperationException("TODO");
     }
 }

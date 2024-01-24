@@ -10,6 +10,6 @@ package org.elasticsearch.search.scriptrank;
 
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 
-public interface RankFetchResult extends VersionedNamedWriteable  {
+public interface RankHitData extends VersionedNamedWriteable {
 
 }

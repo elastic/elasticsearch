@@ -28,7 +28,6 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
     private final ScriptService scriptService;
     private final Script script;
 
-
     private List<PriorityQueue<ScoreDoc>> queues = new ArrayList<>();
 
     public ScriptRankCoordinatorContext(int size, int from, int windowSize, ScriptService scriptService, Script script) {
@@ -83,44 +82,28 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
         var seen = new HashMap<RankKey, ScoreDoc>();
 
         for (PriorityQueue<ScoreDoc> priorityQueue : queues) {
-            for(ScoreDoc scoreDoc: priorityQueue){
-                seen.putIfAbsent(
-                    new RankKey(scoreDoc.doc,scoreDoc.shardIndex),
-                    scoreDoc
-                );
+            for (ScoreDoc scoreDoc : priorityQueue) {
+                seen.putIfAbsent(new RankKey(scoreDoc.doc, scoreDoc.shardIndex), scoreDoc);
             }
         }
 
-//        if (true) {
-//            var output = new StringBuilder();
-//            seen.forEach((k, v) -> {
-//                output.append(k.toString());
-//                output.append("\tscore: " + v.score + " ");
-//            });
-//
-//            throw new IllegalArgumentException(
-//                output.toString()
-//            );
-//        }
+        // if (true) {
+        // var output = new StringBuilder();
+        // seen.forEach((k, v) -> {
+        // output.append(k.toString());
+        // output.append("\tscore: " + v.score + " ");
+        // });
+        //
+        // throw new IllegalArgumentException(
+        // output.toString()
+        // );
+        // }
         topDocStats.fetchHits = seen.size();
 
-
-        return new SearchPhaseController.SortedTopDocs(
-            seen.values().toArray(ScoreDoc[]::new),
-            false,
-            null,
-            null,
-            null,
-            0
-        );
+        return new SearchPhaseController.SortedTopDocs(seen.values().toArray(ScoreDoc[]::new), false, null, null, null, 0);
     }
 
-    protected record ScriptDocContext(
-        RankKey rankKey,
-        String source,
-        ScoreDoc scoreDoc
-    ) {
-    }
+    protected record ScriptDocContext(RankKey rankKey, String source, ScoreDoc scoreDoc) {}
 
     @Override
     @SuppressWarnings("unchecked")
@@ -157,17 +140,9 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
 
          */
 
-        List<ScoreDoc>  scriptResult = rankScript.execute(queues);
+        List<ScoreDoc> scriptResult = rankScript.execute(queues);
 
-
-        var sortedTopDocs = new SearchPhaseController.SortedTopDocs(
-            scriptResult.toArray(ScoreDoc[]::new),
-            false,
-            null,
-            null,
-            null,
-            0
-        );
+        var sortedTopDocs = new SearchPhaseController.SortedTopDocs(scriptResult.toArray(ScoreDoc[]::new), false, null, null, null, 0);
         var updatedReducedQueryPhase = new SearchPhaseController.ReducedQueryPhase(
             reducedQueryPhase.totalHits(),
             scriptResult.size(),
@@ -186,10 +161,6 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
             reducedQueryPhase.isEmptyResult()
         );
 
-        return SearchPhaseController.getHits(
-            updatedReducedQueryPhase,
-            false,
-            fetchResultsArray
-        );
+        return SearchPhaseController.getHits(updatedReducedQueryPhase, false, fetchResultsArray);
     }
 }

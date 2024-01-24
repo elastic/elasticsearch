@@ -8,5 +8,4 @@
 
 package org.elasticsearch.search.scriptrank;
 
-public record RankKey(int doc, int shardIndex) {
-}
+public record RankKey(int doc, int shardIndex) {}

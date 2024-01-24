@@ -464,7 +464,7 @@ public final class SearchPhaseController {
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (reducedQueryPhase.rankCoordinatorContext != null && shardDoc instanceof RankDoc) {
-//                    assert shardDoc instanceof RankDoc;
+                    // assert shardDoc instanceof RankDoc;
                     searchHit.setRank(((RankDoc) shardDoc).rank);
                     searchHit.score(shardDoc.score);
                 } else if (sortedTopDocs.isSortedByField) {

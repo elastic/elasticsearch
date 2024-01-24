@@ -9,16 +9,16 @@
 package org.elasticsearch.search.scriptrank;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.lucene.util.PriorityQueue;
 
 public abstract class RankScript {
 
-    public static final String[] PARAMETERS = {"docs"};
+    public static final String[] PARAMETERS = { "docs" };
 
     private final Map<String, Object> params;
 

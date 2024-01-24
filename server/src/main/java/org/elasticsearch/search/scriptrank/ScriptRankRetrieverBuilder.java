@@ -32,7 +32,6 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
 
     public static final int DEFAULT_WINDOW_SIZE = 100;
 
-
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
     public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
@@ -57,10 +56,7 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
             (parser, context) -> Script.parse(parser),
             SCRIPT_FIELD
         );
-        PARSER.declareStringArray(
-            (b, v) -> b.fields = v,
-            FIELDS_FIELD
-        );
+        PARSER.declareStringArray((b, v) -> b.fields = v, FIELDS_FIELD);
 
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
@@ -74,8 +70,7 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
     private Script script = null;
     private List<String> fields = new ArrayList<>();
 
-    public ScriptRankRetrieverBuilder() {
-    }
+    public ScriptRankRetrieverBuilder() {}
 
     public ScriptRankRetrieverBuilder(ScriptRankRetrieverBuilder original) {
         super(original);
@@ -160,7 +155,10 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         ScriptRankRetrieverBuilder that = (ScriptRankRetrieverBuilder) o;
-        return windowSize == that.windowSize && Objects.equals(retrieverBuilders, that.retrieverBuilders) && Objects.equals(script, that.script) && Objects.equals(fields, that.fields);
+        return windowSize == that.windowSize
+            && Objects.equals(retrieverBuilders, that.retrieverBuilders)
+            && Objects.equals(script, that.script)
+            && Objects.equals(fields, that.fields);
     }
 
     @Override

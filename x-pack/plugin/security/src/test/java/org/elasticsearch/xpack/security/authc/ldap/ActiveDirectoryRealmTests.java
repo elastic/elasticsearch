@@ -21,9 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -76,7 +74,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
@@ -592,15 +589,17 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         );
     }
 
-    public void testReloadWithoutConnectionPool() throws Exception {
-        final RealmConfig.RealmIdentifier realmIdentifier = realmId("testUnauthenticatedLookupWithConnectionPool");
+    public void testReloadBindPassword() throws Exception {
+        final RealmConfig.RealmIdentifier realmIdentifier = realmId("testReloadBindPassword");
         final boolean useLegacyBindPassword = randomBoolean();
+        final boolean pooled = randomBoolean();
         final Settings.Builder builder = Settings.builder()
-            .put(getFullSettingKey(realmIdentifier.getName(), ActiveDirectorySessionFactorySettings.POOL_ENABLED), false)
+            .put(getFullSettingKey(realmIdentifier, PoolingSessionFactorySettings.BIND_DN), "CN=ironman@ad.test.elasticsearch.com")
+            .put(getFullSettingKey(realmIdentifier.getName(), ActiveDirectorySessionFactorySettings.POOL_ENABLED), pooled)
             // explicitly disabling cache to always authenticate against AD server
             .put(getFullSettingKey(realmIdentifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1)
-            .put(getFullSettingKey(realmIdentifier, PoolingSessionFactorySettings.BIND_DN), "CN=ironman@ad.test.elasticsearch.com")
-            // Due to limitations of AD server we cannot change BIND password, so we start with the wrong (random) password and then reload
+            // due to limitations of AD server we cannot change BIND password dynamically,
+            // so we start with the wrong (random) password and then reload and check if authentication succeeds
             .put(bindPasswordSettings(realmIdentifier, useLegacyBindPassword, randomAlphaOfLengthBetween(3, 7)));
 
         Settings settings = settings(realmIdentifier, builder.build());
@@ -674,20 +673,10 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 .put(getFullSettingKey(realmIdentifier, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), password)
                 .build();
         } else {
-            return Settings.builder()
-                .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, realmIdentifier, password))
-                .build();
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString(getFullSettingKey(realmIdentifier, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD), password);
+            return Settings.builder().setSecureSettings(secureSettings).build();
         }
-    }
-
-    private SecureSettings secureSettings(
-        Function<String, Setting.AffixSetting<SecureString>> settingFactory,
-        RealmConfig.RealmIdentifier identifier,
-        String value
-    ) {
-        final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(getFullSettingKey(identifier, settingFactory), value);
-        return secureSettings;
     }
 
 }

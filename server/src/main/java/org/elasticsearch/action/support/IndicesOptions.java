@@ -40,7 +40,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
  * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
  */
-public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWildcards) implements ToXContentFragment {
+public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOptions) implements ToXContentFragment {
 
     /**
      * Controls the way the wildcard expressions will be resolved.
@@ -363,21 +363,21 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
      * are allowed.
      */
     public boolean allowNoIndices() {
-        return expandWildcards.allowEmptyExpressions();
+        return wildcardOptions.allowEmptyExpressions();
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to open indices
      */
     public boolean expandWildcardsOpen() {
-        return expandWildcards.includeOpen();
+        return wildcardOptions.includeOpen();
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to closed indices
      */
     public boolean expandWildcardsClosed() {
-        return expandWildcards.includeClosed();
+        return wildcardOptions.includeClosed();
     }
 
     /**
@@ -393,7 +393,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
      * @return Whether wildcard expressions should get expanded to hidden indices
      */
     public boolean expandWildcardsHidden() {
-        return expandWildcards.removeHidden() == false;
+        return wildcardOptions.removeHidden() == false;
     }
 
     /**
@@ -416,7 +416,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
      * @return whether aliases should be ignored (when resolving a wildcard)
      */
     public boolean ignoreAliases() {
-        return expandWildcards.resolveAlias() == false;
+        return wildcardOptions.resolveAlias() == false;
     }
 
     /**
@@ -429,8 +429,8 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
     /**
      * @return a copy of the {@link WildcardOptions} that these indices options will expand to
      */
-    public WildcardOptions expandWildcards() {
-        return expandWildcards;
+    public WildcardOptions wildcardOptions() {
+        return wildcardOptions;
     }
 
     /**
@@ -443,7 +443,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.GROUP_WILDCARD_INDICES_OPTIONS)) {
             out.writeEnumSet(options);
-            expandWildcards.writeTo(out);
+            wildcardOptions.writeTo(out);
         } else {
             EnumSet<Option> backwardsCompatibleOptions = options.clone();
             if (allowNoIndices()) {
@@ -453,7 +453,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
                 backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_ALIASES);
             }
             out.writeEnumSet(backwardsCompatibleOptions);
-            out.writeEnumSet(WildcardStates.fromWildcardOptions(expandWildcards));
+            out.writeEnumSet(WildcardStates.fromWildcardOptions(wildcardOptions));
         }
     }
 
@@ -631,7 +631,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
             return defaultSettings;
         }
 
-        WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.expandWildcards);
+        WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
@@ -649,7 +649,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        WildcardOptions.toXContent(expandWildcards, builder);
+        WildcardOptions.toXContent(wildcardOptions, builder);
         builder.field("ignore_unavailable", ignoreUnavailable());
         builder.field("ignore_throttled", ignoreThrottled());
         return builder;
@@ -666,7 +666,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
 
     public static IndicesOptions fromXContent(XContentParser parser, @Nullable IndicesOptions defaults) throws IOException {
         boolean parsedWildcardStates = false;
-        WildcardOptions.Builder wildcardsBuilder = defaults == null ? null : new WildcardOptions.Builder(defaults.expandWildcards());
+        WildcardOptions.Builder wildcardsBuilder = defaults == null ? null : new WildcardOptions.Builder(defaults.wildcardOptions());
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
         boolean ignoreThrottled = defaults == null ? false : defaults.ignoreThrottled();

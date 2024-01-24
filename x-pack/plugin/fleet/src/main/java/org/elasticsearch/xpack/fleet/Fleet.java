@@ -304,7 +304,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 );
                 EnumSet<Option> options = request.indicesOptions().options();
                 options.add(Option.IGNORE_UNAVAILABLE);
-                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
+                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().wildcardOptions()));
 
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,

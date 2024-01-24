@@ -455,7 +455,7 @@ public class IndicesOptionsTests extends ESTestCase {
                 allowNoIndices,
                 null
             )
-            : defaults.expandWildcards();
+            : defaults.wildcardOptions();
         final boolean includeIgnoreUnavailable = randomBoolean();
         final boolean ignoreUnavailable = includeIgnoreUnavailable ? randomBoolean() : defaults.ignoreUnavailable();
 
@@ -491,7 +491,7 @@ public class IndicesOptionsTests extends ESTestCase {
             fromXContentOptions = IndicesOptions.fromXContent(parser, defaults);
         }
         assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
-        assertEquals(expectedWildcardStates, fromXContentOptions.expandWildcards());
+        assertEquals(expectedWildcardStates, fromXContentOptions.wildcardOptions());
     }
 
     public void testOptionsStillInUse() {

@@ -353,7 +353,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             );
             EnumSet<Option> options = request.indicesOptions().options();
             options.add(Option.IGNORE_UNAVAILABLE);
-            request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
+            request.indicesOptions(new IndicesOptions(options, request.indicesOptions().wildcardOptions()));
             try {
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,

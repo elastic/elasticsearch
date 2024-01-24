@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.support;
 
+import joptsimple.internal.Strings;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -91,7 +92,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
          * are not added.
          */
         public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder) throws IOException {
-            Set<String> legacyStates = new HashSet<>(3);
+            List<String> legacyStates = new ArrayList<>(3);
             if (options.includeOpen()) {
                 legacyStates.add("open");
             }
@@ -106,7 +107,9 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
             } else if (legacyStates.size() == 3) {
                 builder.field("expand_wildcards", "all");
             } else {
-                builder.field("expand_wildcards", legacyStates);
+                // In order to be backwards compatible the value "expand_wildcards" needs to be a comma separated string
+                // and not an array of strings.
+                builder.field("expand_wildcards", Strings.join(legacyStates, ","));
             }
             builder.field("allow_no_indices", options.allowEmptyExpressions());
             return builder;

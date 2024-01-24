@@ -19,6 +19,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
+import org.elasticsearch.xpack.esql.arrow.ArrowResponse;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
@@ -139,7 +141,11 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     )
                 );
             } else if (mediaType == ArrowFormat.INSTANCE) {
-                restResponse = RestResponse.chunked(RestStatus.OK, ArrowResponse.response(esqlResponse));
+                restResponse = RestResponse.chunked(RestStatus.OK, new ArrowResponse(
+                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.type(), c.name())).toList(),
+                    esqlResponse.pages(),
+                    esqlResponse::close
+                ).chunkedResponse());
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,

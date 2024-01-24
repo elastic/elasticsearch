@@ -12,12 +12,11 @@ import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.action.ArrowFormat;
+import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_FORMAT;

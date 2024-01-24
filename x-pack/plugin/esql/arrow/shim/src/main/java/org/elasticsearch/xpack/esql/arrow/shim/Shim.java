@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.arrow;
+package org.elasticsearch.xpack.esql.arrow.shim;
 
 import org.apache.arrow.memory.AllocationManager;
 import org.apache.arrow.memory.ArrowBuf;
@@ -24,12 +24,14 @@ import java.security.PrivilegedAction;
  */
 public class Shim implements AllocationManager.Factory {
     /**
-     * Initialize ArrNOCOMMIT
+     * Initialize the Arrow shim. Arrow does some interesting reflection stuff on
+     * initialization. We can avoid it if we
      */
     public static void init() {
         try {
-            Class.forName("org.apache.arrow.memory.DefaultAllocationManagerFactory");
-            LogManager.getLogger(Shim.class).info("found a real arrow manager, disabling shim");
+            Class.forName("org.elasticsearch.test.ESTestCase");
+            LogManager.getLogger(Shim.class)
+                .info("we're in tests, disabling the arrow shim so we can use a real apache arrow runtime for testing");
         } catch (ClassNotFoundException notfound) {
             LogManager.getLogger(Shim.class).debug("shimming arrow's allocation manager");
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {

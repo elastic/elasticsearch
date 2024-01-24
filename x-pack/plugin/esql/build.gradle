@@ -23,7 +23,8 @@ dependencies {
   implementation project(':libs:elasticsearch-grok')
 
   // For arrow output
-  implementation project('arrow-shim')
+  implementation project('arrow')
+  implementation project('arrow:shim')
   implementation('org.apache.arrow:arrow-vector:15.0.0')
   implementation('org.apache.arrow:arrow-format:15.0.0')
   implementation('org.apache.arrow:arrow-memory-core:15.0.0')
@@ -48,8 +49,6 @@ dependencies {
   testImplementation project(path: ':modules:ingest-common')
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
-
-  testImplementation('org.apache.arrow:arrow-memory-unsafe:15.0.0')
 
   internalClusterTestImplementation project(":client:rest-high-level")
   internalClusterTestImplementation project(":modules:mapper-extras")

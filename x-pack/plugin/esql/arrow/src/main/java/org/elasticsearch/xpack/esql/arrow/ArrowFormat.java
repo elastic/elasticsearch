@@ -5,8 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.action;
+package org.elasticsearch.xpack.esql.arrow;
 
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.xcontent.MediaType;
 
 import java.util.Map;

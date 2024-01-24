@@ -712,6 +712,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
             return false;
         }
+
         public boolean forceEvict() {
             assert Thread.holdsLock(SharedBlobCacheService.this) : "must hold lock when evicting";
             if (evict()) {
@@ -1434,6 +1435,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // give up
             return null;
         }
+
         /**
          * This method tries to evict the least used {@link LFUCacheEntry}. Only entries with the lowest possible frequency are considered
          * for eviction.

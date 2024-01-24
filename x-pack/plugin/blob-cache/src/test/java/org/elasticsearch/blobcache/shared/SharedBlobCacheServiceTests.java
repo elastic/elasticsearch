@@ -325,10 +325,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final boolean allowAlreadyClosed = regionCount < threads;
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(size(regionCount * 100L)).getStringRep()
-            )
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(regionCount * 100L)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getKey(), randomFrom("0", "1ms", "10s"))
             .put("path.home", createTempDir())
@@ -360,13 +357,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                             try {
                                 SharedBlobCacheService<String>.CacheFileRegion cacheFileRegion;
                                 try {
-                                    cacheFileRegion = cacheService.get(
-                                        cacheKeys[i],
-                                        fileLength,
-                                        regions[i]
-                                    );
+                                    cacheFileRegion = cacheService.get(cacheKeys[i], fileLength, regions[i]);
                                 } catch (AlreadyClosedException e) {
-                                    assert allowAlreadyClosed || e.getMessage().equals("evicted during free region allocation"): e;
+                                    assert allowAlreadyClosed || e.getMessage().equals("evicted during free region allocation") : e;
                                     throw e;
                                 }
                                 if (cacheFileRegion.tryIncRef()) {

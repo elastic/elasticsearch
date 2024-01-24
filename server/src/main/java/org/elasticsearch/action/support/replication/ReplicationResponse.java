@@ -63,13 +63,13 @@ public class ReplicationResponse extends ActionResponse {
     public static class ShardInfo implements Writeable, ToXContentObject {
 
         private static final String TOTAL = "total";
-        private static final SerializableString TOTAL_FIELD = SerializableString.create(TOTAL);
+        private static final SerializableString TOTAL_FIELD = SerializableString.of(TOTAL);
         private static final String SUCCESSFUL = "successful";
-        private static final SerializableString SUCCESSFUL_FIELD = SerializableString.create(SUCCESSFUL);
+        private static final SerializableString SUCCESSFUL_FIELD = SerializableString.of(SUCCESSFUL);
         private static final String FAILED = "failed";
-        private static final SerializableString FAILED_FIELD = SerializableString.create(FAILED);
+        private static final SerializableString FAILED_FIELD = SerializableString.of(FAILED);
         private static final String FAILURES = "failures";
-        private static final SerializableString FAILURES_FIELD = SerializableString.create(FAILURES);
+        private static final SerializableString FAILURES_FIELD = SerializableString.of(FAILURES);
 
         private int total;
         private int successful;
@@ -206,17 +206,17 @@ public class ReplicationResponse extends ActionResponse {
         public static class Failure extends ShardOperationFailedException implements ToXContentObject {
 
             private static final String _INDEX = "_index";
-            private static final SerializableString _INDEX_FIELD = SerializableString.create(_INDEX);
+            private static final SerializableString _INDEX_FIELD = SerializableString.of(_INDEX);
             private static final String _SHARD = "_shard";
-            private static final SerializableString _SHARD_FIELD = SerializableString.create(_SHARD);
+            private static final SerializableString _SHARD_FIELD = SerializableString.of(_SHARD);
             private static final String _NODE = "_node";
-            private static final SerializableString _NODE_FIELD = SerializableString.create(_NODE);
+            private static final SerializableString _NODE_FIELD = SerializableString.of(_NODE);
             private static final String REASON = "reason";
-            private static final SerializableString REASON_FIELD = SerializableString.create(REASON);
+            private static final SerializableString REASON_FIELD = SerializableString.of(REASON);
             private static final String STATUS = "status";
-            private static final SerializableString STATUS_FIELD = SerializableString.create(STATUS);
+            private static final SerializableString STATUS_FIELD = SerializableString.of(STATUS);
             private static final String PRIMARY = "primary";
-            private static final SerializableString PRIMARY_FIELD = SerializableString.create(PRIMARY);
+            private static final SerializableString PRIMARY_FIELD = SerializableString.of(PRIMARY);
 
             private final ShardId shardId;
             private final String nodeId;

@@ -532,7 +532,7 @@ public enum RestStatus {
     }
 
     private static final Map<RestStatus, SerializableString> STATUS_TO_SERIALIZABLE_STRING = Arrays.stream(RestStatus.values())
-        .collect(Collectors.toUnmodifiableMap(x -> x, x -> SerializableString.create(x.toString())));
+        .collect(Collectors.toUnmodifiableMap(x -> x, x -> SerializableString.of(x.toString())));
 
     private final int status;
 

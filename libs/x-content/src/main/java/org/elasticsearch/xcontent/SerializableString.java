@@ -12,9 +12,9 @@ import java.util.function.Function;
 
 public class SerializableString {
     private final String name;
-    private volatile Object serializedString = null;
+    private Object serializedString = null;
 
-    public static SerializableString create(String name) {
+    public static SerializableString of(String name) {
         return new SerializableString(name);
     }
 
@@ -23,7 +23,8 @@ public class SerializableString {
     }
 
     public <T> T computeIfAbsent(Class<T> clazz, Function<String, T> supplier) {
-        if (serializedString != null && serializedString.getClass().equals(clazz)) {
+        if (serializedString != null) {
+            assert serializedString.getClass().equals(clazz);
             return clazz.cast(serializedString);
         }
         var serializedString = supplier.apply(name);

@@ -41,7 +41,7 @@ public class ParseField {
         String allReplacedWith
     ) {
         this.name = name;
-        this.serializableName = SerializableString.create(name);
+        this.serializableName = SerializableString.of(name);
         this.fullyDeprecated = fullyDeprecated;
         this.allReplacedWith = allReplacedWith;
         if (deprecatedNames == null || deprecatedNames.length == 0) {

@@ -41,18 +41,18 @@ import java.util.stream.Collectors;
  * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  */
 public class BulkItemResponse implements Writeable, ToXContentObject {
-    private static final SerializableString _INDEX_FIELD = SerializableString.create("_index");
-    private static final SerializableString _ID_FIELD = SerializableString.create("_id");
+    private static final SerializableString _INDEX_FIELD = SerializableString.of("_index");
+    private static final SerializableString _ID_FIELD = SerializableString.of("_id");
     static final String STATUS = "status";
-    private static final SerializableString STATUS_FIELD = SerializableString.create(STATUS);
+    private static final SerializableString STATUS_FIELD = SerializableString.of(STATUS);
     static final String ERROR = "error";
-    private static final SerializableString ERROR_FIELD = SerializableString.create(ERROR);
+    private static final SerializableString ERROR_FIELD = SerializableString.of(ERROR);
 
-    public static final SerializableString TYPE_FIELD = SerializableString.create(MapperService.TYPE_FIELD_NAME);
-    public static final SerializableString TYPE_VALUE = SerializableString.create(MapperService.SINGLE_MAPPING_NAME);
+    public static final SerializableString TYPE_FIELD = SerializableString.of(MapperService.TYPE_FIELD_NAME);
+    public static final SerializableString TYPE_VALUE = SerializableString.of(MapperService.SINGLE_MAPPING_NAME);
 
     private static final Map<OpType, SerializableString> OP_TYPE__TO_SERIALIZABLE_STRING = Arrays.stream(OpType.values())
-        .collect(Collectors.toUnmodifiableMap(op -> op, op -> SerializableString.create(op.getLowercase())));
+        .collect(Collectors.toUnmodifiableMap(op -> op, op -> SerializableString.of(op.getLowercase())));
 
     public RestStatus status() {
         return failure == null ? response.status() : failure.getStatus();

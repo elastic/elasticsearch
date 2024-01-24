@@ -384,7 +384,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder nullField(ParseField field) throws IOException {
-        ensureNameNotNull(field);
+        ensureFieldNotNull(field);
         generator.writeFieldName(field.getSerializableName());
         generator.writeNull();
         return this;
@@ -486,7 +486,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder field(ParseField field, double value) throws IOException {
-        ensureNameNotNull(field);
+        ensureFieldNotNull(field);
         generator.writeFieldName(field.getSerializableName());
         generator.writeNumber(value);
         return this;
@@ -578,7 +578,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder field(ParseField field, int value) throws IOException {
-        ensureNameNotNull(field);
+        ensureFieldNotNull(field);
         generator.writeFieldName(field.getSerializableName());
         generator.writeNumber(value);
         return this;
@@ -773,7 +773,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder field(ParseField field, String value) throws IOException {
-        ensureNameNotNull(field);
+        ensureFieldNotNull(field);
         generator.writeFieldName(field.getSerializableName());
         if (value == null) {
             generator.writeNull();
@@ -1340,8 +1340,8 @@ public final class XContentBuilder implements Closeable, Flushable {
         ensureNotNull(name, "Field name cannot be null");
     }
 
-    public static void ensureNameNotNull(ParseField field) {
-        ensureNotNull(field, "Field name cannot be null");
+    public static void ensureFieldNotNull(ParseField field) {
+        ensureNotNull(field, "Field cannot be null");
     }
 
     public static void ensureNameNotNull(SerializableString name) {

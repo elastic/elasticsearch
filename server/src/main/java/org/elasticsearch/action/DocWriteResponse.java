@@ -49,24 +49,24 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, ToXContentObject {
 
     private static final String _SHARDS = "_shards";
-    private static final SerializableString _SHARDS_FIELD = SerializableString.create(_SHARDS);
+    private static final SerializableString _SHARDS_FIELD = SerializableString.of(_SHARDS);
     private static final String _INDEX = "_index";
-    private static final SerializableString _INDEX_FIELD = SerializableString.create(_INDEX);
+    private static final SerializableString _INDEX_FIELD = SerializableString.of(_INDEX);
     private static final String _ID = "_id";
-    private static final SerializableString _ID_FIELD = SerializableString.create(_ID);
+    private static final SerializableString _ID_FIELD = SerializableString.of(_ID);
     private static final String _VERSION = "_version";
-    private static final SerializableString _VERSION_FIELD = SerializableString.create(_VERSION);
+    private static final SerializableString _VERSION_FIELD = SerializableString.of(_VERSION);
     private static final String _SEQ_NO = "_seq_no";
-    private static final SerializableString _SEQ_NO_FIELD = SerializableString.create(_SEQ_NO);
+    private static final SerializableString _SEQ_NO_FIELD = SerializableString.of(_SEQ_NO);
     private static final String _PRIMARY_TERM = "_primary_term";
-    private static final SerializableString _PRIMARY_TERM_FIELD = SerializableString.create(_PRIMARY_TERM);
+    private static final SerializableString _PRIMARY_TERM_FIELD = SerializableString.of(_PRIMARY_TERM);
     private static final String RESULT = "result";
-    private static final SerializableString RESULT_FIELD = SerializableString.create(RESULT);
+    private static final SerializableString RESULT_FIELD = SerializableString.of(RESULT);
     private static final String FORCED_REFRESH = "forced_refresh";
-    private static final SerializableString FORCED_REFRESH_FIELD = SerializableString.create(FORCED_REFRESH);
+    private static final SerializableString FORCED_REFRESH_FIELD = SerializableString.of(FORCED_REFRESH);
 
     private static final Map<Result, SerializableString> RESULT_MAP = Arrays.stream(Result.values())
-        .collect(Collectors.toUnmodifiableMap(r -> r, r -> SerializableString.create(r.getLowercase())));
+        .collect(Collectors.toUnmodifiableMap(r -> r, r -> SerializableString.of(r.getLowercase())));
 
     /**
      * An enum that represents the results of CRUD operations, primarily used to communicate the type of

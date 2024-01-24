@@ -935,8 +935,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertThat(e.getMessage(), containsString("Field name cannot be null"));
 
         ParseField nullField = null;
-        e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureNameNotNull(nullField));
-        assertThat(e.getMessage(), containsString("Field name cannot be null"));
+        e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureFieldNotNull(nullField));
+        assertThat(e.getMessage(), containsString("Field cannot be null"));
     }
 
     public void testEnsureNotNull() {

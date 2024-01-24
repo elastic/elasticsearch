@@ -53,6 +53,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         private final String id;
         private PageParams pageParams = PageParams.defaultParams();
         private boolean allowNoMatch = true;
+        private boolean isBasicStats = false;
 
         public static final int MAX_SIZE_RETURN = 1000;
         // used internally to expand the queried id expression
@@ -74,6 +75,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             expandedIds = in.readCollectionAsImmutableList(StreamInput::readString);
             pageParams = new PageParams(in);
             allowNoMatch = in.readBoolean();
+            isBasicStats = in.readBoolean();
         }
 
         @Override
@@ -111,6 +113,14 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this.allowNoMatch = allowNoMatch;
         }
 
+        public boolean isBasicStats() {
+            return isBasicStats;
+        }
+
+        public void setIsBasicStats(boolean isBasicStats) {
+            this.isBasicStats = isBasicStats;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -118,6 +128,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             out.writeStringCollection(expandedIds);
             pageParams.writeTo(out);
             out.writeBoolean(allowNoMatch);
+            out.writeBoolean(isBasicStats);
         }
 
         @Override
@@ -134,7 +145,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, pageParams, allowNoMatch);
+            return Objects.hash(id, pageParams, allowNoMatch, isBasicStats);
         }
 
         @Override
@@ -146,7 +157,10 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams) && allowNoMatch == other.allowNoMatch;
+            return Objects.equals(id, other.id)
+                && Objects.equals(pageParams, other.pageParams)
+                && allowNoMatch == other.allowNoMatch
+                && isBasicStats == other.isBasicStats;
         }
 
         @Override

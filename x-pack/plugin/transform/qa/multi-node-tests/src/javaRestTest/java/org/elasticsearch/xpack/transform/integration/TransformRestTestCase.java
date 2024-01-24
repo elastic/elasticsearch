@@ -62,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
@@ -249,6 +250,16 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getTransformStats(String id) throws IOException {
         var request = new Request("GET", TRANSFORM_ENDPOINT + id + "/_stats");
+        request.setOptions(RequestOptions.DEFAULT);
+        Response response = client().performRequest(request);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response));
+        assertThat(stats, hasSize(1));
+        return stats.get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getBasicTransformStats(String id) throws IOException {
+        var request = new Request("GET", TRANSFORM_ENDPOINT + id + "/_stats?" + BASIC_STATS.getPreferredName() + "=true");
         request.setOptions(RequestOptions.DEFAULT);
         Response response = client().performRequest(request);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response));

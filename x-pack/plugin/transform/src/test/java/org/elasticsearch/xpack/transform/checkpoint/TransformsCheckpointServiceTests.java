@@ -13,7 +13,10 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -33,8 +36,14 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,6 +52,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransformsCheckpointServiceTests extends ESTestCase {
 
@@ -112,6 +124,50 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
         for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
             assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
         }
+    }
+
+    public void testTransformCheckpointingInfoWithZeroLastCheckpoint() {
+        var transportState = mock(TransformState.class);
+        when(transportState.getCheckpoint()).thenReturn(0L);
+        var position = mock(TransformIndexerPosition.class);
+        when(transportState.getPosition()).thenReturn(position);
+        var progress = mock(TransformProgress.class);
+        when(transportState.getProgress()).thenReturn(progress);
+
+        var checkpointingInfo = createTransformCheckpointService().deriveBasicCheckpointingInfo(transportState);
+
+        assertEquals(checkpointingInfo.getLast().getCheckpoint(), 0L);
+        assertEquals(checkpointingInfo.getNext().getCheckpoint(), 0L);
+        assertSame(checkpointingInfo.getNext().getPosition(), position);
+        assertSame(checkpointingInfo.getNext().getCheckpointProgress(), progress);
+    }
+
+    private TransformCheckpointService createTransformCheckpointService() {
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        return new TransformCheckpointService(
+            Clock.systemUTC(),
+            Settings.EMPTY,
+            clusterService,
+            mock(TransformConfigManager.class),
+            mock(TransformAuditor.class)
+        );
+    }
+
+    public void testTransformCheckpointingInfoWithNonZeroLastCheckpoint() {
+        var transportState = mock(TransformState.class);
+        when(transportState.getCheckpoint()).thenReturn(1L);
+        var position = mock(TransformIndexerPosition.class);
+        when(transportState.getPosition()).thenReturn(position);
+        var progress = mock(TransformProgress.class);
+        when(transportState.getProgress()).thenReturn(progress);
+
+        var checkpointingInfo = createTransformCheckpointService().deriveBasicCheckpointingInfo(transportState);
+
+        assertEquals(checkpointingInfo.getLast().getCheckpoint(), 1L);
+        assertEquals(checkpointingInfo.getNext().getCheckpoint(), 2L);
+        assertSame(checkpointingInfo.getNext().getPosition(), position);
+        assertSame(checkpointingInfo.getNext().getCheckpointProgress(), progress);
     }
 
     /**

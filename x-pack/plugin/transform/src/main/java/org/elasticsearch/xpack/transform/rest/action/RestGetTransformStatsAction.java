@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetTransformStatsAction extends BaseRestHandler {
@@ -51,6 +52,7 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
                 )
             );
         }
+        request.setIsBasicStats(restRequest.paramAsBoolean(BASIC_STATS.getPreferredName(), false));
         Client client = new RestCancellableNodeClient(nodeClient, restRequest.getHttpChannel());
         return channel -> client.execute(GetTransformStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

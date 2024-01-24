@@ -82,76 +82,75 @@ public class TransformIT extends TransformRestTestCase {
     }
 
     public void testTransformCrud() throws Exception {
-        String indexName = "basic-crud-reviews";
-        String transformId = "transform-crud";
-        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+        var configId = createStoppedTransform("basic-crud-reviews", "transform-crud");
+        assertBusy(() -> { assertEquals("stopped", getTransformStats(configId).get("state")); });
 
-        Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
-        groups.put("by-user", new TermsGroupSource("user_id", null, false));
-        groups.put("by-business", new TermsGroupSource("business_id", null, false));
-
-        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
-            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
-            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
-
-        TransformConfig config = createTransformConfigBuilder(
-            transformId,
-            "reviews-by-user-business-day",
-            QueryConfig.matchAll(),
-            indexName
-        ).setPivotConfig(createPivotConfig(groups, aggs)).build();
-
-        putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
-        startTransform(config.getId(), RequestOptions.DEFAULT);
-
-        waitUntilCheckpoint(config.getId(), 1L);
-
-        stopTransform(config.getId());
-        assertBusy(() -> { assertEquals("stopped", getTransformStats(config.getId()).get("state")); });
-
-        var storedConfig = getTransform(config.getId());
+        var storedConfig = getTransform(configId);
         assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
-        deleteTransform(config.getId());
+        deleteTransform(configId);
     }
 
-    public void testContinuousTransformCrud() throws Exception {
-        String indexName = "continuous-crud-reviews";
-        String transformId = "transform-continuous-crud";
+    private String createStoppedTransform(String indexName, String transformId) throws Exception {
         createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
-        Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
-        groups.put("by-user", new TermsGroupSource("user_id", null, false));
-        groups.put("by-business", new TermsGroupSource("business_id", null, false));
+        var groups = Map.of(
+            "by-day",
+            createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null),
+            "by-user",
+            new TermsGroupSource("user_id", null, false),
+            "by-business",
+            new TermsGroupSource("business_id", null, false)
+        );
 
-        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+        var aggs = AggregatorFactories.builder()
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfigBuilder(
-            transformId,
-            "reviews-by-user-business-day",
-            QueryConfig.matchAll(),
-            indexName
-        ).setPivotConfig(createPivotConfig(groups, aggs))
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
+        var config = createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryConfig.matchAll(), indexName)
+            .setPivotConfig(createPivotConfig(groups, aggs))
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
         waitUntilCheckpoint(config.getId(), 1L);
-        var transformStats = getTransformStats(config.getId());
+        stopTransform(config.getId());
+
+        return config.getId();
+    }
+
+    /**
+     * Verify the basic stats API, which includes state, health, and optionally progress (if it exists).
+     * These are required for Kibana 8.13+.
+     */
+    @SuppressWarnings("unchecked")
+    public void testBasicTransformStats() throws Exception {
+        var configId = createStoppedTransform("basic-stats-reviews", "transform-basic-stats");
+        var transformStats = getBasicTransformStats(configId);
+
+        assertBusy(() -> assertEquals("stopped", XContentMapValues.extractValue("state", transformStats)));
+        assertEquals("green", XContentMapValues.extractValue("health.status", transformStats));
+        assertThat(
+            "percent_complete is not 100.0",
+            XContentMapValues.extractValue("checkpointing.next.checkpoint_progress.percent_complete", transformStats),
+            equalTo(100.0)
+        );
+
+        deleteTransform(configId);
+    }
+
+    public void testContinuousTransformCrud() throws Exception {
+        var indexName = "continuous-crud-reviews";
+        var configId = createContinuousTransform(indexName, "transform-continuous-crud");
+        var transformStats = getTransformStats(configId);
         assertThat(transformStats.get("state"), equalTo("started"));
 
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", transformStats);
 
-        var storedConfig = getTransform(config.getId());
+        var storedConfig = getTransform(configId);
         assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
@@ -161,17 +160,66 @@ public class TransformIT extends TransformRestTestCase {
         long timeStamp = Instant.now().toEpochMilli() - 1_000;
         long user = 42;
         indexMoreDocs(timeStamp, user, indexName);
-        waitUntilCheckpoint(config.getId(), 2L);
+        waitUntilCheckpoint(configId, 2L);
 
         // Assert that we wrote the new docs
 
         assertThat(
-            (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId())),
+            (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(configId)),
             greaterThan(docsIndexed)
         );
 
-        stopTransform(config.getId());
-        deleteTransform(config.getId());
+        stopTransform(configId);
+        deleteTransform(configId);
+    }
+
+    private String createContinuousTransform(String indexName, String transformId) throws Exception {
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        var groups = Map.of(
+            "by-day",
+            createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null),
+            "by-user",
+            new TermsGroupSource("user_id", null, false),
+            "by-business",
+            new TermsGroupSource("business_id", null, false)
+        );
+
+        var aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        var config = createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryConfig.matchAll(), indexName)
+            .setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
+            .build();
+
+        putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+        startTransform(config.getId(), RequestOptions.DEFAULT);
+
+        waitUntilCheckpoint(config.getId(), 1L);
+        return config.getId();
+    }
+
+    /**
+     * Verify the basic stats API, which includes state, health, and optionally progress (if it exists).
+     * These are required for Kibana 8.13+.
+     */
+    @SuppressWarnings("unchecked")
+    public void testBasicContinuousTransformStats() throws Exception {
+        var configId = createContinuousTransform("continuous-basic-stats-reviews", "transform-continuous-basic-stats");
+        var transformStats = getBasicTransformStats(configId);
+
+        assertEquals("started", XContentMapValues.extractValue("state", transformStats));
+        assertEquals("green", XContentMapValues.extractValue("health.status", transformStats));
+
+        // We aren't testing for 'checkpointing.next.checkpoint_progress.percent_complete'.
+        // It's difficult to get the integration test to reliably call the stats API while that data is available, since continuous
+        // transforms start and finish the next checkpoint quickly (<1ms).
+
+        stopTransform(configId);
+        deleteTransform(configId);
     }
 
     public void testContinuousTransformUpdate() throws Exception {

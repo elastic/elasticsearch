@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.hamcrest.MatcherAssert;
 
@@ -68,7 +69,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testOverrideWith_KeepsOriginalValuesWhenOverridesAreNull() {
         var taskSettings = CohereEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(CohereServiceFields.MODEL, "model", CohereServiceFields.TRUNCATE, CohereTruncation.END.toString()))
+            new HashMap<>(Map.of(CohereServiceSettings.MODEL, "model", CohereServiceFields.TRUNCATE, CohereTruncation.END.toString()))
         );
 
         var overriddenTaskSettings = taskSettings.overrideWith(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS);

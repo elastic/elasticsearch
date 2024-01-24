@@ -8,7 +8,5 @@
 package org.elasticsearch.xpack.inference.services.cohere;
 
 public class CohereServiceFields {
-    public static final String MODEL = "model";
     public static final String TRUNCATE = "truncate";
-
 }

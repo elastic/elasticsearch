@@ -188,6 +188,44 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
         );
     }
 
+    public void testFromResponse_ParsesBytes() throws IOException {
+        String responseJson = """
+            {
+                "id": "3198467e-399f-4d4a-aa2c-58af93bd6dc4",
+                "texts": [
+                    "hello"
+                ],
+                "embeddings": {
+                    "int8": [
+                        [
+                            -1,
+                            0
+                        ]
+                    ]
+                },
+                "meta": {
+                    "api_version": {
+                        "version": "1"
+                    },
+                    "billed_units": {
+                        "input_tokens": 1
+                    }
+                },
+                "response_type": "embeddings_floats"
+            }
+            """;
+
+        TextEmbeddingByteResults parsedResults = (TextEmbeddingByteResults) CohereEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        MatcherAssert.assertThat(
+            parsedResults.embeddings(),
+            is(List.of(new TextEmbeddingByteResults.Embedding(List.of((byte) -1, (byte) 0))))
+        );
+    }
+
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
         String responseJson = """
             {

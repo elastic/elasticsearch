@@ -12,6 +12,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 
@@ -52,7 +53,7 @@ public record CohereEmbeddingsRequestEntity(
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
         if (model != null) {
-            builder.field(CohereServiceFields.MODEL, model);
+            builder.field(CohereServiceSettings.MODEL, model);
         }
 
         if (taskSettings.inputType() != null) {

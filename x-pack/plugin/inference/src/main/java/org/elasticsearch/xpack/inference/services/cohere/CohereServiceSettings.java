@@ -46,7 +46,7 @@ public class CohereServiceSettings implements ServiceSettings {
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String model = extractOptionalString(map, MODEL, ModelConfigurations.TASK_SETTINGS, validationException);
+        String model = extractOptionalString(map, MODEL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

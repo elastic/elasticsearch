@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.application.connector.secrets.action.GetConnector
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretRequest;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretResponse;
 
-import static org.elasticsearch.test.ESTestCase.*;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+
 
 public class ConnectorSecretsTestUtils {
 

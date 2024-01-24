@@ -18,7 +18,9 @@ import java.util.Objects;
  * @param <Request>
  * @param <Response>
  */
-public abstract class ActionRequestLazyBuilder<Request extends ActionRequest, Response extends ActionResponse> {
+public abstract class ActionRequestLazyBuilder<Request extends ActionRequest, Response extends ActionResponse>
+    implements
+        RequestBuilder<Request, Response> {
 
     protected final ActionType<Response> action;
     protected final ElasticsearchClient client;

@@ -999,9 +999,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void setFieldHasValue(String fieldName) {
-        if (fieldHasValue(fieldName) == false) {
-            fieldHasValue.add(fieldName);
-        }
+        fieldHasValue.add(fieldName);
     }
 
     public boolean fieldHasValue(String fieldName) {

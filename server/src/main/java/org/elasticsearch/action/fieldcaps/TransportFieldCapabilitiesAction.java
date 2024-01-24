@@ -173,8 +173,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
                 Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
                 mergedCaps.putAll(b.get());
-                return new FieldCapabilitiesIndexResponse(a.getIndexName(), a.getIndexMappingHash(), mergedCaps, a.canMatch());
-
+                return new FieldCapabilitiesIndexResponse(a.getIndexName(), a.getIndexMappingHash(), mergedCaps, true);
             });
             indexResponses.putIfAbsent(resp.getIndexName(), resp);
             if (fieldCapTask.isCancelled()) {
@@ -547,10 +546,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 request.runtimeFields()
                             );
                             if (response.canMatch()) {
-                                unmatched.clear();
-                                failures.clear();
                                 allResponses.add(response);
                                 if (request.includeFieldsWithNoValue()) {
+                                    unmatched.clear();
+                                    failures.clear();
                                     break;
                                 }
                             } else {

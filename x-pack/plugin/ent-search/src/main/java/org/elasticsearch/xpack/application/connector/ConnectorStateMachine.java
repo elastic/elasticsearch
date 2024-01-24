@@ -14,7 +14,7 @@ import java.util.Set;
 
 /**
  * The {@link ConnectorStateMachine} class manages state transitions for connectors
- * in accordance with the Connector Protocol. It defines valid transitions between different
+ * in accordance with the <a href="https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md">Connector Protocol</a>. It defines valid transitions between different
  * connector states and provides a method to validate these transitions.
  */
 public class ConnectorStateMachine {

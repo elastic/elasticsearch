@@ -9,6 +9,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -239,6 +240,55 @@ public interface ChunkedRestResponseBody extends Releasable {
             @Override
             public void close() {
                 Releasables.closeExpectNoException(releasable);
+            }
+        };
+    }
+
+    static ChunkedRestResponseBody fromMany(ChunkedRestResponseBody first, Iterator<? extends ChunkedRestResponseBody> rest) {
+        return new ChunkedRestResponseBody() {
+            private final String contentType = first.getResponseContentTypeString();
+            private ChunkedRestResponseBody current = first;
+
+            @Override
+            public boolean isDone() {
+                return current == null;
+            }
+
+            @Override
+            public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+                try {
+                    return current.encodeChunk(sizeHint, recycler);
+                } finally {
+                    if (current.isDone()) {
+                        current.close();
+                        if (false == rest.hasNext()) {
+                            current = null;
+                        } else {
+                            current = rest.next();
+                            if (false == contentType.equals(current.getResponseContentTypeString())) {
+                                throw new IllegalArgumentException(
+                                    "content types much match but were ["
+                                        + contentType
+                                        + "] and ["
+                                        + current.getResponseContentTypeString()
+                                        + "]"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public String getResponseContentTypeString() {
+                return contentType;
+            }
+
+            @Override
+            public void close() {
+                // Close all remaining portions
+                // NOCOMMIT why I need Iterators.map here? silly compiler, give me compile
+                Releasables.closeExpectNoException(current, Releasables.wrap(() -> Iterators.map(rest, r -> r)));
             }
         };
     }

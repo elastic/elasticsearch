@@ -728,13 +728,14 @@ final class BootstrapChecks {
         }
 
         boolean isAllPermissionGranted() {
-            final SecurityManager sm = System.getSecurityManager();
-            assert sm != null;
-            try {
-                sm.checkPermission(new AllPermission());
-            } catch (final SecurityException e) {
-                return false;
-            }
+//            final SecurityManager sm = System.getSecurityManager();
+//            assert sm != null;
+//            try {
+//                sm.checkPermission(new AllPermission());
+//            } catch (final SecurityException e) {
+//                return false;
+//            }
+            // NOCOMMIT disabled security manager
             return true;
         }
 

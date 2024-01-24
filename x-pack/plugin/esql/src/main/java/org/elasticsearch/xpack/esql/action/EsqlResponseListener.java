@@ -138,6 +138,8 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                         releasable
                     )
                 );
+            } else if (mediaType == ArrowFormat.INSTANCE) {
+                restResponse = RestResponse.chunked(RestStatus.OK, ArrowResponse.response(esqlResponse));
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
@@ -175,4 +177,5 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             onFailure(ex);
         });
     }
+
 }

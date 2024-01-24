@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 

@@ -55,7 +55,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private final Logger logger;
 
     private final int maxEventsHeld;
-    private final PriorityQueue<Tuple<? extends Netty4RestResponse, ChannelPromise>> outboundHoldingQueue;
+    private final PriorityQueue<Tuple<? extends Netty4HttpResponse, ChannelPromise>> outboundHoldingQueue;
 
     private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, ChunkedRestResponseBody responseBody) {}
 
@@ -136,10 +136,10 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws IOException {
-        assert msg instanceof Netty4RestResponse : "Invalid message type: " + msg.getClass();
+        assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();
         boolean success = false;
         try {
-            final Netty4RestResponse restResponse = (Netty4RestResponse) msg;
+            final Netty4HttpResponse restResponse = (Netty4HttpResponse) msg;
             if (restResponse.getSequence() != writeSequence) {
                 assert restResponse.getSequence() > writeSequence
                     : "response sequence [" + restResponse.getSequence() + "] we below write sequence [" + writeSequence + "]";
@@ -174,7 +174,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private void doWriteQueued(ChannelHandlerContext ctx) throws IOException {
         while (outboundHoldingQueue.isEmpty() == false && outboundHoldingQueue.peek().v1().getSequence() == writeSequence) {
-            final Tuple<? extends Netty4RestResponse, ChannelPromise> top = outboundHoldingQueue.poll();
+            final Tuple<? extends Netty4HttpResponse, ChannelPromise> top = outboundHoldingQueue.poll();
             assert top != null : "we know the outbound holding queue to not be empty at this point";
             doWrite(ctx, top.v1(), top.v2());
         }
@@ -191,7 +191,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         SPLIT_THRESHOLD = (int) (NettyAllocator.suggestedMaxAllocationSize() * 0.99);
     }
 
-    private void doWrite(ChannelHandlerContext ctx, Netty4RestResponse readyResponse, ChannelPromise promise) throws IOException {
+    private void doWrite(ChannelHandlerContext ctx, Netty4HttpResponse readyResponse, ChannelPromise promise) throws IOException {
         assert currentChunkedWrite == null : "unexpected existing write [" + currentChunkedWrite + "]";
         assert readyResponse != null : "cannot write null response";
         assert readyResponse.getSequence() == writeSequence;
@@ -347,11 +347,11 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             safeFailPromise(currentChunkedWrite.onDone, new ClosedChannelException());
             currentChunkedWrite = null;
         }
-        List<Tuple<? extends Netty4RestResponse, ChannelPromise>> inflightResponses = removeAllInflightResponses();
+        List<Tuple<? extends Netty4HttpResponse, ChannelPromise>> inflightResponses = removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (Tuple<? extends Netty4RestResponse, ChannelPromise> inflightResponse : inflightResponses) {
+            for (Tuple<? extends Netty4HttpResponse, ChannelPromise> inflightResponse : inflightResponses) {
                 safeFailPromise(inflightResponse.v2(), closedChannelException);
             }
         }
@@ -396,8 +396,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         }
     }
 
-    private List<Tuple<? extends Netty4RestResponse, ChannelPromise>> removeAllInflightResponses() {
-        ArrayList<Tuple<? extends Netty4RestResponse, ChannelPromise>> responses = new ArrayList<>(outboundHoldingQueue);
+    private List<Tuple<? extends Netty4HttpResponse, ChannelPromise>> removeAllInflightResponses() {
+        ArrayList<Tuple<? extends Netty4HttpResponse, ChannelPromise>> responses = new ArrayList<>(outboundHoldingQueue);
         outboundHoldingQueue.clear();
         return responses;
     }

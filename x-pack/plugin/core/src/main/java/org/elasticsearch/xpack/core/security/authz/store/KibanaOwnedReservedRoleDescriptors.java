@@ -383,13 +383,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Kibana system user uses them to read / write slo data.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for endpoints.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build(),
-                // Connector secrets. Kibana can only write to this index.
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".connector-secrets*")
-                    .privileges("write", "delete", "create_index")
-                    .allowRestrictedIndices(true)
-                    .build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

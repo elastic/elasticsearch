@@ -232,6 +232,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertSame(response, messagesSeen.get(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104728")
     public void testLargeFullResponsesAreSplit() {
         final List<Object> messagesSeen = new ArrayList<>();
         final var embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());

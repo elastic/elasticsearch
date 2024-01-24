@@ -367,7 +367,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+    protected Function<Object, Object> loadBlockExpected() {
         return v -> {
             // Numbers are in the block as a long but the test needs to compare them to their BigInteger value parsed from xcontent.
             if (v instanceof BigInteger ul) {

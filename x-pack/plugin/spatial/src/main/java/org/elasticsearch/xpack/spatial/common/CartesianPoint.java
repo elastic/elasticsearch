@@ -240,7 +240,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
         }
     }
 
-    private static GenericPointParser<CartesianPoint> cartesianPointParser = new GenericPointParser<>("point", "x", "y") {
+    private static final GenericPointParser<CartesianPoint> cartesianPointParser = new GenericPointParser<>("point", "x", "y") {
 
         @Override
         public void assertZValue(boolean ignoreZValue, double zValue) {

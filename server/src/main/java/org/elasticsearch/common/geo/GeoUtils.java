@@ -417,7 +417,7 @@ public class GeoUtils {
         );
     }
 
-    private static GenericPointParser<GeoPoint> geoPointParser = new GenericPointParser<>("geo_point", "lon", "lat") {
+    private static final GenericPointParser<GeoPoint> geoPointParser = new GenericPointParser<>("geo_point", "lon", "lat") {
 
         @Override
         public void assertZValue(boolean ignoreZValue, double zValue) {

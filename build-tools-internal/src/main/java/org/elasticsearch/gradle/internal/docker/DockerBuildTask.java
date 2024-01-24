@@ -133,6 +133,10 @@ public abstract class DockerBuildTask extends DefaultTask {
     @Input
     public abstract SetProperty<String> getPlatforms();
 
+    public void setPlatform(String platform) {
+        getPlatforms().set(Arrays.asList(platform));
+    }
+    
     @Input
     @Optional
     public abstract Property<Boolean> getPush();

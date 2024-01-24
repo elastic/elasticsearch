@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
 
 public class GetCheckpointActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
 
-    public static final String EXPAND_WILDCARDS_VALUE = randomFrom("open", "closed", "hidden");
+    public static final String[] EXPAND_WILDCARDS_VALUES = { "open", "closed", "hidden" };
 
     @Override
     protected Request createTestInstance() {
@@ -54,7 +54,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
                 break;
             case 1:
                 indicesOptions = IndicesOptions.fromParameters(
-                    EXPAND_WILDCARDS_VALUE,
+                    randomFrom(EXPAND_WILDCARDS_VALUES),
                     Boolean.toString(instance.indicesOptions().ignoreUnavailable() == false),
                     Boolean.toString(instance.indicesOptions().allowNoIndices() == false),
                     Boolean.toString(instance.indicesOptions().ignoreThrottled() == false),
@@ -93,7 +93,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
         return new Request(
             numIndices != null ? Stream.generate(() -> randomAlphaOfLength(10)).limit(numIndices).toArray(String[]::new) : null,
             IndicesOptions.fromParameters(
-                EXPAND_WILDCARDS_VALUE,
+                randomFrom(EXPAND_WILDCARDS_VALUES),
                 Boolean.toString(randomBoolean()),
                 Boolean.toString(randomBoolean()),
                 Boolean.toString(randomBoolean()),

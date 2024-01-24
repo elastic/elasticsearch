@@ -82,7 +82,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<DatafeedConfig> {
 
-    private static final String EXPAND_WILDCARDS_VALUE = randomFrom("open", "closed", "hidden");
+    private static final String[] EXPAND_WILDCARDS_VALUES = { "open", "closed", "hidden" };
 
     @Override
     protected DatafeedConfig createTestInstance() {
@@ -1035,7 +1035,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             case 11:
                 builder.setIndicesOptions(
                     IndicesOptions.fromParameters(
-                        EXPAND_WILDCARDS_VALUE,
+                        randomFrom(EXPAND_WILDCARDS_VALUES),
                         Boolean.toString(instance.getIndicesOptions().ignoreUnavailable() == false),
                         Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
                         Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),

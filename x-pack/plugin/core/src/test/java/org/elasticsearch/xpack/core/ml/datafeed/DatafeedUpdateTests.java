@@ -68,7 +68,7 @@ import static org.mockito.Mockito.mock;
 
 public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
 
-    public static final String EXPAND_WILDCARDS_VALUE = randomFrom("open", "closed", "hidden");
+    public static final String[] EXPAND_WILDCARDS_VALUES = { "open", "closed", "hidden" };
     private ClusterState clusterState;
 
     @Before
@@ -130,7 +130,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         if (randomBoolean()) {
             builder.setIndicesOptions(
                 IndicesOptions.fromParameters(
-                    EXPAND_WILDCARDS_VALUE,
+                    randomFrom(EXPAND_WILDCARDS_VALUES),
                     Boolean.toString(randomBoolean()),
                     Boolean.toString(randomBoolean()),
                     Boolean.toString(randomBoolean()),
@@ -491,7 +491,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 if (instance.getIndicesOptions() != null) {
                     builder.setIndicesOptions(
                         IndicesOptions.fromParameters(
-                            EXPAND_WILDCARDS_VALUE,
+                            randomFrom(EXPAND_WILDCARDS_VALUES),
                             Boolean.toString(instance.getIndicesOptions().ignoreUnavailable() == false),
                             Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
                             Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),
@@ -501,7 +501,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 } else {
                     builder.setIndicesOptions(
                         IndicesOptions.fromParameters(
-                            EXPAND_WILDCARDS_VALUE,
+                            randomFrom(EXPAND_WILDCARDS_VALUES),
                             Boolean.toString(randomBoolean()),
                             Boolean.toString(randomBoolean()),
                             Boolean.toString(randomBoolean()),

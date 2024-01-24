@@ -745,13 +745,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             throwAlreadyClosed("File chunk is evicted");
         }
 
+        /**
+         * Optimistically try to read from the region
+         * @return true if successful, i.e., not evicted and data available, false if evicted
+         */
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
-            int readBytes = io.read(buf, getRegionRelativePosition(offset));
-            if (isEvicted()) {
-                buf.position(buf.position() - readBytes);
+            SharedBytes.IO io = this.io;
+            if (io != null) {
+                int readBytes = io.read(buf, getRegionRelativePosition(offset));
+                if (isEvicted()) {
+                    buf.position(buf.position() - readBytes);
+                    return false;
+                }
+                return true;
+            } else {
+                // taken by someone else
                 return false;
             }
-            return true;
         }
 
         /**

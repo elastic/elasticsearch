@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.LDAPResult;
 import com.unboundid.ldap.sdk.Modification;
 import com.unboundid.ldap.sdk.ModificationType;
+import com.unboundid.ldap.sdk.ResultCode;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -48,6 +50,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -228,11 +231,14 @@ public class LdapRealmReloadTests extends LdapTestCase {
 
     private void changeUserPasswordOnLdapServers(String userDn, String newPassword) {
         Arrays.stream(ldapServers).forEach(ldapServer -> {
-            try {
-                ldapServer.modify(userDn, new Modification(ModificationType.REPLACE, "userPassword", newPassword));
-            } catch (LDAPException e) {
-                fail(e, "failed to change password for user: " + userDn);
-            }
+            ldapServer.getPasswordAttributes().forEach(passwordAttribute -> {
+                try {
+                    LDAPResult result = ldapServer.modify(userDn, new Modification(ModificationType.REPLACE, "userPassword", newPassword));
+                    assertThat(result.getResultCode(), equalTo(ResultCode.SUCCESS));
+                } catch (LDAPException e) {
+                    fail(e, "failed to change " + passwordAttribute + " for user: " + userDn);
+                }
+            });
         });
     }
 

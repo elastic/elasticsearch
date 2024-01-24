@@ -375,6 +375,20 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * @return true if either {@link #getDynamicMappers} or {@link #getDynamicRuntimeFields()} will return a non-empty result
+     */
+    public final boolean hasDynamicMappersOrRuntimeFields() {
+        return hasDynamicMappers() || dynamicRuntimeFields.isEmpty() == false;
+    }
+
+    /**
+     * @return true if either {@link #getDynamicMappers} will return a non-empty mapper list
+     */
+    public final boolean hasDynamicMappers() {
+        return dynamicMappers.isEmpty() == false;
+    }
+
+    /**
      * Get dynamic mappers created as a result of parsing an incoming document. Responsible for exposing all the newly created
      * fields that need to be merged into the existing mappings. Used to create the required mapping update at the end of document parsing.
      * Consists of a all {@link Mapper}s that will need to be added to their respective parent {@link ObjectMapper}s in order

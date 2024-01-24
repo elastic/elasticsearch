@@ -85,7 +85,8 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 true,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                false
             );
             assertThat(onlyErrorsResponse, notNullValue());
             assertThat(onlyErrorsResponse.getIndex(), is(indexInErrorStep));
@@ -118,7 +119,8 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 true,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                false
             );
             assertThat(onlyErrorsResponse, nullValue());
 
@@ -128,7 +130,8 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 false,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                false
             );
             assertThat(allManagedResponse, notNullValue());
             assertThat(allManagedResponse.getIndex(), is(indexInCheckRolloverStep));
@@ -154,7 +157,8 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 true,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                false
             );
             assertThat(onlyErrorsResponse, notNullValue());
             assertThat(onlyErrorsResponse.getPolicyName(), is("random-policy"));
@@ -179,7 +183,8 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 false,
                 true,
                 indexLifecycleService,
-                REGISTRY
+                REGISTRY,
+                false
             );
             assertThat(onlyManaged, nullValue());
         }

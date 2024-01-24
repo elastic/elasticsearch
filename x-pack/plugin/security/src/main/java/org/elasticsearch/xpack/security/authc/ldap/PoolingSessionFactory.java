@@ -128,7 +128,6 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
             bindRequest.set(newRequest);
             if (connectionPool != null) {
                 connectionPool.setBindRequest(newRequest);
-                connectionPool.invokeHealthCheck(null, false, true);
             }
         }
     }

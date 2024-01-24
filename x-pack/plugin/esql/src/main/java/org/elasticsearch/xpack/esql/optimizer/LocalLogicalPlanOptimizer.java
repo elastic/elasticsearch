@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanup;
@@ -115,24 +118,35 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             else if (plan instanceof Project project) {
                 var projections = project.projections();
                 List<NamedExpression> newProjections = new ArrayList<>(projections.size());
-                List<Alias> literals = new ArrayList<>();
+                Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(EsqlDataTypes.types().size());
 
                 for (NamedExpression projection : projections) {
                     if (projection instanceof FieldAttribute f && stats.exists(f.qualifiedName()) == false) {
-                        var alias = new Alias(f.source(), f.name(), null, Literal.of(f, null), f.id());
-                        literals.add(alias);
-                        newProjections.add(alias.toAttribute());
-                    } else {
-                        newProjections.add(projection);
+                        DataType dt = f.dataType();
+                        Alias nullAlias = nullLiteral.get(f.dataType());
+                        // save the first field as null (per datatype)
+                        if (nullAlias == null) {
+                            Alias alias = new Alias(f.source(), f.name(), null, Literal.of(f, null), f.id());
+                            nullLiteral.put(dt, alias);
+                            projection = alias.toAttribute();
+                        }
+                        // otherwise point to it
+                        else {
+                            // since avoids creating field copies
+                            projection = new Alias(f.source(), f.name(), f.qualifier(), nullAlias.toAttribute(), f.id());
+                        }
                     }
+
+                    newProjections.add(projection);
                 }
-                if (literals.size() > 0) {
-                    plan = new Eval(project.source(), project.child(), literals);
+                // add the first found field as null
+                if (nullLiteral.size() > 0) {
+                    plan = new Eval(project.source(), project.child(), new ArrayList<>(nullLiteral.values()));
                     plan = new Project(project.source(), plan, newProjections);
-                } else {
-                    plan = project;
                 }
-            } else {
+            }
+            // otherwise transform fields in place
+            else {
                 plan = plan.transformExpressionsOnlyUp(
                     FieldAttribute.class,
                     f -> stats.exists(f.qualifiedName()) ? f : Literal.of(f, null)

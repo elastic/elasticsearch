@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.bytes;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.containsString;
 
 public class ZeroBytesReferenceTests extends AbstractBytesReferenceTestCase {
@@ -39,9 +37,11 @@ public class ZeroBytesReferenceTests extends AbstractBytesReferenceTestCase {
         // ZeroBytesReference shifts offsets
     }
 
-    public void testWriteWithIterator() throws IOException {
-        AssertionError error = expectThrows(AssertionError.class, () -> super.testWriteWithIterator());
-        assertThat(error.getMessage(), containsString("Internal pages from ZeroBytesReference must be zero"));
+    public void testWriteWithIterator() {
+        assertThat(
+            expectThrows(AssertionError.class, super::testWriteWithIterator).getMessage(),
+            containsString("Internal pages from ZeroBytesReference must be zero")
+        );
     }
 
 }

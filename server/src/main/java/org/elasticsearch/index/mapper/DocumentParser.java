@@ -822,7 +822,7 @@ public final class DocumentParser {
         }
 
         @Override
-        public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+        public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
             return this;
         }
     }

@@ -87,6 +87,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final DiskIoBufferPool diskIoBufferPool;
 
+    // fallback buffer to use when a direct buffer for writes is not available to the current thread
+    private final ByteBuffer localWriteBuffer = ByteBuffer.allocate(DiskIoBufferPool.BUFFER_SIZE);
+
     // package private for testing
     LastModifiedTimeCache lastModifiedTimeCache;
 
@@ -255,7 +258,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             var dataLength = data.getSizeInBytes() + 2 * Integer.BYTES; // size + checksum
             buffer.add(data);
 
-            // assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
             totalOffset += dataLength;
 
@@ -580,20 +582,16 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
 
         ByteBuffer ioBuffer = diskIoBufferPool.maybeGetDirectIOBuffer();
-        final StreamOutput streamOutput;
         if (ioBuffer == null) {
-            // not using a direct buffer for writes from the current thread so just write without copying to the io buffer
-            streamOutput = new ChannelStreamOutput(channel, digest);
-        } else {
-            streamOutput = new ByteBufferStreamOutput(ioBuffer, channel, digest);
+            // not using a direct buffer for writes from the current thread, falling back to a regular buffer
+            ioBuffer = localWriteBuffer;
+            ioBuffer.clear();
         }
 
-        try {
+        try (StreamOutput streamOutput = new ByteBufferStreamOutput(ioBuffer, channel, digest)) {
             for (final var sizedWriteable : toWrite) {
                 writeOperationWithSize(streamOutput, sizedWriteable, digest);
             }
-        } finally {
-            streamOutput.close();
         }
     }
 
@@ -663,58 +661,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return lastModifiedTimeCache.lastModifiedTime();
     }
 
-    private static class ChannelStreamOutput extends StreamOutput {
-        private final Checksum digest;
-        private final FileChannel channel;
-        private final byte[] singleByte = new byte[1];
-        private long position;
-
-        ChannelStreamOutput(FileChannel channel, Checksum digest) {
-            this.digest = digest;
-            this.channel = channel;
-        }
-
-        @Override
-        public long position() {
-            return position;
-        }
-
-        @Override
-        public void writeByte(byte b) throws IOException {
-            singleByte[0] = b;
-            Channels.writeToChannel(singleByte, 0, 1, channel);
-            digest.update(b);
-            position += 1;
-        }
-
-        @Override
-        public void writeBytes(byte[] bytes, int offset, int length) throws IOException {
-            Channels.writeToChannel(bytes, offset, length, channel);
-            digest.update(bytes, offset, length);
-            position += length;
-        }
-
-        @Override
-        public void flush() {}
-
-        @Override
-        public void close() {}
-    }
-
     private static class ByteBufferStreamOutput extends StreamOutput {
         private final ByteBuffer ioBuffer;
         private final WritableByteChannel channel;
         private final Checksum digest;
         private long position;
 
-        ByteBufferStreamOutput(ByteBuffer ioBuffer, WritableByteChannel channel, Checksum digest) {
-            this.ioBuffer = ioBuffer;
+        ByteBufferStreamOutput(ByteBuffer byteBuffer, WritableByteChannel channel, Checksum digest) {
+            this.ioBuffer = byteBuffer;
             this.channel = channel;
             this.digest = digest;
         }
 
         @Override
-        public long position() throws IOException {
+        public long position() {
             return position;
         }
 
@@ -804,6 +764,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             digest.update(b, offset, length);
             count += length;
         }
+
         @Override
         public void flush() {}
 

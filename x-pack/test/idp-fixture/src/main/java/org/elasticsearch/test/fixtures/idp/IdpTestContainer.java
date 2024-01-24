@@ -20,7 +20,7 @@ import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
 public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    private static final String PRE_BAKED_IMAGE = "docker.elastic.co/elasticsearch-dev/idp-fixture:1.0";
+    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/idp-fixture:1.0";
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Path certsPath;
 
@@ -33,7 +33,7 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
 
     public IdpTestContainer(Network network) {
         super(
-            new ImageFromDockerfile("es-idp-testfixture").withDockerfileFromBuilder(builder -> builder.from(PRE_BAKED_IMAGE).build())
+            new ImageFromDockerfile("es-idp-testfixture").withDockerfileFromBuilder(builder -> builder.from(DOCKER_BASE_IMAGE).build())
                 .withFileFromClasspath("idp/jetty-custom/ssl.mod", "/idp/jetty-custom/ssl.mod")
                 .withFileFromClasspath("idp/jetty-custom/keystore", "/idp/jetty-custom/keystore")
                 .withFileFromClasspath("idp/shib-jetty-base/", "/idp/shib-jetty-base/")

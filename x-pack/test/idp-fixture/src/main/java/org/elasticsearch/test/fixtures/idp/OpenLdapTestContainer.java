@@ -19,7 +19,7 @@ import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
 public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    private static final String PRE_BAKED_IMAGE = "docker.elastic.co/elasticsearch-dev/openldap-fixture:1.0";
+    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/openldap-fixture:1.0";
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Path certsPath;
@@ -30,7 +30,7 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
 
     public OpenLdapTestContainer(Network network) {
         super(
-            new ImageFromDockerfile("es-openldap-testfixture").withDockerfileFromBuilder(builder -> builder.from(PRE_BAKED_IMAGE).build())
+            new ImageFromDockerfile("es-openldap-testfixture").withDockerfileFromBuilder(builder -> builder.from(DOCKER_BASE_IMAGE).build())
                 .withFileFromClasspath("openldap/certs", "/openldap/certs/")
                 .withFileFromClasspath("openldap/ldif/users.ldif", "/openldap/ldif/users.ldif")
                 .withFileFromClasspath("openldap/ldif/config.ldif", "/openldap/ldif/config.ldif")

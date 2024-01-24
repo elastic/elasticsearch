@@ -46,10 +46,10 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
      * Controls the way the wildcard expressions will be resolved.
      * @param includeOpen, open indices will be included
      * @param includeClosed, closed indices will be included
-     * @param removeHidden, hidden indices will be removed from the result. This is a post filter it requires includeOpen or includeClosed
+     * @param removeHidden, hidden indices will be removed from the result. This is a post filter, it requires includeOpen or includeClosed
      *                      to have an effect
      * @param resolveAlias, aliases will be included in the result, if false we treat them like they do not exist
-     * @param allowEmptyExpressions, when an expression does not result in any indices, if false we throw an error if true we treat it as
+     * @param allowEmptyExpressions, when an expression does not result in any indices, if false it throws an error if true it treats it as
      *                               an empty result
      */
     public record WildcardOptions(
@@ -96,7 +96,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
          * This converter to XContent only includes the fields a user can interact, internal options like the resolveAlias
          * are not added.
          * @param wildcardStatesAsUserInput, some parts of the code expect the serialization of the expand_wildcards field
-         *                                   to be a comma separated string that matches the user allowed input, this includes
+         *                                   to be a comma separated string that matches the allowed user input, this includes
          *                                   all the states along with the values 'all' and 'none'.
          */
         public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder, boolean wildcardStatesAsUserInput)
@@ -283,15 +283,26 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
 
     public enum Option {
         IGNORE_UNAVAILABLE,
-        DEPRECATED__IGNORE_ALIASES,     // Please use WildcardOptions for this
-        DEPRECATED__ALLOW_NO_INDICES,   // Please use WildcardOptions for this
+        /**
+         * Please use {@link WildcardOptions#resolveAlias}
+         */
+        @Deprecated
+        DEPRECATED__IGNORE_ALIASES,
+        /**
+         * Please use {@link WildcardOptions#allowEmptyExpressions}
+         */
+        @Deprecated
+        DEPRECATED__ALLOW_NO_INDICES,
         FORBID_ALIASES_TO_MULTIPLE_INDICES,
         FORBID_CLOSED_INDICES,
         IGNORE_THROTTLED;
 
         public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
 
-        public static EnumSet<Option> VALUES_IN_USE = Arrays.stream(Option.values())
+        /**
+         * These are the values that can still be used from this enum. There are replacement for the ones
+         */
+        public static final EnumSet<Option> VALUES_IN_USE = Arrays.stream(Option.values())
             .filter(option -> option.name().startsWith("DEPRECATED_") == false)
             .collect(Collectors.toCollection(() -> EnumSet.noneOf(Option.class)));
     }
@@ -558,11 +569,11 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         boolean ignoreThrottled
     ) {
         final EnumSet<Option> opts = EnumSet.noneOf(Option.class);
-        final WildcardOptions wildcards = new WildcardOptions.Builder().allowEmptyExpressions(allowNoIndices)
-            .includeOpen(expandToOpenIndices)
+        final WildcardOptions wildcards = new WildcardOptions.Builder().includeOpen(expandToOpenIndices)
             .includeClosed(expandToClosedIndices)
             .removeHidden(expandToHiddenIndices == false)
             .resolveAlias(ignoreAliases == false)
+            .allowEmptyExpressions(allowNoIndices)
             .build();
 
         if (ignoreUnavailable) {

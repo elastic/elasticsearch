@@ -46,7 +46,7 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
     @Override
     protected InferenceAction.Response createTestInstance() {
         var result = switch (randomIntBetween(0, 2)) {
-            case 0 -> TextEmbeddingResultsTests.createRandomFloatResults();
+            case 0 -> TextEmbeddingResultsTests.createRandomResults();
             case 1 -> LegacyTextEmbeddingResultsTests.createRandomResults().transformToTextEmbeddingResults();
             default -> SparseEmbeddingResultsTests.createRandomResults();
         };
@@ -90,7 +90,7 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
     }
 
     public void testSerializesMultipleInputsVersion_UsingLegacyTextEmbeddingResult() throws IOException {
-        var embeddingResults = TextEmbeddingResultsTests.createRandomFloatResults();
+        var embeddingResults = TextEmbeddingResultsTests.createRandomResults();
         var instance = new InferenceAction.Response(embeddingResults);
         var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), INFERENCE_MULTIPLE_INPUTS);
         assertOnBWCObject(copy, instance, INFERENCE_MULTIPLE_INPUTS);
@@ -106,7 +106,7 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
     // Technically we should never see a text embedding result in the transport version of this test because support
     // for it wasn't added until openai
     public void testSerializesSingleInputVersion_UsingLegacyTextEmbeddingResult() throws IOException {
-        var embeddingResults = TextEmbeddingResultsTests.createRandomFloatResults();
+        var embeddingResults = TextEmbeddingResultsTests.createRandomResults();
         var instance = new InferenceAction.Response(embeddingResults);
         var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED);
         assertOnBWCObject(copy, instance, ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED);

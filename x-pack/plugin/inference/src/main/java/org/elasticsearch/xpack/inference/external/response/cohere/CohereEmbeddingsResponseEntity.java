@@ -11,13 +11,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ByteValue;
-import org.elasticsearch.xpack.core.inference.results.EmbeddingValue;
-import org.elasticsearch.xpack.core.inference.results.FloatValue;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -36,11 +35,11 @@ import static org.elasticsearch.xpack.inference.services.cohere.embeddings.Coher
 public class CohereEmbeddingsResponseEntity {
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Cohere embeddings response";
 
-    private static final Map<String, CheckedFunction<XContentParser, EmbeddingValue, IOException>> EMBEDDING_PARSERS = Map.of(
+    private static final Map<String, CheckedFunction<XContentParser, InferenceServiceResults, IOException>> EMBEDDING_PARSERS = Map.of(
         toLowerCase(CohereEmbeddingType.FLOAT),
-        CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry,
+        CohereEmbeddingsResponseEntity::parseFloatEmbeddingsArray,
         toLowerCase(CohereEmbeddingType.INT8),
-        CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry
+        CohereEmbeddingsResponseEntity::parseByteEmbeddingsArray
     );
     private static final String VALID_EMBEDDING_TYPES_STRING = supportedEmbeddingTypes();
 
@@ -132,7 +131,7 @@ public class CohereEmbeddingsResponseEntity {
      * </code>
      * </pre>
      */
-    public static TextEmbeddingResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -148,15 +147,7 @@ public class CohereEmbeddingsResponseEntity {
                 return parseEmbeddingsObject(jsonParser);
             } else if (token == XContentParser.Token.START_ARRAY) {
                 // if the request did not specify the embedding types then it will default to floats
-                List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
-                    jsonParser,
-                    parser -> CohereEmbeddingsResponseEntity.parseEmbeddingsArray(
-                        parser,
-                        CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry
-                    )
-                );
-
-                return new TextEmbeddingResults(embeddingList);
+                return parseFloatEmbeddingsArray(jsonParser);
             } else {
                 throwUnknownToken(token, jsonParser);
             }
@@ -167,7 +158,7 @@ public class CohereEmbeddingsResponseEntity {
         }
     }
 
-    private static TextEmbeddingResults parseEmbeddingsObject(XContentParser parser) throws IOException {
+    private static InferenceServiceResults parseEmbeddingsObject(XContentParser parser) throws IOException {
         XContentParser.Token token;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -178,12 +169,7 @@ public class CohereEmbeddingsResponseEntity {
                 }
 
                 parser.nextToken();
-                var embeddingList = XContentParserUtils.parseList(
-                    parser,
-                    listParser -> CohereEmbeddingsResponseEntity.parseEmbeddingsArray(listParser, embeddingValueParser)
-                );
-
-                return new TextEmbeddingResults(embeddingList);
+                return embeddingValueParser.apply(parser);
             }
         }
 
@@ -195,35 +181,51 @@ public class CohereEmbeddingsResponseEntity {
         );
     }
 
-    private static TextEmbeddingResults.Embedding parseEmbeddingsArray(
-        XContentParser parser,
-        CheckedFunction<XContentParser, EmbeddingValue, IOException> parseEntry
-    ) throws IOException {
+    private static InferenceServiceResults parseByteEmbeddingsArray(XContentParser parser) throws IOException {
+        var embeddingList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseByteArrayEntry);
+
+        return new TextEmbeddingByteResults(embeddingList);
+    }
+
+    private static TextEmbeddingByteResults.Embedding parseByteArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<EmbeddingValue> embeddingValues = XContentParserUtils.parseList(parser, parseEntry);
+        List<Byte> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
 
-        return new TextEmbeddingResults.Embedding(embeddingValues);
+        return new TextEmbeddingByteResults.Embedding(embeddingValues);
     }
 
-    private static FloatValue parseEmbeddingFloatEntry(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-        return new FloatValue(parser.floatValue());
-    }
-
-    private static ByteValue parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
+    private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
         var parsedByte = parser.shortValue();
         checkByteBounds(parsedByte);
 
-        return new ByteValue((byte) parsedByte);
+        return (byte) parsedByte;
     }
 
     private static void checkByteBounds(short value) {
         if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
             throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
         }
+    }
+
+    private static InferenceServiceResults parseFloatEmbeddingsArray(XContentParser parser) throws IOException {
+        var embeddingList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseFloatArrayEntry);
+
+        return new TextEmbeddingResults(embeddingList);
+    }
+
+    private static TextEmbeddingResults.Embedding parseFloatArrayEntry(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+        List<Float> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
+
+        return new TextEmbeddingResults.Embedding(embeddingValues);
+    }
+
+    private static Float parseEmbeddingFloatEntry(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+        return parser.floatValue();
     }
 
     private CohereEmbeddingsResponseEntity() {}

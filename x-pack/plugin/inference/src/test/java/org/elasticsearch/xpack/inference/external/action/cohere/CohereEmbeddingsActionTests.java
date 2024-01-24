@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModelTests;
@@ -44,8 +45,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationBytes;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloats;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -122,7 +122,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            MatcherAssert.assertThat(result.asMap(), is(buildExpectationFloats(List.of(List.of(0.123F, -0.123F)))));
+            MatcherAssert.assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.123F, -0.123F)))));
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
@@ -199,7 +199,10 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            MatcherAssert.assertThat(result.asMap(), is(buildExpectationBytes(List.of(List.of((byte) 0, (byte) -1)))));
+            MatcherAssert.assertThat(
+                result.asMap(),
+                is(TextEmbeddingByteResultsTests.buildExpectation(List.of(List.of((byte) 0, (byte) -1))))
+            );
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(

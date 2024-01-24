@@ -30,33 +30,23 @@ import java.util.stream.Collectors;
  *     "text_embedding": [
  *         {
  *             "embedding": [
- *                 0.1
+ *                 23
  *             ]
  *         },
  *         {
  *             "embedding": [
- *                 0.2
+ *                 -23
  *             ]
  *         }
  *     ]
  * }
  */
-public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults, TextEmbedding {
-    public static final String NAME = "text_embedding_service_results";
+public record TextEmbeddingByteResults(List<Embedding> embeddings) implements InferenceServiceResults, TextEmbedding {
+    public static final String NAME = "text_embedding_service_byte_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
-    public TextEmbeddingResults(StreamInput in) throws IOException {
+    public TextEmbeddingByteResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(Embedding::new));
-    }
-
-    @SuppressWarnings("deprecation")
-    TextEmbeddingResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
-        this(
-            legacyTextEmbeddingResults.embeddings()
-                .stream()
-                .map(embedding -> new Embedding(embedding.values()))
-                .collect(Collectors.toList())
-        );
     }
 
     @Override
@@ -96,7 +86,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     @SuppressWarnings("deprecation")
     public List<? extends InferenceResults> transformToLegacyFormat() {
         var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.values)).toList()
+            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.toFloats())).toList()
         );
 
         return List.of(legacyEmbedding);
@@ -109,21 +99,16 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         return map;
     }
 
-    public record Embedding(List<Float> values) implements Writeable, ToXContentObject, EmbeddingInt {
+    public record Embedding(List<Byte> values) implements Writeable, ToXContentObject, EmbeddingInt {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(StreamInput in) throws IOException {
-            this(in.readCollectionAsImmutableList(StreamInput::readFloat));
-        }
-
-        @Override
-        public int getSize() {
-            return values.size();
+            this(in.readCollectionAsImmutableList(StreamInput::readByte));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(values, StreamOutput::writeFloat);
+            out.writeCollection(values, StreamOutput::writeByte);
         }
 
         @Override
@@ -131,7 +116,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
             builder.startObject();
 
             builder.startArray(EMBEDDING);
-            for (Float value : values) {
+            for (Byte value : values) {
                 builder.value(value);
             }
             builder.endArray();
@@ -147,6 +132,15 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
 
         public Map<String, Object> asMap() {
             return Map.of(EMBEDDING, values);
+        }
+
+        public List<Float> toFloats() {
+            return values.stream().map(Byte::floatValue).toList();
+        }
+
+        @Override
+        public int getSize() {
+            return values().size();
         }
     }
 }

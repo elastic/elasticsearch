@@ -18,6 +18,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
@@ -107,25 +108,6 @@ public class ServiceUtils {
 
     public static String mustBeNonEmptyString(String settingName, String scope) {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
-    }
-
-    public static String mustBeNonEmptyList(String settingName, String scope) {
-        return Strings.format("[%s] Invalid value empty list. [%s] must be a non-empty list", scope, settingName);
-    }
-
-    public static String invalidType(String settingName, String scope, String invalidType, String invalidValue, String requiredType) {
-        return Strings.format(
-            "[%s] Invalid type [%s] received for value [%s]. [%s] must be type [%s]",
-            scope,
-            invalidType,
-            invalidValue,
-            settingName,
-            requiredType
-        );
-    }
-
-    public static String invalidValue(String settingName, String scope, String invalidValue, String validValue) {
-        return invalidValue(settingName, scope, invalidValue, new String[] { validValue });
     }
 
     public static String invalidValue(String settingName, String scope, String invalidType, String... requiredTypes) {
@@ -287,16 +269,11 @@ public class ServiceUtils {
         assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
 
         service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), listener.delegateFailureAndWrap((delegate, r) -> {
-            if (r instanceof TextEmbeddingResults embeddingResults) {
-                if (embeddingResults.embeddings().isEmpty()) {
-                    delegate.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not determine embedding size, no embeddings were returned in test call",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                } else {
-                    delegate.onResponse(embeddingResults.embeddings().get(0).values().size());
+            if (r instanceof TextEmbedding embeddingResults) {
+                try {
+                    delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
+                } catch (Exception e) {
+                    delegate.onFailure(new ElasticsearchStatusException("Could not determine embedding size", RestStatus.BAD_REQUEST, e));
                 }
             } else {
                 delegate.onFailure(

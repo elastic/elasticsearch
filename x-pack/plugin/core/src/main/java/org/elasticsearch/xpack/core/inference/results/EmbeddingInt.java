@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.xcontent.ToXContentFragment;
-
-public interface EmbeddingValue extends NamedWriteable, ToXContentFragment {
-    Number getValue();
+public interface EmbeddingInt {
+    int getSize();
 }

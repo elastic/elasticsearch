@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.inference.external.http.retry.RetrySetting
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequestTests.createRequest;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloats;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -104,7 +104,7 @@ public class OpenAiClientTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectationFloats(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -155,7 +155,7 @@ public class OpenAiClientTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectationFloats(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -205,7 +205,7 @@ public class OpenAiClientTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectationFloats(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());

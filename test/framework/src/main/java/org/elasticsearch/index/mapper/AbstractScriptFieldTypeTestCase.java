@@ -423,6 +423,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             }
 
             @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 return mockContext().lookup();
             }
@@ -435,6 +440,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             @Override
             public String parentField(String field) {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
             }
         };
     }

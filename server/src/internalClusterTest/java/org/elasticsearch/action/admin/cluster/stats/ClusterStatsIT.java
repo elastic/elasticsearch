@@ -207,7 +207,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         String msg = response.toString();
         assertThat(msg, response.getTimestamp(), greaterThan(946681200000L)); // 1 Jan 2000
-        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), greaterThan(0L));
+        assertThat(msg, response.indicesStats.getStore().sizeInBytes(), greaterThan(0L));
 
         assertThat(msg, response.nodesStats.getFs().getTotal().getBytes(), greaterThan(0L));
         assertThat(msg, response.nodesStats.getJvm().getVersions().size(), greaterThan(0));

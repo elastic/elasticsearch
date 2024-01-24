@@ -114,6 +114,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
+import org.elasticsearch.snapshots.PausedSnapshotException;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -177,9 +178,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final ThreadPool threadPool;
 
-    public static final String STATELESS_SHARD_THREAD_NAME = "stateless_shard";
+    public static final String STATELESS_SHARD_READ_THREAD_NAME = "stateless_shard_read";
     public static final String STATELESS_TRANSLOG_THREAD_NAME = "stateless_translog";
-    public static final String STATELESS_UPLOAD_THREAD_NAME = "stateless_upload";
+    public static final String STATELESS_SHARD_WRITE_THREAD_NAME = "stateless_shard_write";
 
     public static final String SNAPSHOT_PREFIX = "snap-";
 
@@ -1740,6 +1741,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     (indexId, gens) -> gens.forEach(
                         (shardId, oldGen) -> toDelete.add(
                             shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
+                                .toBlobNamePart()
                         )
                     )
                 );
@@ -1984,9 +1986,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             ThreadPool.Names.SNAPSHOT,
             ThreadPool.Names.SNAPSHOT_META,
             ThreadPool.Names.GENERIC,
-            STATELESS_SHARD_THREAD_NAME,
+            STATELESS_SHARD_READ_THREAD_NAME,
             STATELESS_TRANSLOG_THREAD_NAME,
-            STATELESS_UPLOAD_THREAD_NAME
+            STATELESS_SHARD_WRITE_THREAD_NAME
         );
     }
 
@@ -3254,7 +3256,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotStatus.ensureNotAborted();
         } catch (Exception e) {
             logger.debug("[{}] [{}] {} on the file [{}], exiting", shardId, snapshotId, e.getMessage(), fileName);
-            assert e instanceof AbortedSnapshotException : e;
+            assert e instanceof AbortedSnapshotException || e instanceof PausedSnapshotException : e;
             throw e;
         }
     }

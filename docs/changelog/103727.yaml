@@ -1,0 +1,5 @@
+pr: 103727
+summary: "ESQL: Track the rest of `DocVector`"
+area: ES|QL
+type: enhancement
+issues: []

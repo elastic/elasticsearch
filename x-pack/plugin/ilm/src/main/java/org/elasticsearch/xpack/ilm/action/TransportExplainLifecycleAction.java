@@ -152,7 +152,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     originationDate != -1L ? originationDate : lifecycleState.lifecycleDate(),
                     lifecycleState.phase(),
                     lifecycleState.action(),
-                    lifecycleState.step(),
+                    // treat a missing policy as if the index is in the error step
+                    indexLifecycleService.policyExists(policyName) == false ? ErrorStep.NAME : lifecycleState.step(),
                     lifecycleState.failedStep(),
                     lifecycleState.isAutoRetryableError(),
                     lifecycleState.failedStepRetryCount(),

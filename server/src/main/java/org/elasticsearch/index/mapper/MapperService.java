@@ -130,6 +130,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
 
     private volatile DocumentMapper mapper;
+    private volatile long mappingVersion;
 
     public MapperService(
         ClusterService clusterService,
@@ -298,6 +299,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 previousMapper = this.mapper;
                 assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
+                this.mappingVersion = newIndexMetadata.getMappingVersion();
             }
             String op = previousMapper != null ? "updated" : "added";
             if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
@@ -557,11 +559,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+        return mergeMappings(currentMapper, incomingMapping, reason, Long.MAX_VALUE);
+    }
+
+    static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
         Mapping newMapping;
         if (currentMapper == null) {
-            newMapping = incomingMapping;
+            newMapping = incomingMapping.withFieldsBudget(newFieldsBudget);
         } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason, newFieldsBudget);
         }
         return newMapping;
     }
@@ -588,6 +594,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public DocumentMapper documentMapper() {
         return mapper;
+    }
+
+    public long mappingVersion() {
+        return mappingVersion;
     }
 
     /**

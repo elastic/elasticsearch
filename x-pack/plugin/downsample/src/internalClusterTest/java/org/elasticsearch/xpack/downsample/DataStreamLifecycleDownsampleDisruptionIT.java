@@ -126,11 +126,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
             }
         })).start();
 
-        waitUntil(
-            () -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty(),
-            60,
-            TimeUnit.SECONDS
-        );
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty(), 60, TimeUnit.SECONDS);
         ensureStableCluster(cluster.numDataAndMasterNodes());
 
         final String targetIndex = "downsample-5m-" + sourceIndex;
@@ -143,6 +139,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
                 Settings indexSettings = getSettingsResponse.getIndexToSettings().get(targetIndex);
                 assertThat(indexSettings, is(notNullValue()));
                 assertThat(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexSettings), is(IndexMetadata.DownsampleTaskStatus.SUCCESS));
+                assertEquals("5m", IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.get(indexSettings));
             } catch (Exception e) {
                 throw new AssertionError(e);
             }

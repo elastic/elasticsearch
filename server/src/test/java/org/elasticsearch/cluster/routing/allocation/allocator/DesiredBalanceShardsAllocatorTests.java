@@ -689,7 +689,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+            public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
         };
     }
 

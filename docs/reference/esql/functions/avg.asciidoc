@@ -1,7 +1,26 @@
 [discrete]
 [[esql-agg-avg]]
 === `AVG`
+
+*Syntax*
+
+[source,esql]
+----
+AVG(column)
+----
+
+`column`::
+Numeric column. If `null`, the function returns `null`.
+
+*Description*
+
 The average of a numeric field.
+
+*Supported types*
+
+The result is always a `double` no matter the input type.
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -11,5 +30,3 @@ include::{esql-specs}/stats.csv-spec[tag=avg]
 |===
 include::{esql-specs}/stats.csv-spec[tag=avg-result]
 |===
-
-The result is always a `double` not matter the input type.

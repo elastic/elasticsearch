@@ -78,7 +78,6 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -2962,7 +2961,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
         shard.recoveryState().getIndex().setFileDetailsComplete();
-        shard.openEngineAndRecoverFromTranslog();
+        PlainActionFuture.get(shard::openEngineAndRecoverFromTranslog, 30, TimeUnit.SECONDS);
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);
@@ -4165,13 +4164,13 @@ public class IndexShardTests extends IndexShardTestCase {
         var flushExecutedBarrier = new CyclicBarrier(2);
         var shard = newStartedShard(true, indexSettings, config -> new InternalEngine(config) {
             @Override
-            public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
                 if (shardStarted.get()) {
-                    super.flush(force, waitIfOngoing, ActionListener.noop());
+                    super.flushHoldingLock(force, waitIfOngoing, ActionListener.noop());
                     pendingListeners.add(listener);
                     safeAwait(flushExecutedBarrier);
                 } else {
-                    super.flush(force, waitIfOngoing, listener);
+                    super.flushHoldingLock(force, waitIfOngoing, listener);
                 }
             }
         });

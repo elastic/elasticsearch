@@ -19,6 +19,6 @@ public class TestContainersThreadFilter implements ThreadFilter {
     public boolean reject(Thread t) {
         return t.getName().startsWith("testcontainers-")
             || t.getName().startsWith("ducttape")
-            || t.getName().startsWith("ForkJoinPool.commonPool-worker-1");
+            || t.getName().startsWith("ForkJoinPool.commonPool-worker-");
     }
 }

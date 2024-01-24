@@ -29,7 +29,7 @@ setup:
         body:
           error: error
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
 
   - do:
       connector_sync_job.get:

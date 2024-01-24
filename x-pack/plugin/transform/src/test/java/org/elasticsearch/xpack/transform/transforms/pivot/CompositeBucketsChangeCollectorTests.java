@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -112,8 +112,22 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         });
         Aggregations aggs = new Aggregations(Collections.singletonList(composite));
 
-        SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
-        SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+        SearchResponse response = new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            aggs,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
+        );
         try {
             collector.processSearchResponse(response);
 

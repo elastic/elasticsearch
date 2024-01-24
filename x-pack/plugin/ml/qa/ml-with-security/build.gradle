@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.Version
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
@@ -258,5 +257,4 @@ testClusters.configureEach {
   user username: "no_ml", password: "x-pack-test-password", role: "minimal"
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
-  requiresFeature 'es.learning_to_rank_feature_flag_enabled', Version.fromString("8.12.0")
 }

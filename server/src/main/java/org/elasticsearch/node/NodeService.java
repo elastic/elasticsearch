@@ -62,6 +62,7 @@ public class NodeService implements Closeable {
     private final AggregationUsageService aggregationUsageService;
     private final Coordinator coordinator;
     private final RepositoriesService repositoriesService;
+    private final Map<String, Integer> componentVersions;
 
     NodeService(
         Settings settings,
@@ -100,6 +101,7 @@ public class NodeService implements Closeable {
         this.indexingPressure = indexingPressure;
         this.aggregationUsageService = aggregationUsageService;
         this.repositoriesService = repositoriesService;
+        this.componentVersions = findComponentVersions(pluginService);
         clusterService.addStateApplier(ingestService);
     }
 
@@ -122,7 +124,7 @@ public class NodeService implements Closeable {
             Version.CURRENT.toString(),
             TransportVersion.current(),
             IndexVersion.current(),
-            findComponentVersions(),
+            componentVersions,
             Build.current(),
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,
@@ -140,7 +142,7 @@ public class NodeService implements Closeable {
         );
     }
 
-    private Map<String, Integer> findComponentVersions() {
+    private static Map<String, Integer> findComponentVersions(PluginsService pluginService) {
         var versions = pluginService.loadServiceProviders(ComponentVersionNumber.class)
             .stream()
             .collect(Collectors.toUnmodifiableMap(ComponentVersionNumber::componentId, cvn -> cvn.versionNumber().id()));

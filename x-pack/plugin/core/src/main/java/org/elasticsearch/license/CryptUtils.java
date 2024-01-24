@@ -226,8 +226,9 @@ public class CryptUtils {
         byte[] out = new byte[length + 1];
 
         int i = 0;
-        for (; i < bytes.length; i++)
+        for (; i < bytes.length; i++) {
             out[i] = bytes[i];
+        }
 
         int padded = length - i;
 

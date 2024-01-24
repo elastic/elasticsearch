@@ -10,18 +10,18 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
 public class TransportCancelConnectorSyncJobAction extends HandledTransportAction<
     CancelConnectorSyncJobAction.Request,
-    AcknowledgedResponse> {
+    ConnectorUpdateActionResponse> {
 
     protected ConnectorSyncJobIndexService connectorSyncJobIndexService;
 
@@ -43,7 +43,14 @@ public class TransportCancelConnectorSyncJobAction extends HandledTransportActio
     }
 
     @Override
-    protected void doExecute(Task task, CancelConnectorSyncJobAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        connectorSyncJobIndexService.cancelConnectorSyncJob(request.getConnectorSyncJobId(), listener.map(r -> AcknowledgedResponse.TRUE));
+    protected void doExecute(
+        Task task,
+        CancelConnectorSyncJobAction.Request request,
+        ActionListener<ConnectorUpdateActionResponse> listener
+    ) {
+        connectorSyncJobIndexService.cancelConnectorSyncJob(
+            request.getConnectorSyncJobId(),
+            listener.map(r -> new ConnectorUpdateActionResponse(r.getResult()))
+        );
     }
 }

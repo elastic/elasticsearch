@@ -14,12 +14,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Represents a response for update actions related to connectors and sync jobs.
+ * Represents a response for update actions related to {@link Connector} and {@link ConnectorSyncJob}.
  * The response encapsulates the result of the update action, represented by a {@link DocWriteResponse.Result}.
  */
 public class ConnectorUpdateActionResponse extends ActionResponse implements ToXContentObject {

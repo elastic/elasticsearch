@@ -32,7 +32,7 @@ setup:
           indexed_document_count: 20
           indexed_document_volume: 1000
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
 
   - do:
       connector_sync_job.get:
@@ -143,7 +143,7 @@ setup:
           indexed_document_volume: 1000
           total_document_count: 20
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
 
   - do:
       connector_sync_job.get:
@@ -173,7 +173,7 @@ setup:
           indexed_document_volume: 1000
           last_seen: 2023-12-04T08:45:50.567149Z
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
 
   - do:
       connector_sync_job.get:

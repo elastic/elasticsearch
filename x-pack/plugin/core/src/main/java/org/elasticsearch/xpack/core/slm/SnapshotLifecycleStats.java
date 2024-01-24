@@ -337,10 +337,6 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             this.snapshotDeleteFailures.inc(in.readVLong());
         }
 
-        public static SnapshotPolicyStats parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
         public SnapshotPolicyStats merge(SnapshotPolicyStats other) {
             return new SnapshotPolicyStats(
                 this.policyId,

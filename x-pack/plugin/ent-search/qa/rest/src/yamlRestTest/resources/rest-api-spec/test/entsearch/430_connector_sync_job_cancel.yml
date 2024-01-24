@@ -27,7 +27,7 @@ setup:
       connector_sync_job.cancel:
         connector_sync_job_id: $sync-job-id-to-cancel
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
 
   - do:
       connector_sync_job.get:

@@ -13,8 +13,8 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -60,12 +59,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public class TransportGetStackTracesAction extends HandledTransportAction<GetStackTracesRequest, GetStackTracesResponse> {
+public class TransportGetStackTracesAction extends TransportAction<GetStackTracesRequest, GetStackTracesResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
 
     public static final Setting<Integer> PROFILING_MAX_STACKTRACE_QUERY_SLICES = Setting.intSetting(
@@ -111,7 +109,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     private final NodeClient nodeClient;
     private final ProfilingLicenseChecker licenseChecker;
-    private final InstanceTypeService instanceTypeService;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Executor responseExecutor;
@@ -130,13 +127,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         ActionFilters actionFilters,
         NodeClient nodeClient,
         ProfilingLicenseChecker licenseChecker,
-        InstanceTypeService instanceTypeService,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetStackTracesAction.NAME, actionFilters, transportService.getTaskManager());
         this.nodeClient = nodeClient;
         this.licenseChecker = licenseChecker;
-        this.instanceTypeService = instanceTypeService;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
@@ -225,6 +220,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         client.prepareSearch(request.indices())
             .setTrackTotalHits(false)
             .setSize(0)
+            // take advantage of request cache and keep a consistent order for the same request
+            .setRequestCache(true)
+            .setPreference(String.valueOf(request.hashCode()))
             .setQuery(request.getQuery())
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
@@ -273,6 +271,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
+            // take advantage of request cache and keep a consistent order for the same request
+            .setRequestCache(true)
+            .setPreference(String.valueOf(request.hashCode()))
             .setQuery(request.getQuery())
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
@@ -481,11 +482,8 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final GetStackTracesResponseBuilder responseBuilder;
         private final ActionListener<GetStackTracesResponse> submitListener;
         private final Map<String, StackTrace> stackTracePerId;
-        // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
-        // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
-        // needed to load it.
-        private final Set<String> stackFrameIds = new ConcurrentSkipListSet<>();
-        private final Set<String> executableIds = new ConcurrentSkipListSet<>();
+        private final Set<String> stackFrameIds;
+        private final Set<String> executableIds;
         private final AtomicInteger totalFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraces");
         private final StopWatch hostsWatch = new StopWatch("retrieveHostMetadata");
@@ -504,6 +502,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.submitTask = submitTask;
             this.clusterState = clusterState;
             this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
+            // pre-size with a bit of headroom so the collection isn't resized too often
+            this.stackFrameIds = ConcurrentHashMap.newKeySet(stackTraceCount * 5);
+            this.executableIds = ConcurrentHashMap.newKeySet(stackTraceCount);
             this.expectedResponses = new AtomicInteger(expectedResponses);
             this.client = client;
             this.responseBuilder = responseBuilder;
@@ -550,7 +551,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             // Do the CO2 and cost calculation in parallel to waiting for frame metadata.
             StopWatch watch = new StopWatch("calculateCO2AndCosts");
             CO2Calculator co2Calculator = new CO2Calculator(
-                instanceTypeService,
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.getCustomCO2PerKWH(),
@@ -559,7 +559,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 responseBuilder.getCustomPerCoreWattARM64()
             );
             CostCalculator costCalculator = new CostCalculator(
-                instanceTypeService,
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.getAWSCostFactor(),
@@ -683,6 +682,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
      * Collects stack trace details which are retrieved concurrently and sends a response only when all details are known.
      */
     private static class DetailsHandler {
+        private static final String[] PATH_FILE_NAME = new String[] { "Executable", "file", "name" };
         private final GetStackTracesResponseBuilder builder;
         private final ActionListener<GetStackTracesResponse> submitListener;
         private final Map<String, String> executables;
@@ -740,7 +740,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 if (executable.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
-                        String fileName = ObjectPath.eval("Executable.file.name", executable.getResponse().getSource());
+                        String fileName = ObjectPath.eval(PATH_FILE_NAME, executable.getResponse().getSource());
                         if (fileName != null) {
                             executables.putIfAbsent(executable.getId(), fileName);
                         } else {

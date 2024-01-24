@@ -91,7 +91,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             this.part = in.readVInt();
             this.totalDefinitionLength = in.readVLong();
             this.totalParts = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_043)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 this.allowOverwriting = in.readBoolean();
             } else {
                 this.allowOverwriting = false;
@@ -148,7 +148,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             out.writeVInt(part);
             out.writeVLong(totalDefinitionLength);
             out.writeVInt(totalParts);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_043)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 out.writeBoolean(allowOverwriting);
             }
         }

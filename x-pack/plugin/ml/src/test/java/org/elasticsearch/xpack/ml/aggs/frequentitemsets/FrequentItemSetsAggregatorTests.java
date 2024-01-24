@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.EclatMapReducer.EclatResult;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetCollector.FrequentItemSet;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.InternalItemSetMapReduceAggregation;
@@ -66,7 +66,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new MachineLearning(Settings.EMPTY));
+        return List.of(MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY));
     }
 
     @Override

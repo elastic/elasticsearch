@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -72,11 +71,6 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(deleteDestIndex);
             }
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

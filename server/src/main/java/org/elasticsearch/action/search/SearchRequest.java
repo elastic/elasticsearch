@@ -407,6 +407,21 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (scroll) {
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
             }
+            if (indices().length > 0) {
+                validationException = addValidationError(
+                    "[indices] cannot be used with point in time. Do not specify any index with point in time.",
+                    validationException
+                );
+            }
+            if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
+                validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
+            }
+            if (routing() != null) {
+                validationException = addValidationError("[routing] cannot be used with point in time", validationException);
+            }
+            if (preference() != null) {
+                validationException = addValidationError("[preference] cannot be used with point in time", validationException);
+            }
         } else if (source != null && source.sorts() != null) {
             for (SortBuilder<?> sortBuilder : source.sorts()) {
                 if (sortBuilder instanceof FieldSortBuilder

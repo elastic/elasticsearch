@@ -414,14 +414,10 @@ public class GeoUtils {
             GeoPoint point = new GeoPoint();
             point.resetFromString(value, ignoreZValue, effectivePoint);
             return point;
-        }, value -> {
-            GeoPoint point = new GeoPoint();
-            point.parseGeoHash(value, effectivePoint);
-            return point;
         });
     }
 
-    private static GenericPointParser<GeoPoint> geoPointParser = new GenericPointParser<>("geo_point", "lon", "lat", true) {
+    private static GenericPointParser<GeoPoint> geoPointParser = new GenericPointParser<>("geo_point", "lon", "lat") {
 
         @Override
         public void assertZValue(boolean ignoreZValue, double zValue) {

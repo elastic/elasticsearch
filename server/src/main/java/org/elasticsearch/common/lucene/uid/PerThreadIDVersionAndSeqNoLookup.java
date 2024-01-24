@@ -145,6 +145,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
                 }
                 return docID;
             }
+            return DocIdSetIterator.NO_MORE_DOCS;
         }
         if (id.length < 8) {
             return DocIdSetIterator.NO_MORE_DOCS;

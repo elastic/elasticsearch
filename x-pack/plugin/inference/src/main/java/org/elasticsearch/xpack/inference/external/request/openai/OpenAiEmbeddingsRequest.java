@@ -12,9 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
@@ -26,6 +24,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.createOrgHeader;
 
@@ -46,16 +45,8 @@ public class OpenAiEmbeddingsRequest implements Request {
         this.truncator = Objects.requireNonNull(truncator);
         this.account = Objects.requireNonNull(account);
         this.truncationResult = Objects.requireNonNull(input);
-        this.uri = buildUri(this.account.url());
+        this.uri = buildUri(this.account.url(), "OpenAI", OpenAiEmbeddingsRequest::buildDefaultUri);
         this.taskSettings = Objects.requireNonNull(taskSettings);
-    }
-
-    private static URI buildUri(URI accountUri) {
-        try {
-            return accountUri == null ? buildDefaultUri() : accountUri;
-        } catch (URISyntaxException e) {
-            throw new ElasticsearchStatusException("Failed to construct OpenAI URL", RestStatus.INTERNAL_SERVER_ERROR, e);
-        }
     }
 
     public HttpRequestBase createRequest() {

@@ -16,11 +16,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
-public class Netty4HttpResponse extends DefaultFullHttpResponse implements Netty4RestResponse {
+public final class Netty4FullHttpResponse extends DefaultFullHttpResponse implements Netty4RestResponse {
 
     private final int sequence;
 
-    Netty4HttpResponse(int sequence, HttpVersion version, RestStatus status, BytesReference content) {
+    Netty4FullHttpResponse(int sequence, HttpVersion version, RestStatus status, BytesReference content) {
         super(version, HttpResponseStatus.valueOf(status.getStatus()), Netty4Utils.toByteBuf(content));
         this.sequence = sequence;
     }

@@ -57,7 +57,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private final int maxEventsHeld;
     private final PriorityQueue<Tuple<? extends Netty4RestResponse, ChannelPromise>> outboundHoldingQueue;
 
-    private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, Netty4ChunkedHttpResponse response) {}
+    private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, ChunkedRestResponseBody responseBody) {}
 
     /**
      * The current {@link ChunkedWrite} if a chunked write is executed at the moment.
@@ -150,6 +150,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     );
                 }
                 // response is not at the current sequence number so we add it to the outbound queue and return
+                assert outboundHoldingQueue.stream().noneMatch(t -> t.v1().getSequence() == writeSequence)
+                    : "duplicate outbound entries for seqno " + writeSequence;
                 outboundHoldingQueue.add(new Tuple<>(restResponse, promise));
                 success = true;
                 return;
@@ -191,17 +193,22 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private void doWrite(ChannelHandlerContext ctx, Netty4RestResponse readyResponse, ChannelPromise promise) throws IOException {
         assert currentChunkedWrite == null : "unexpected existing write [" + currentChunkedWrite + "]";
-        if (readyResponse instanceof Netty4HttpResponse) {
-            doWrite(ctx, (Netty4HttpResponse) readyResponse, promise);
+        assert readyResponse != null : "cannot write null response";
+        assert readyResponse.getSequence() == writeSequence;
+        if (readyResponse instanceof Netty4FullHttpResponse fullResponse) {
+            doWriteFullResponse(ctx, fullResponse, promise);
+        } else if (readyResponse instanceof Netty4ChunkedHttpResponse chunkedResponse) {
+            doWriteChunkedResponse(ctx, chunkedResponse, promise);
         } else {
-            doWrite(ctx, (Netty4ChunkedHttpResponse) readyResponse, promise);
+            assert false : readyResponse.getClass().getCanonicalName();
+            throw new IllegalStateException("illegal message type: " + readyResponse.getClass().getCanonicalName());
         }
     }
 
     /**
      * Split up large responses to prevent batch compression {@link JdkZlibEncoder} down the pipeline.
      */
-    private void doWrite(ChannelHandlerContext ctx, Netty4HttpResponse readyResponse, ChannelPromise promise) {
+    private void doWriteFullResponse(ChannelHandlerContext ctx, Netty4FullHttpResponse readyResponse, ChannelPromise promise) {
         if (DO_NOT_SPLIT_HTTP_RESPONSES || readyResponse.content().readableBytes() <= SPLIT_THRESHOLD) {
             enqueueWrite(ctx, readyResponse, promise);
         } else {
@@ -210,16 +217,19 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         writeSequence++;
     }
 
-    private void doWrite(ChannelHandlerContext ctx, Netty4ChunkedHttpResponse readyResponse, ChannelPromise promise) throws IOException {
+    private void doWriteChunkedResponse(ChannelHandlerContext ctx, Netty4ChunkedHttpResponse readyResponse, ChannelPromise promise)
+        throws IOException {
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
         final ChannelPromise first = ctx.newPromise();
         combiner.add((Future<Void>) first);
-        currentChunkedWrite = new ChunkedWrite(combiner, promise, readyResponse);
+        final var responseBody = readyResponse.body();
+        assert currentChunkedWrite == null;
+        currentChunkedWrite = new ChunkedWrite(combiner, promise, responseBody);
         if (enqueueWrite(ctx, readyResponse, first)) {
             // We were able to write out the first chunk directly, try writing out subsequent chunks until the channel becomes unwritable.
             // NB "writable" means there's space in the downstream ChannelOutboundBuffer, we aren't trying to saturate the physical channel.
             while (ctx.channel().isWritable()) {
-                if (writeChunk(ctx, combiner, readyResponse.body())) {
+                if (writeChunk(ctx, combiner, responseBody)) {
                     finishChunkedWrite();
                     return;
                 }
@@ -228,15 +238,15 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     private void finishChunkedWrite() {
-        try {
-            currentChunkedWrite.combiner.finish(currentChunkedWrite.onDone);
-        } finally {
-            currentChunkedWrite = null;
-            writeSequence++;
-        }
+        assert currentChunkedWrite != null;
+        assert currentChunkedWrite.responseBody().isDone();
+        final var finishingWrite = currentChunkedWrite;
+        currentChunkedWrite = null;
+        writeSequence++;
+        finishingWrite.combiner.finish(finishingWrite.onDone());
     }
 
-    private void splitAndWrite(ChannelHandlerContext ctx, Netty4HttpResponse msg, ChannelPromise promise) {
+    private void splitAndWrite(ChannelHandlerContext ctx, Netty4FullHttpResponse msg, ChannelPromise promise) {
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
         HttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());
         combiner.add(enqueueWrite(ctx, response));
@@ -293,7 +303,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             if (currentWrite == null) {
                 // no bytes were found queued, check if a chunked message might have become writable
                 if (currentChunkedWrite != null) {
-                    if (writeChunk(ctx, currentChunkedWrite.combiner, currentChunkedWrite.response.body())) {
+                    if (writeChunk(ctx, currentChunkedWrite.combiner, currentChunkedWrite.responseBody())) {
                         finishChunkedWrite();
                     }
                     continue;

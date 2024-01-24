@@ -293,7 +293,7 @@ class BulkPrimaryExecutionContext {
                 }
                 executionResult = BulkItemResponse.success(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
-                executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
+                executionResult.getResponse().setShardInfo(ReplicationResponse.ShardInfo.EMPTY);
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
             }
             case FAILURE -> {

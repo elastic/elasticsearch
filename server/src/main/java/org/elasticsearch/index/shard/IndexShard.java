@@ -15,6 +15,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
@@ -101,6 +102,7 @@ import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -995,7 +997,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void updateFieldHasValueWithFieldsFromParsedDoc(ParsedDocument document) {
-        document.docs().forEach(doc -> doc.getFields().forEach(field -> setFieldHasValue(field.name())));
+        for (LuceneDocument doc : document.docs()) {
+            for (IndexableField field : doc.getFields()) {
+                setFieldHasValue(field.name());
+            }
+        }
     }
 
     public void setFieldHasValue(String fieldName) {

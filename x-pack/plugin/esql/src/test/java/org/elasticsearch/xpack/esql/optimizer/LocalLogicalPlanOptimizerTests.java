@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -29,18 +30,24 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -263,6 +270,48 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testSparseDocument() throws Exception {
+        var query = """
+            from large
+            | keep field00*
+            | limit 10
+            """;
+
+        int size = 256;
+        Map<String, EsField> large = Maps.newLinkedHashMapWithExpectedSize(size);
+        for (int i = 0; i < size; i++) {
+            var name = String.format(Locale.ROOT, "field%03d", i);
+            large.put(name, new EsField(name, DataTypes.INTEGER, emptyMap(), true, false));
+        }
+
+        SearchStats searchStats = statsForExistingField("field000", "field001", "field002", "field003", "field004");
+
+        EsIndex index = new EsIndex("large", large);
+        IndexResolution getIndexResult = IndexResolution.valid(index);
+        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+
+        var analyzer = new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
+            TEST_VERIFIER
+        );
+
+        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var optimized = logicalOptimizer.optimize(analyzed);
+        var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, searchStats);
+        var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(10));
+        assertThat(
+            Expressions.names(project.projections()),
+            contains("field000", "field001", "field002", "field003", "field004", "field005", "field006", "field007", "field008", "field009")
+        );
+        var eval = as(project.child(), Eval.class);
+        var field = eval.fields().get(0);
+        assertThat(Expressions.name(field), is("field005"));
+        assertThat(field.child().fold(), Matchers.nullValue());
+    }
+
     private LocalRelation asEmptyRelation(Object o) {
         var empty = as(o, LocalRelation.class);
         assertThat(empty.supplier(), is(LocalSupplier.EMPTY));
@@ -283,6 +332,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
         // System.out.println(localPlan);
         return localPlan;
+    }
+
+    private LogicalPlan localPlan(String query) {
+        return localPlan(plan(query), TEST_SEARCH_STATS);
     }
 
     @Override

@@ -106,6 +106,9 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        // force datatype initialization
+        var dataType = dataType();
+
         ExpressionEvaluator.Factory[] factories = children().stream()
             .map(e -> toEvaluator.apply(new MvMin(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);

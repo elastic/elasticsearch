@@ -38,6 +38,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1287,7 +1288,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testStatsMissingFields() {
+    public void testStatsMissingFieldWithStats() {
         final String node1, node2;
         if (randomBoolean()) {
             internalCluster().ensureAtLeastNumDataNodes(2);
@@ -1323,6 +1324,39 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     assertEquals(1, valuesList.size());
                 }
             }
+        }
+    }
+
+    public void testStatsMissingFieldKeepApp() {
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("foo-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node1))
+                .setMapping("foo_int", "type=integer", "foo_long", "type=long", "foo_float", "type=float", "foo_double", "type=double")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("bar-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
+                .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
+        );
+        String command = String.format(Locale.ROOT, "from foo-index,bar-index");
+        try (var resp = run(command)) {
+            var valuesList = getValuesList(resp);
+            assertEquals(8, resp.columns().size());
+            assertEquals(0, valuesList.size());
+            assertEquals(Collections.emptyList(), valuesList);
         }
     }
 

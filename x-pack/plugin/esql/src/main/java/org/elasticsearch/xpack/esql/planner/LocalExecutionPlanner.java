@@ -642,6 +642,11 @@ public class LocalExecutionPlanner {
                 Stream.of(sinkOperatorFactory)
             ).map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
         }
+
+        @Override
+        public String toString() {
+            return describe();
+        }
     }
 
     /**

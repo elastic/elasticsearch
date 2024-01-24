@@ -1,0 +1,6 @@
+pr: 104705
+summary: Prune segments that don't intersect with the query time range
+area: Search
+type: enhancement
+issues:
+ - 104556

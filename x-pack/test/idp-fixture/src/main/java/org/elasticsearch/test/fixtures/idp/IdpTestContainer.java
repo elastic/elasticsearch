@@ -44,7 +44,6 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
         withNetwork(network);
         waitingFor(Wait.forListeningPorts(4443));
         addExposedPorts(4443, 8443);
-        // withCreateContainerCmdModifier(cmd -> cmd.withLinks(Link.parse("openldap:openldap")));
     }
 
     @Override

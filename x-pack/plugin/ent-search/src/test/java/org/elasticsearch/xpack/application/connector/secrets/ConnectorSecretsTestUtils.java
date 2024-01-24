@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.application.connector.secrets.action.PostConnecto
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 
-
 public class ConnectorSecretsTestUtils {
 
     public static GetConnectorSecretRequest getRandomGetConnectorSecretRequest() {

@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -26,6 +27,8 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Collector;
@@ -50,6 +53,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
@@ -72,9 +76,11 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -801,6 +807,217 @@ public class ContextIndexSearcherTests extends ESTestCase {
         @Override
         public void visit(QueryVisitor visitor) {
             visitor.visitLeaf(this);
+        }
+    }
+
+    public void testPruneSegmentsThatDontIntersectWithQueryTimeRange() throws Exception {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig())) {
+            Document doc = new Document();
+            LongField field1 = new LongField("@timestamp", 10L, Field.Store.NO);
+            doc.add(field1);
+            LongField field2 = new LongField("event.ingested", 10L, Field.Store.NO);
+            doc.add(field2);
+            w.addDocument(doc);
+            field1.setLongValue(12);
+            field2.setLongValue(12);
+            w.addDocument(doc);
+            w.flush(); // 1st segment has range 10-12
+
+            field1.setLongValue(20);
+            field2.setLongValue(20);
+            w.addDocument(doc);
+            field1.setLongValue(25);
+            field2.setLongValue(25);
+            w.addDocument(doc);
+            w.flush(); // 2nd segment has range 20-25
+
+            field1.setLongValue(30);
+            field2.setLongValue(30);
+            w.addDocument(doc);
+            field1.setLongValue(39);
+            field2.setLongValue(39);
+            w.addDocument(doc);
+            w.flush(); // 3rd segment has range 30-39
+
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertEquals(3, reader.leaves().size());
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    new BM25Similarity(),
+                    null,
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    false
+                );
+
+                // these range queries only intersect with the 2nd segment
+                Query range1 = LongField.newRangeQuery("@timestamp", 22, 28);
+                Query range2 = LongField.newRangeQuery("event.ingested", 22, 28);
+
+                List<LeafReaderContext> allContexts = reader.leaves();
+                List<LeafReaderContext> matchingContexts = Collections.singletonList(reader.leaves().get(1));
+
+                assertEquals(1, searcher.count(range1));
+                assertEquals(1, searcher.count(range2));
+
+                assertEquals(
+                    0,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(new ExpensiveQuery(matchingContexts), BooleanClause.Occur.MUST)
+                            .add(range1, BooleanClause.Occur.MUST)
+                            .build()
+                    )
+                );
+                assertEquals(
+                    0,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(range1, BooleanClause.Occur.MUST)
+                            .add(new ExpensiveQuery(matchingContexts), BooleanClause.Occur.MUST)
+                            .build()
+                    )
+                );
+                assertEquals(
+                    0,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(new ExpensiveQuery(matchingContexts), BooleanClause.Occur.MUST)
+                            .add(range2, BooleanClause.Occur.MUST)
+                            .build()
+                    )
+                );
+                assertEquals(
+                    0,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(range2, BooleanClause.Occur.MUST)
+                            .add(new ExpensiveQuery(matchingContexts), BooleanClause.Occur.MUST)
+                            .build()
+                    )
+                );
+
+                assertEquals(
+                    0,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(new ExpensiveQuery(matchingContexts), BooleanClause.Occur.FILTER)
+                            .add(range1, BooleanClause.Occur.FILTER)
+                            .build()
+                    )
+                );
+                assertEquals(
+                    0,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(range1, BooleanClause.Occur.FILTER)
+                            .add(new ExpensiveQuery(matchingContexts), BooleanClause.Occur.FILTER)
+                            .build()
+                    )
+                );
+                assertEquals(
+                    0,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(new ExpensiveQuery(matchingContexts), BooleanClause.Occur.FILTER)
+                            .add(range2, BooleanClause.Occur.FILTER)
+                            .build()
+                    )
+                );
+                assertEquals(
+                    0,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(range2, BooleanClause.Occur.FILTER)
+                            .add(new ExpensiveQuery(matchingContexts), BooleanClause.Occur.FILTER)
+                            .build()
+                    )
+                );
+
+                assertEquals(
+                    1,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(new ExpensiveQuery(allContexts), BooleanClause.Occur.SHOULD)
+                            .add(range1, BooleanClause.Occur.SHOULD)
+                            .build()
+                    )
+                );
+                assertEquals(
+                    1,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(range1, BooleanClause.Occur.SHOULD)
+                            .add(new ExpensiveQuery(allContexts), BooleanClause.Occur.SHOULD)
+                            .build()
+                    )
+                );
+                assertEquals(
+                    1,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(new ExpensiveQuery(allContexts), BooleanClause.Occur.SHOULD)
+                            .add(range2, BooleanClause.Occur.SHOULD)
+                            .build()
+                    )
+                );
+                assertEquals(
+                    1,
+                    searcher.count(
+                        new BooleanQuery.Builder().add(range2, BooleanClause.Occur.SHOULD)
+                            .add(new ExpensiveQuery(allContexts), BooleanClause.Occur.SHOULD)
+                            .build()
+                    )
+                );
+            }
+        }
+    }
+
+    private static class ExpensiveQuery extends Query {
+
+        private final Collection<LeafReaderContext> allowedContexts;
+
+        public ExpensiveQuery(Collection<LeafReaderContext> allowedContexts) {
+            this.allowedContexts = allowedContexts;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "expensive_query";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) throws IOException {
+            return new ExpensiveWeight(this, allowedContexts);
+        }
+    }
+
+    private static class ExpensiveWeight extends Weight {
+
+        private final Collection<LeafReaderContext> allowedContexts;
+
+        public ExpensiveWeight(ExpensiveQuery expensiveQuery, Collection<LeafReaderContext> allowedContexts) {
+            super(expensiveQuery);
+            this.allowedContexts = allowedContexts;
+        }
+
+        @Override
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+            throw new UnsupportedEncodingException();
+        }
+
+        @Override
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            assertThat(allowedContexts, Matchers.hasItem(context));
+            return null;
+        }
+
+        @Override
+        public boolean isCacheable(LeafReaderContext ctx) {
+            return false;
         }
     }
 }

@@ -11,7 +11,11 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -20,9 +24,12 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -351,8 +358,70 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    // Timestamp fields that may be correlated with the ingestion order, so that some segments are likely to be completely disjoint from the
+    // query range.
+    private static final Set<String> ECS_TIMESTAMP_FIELDS = Set.of("@timestamp", "event.ingested");
+
+    private static PointRangeQuery extractTimestampRange(Query query) {
+        // Remove query wrappers
+        while (true) {
+            if (query instanceof IndexOrDocValuesQuery idvQuery) {
+                query = idvQuery.getIndexQuery();
+            } else if (query instanceof ConstantScoreQuery csq) {
+                query = csq.getQuery();
+            } else if (query instanceof BoostQuery bq) {
+                query = bq.getQuery();
+            } else if (query instanceof IndexSortSortedNumericDocValuesRangeQuery issndvrq) {
+                query = issndvrq.getFallbackQuery();
+            } else {
+                break;
+            }
+        }
+
+        if (query instanceof PointRangeQuery pointRangeQuery) {
+            if (ECS_TIMESTAMP_FIELDS.contains(pointRangeQuery.getField())) {
+                return pointRangeQuery;
+            } else {
+                return null;
+            }
+        } else if (query instanceof BooleanQuery bq) {
+            for (BooleanClause clause : bq.clauses()) {
+                if (clause.isRequired()) {
+                    PointRangeQuery timestampRange = extractTimestampRange(clause.getQuery());
+                    if (timestampRange != null) {
+                        // In case multiple timestamp ranges are present, the first one that is found wins. This is fine as we expect
+                        // queries to have a single range on a timestamp field in general.
+                        return timestampRange;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        // Alerting use-cases may run queries like the one below on a narrow time range:
+        // { "query": { "bool": { "must": <expensive query>, "filter": { "range": { "@timestamp": { "gte": "now-5m" } } } } } }
+        // This may cause performance issues when <expensive query> has a costly Weight#scorer implementation, since Lucene doesn't have a
+        // deterministic order for calling Weight#scorer, so it may call Weight#scorer on the expensive query before noticing that the
+        // segment doesn't even intersect with the time range. To prevent this, we proactively exclude segments that don't intersect with
+        // the time range. This can be seen as a can_match phase, but at the segment level.
+        PointRangeQuery timestampRange = extractTimestampRange(weight.getQuery());
+        if (timestampRange != null) {
+            List<LeafReaderContext> newLeaves = new ArrayList<>(leaves.size());
+            for (LeafReaderContext context : leaves) {
+                PointValues pointValues = context.reader().getPointValues(timestampRange.getField());
+                if (pointValues != null
+                    && pointValues.getDocCount() > 0
+                    && Arrays.compareUnsigned(pointValues.getMaxPackedValue(), timestampRange.getLowerPoint()) >= 0
+                    && Arrays.compareUnsigned(pointValues.getMinPackedValue(), timestampRange.getUpperPoint()) <= 0) {
+                    newLeaves.add(context);
+                }
+            }
+            leaves = newLeaves;
+        }
+
         collector.setWeight(weight);
         boolean success = false;
         try {

@@ -515,7 +515,7 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the service type property of a {@link Connector} and its status.
+     * Updates the service type property of a {@link Connector} and its {@link ConnectorStatus}.
      *
      * @param request  The request for updating the connector's service type.
      * @param listener The listener for handling responses, including successful updates or errors.

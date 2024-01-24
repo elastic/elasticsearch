@@ -428,8 +428,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testTotalFieldsCount() throws IOException {
-        RootObjectMapper.Builder builder = getRootObjectMapperBuilder(fieldMapping(this::minimalMapping));
-        assertEquals(1, builder.build(MapperBuilderContext.root(false, false)).getTotalFieldsCount());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertEquals(1, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
     }
 
     protected final void assertParseMinimalWarnings() {

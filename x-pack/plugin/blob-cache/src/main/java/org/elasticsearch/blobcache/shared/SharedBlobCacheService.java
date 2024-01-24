@@ -675,6 +675,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
+        // io can be null when not init'ed or after evict/take
         volatile SharedBytes.IO io = null;
 
         CacheFileRegion(RegionKey<KeyType> regionKey, int regionSize) {
@@ -701,6 +702,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return false;
         }
 
+        boolean tryEvictNoDecRef() {
+            assert Thread.holdsLock(SharedBlobCacheService.this) : "must hold lock when evicting";
+            if (refCount() <= 1 && evict()) {
+                logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
+                evictCount.increment();
+                return true;
+            }
+
+            return false;
+        }
         public boolean forceEvict() {
             assert Thread.holdsLock(SharedBlobCacheService.this) : "must hold lock when evicting";
             if (evict()) {
@@ -1165,7 +1176,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // io is volatile, double locking is fine, as long as we assign it last.
             if (entry.chunk.io == null) {
                 synchronized (entry.chunk) {
-                    if (entry.chunk.io == null) {
+                    if (entry.chunk.io == null && entry.chunk.isEvicted() == false) {
                         return initChunk(entry);
                     }
                 }
@@ -1226,16 +1237,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 assignToSlot(entry, freeSlot);
             } else {
                 // need to evict something
-                int frequency;
+                SharedBytes.IO io;
                 synchronized (SharedBlobCacheService.this) {
-                    frequency = maybeEvict();
+                    io = maybeEvictAndTake(blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment);
                 }
-                if (frequency > 0) {
-                    blobCacheMetrics.getEvictedCountNonZeroFrequency().increment();
+                if (io == null) {
+                    io = freeRegions.poll();
                 }
-                final SharedBytes.IO freeSlotRetry = freeRegions.poll();
-                if (freeSlotRetry != null) {
-                    assignToSlot(entry, freeSlotRetry);
+                if (io != null) {
+                    assignToSlot(entry, io);
                 } else {
                     boolean removed = keyMapping.remove(regionKey, entry);
                     assert removed;
@@ -1322,7 +1332,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 assert entry.prev != null || entry.chunk.isEvicted();
 
             }
-            assert regionOwners.get(entry.chunk.io) == entry.chunk || entry.chunk.isEvicted();
+            SharedBytes.IO io = entry.chunk.io;
+            assert io != null || entry.chunk.isEvicted();
+            assert io == null || regionOwners.get(io) == entry.chunk || entry.chunk.isEvicted();
             return true;
         }
 
@@ -1384,6 +1396,44 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return -1;
         }
 
+        private SharedBytes.IO maybeEvictAndTake(Runnable evictedNotification) {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            for (int currentFreq = 0; currentFreq < maxFreq; currentFreq++) {
+                // recheck this per freq in case we raced an eviction with an incref'er.
+                SharedBytes.IO freeRegion = freeRegions.poll();
+                if (freeRegion != null) {
+                    return freeRegion;
+                }
+                for (LFUCacheEntry entry = freqs[currentFreq]; entry != null; entry = entry.next) {
+                    boolean evicted = entry.chunk.tryEvictNoDecRef();
+                    if (evicted) {
+                        try {
+                            if (entry.chunk.io != null) {
+                                try {
+                                    if (entry.chunk.refCount() == 1) {
+                                        // grab io, rely on incref'ers also checking evicted field.
+                                        final SharedBytes.IO result = entry.chunk.io;
+                                        entry.chunk.io = null;
+                                        assert regionOwners.remove(result) == entry.chunk;
+                                        return result;
+                                    }
+                                } finally {
+                                    unlink(entry);
+                                    keyMapping.remove(entry.chunk.regionKey, entry);
+                                }
+                            }
+                        } finally {
+                            entry.chunk.decRef();
+                            if (currentFreq > 0) {
+                                evictedNotification.run();
+                            }
+                        }
+                    }
+                }
+            }
+            // give up
+            return null;
+        }
         /**
          * This method tries to evict the least used {@link LFUCacheEntry}. Only entries with the lowest possible frequency are considered
          * for eviction.

@@ -90,11 +90,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(2, cacheService.freeRegionCount());
 
             synchronized (cacheService) {
-                assertTrue(region1.tryEvict());
+                assertTrue(tryEvict(region1));
             }
             assertEquals(3, cacheService.freeRegionCount());
             synchronized (cacheService) {
-                assertFalse(region1.tryEvict());
+                assertFalse(tryEvict(region1));
             }
             assertEquals(3, cacheService.freeRegionCount());
             final var bytesReadFuture = new PlainActionFuture<Integer>();
@@ -107,21 +107,33 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 bytesReadFuture
             );
             synchronized (cacheService) {
-                assertFalse(region0.tryEvict());
+                assertFalse(tryEvict(region0));
             }
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(bytesReadFuture.isDone());
             taskQueue.runAllRunnableTasks();
             synchronized (cacheService) {
-                assertTrue(region0.tryEvict());
+                assertTrue(tryEvict(region0));
             }
             assertEquals(4, cacheService.freeRegionCount());
             synchronized (cacheService) {
-                assertTrue(region2.tryEvict());
+                assertTrue(tryEvict(region2));
             }
             assertEquals(5, cacheService.freeRegionCount());
             assertTrue(bytesReadFuture.isDone());
             assertEquals(Integer.valueOf(1), bytesReadFuture.actionGet());
+        }
+    }
+
+    private static boolean tryEvict(SharedBlobCacheService<Object>.CacheFileRegion region1) {
+        if (randomBoolean()) {
+            return region1.tryEvict();
+        } else {
+            boolean result = region1.tryEvictNoDecRef();
+            if (result) {
+                region1.decRef();
+            }
+            return result;
         }
     }
 
@@ -163,7 +175,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             // explicitly evict region 1
             synchronized (cacheService) {
-                assertTrue(region1.tryEvict());
+                assertTrue(tryEvict(region1));
             }
             assertEquals(1, cacheService.freeRegionCount());
         }
@@ -308,11 +320,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      */
     public void testGetMultiThreaded() throws IOException {
         int threads = between(2, 10);
+        int regionCount = between(1, 20);
+        // if we have enough regions, a get should always have a result (except for explicit evict interference)
+        final boolean allowAlreadyClosed = regionCount < threads;
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(
                 SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(size(between(1, 20) * 100L)).getStringRep()
+                ByteSizeValue.ofBytes(size(regionCount * 100L)).getStringRep()
             )
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getKey(), randomFrom("0", "1ms", "10s"))
@@ -343,11 +358,17 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         ready.await();
                         for (int i = 0; i < iterations; ++i) {
                             try {
-                                SharedBlobCacheService<String>.CacheFileRegion cacheFileRegion = cacheService.get(
-                                    cacheKeys[i],
-                                    fileLength,
-                                    regions[i]
-                                );
+                                SharedBlobCacheService<String>.CacheFileRegion cacheFileRegion;
+                                try {
+                                    cacheFileRegion = cacheService.get(
+                                        cacheKeys[i],
+                                        fileLength,
+                                        regions[i]
+                                    );
+                                } catch (AlreadyClosedException e) {
+                                    assert allowAlreadyClosed || e.getMessage().equals("evicted during free region allocation"): e;
+                                    throw e;
+                                }
                                 if (cacheFileRegion.tryIncRef()) {
                                     if (yield[i] == 0) {
                                         Thread.yield();

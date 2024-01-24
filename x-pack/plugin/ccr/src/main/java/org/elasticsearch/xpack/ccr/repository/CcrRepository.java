@@ -157,7 +157,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         csDeduplicator = new SingleResultDeduplicator<>(
             threadPool.getThreadContext(),
             l -> getRemoteClusterClient().execute(
-                ClusterStateAction.INSTANCE,
+                ClusterStateAction.REMOTE_TYPE,
                 new ClusterStateRequest().clear().metadata(true).nodes(true).masterNodeTimeout(TimeValue.MAX_VALUE),
                 l.map(ClusterStateResponse::getState)
             )
@@ -214,7 +214,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         var remoteClient = getRemoteClusterClient();
         // We set a single dummy index name to avoid fetching all the index data
         ClusterStateResponse clusterState = PlainActionFuture.get(
-            f -> remoteClient.execute(ClusterStateAction.INSTANCE, CcrRequests.metadataRequest("dummy_index_name"), f),
+            f -> remoteClient.execute(ClusterStateAction.REMOTE_TYPE, CcrRequests.metadataRequest("dummy_index_name"), f),
             ccrSettings.getRecoveryActionTimeout().millis(),
             TimeUnit.MILLISECONDS
         );
@@ -228,7 +228,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         var remoteClient = getRemoteClusterClient();
 
         ClusterStateResponse clusterState = PlainActionFuture.get(
-            f -> remoteClient.execute(ClusterStateAction.INSTANCE, CcrRequests.metadataRequest(leaderIndex), f),
+            f -> remoteClient.execute(ClusterStateAction.REMOTE_TYPE, CcrRequests.metadataRequest(leaderIndex), f),
             ccrSettings.getRecoveryActionTimeout().millis(),
             TimeUnit.MILLISECONDS
         );
@@ -514,7 +514,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final String leaderIndex = index.getName();
         final IndicesStatsResponse response = PlainActionFuture.get(
             f -> getRemoteClusterClient().execute(
-                IndicesStatsAction.INSTANCE,
+                IndicesStatsAction.REMOTE_TYPE,
                 new IndicesStatsRequest().indices(leaderIndex).clear().store(true),
                 f
             ),
@@ -598,7 +598,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             )
         );
         remoteClient.execute(
-            PutCcrRestoreSessionAction.INTERNAL_INSTANCE,
+            PutCcrRestoreSessionAction.REMOTE_INTERNAL_TYPE,
             new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId),
             ListenerTimeouts.wrapWithTimeout(
                 threadPool,
@@ -692,7 +692,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 @Override
                 protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     remoteClient.execute(
-                        GetCcrRestoreFileChunkAction.INTERNAL_INSTANCE,
+                        GetCcrRestoreFileChunkAction.REMOTE_INTERNAL_TYPE,
                         new GetCcrRestoreFileChunkRequest(node, sessionUUID, request.md.name(), request.bytesRequested, leaderShardId),
                         ListenerTimeouts.wrapWithTimeout(threadPool, listener.map(getCcrRestoreFileChunkResponse -> {
                             writeFileChunk(request.md, getCcrRestoreFileChunkResponse);
@@ -756,7 +756,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 ClearCcrRestoreSessionAction.INTERNAL_NAME
             );
             ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node, leaderShardId);
-            remoteClient.execute(ClearCcrRestoreSessionAction.INTERNAL_INSTANCE, clearRequest, closeListener.map(empty -> null));
+            remoteClient.execute(ClearCcrRestoreSessionAction.REMOTE_INTERNAL_TYPE, clearRequest, closeListener.map(empty -> null));
         }
 
         private record FileChunk(StoreFileMetadata md, int bytesRequested, boolean lastChunk) implements MultiChunkTransfer.ChunkRequest {}

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -113,11 +112,6 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, MlTasks.JOB_TASK_ID_PREFIX + jobId, parentTaskId, headers);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         public String getJobId() {

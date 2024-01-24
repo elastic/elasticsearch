@@ -9,7 +9,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionRequestLazyBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
@@ -34,11 +34,13 @@ import java.util.List;
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse> implements WriteRequestBuilder<BulkRequestBuilder> {
+public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, BulkResponse>
+    implements
+        WriteRequestBuilder<BulkRequestBuilder> {
     private final String globalIndex;
     private final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final List<FramedData> framedDataList = new ArrayList<>();
-    private final List<ActionRequestBuilder<?, ?>> requestBuilders = new ArrayList<>();
+    private final List<ActionRequestLazyBuilder<?, ?>> requestBuilders = new ArrayList<>();
     private ActiveShardCount waitForActiveShards;
     private TimeValue timeout;
     private String timeoutString;
@@ -47,7 +49,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     private WriteRequest.RefreshPolicy refreshPolicy;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
-        super(client, BulkAction.INSTANCE, null);
+        super(client, BulkAction.INSTANCE);
         this.globalIndex = globalIndex;
     }
 
@@ -185,53 +187,52 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     @Override
-    public BulkRequest request() {
+    public void apply(BulkRequest request) {
+        super.apply(request);
         if (requests.isEmpty() == false && requestBuilders.isEmpty() == false) {
             throw new IllegalStateException("Must use only requests or request builders within a single bulk request");
         }
-        BulkRequest bulkRequest = new BulkRequest(globalIndex);
-        try {
-            for (ActionRequestBuilder<?, ?> requestBuilder : requestBuilders) {
-                ActionRequest request = requestBuilder.request();
-                try {
-                    bulkRequest.add((DocWriteRequest<?>) request);
-                } finally {
-                    request.decRef();
-                }
+        for (ActionRequestLazyBuilder<?, ?> requestBuilder : requestBuilders) {
+            ActionRequest childRequest = requestBuilder.request();
+            try {
+                request.add((DocWriteRequest<?>) childRequest);
+            } finally {
+                childRequest.decRef();
             }
-            for (DocWriteRequest<?> request : requests) {
-                bulkRequest.add(request);
-            }
-            for (FramedData framedData : framedDataList) {
-                try {
-                    bulkRequest.add(framedData.data, framedData.from, framedData.length, framedData.defaultIndex, framedData.xContentType);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            if (waitForActiveShards != null) {
-                bulkRequest.waitForActiveShards(waitForActiveShards);
-            }
-            if (timeout != null) {
-                bulkRequest.timeout(timeout);
-            }
-            if (timeoutString != null) {
-                bulkRequest.timeout(timeoutString);
-            }
-            if (globalPipeline != null) {
-                bulkRequest.pipeline(globalPipeline);
-            }
-            if (globalRouting != null) {
-                bulkRequest.routing(globalRouting);
-            }
-            if (refreshPolicy != null) {
-                bulkRequest.setRefreshPolicy(refreshPolicy);
-            }
-            return bulkRequest;
-        } catch (Exception e) {
-            bulkRequest.decRef();
-            throw e;
         }
+        for (DocWriteRequest<?> childRequest : requests) {
+            request.add(childRequest);
+        }
+        for (FramedData framedData : framedDataList) {
+            try {
+                request.add(framedData.data, framedData.from, framedData.length, framedData.defaultIndex, framedData.xContentType);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        if (waitForActiveShards != null) {
+            request.waitForActiveShards(waitForActiveShards);
+        }
+        if (timeout != null) {
+            request.timeout(timeout);
+        }
+        if (timeoutString != null) {
+            request.timeout(timeoutString);
+        }
+        if (globalPipeline != null) {
+            request.pipeline(globalPipeline);
+        }
+        if (globalRouting != null) {
+            request.routing(globalRouting);
+        }
+        if (refreshPolicy != null) {
+            request.setRefreshPolicy(refreshPolicy);
+        }
+    }
+
+    @Override
+    protected BulkRequest newEmptyInstance() {
+        return new BulkRequest(globalIndex);
     }
 
     private record FramedData(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) {}

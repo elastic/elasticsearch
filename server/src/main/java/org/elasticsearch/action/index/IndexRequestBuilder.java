@@ -10,15 +10,12 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,7 +28,6 @@ import java.util.Map;
 public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, DocWriteResponse, IndexRequestBuilder>
     implements
         WriteRequestBuilder<IndexRequestBuilder> {
-    private String index;
     private String id = null;
     private Map<String, ?> sourceMap;
     private Object[] sourceArray;
@@ -50,20 +46,17 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     private String refreshPolicyString;
     private Long ifSeqNo;
     private Long ifPrimaryTerm;
-    private String timeoutString;
-    private TimeValue timeout;
     private DocWriteRequest.OpType opType;
     private Boolean create;
     private Long version;
     private VersionType versionType;
-    private ActiveShardCount waitForActiveShards;
 
     public IndexRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportIndexAction.TYPE, null);
+        this(client, null);
     }
 
     public IndexRequestBuilder(ElasticsearchClient client, @Nullable String index) {
-        super(client, TransportIndexAction.TYPE, null);
+        super(client, TransportIndexAction.TYPE);
         setIndex(index);
     }
 
@@ -282,140 +275,83 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         return this;
     }
 
-    /*
-     * The following come from ReplicationRequestBuilder and can be moved to a parent class again in the future
-     */
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public IndexRequestBuilder setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public final IndexRequestBuilder setTimeout(String timeout) {
-        this.timeoutString = timeout;
-        return this;
-    }
-
-    public final IndexRequestBuilder setIndex(String index) {
-        this.index = index;
-        return this;
-    }
-
-    public String getIndex() {
-        return index;
-    }
-
-    /**
-     * Sets the number of shard copies that must be active before proceeding with the write.
-     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
-     */
-    public IndexRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
-        this.waitForActiveShards = waitForActiveShards;
-        return this;
-    }
-
-    /**
-     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
-     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
-     * to get the ActiveShardCount.
-     */
-    public IndexRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
-        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    @Override
+    public void apply(IndexRequest request) {
+        super.apply(request);
+        request.id(id);
+        if (sourceMap != null) {
+            if (sourceContentType == null) {
+                request.source(sourceMap);
+            } else {
+                request.source(sourceMap, sourceContentType);
+            }
+        }
+        if (sourceArray != null) {
+            if (sourceContentType == null) {
+                request.source(sourceArray);
+            } else {
+                request.source(sourceContentType, sourceArray);
+            }
+        }
+        if (sourceXContentBuilder != null) {
+            request.source(sourceXContentBuilder);
+        }
+        if (sourceString != null && sourceContentType != null) {
+            request.source(sourceString, sourceContentType);
+        }
+        if (sourceBytesReference != null && sourceContentType != null) {
+            request.source(sourceBytesReference, sourceContentType);
+        }
+        if (sourceBytes != null && sourceContentType != null) {
+            if (sourceOffset != null && sourceLength != null) {
+                request.source(sourceBytes, sourceOffset, sourceLength, sourceContentType);
+            } else {
+                request.source(sourceBytes, sourceContentType);
+            }
+        }
+        if (pipeline != null) {
+            request.setPipeline(pipeline);
+        }
+        if (routing != null) {
+            request.routing(routing);
+        }
+        if (refreshPolicy != null) {
+            request.setRefreshPolicy(refreshPolicy);
+        }
+        if (refreshPolicyString != null) {
+            request.setRefreshPolicy(refreshPolicyString);
+        }
+        if (ifSeqNo != null) {
+            request.setIfSeqNo(ifSeqNo);
+        }
+        if (ifPrimaryTerm != null) {
+            request.setIfPrimaryTerm(ifPrimaryTerm);
+        }
+        if (pipeline != null) {
+            request.setPipeline(pipeline);
+        }
+        if (requireAlias != null) {
+            request.setRequireAlias(requireAlias);
+        }
+        if (requireDataStream != null) {
+            request.setRequireDataStream(requireDataStream);
+        }
+        if (opType != null) {
+            request.opType(opType);
+        }
+        if (create != null) {
+            request.create(create);
+        }
+        if (version != null) {
+            request.version(version);
+        }
+        if (versionType != null) {
+            request.versionType(versionType);
+        }
     }
 
     @Override
-    public IndexRequest request() {
-        IndexRequest indexRequest = new IndexRequest(index);
-        try {
-            indexRequest.id(id);
-            if (sourceMap != null) {
-                if (sourceContentType == null) {
-                    indexRequest.source(sourceMap);
-                } else {
-                    indexRequest.source(sourceMap, sourceContentType);
-                }
-            }
-            if (sourceArray != null) {
-                if (sourceContentType == null) {
-                    indexRequest.source(sourceArray);
-                } else {
-                    indexRequest.source(sourceContentType, sourceArray);
-                }
-            }
-            if (sourceXContentBuilder != null) {
-                indexRequest.source(sourceXContentBuilder);
-            }
-            if (sourceString != null && sourceContentType != null) {
-                indexRequest.source(sourceString, sourceContentType);
-            }
-            if (sourceBytesReference != null && sourceContentType != null) {
-                indexRequest.source(sourceBytesReference, sourceContentType);
-            }
-            if (sourceBytes != null && sourceContentType != null) {
-                if (sourceOffset != null && sourceLength != null) {
-                    indexRequest.source(sourceBytes, sourceOffset, sourceLength, sourceContentType);
-                } else {
-                    indexRequest.source(sourceBytes, sourceContentType);
-                }
-            }
-            if (pipeline != null) {
-                indexRequest.setPipeline(pipeline);
-            }
-            if (routing != null) {
-                indexRequest.routing(routing);
-            }
-            if (refreshPolicy != null) {
-                indexRequest.setRefreshPolicy(refreshPolicy);
-            }
-            if (refreshPolicyString != null) {
-                indexRequest.setRefreshPolicy(refreshPolicyString);
-            }
-            if (timeoutString != null) {
-                indexRequest.timeout(timeoutString);
-            }
-            if (timeout != null) {
-                indexRequest.timeout(timeout);
-            }
-            if (ifSeqNo != null) {
-                indexRequest.setIfSeqNo(ifSeqNo);
-            }
-            if (ifPrimaryTerm != null) {
-                indexRequest.setIfPrimaryTerm(ifPrimaryTerm);
-            }
-            if (pipeline != null) {
-                indexRequest.setPipeline(pipeline);
-            }
-            if (requireAlias != null) {
-                indexRequest.setRequireAlias(requireAlias);
-            }
-            if (requireDataStream != null) {
-                indexRequest.setRequireDataStream(requireDataStream);
-            }
-            if (opType != null) {
-                indexRequest.opType(opType);
-            }
-            if (create != null) {
-                indexRequest.create(create);
-            }
-            if (version != null) {
-                indexRequest.version(version);
-            }
-            if (versionType != null) {
-                indexRequest.versionType(versionType);
-            }
-            if (waitForActiveShards != null) {
-                indexRequest.waitForActiveShards(waitForActiveShards);
-            }
-            return indexRequest;
-        } catch (Exception e) {
-            indexRequest.decRef();
-            throw e;
-        }
+    protected IndexRequest newEmptyInstance() {
+        return new IndexRequest();
     }
 }

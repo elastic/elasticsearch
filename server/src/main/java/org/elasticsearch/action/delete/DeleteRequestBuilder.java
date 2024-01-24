@@ -21,15 +21,23 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     implements
         WriteRequestBuilder<DeleteRequestBuilder> {
 
+    private String id;
+    private String routing;
+    private Long version;
+    private VersionType versionType;
+    private Long seqNo;
+    private Long term;
+
     public DeleteRequestBuilder(ElasticsearchClient client, @Nullable String index) {
-        super(client, TransportDeleteAction.TYPE, new DeleteRequest(index));
+        super(client, TransportDeleteAction.TYPE);
+        setIndex(index);
     }
 
     /**
      * Sets the id of the document to delete.
      */
     public DeleteRequestBuilder setId(String id) {
-        request.id(id);
+        this.id = id;
         return this;
     }
 
@@ -38,7 +46,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
      * and not the id.
      */
     public DeleteRequestBuilder setRouting(String routing) {
-        request.routing(routing);
+        this.routing = routing;
         return this;
     }
 
@@ -47,7 +55,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
      * version exists and no changes happened on the doc since then.
      */
     public DeleteRequestBuilder setVersion(long version) {
-        request.version(version);
+        this.version = version;
         return this;
     }
 
@@ -55,7 +63,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
      * Sets the type of versioning to use. Defaults to {@link VersionType#INTERNAL}.
      */
     public DeleteRequestBuilder setVersionType(VersionType versionType) {
-        request.versionType(versionType);
+        this.versionType = versionType;
         return this;
     }
 
@@ -67,7 +75,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public DeleteRequestBuilder setIfSeqNo(long seqNo) {
-        request.setIfSeqNo(seqNo);
+        this.seqNo = seqNo;
         return this;
     }
 
@@ -79,8 +87,35 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
     public DeleteRequestBuilder setIfPrimaryTerm(long term) {
-        request.setIfPrimaryTerm(term);
+        this.term = term;
         return this;
     }
 
+    @Override
+    public void apply(DeleteRequest request) {
+        super.apply(request);
+        if (id != null) {
+            request.id(id);
+        }
+        if (routing != null) {
+            request.routing(routing);
+        }
+        if (version != null) {
+            request.version(version);
+        }
+        if (versionType != null) {
+            request.versionType(versionType);
+        }
+        if (seqNo != null) {
+            request.setIfSeqNo(seqNo);
+        }
+        if (term != null) {
+            request.setIfPrimaryTerm(term);
+        }
+    }
+
+    @Override
+    protected DeleteRequest newEmptyInstance() {
+        return new DeleteRequest();
+    }
 }

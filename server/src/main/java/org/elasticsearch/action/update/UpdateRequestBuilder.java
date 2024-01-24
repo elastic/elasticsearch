@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +27,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     implements
         WriteRequestBuilder<UpdateRequestBuilder> {
 
-    private String index;
     private String id;
     private String routing;
     private Script script;
@@ -66,15 +64,13 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     private Boolean scriptedUpsert;
     private Boolean requireAlias;
     private WriteRequest.RefreshPolicy refreshPolicy;
-    private String timeoutString;
-    private TimeValue timeout;
 
     public UpdateRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportUpdateAction.TYPE, null);
+        this(client, null, null);
     }
 
     public UpdateRequestBuilder(ElasticsearchClient client, String index, String id) {
-        super(client, TransportUpdateAction.TYPE, null);
+        super(client, TransportUpdateAction.TYPE);
         setIndex(index);
         setId(id);
     }
@@ -422,149 +418,120 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
-    /*
-     * The following come from ReplicationRequestBuilder and can be moved to a parent class again in the future
-     */
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public UpdateRequestBuilder setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public final UpdateRequestBuilder setTimeout(String timeout) {
-        this.timeoutString = timeout;
-        return this;
-    }
-
-    public final UpdateRequestBuilder setIndex(String index) {
-        this.index = index;
-        return this;
+    @Override
+    public void apply(UpdateRequest request) {
+        super.apply(request);
+        if (id != null) {
+            request.id(id);
+        }
+        if (routing != null) {
+            request.routing(routing);
+        }
+        if (script != null) {
+            request.script(script);
+        }
+        if (fetchSourceInclude != null || fetchSourceExclude != null) {
+            request.fetchSource(fetchSourceInclude, fetchSourceExclude);
+        }
+        if (fetchSourceIncludeArray != null || fetchSourceExcludeArray != null) {
+            request.fetchSource(fetchSourceIncludeArray, fetchSourceExcludeArray);
+        }
+        if (fetchSource != null) {
+            request.fetchSource(fetchSource);
+        }
+        if (retryOnConflict != null) {
+            request.retryOnConflict(retryOnConflict);
+        }
+        if (version != null) {
+            request.version(version);
+        }
+        if (versionType != null) {
+            request.versionType(versionType);
+        }
+        if (ifSeqNo != null) {
+            request.setIfSeqNo(ifSeqNo);
+        }
+        if (ifPrimaryTerm != null) {
+            request.setIfPrimaryTerm(ifPrimaryTerm);
+        }
+        if (waitForActiveShards != null) {
+            request.waitForActiveShards(waitForActiveShards);
+        }
+        if (doc != null) {
+            request.doc(doc);
+        }
+        if (docSourceXContentBuilder != null) {
+            request.doc(docSourceXContentBuilder);
+        }
+        if (docSourceMap != null) {
+            if (docSourceXContentType == null) {
+                request.doc(docSourceMap);
+            } else {
+                request.doc(docSourceMap, docSourceXContentType);
+            }
+        }
+        if (docSourceString != null && docSourceXContentType != null) {
+            request.doc(docSourceString, docSourceXContentType);
+        }
+        if (docSourceBytes != null && docSourceXContentType != null) {
+            if (docSourceOffset != null && docSourceLength != null) {
+                request.doc(docSourceBytes, docSourceOffset, docSourceLength, docSourceXContentType);
+            }
+        }
+        if (docSourceArray != null) {
+            if (docSourceXContentType == null) {
+                request.doc(docSourceArray);
+            } else {
+                request.doc(docSourceXContentType, docSourceArray);
+            }
+        }
+        if (upsert != null) {
+            request.upsert(upsert);
+        }
+        if (upsertSourceXContentBuilder != null) {
+            request.upsert(upsertSourceXContentBuilder);
+        }
+        if (upsertSourceMap != null) {
+            if (upsertSourceXContentType == null) {
+                request.upsert(upsertSourceMap);
+            } else {
+                request.upsert(upsertSourceMap, upsertSourceXContentType);
+            }
+        }
+        if (upsertSourceString != null && upsertSourceXContentType != null) {
+            request.upsert(upsertSourceString, upsertSourceXContentType);
+        }
+        if (upsertSourceBytes != null && upsertSourceXContentType != null) {
+            if (upsertSourceOffset != null && upsertSourceLength != null) {
+                request.upsert(upsertSourceBytes, upsertSourceOffset, upsertSourceLength, upsertSourceXContentType);
+            }
+        }
+        if (upsertSourceArray != null) {
+            if (upsertSourceXContentType == null) {
+                request.upsert(upsertSourceArray);
+            } else {
+                request.upsert(upsertSourceXContentType, upsertSourceArray);
+            }
+        }
+        if (docAsUpsert != null) {
+            request.docAsUpsert(docAsUpsert);
+        }
+        if (detectNoop != null) {
+            request.detectNoop(detectNoop);
+        }
+        if (scriptedUpsert != null) {
+            request.scriptedUpsert(scriptedUpsert);
+        }
+        if (requireAlias != null) {
+            request.setRequireAlias(requireAlias);
+        }
+        if (refreshPolicy != null) {
+            request.setRefreshPolicy(refreshPolicy);
+        }
     }
 
     @Override
-    public UpdateRequest request() {
-        UpdateRequest updateRequest = new UpdateRequest(index, id);
-        try {
-            if (routing != null) {
-                updateRequest.routing(routing);
-            }
-            if (script != null) {
-                updateRequest.script(script);
-            }
-            if (fetchSourceInclude != null || fetchSourceExclude != null) {
-                updateRequest.fetchSource(fetchSourceInclude, fetchSourceExclude);
-            }
-            if (fetchSourceIncludeArray != null || fetchSourceExcludeArray != null) {
-                updateRequest.fetchSource(fetchSourceIncludeArray, fetchSourceExcludeArray);
-            }
-            if (fetchSource != null) {
-                updateRequest.fetchSource(fetchSource);
-            }
-            if (retryOnConflict != null) {
-                updateRequest.retryOnConflict(retryOnConflict);
-            }
-            if (version != null) {
-                updateRequest.version(version);
-            }
-            if (versionType != null) {
-                updateRequest.versionType(versionType);
-            }
-            if (ifSeqNo != null) {
-                updateRequest.setIfSeqNo(ifSeqNo);
-            }
-            if (ifPrimaryTerm != null) {
-                updateRequest.setIfPrimaryTerm(ifPrimaryTerm);
-            }
-            if (waitForActiveShards != null) {
-                updateRequest.waitForActiveShards(waitForActiveShards);
-            }
-            if (doc != null) {
-                updateRequest.doc(doc);
-            }
-            if (docSourceXContentBuilder != null) {
-                updateRequest.doc(docSourceXContentBuilder);
-            }
-            if (docSourceMap != null) {
-                if (docSourceXContentType == null) {
-                    updateRequest.doc(docSourceMap);
-                } else {
-                    updateRequest.doc(docSourceMap, docSourceXContentType);
-                }
-            }
-            if (docSourceString != null && docSourceXContentType != null) {
-                updateRequest.doc(docSourceString, docSourceXContentType);
-            }
-            if (docSourceBytes != null && docSourceXContentType != null) {
-                if (docSourceOffset != null && docSourceLength != null) {
-                    updateRequest.doc(docSourceBytes, docSourceOffset, docSourceLength, docSourceXContentType);
-                }
-            }
-            if (docSourceArray != null) {
-                if (docSourceXContentType == null) {
-                    updateRequest.doc(docSourceArray);
-                } else {
-                    updateRequest.doc(docSourceXContentType, docSourceArray);
-                }
-            }
-            if (upsert != null) {
-                updateRequest.upsert(upsert);
-            }
-            if (upsertSourceXContentBuilder != null) {
-                updateRequest.upsert(upsertSourceXContentBuilder);
-            }
-            if (upsertSourceMap != null) {
-                if (upsertSourceXContentType == null) {
-                    updateRequest.upsert(upsertSourceMap);
-                } else {
-                    updateRequest.upsert(upsertSourceMap, upsertSourceXContentType);
-                }
-            }
-            if (upsertSourceString != null && upsertSourceXContentType != null) {
-                updateRequest.upsert(upsertSourceString, upsertSourceXContentType);
-            }
-            if (upsertSourceBytes != null && upsertSourceXContentType != null) {
-                if (upsertSourceOffset != null && upsertSourceLength != null) {
-                    updateRequest.upsert(upsertSourceBytes, upsertSourceOffset, upsertSourceLength, upsertSourceXContentType);
-                }
-            }
-            if (upsertSourceArray != null) {
-                if (upsertSourceXContentType == null) {
-                    updateRequest.upsert(upsertSourceArray);
-                } else {
-                    updateRequest.upsert(upsertSourceXContentType, upsertSourceArray);
-                }
-            }
-            if (docAsUpsert != null) {
-                updateRequest.docAsUpsert(docAsUpsert);
-            }
-            if (detectNoop != null) {
-                updateRequest.detectNoop(detectNoop);
-            }
-            if (scriptedUpsert != null) {
-                updateRequest.scriptedUpsert(scriptedUpsert);
-            }
-            if (requireAlias != null) {
-                updateRequest.setRequireAlias(requireAlias);
-            }
-            if (refreshPolicy != null) {
-                updateRequest.setRefreshPolicy(refreshPolicy);
-            }
-            if (timeoutString != null) {
-                updateRequest.timeout(timeoutString);
-            }
-            if (timeout != null) {
-                updateRequest.timeout(timeout);
-            }
-            return updateRequest;
-        } catch (Exception e) {
-            updateRequest.decRef();
-            throw e;
-        }
+    protected UpdateRequest newEmptyInstance() {
+        return new UpdateRequest();
     }
 }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionRequestLazyBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -18,10 +18,16 @@ import org.elasticsearch.core.TimeValue;
 public abstract class ReplicationRequestBuilder<
     Request extends ReplicationRequest<Request>,
     Response extends ActionResponse,
-    RequestBuilder extends ReplicationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<Request, Response> {
+    RequestBuilder extends ReplicationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestLazyBuilder<
+        Request,
+        Response> {
+    private String index;
+    private TimeValue timeout;
+    private String timeoutString;
+    private ActiveShardCount waitForActiveShards;
 
-    protected ReplicationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
-        super(client, action, request);
+    protected ReplicationRequestBuilder(ElasticsearchClient client, ActionType<Response> action) {
+        super(client, action);
     }
 
     /**
@@ -29,7 +35,7 @@ public abstract class ReplicationRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        this.timeout = timeout;
         return (RequestBuilder) this;
     }
 
@@ -38,14 +44,18 @@ public abstract class ReplicationRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
+        this.timeoutString = timeout;
         return (RequestBuilder) this;
     }
 
     @SuppressWarnings("unchecked")
     public RequestBuilder setIndex(String index) {
-        request.index(index);
+        this.index = index;
         return (RequestBuilder) this;
+    }
+
+    public String getIndex() {
+        return index;
     }
 
     /**
@@ -54,7 +64,7 @@ public abstract class ReplicationRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
-        request.waitForActiveShards(waitForActiveShards);
+        this.waitForActiveShards = waitForActiveShards;
         return (RequestBuilder) this;
     }
 
@@ -65,5 +75,22 @@ public abstract class ReplicationRequestBuilder<
      */
     public RequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
         return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    @Override
+    public void apply(Request request) {
+        super.apply(request);
+        if (index != null) {
+            request.index(index);
+        }
+        if (timeout != null) {
+            request.timeout(timeout);
+        }
+        if (timeoutString != null) {
+            request.timeout(timeoutString);
+        }
+        if (waitForActiveShards != null) {
+            request.waitForActiveShards(waitForActiveShards);
+        }
     }
 }

@@ -71,9 +71,4 @@ public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollReques
             request.setPipeline(pipeline);
         }
     }
-
-    @Override
-    protected UpdateByQueryRequest newEmptyInstance() {
-        throw new UnsupportedOperationException("Empty UpdateByQueryRequest cannot be instantiated");
-    }
 }

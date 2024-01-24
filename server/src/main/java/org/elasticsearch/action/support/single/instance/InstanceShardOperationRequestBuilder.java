@@ -8,16 +8,16 @@
 
 package org.elasticsearch.action.support.single.instance;
 
-import org.elasticsearch.action.ActionRequestLazyBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ManagedActionRequestLazyBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 
 public abstract class InstanceShardOperationRequestBuilder<
     Request extends InstanceShardOperationRequest<Request>,
     Response extends ActionResponse,
-    RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestLazyBuilder<
+    RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>> extends ManagedActionRequestLazyBuilder<
         Request,
         Response> {
     private String index;

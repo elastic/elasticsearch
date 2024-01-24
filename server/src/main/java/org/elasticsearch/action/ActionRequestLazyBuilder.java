@@ -31,18 +31,9 @@ public abstract class ActionRequestLazyBuilder<Request extends ActionRequest, Re
 
     /**
      * This method creates the request. The caller of this method is responsible for calling Request#decRef.
-     * @return
+     * @return A newly-built Request, fully initialized by this builder.
      */
-    public Request request() {
-        Request request = newEmptyInstance();
-        try {
-            apply(request);
-            return request;
-        } catch (Exception e) {
-            request.decRef();
-            throw e;
-        }
-    }
+    public abstract Request request();
 
     public ActionFuture<Response> execute() {
         return client.execute(action, request());
@@ -67,16 +58,9 @@ public abstract class ActionRequestLazyBuilder<Request extends ActionRequest, Re
     }
 
     /**
-     * This method is meant to be implemented by sub-classes. If the default request() method is not overriden, this method will be
-     * handed a newly-created instance of the request for the builder to populate.
-     * @param request
+     * This method is meant to be implemented by sub-classes. It should fully initialize the object passed to it with all information in
+     * that builder.
+     * @param request A Request populated with all information from this builder.
      */
     protected void apply(Request request) {}
-
-    /**
-     * This method is meant to be implemented by sub-classes. If it is not possible to safely create a new empty instance of the request,
-     * then the request() method must be overriden.
-     * @return
-     */
-    protected abstract Request newEmptyInstance();
 }

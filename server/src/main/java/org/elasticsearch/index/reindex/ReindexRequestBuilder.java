@@ -99,9 +99,4 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
             request.setRemoteInfo(remoteInfo);
         }
     }
-
-    @Override
-    protected ReindexRequest newEmptyInstance() {
-        throw new UnsupportedOperationException("Empty ReindexRequests cannot be instantiated");
-    }
 }

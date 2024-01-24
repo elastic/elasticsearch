@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestLazyBuilder;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.ManagedActionRequestLazyBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
@@ -34,7 +35,7 @@ import java.util.List;
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, BulkResponse>
+public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequest, BulkResponse>
     implements
         WriteRequestBuilder<BulkRequestBuilder> {
     private final String globalIndex;

@@ -60,9 +60,4 @@ public class DeleteByQueryRequestBuilder extends AbstractBulkByScrollRequestBuil
             request.setAbortOnVersionConflict(abortOnVersionConflict);
         }
     }
-
-    @Override
-    protected DeleteByQueryRequest newEmptyInstance() {
-        throw new UnsupportedOperationException("Empty DeleteByQueryRequests cannot be instantiated");
-    }
 }

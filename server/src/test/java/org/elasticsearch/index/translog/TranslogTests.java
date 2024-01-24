@@ -2041,7 +2041,6 @@ public class TranslogTests extends ESTestCase {
         assertEquals(ops, readOperations);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/104680") // Need to implement and call assertNoSeqNumberConflict
     public void testSnapshotCurrentHasUnexpectedOperationsForTrimmedOperations() throws Exception {
         int extraDocs = randomIntBetween(10, 15);
 

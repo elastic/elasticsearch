@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -236,23 +237,23 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     /**
      * Add the given operation to the translog with the specified sequence number; returns the location the bytes were written to.
      *
-     * @param operation the operation
+     * @param data the operation data to write to the translog
      * @return the location the bytes were written to
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
-    public Translog.Location add(final Translog.SizedWriteable operation, final long seqNo) throws IOException {
+    public Translog.Location add(final Translog.SizedWriteable data, final long seqNo) throws IOException {
 
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
-            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
+            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4L);
         }
 
         final Translog.Location location;
         synchronized (this) {
             ensureOpen();
 
-            var dataLength = operation.getSizeInBytes() + 2 * Integer.BYTES; // size + checksum
-            buffer.add(operation);
+            var dataLength = data.getSizeInBytes() + 2 * Integer.BYTES; // size + checksum
+            buffer.add(data);
 
             // assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
@@ -268,7 +269,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             operationCounter++;
 
-            // assert assertNoSeqNumberConflict(seqNo, data);
+            assert assertNoSeqNumberConflict(seqNo, data);
 
             location = new Translog.Location(generation, offset, dataLength);
             // operationListener.operationAdded(data, seqNo, location);
@@ -278,13 +279,21 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return location;
     }
 
-    private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
+    private synchronized boolean assertNoSeqNumberConflict(long seqNo, Translog.SizedWriteable operation) throws IOException {
         if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             // nothing to do
-        } else if (seenSequenceNumbers.containsKey(seqNo)) {
+            return true;
+        }
+
+        var dataLength = operation.getSizeInBytes() + 2 * Integer.BYTES; // size + checksum
+        var digest = new BufferedChecksum(new CRC32());
+        BytesArray data = new BytesArray(new byte[dataLength]);
+        writeOperationWithSize(new BytesArrayStreamOutput(data, digest), operation, digest);
+
+        if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {
-                Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
+                Translog.Operation newOp = (Translog.Operation) operation;
                 Translog.Operation prvOp = Translog.readOperation(
                     new BufferedChecksumStreamInput(previous.v1().streamInput(), "assertion")
                 );
@@ -322,10 +331,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 }
             }
         } else {
-            seenSequenceNumbers.put(
-                seqNo,
-                new Tuple<>(new BytesArray(data.toBytesRef(), true), new RuntimeException("stack capture previous op"))
-            );
+            seenSequenceNumbers.put(seqNo, new Tuple<>(data, new RuntimeException("stack capture previous op")));
         }
         return true;
     }
@@ -756,5 +762,52 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 channel.write(ioBuffer);
             }
         }
+    }
+
+    private static class BytesArrayStreamOutput extends BytesStream {
+        private final BytesArray bytes;
+        private final Checksum digest;
+        private int count;
+
+        BytesArrayStreamOutput(BytesArray bytes, Checksum digest) {
+            super();
+            this.bytes = bytes;
+            this.digest = digest;
+        }
+
+        @Override
+        public BytesReference bytes() {
+            return bytes;
+        }
+
+        @Override
+        public long position() {
+            return count;
+        }
+
+        @Override
+        public void writeByte(byte b) {
+            bytes.array()[count] = b;
+            digest.update(b);
+            count++;
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) {
+            // nothing to copy
+            if (length == 0) {
+                return;
+            }
+
+            Objects.checkFromIndexSize(offset, length, b.length);
+            System.arraycopy(b, offset, bytes.array(), count, length);
+            digest.update(b, offset, length);
+            count += length;
+        }
+        @Override
+        public void flush() {}
+
+        @Override
+        public void close() {}
     }
 }

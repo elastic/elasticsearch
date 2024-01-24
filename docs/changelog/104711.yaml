@@ -1,0 +1,5 @@
+pr: 104711
+summary: "Fixing NPE when requesting [_none_] for `stored_fields`"
+area: Search
+type: bug
+issues: []

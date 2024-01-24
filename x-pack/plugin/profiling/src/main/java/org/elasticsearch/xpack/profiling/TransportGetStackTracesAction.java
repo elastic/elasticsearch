@@ -483,11 +483,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         private final GetStackTracesResponseBuilder responseBuilder;
         private final ActionListener<GetStackTracesResponse> submitListener;
         private final Map<String, StackTrace> stackTracePerId;
-        // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
-        // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
-        // needed to load it.
-        private final Set<String> stackFrameIds = new ConcurrentSkipListSet<>();
-        private final Set<String> executableIds = new ConcurrentSkipListSet<>();
+        private final Set<String> stackFrameIds;
+        private final Set<String> executableIds;
         private final AtomicInteger totalFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraces");
         private final StopWatch hostsWatch = new StopWatch("retrieveHostMetadata");
@@ -506,6 +503,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             this.submitTask = submitTask;
             this.clusterState = clusterState;
             this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
+            // pre-size with a bit of headroom so the collection isn't resized too often
+            this.stackFrameIds = Collections.newSetFromMap(new ConcurrentHashMap<>(stackTraceCount * 5));
+            this.executableIds = Collections.newSetFromMap(new ConcurrentHashMap<>(stackTraceCount));
             this.expectedResponses = new AtomicInteger(expectedResponses);
             this.client = client;
             this.responseBuilder = responseBuilder;

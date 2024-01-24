@@ -73,7 +73,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -1627,7 +1626,7 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    @Ignore
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/104680")
     public void testTranslogOperationListener() throws IOException {
         Path tempDir = createTempDir();
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
@@ -2042,7 +2041,7 @@ public class TranslogTests extends ESTestCase {
         assertEquals(ops, readOperations);
     }
 
-    @Ignore // Need to implement and call assertNoSeqNumberConflict
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/104680") // Need to implement and call assertNoSeqNumberConflict
     public void testSnapshotCurrentHasUnexpectedOperationsForTrimmedOperations() throws Exception {
         int extraDocs = randomIntBetween(10, 15);
 

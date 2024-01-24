@@ -80,6 +80,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private volatile long bufferedBytes;
     private ArrayList<Translog.SizedWriteable> buffer = new ArrayList<>();
 
+    private final Checksum digest = new BufferedChecksum(new CRC32());
+
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
     private final DiskIoBufferPool diskIoBufferPool;
@@ -571,7 +573,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             return;
         }
 
-        final Checksum digest = new BufferedChecksum(new CRC32());
         ByteBuffer ioBuffer = diskIoBufferPool.maybeGetDirectIOBuffer();
         final StreamOutput streamOutput;
         if (ioBuffer == null) {

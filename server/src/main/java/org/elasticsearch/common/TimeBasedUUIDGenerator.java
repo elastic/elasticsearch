@@ -24,10 +24,10 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
 
     // We only use bottom 3 bytes for the sequence number. Paranoia: init with random int so that if JVM/OS/machine goes down, clock slips
     // backwards, and JVM comes back up, we are less likely to be on the same sequenceNumber at the same time:
-    private final AtomicInteger sequenceNumber = new AtomicInteger(SecureRandomHolder.INSTANCE.nextInt());
+    protected final AtomicInteger sequenceNumber = new AtomicInteger(SecureRandomHolder.INSTANCE.nextInt());
 
     // Used to ensure clock moves forward:
-    private final AtomicLong lastTimestamp = new AtomicLong(0);
+    protected final AtomicLong lastTimestamp = new AtomicLong(0);
 
     private static final byte[] SECURE_MUNGED_ADDRESS = MacAddressProvider.getSecureMungedAddress();
 
@@ -35,7 +35,7 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
         assert SECURE_MUNGED_ADDRESS.length == 6;
     }
 
-    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getUrlEncoder().withoutPadding();
+    protected static final Base64.Encoder BASE_64_NO_PADDING = Base64.getUrlEncoder().withoutPadding();
 
     // protected for testing
     protected long currentTimeMillis() {

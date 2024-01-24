@@ -15,7 +15,7 @@ import java.util.Random;
 public class UUIDs {
 
     private static final RandomBasedUUIDGenerator RANDOM_UUID_GENERATOR = new RandomBasedUUIDGenerator();
-    private static final UUIDGenerator TIME_UUID_GENERATOR = new TimeBasedUUIDGenerator();
+    private static final UUIDGenerator TIME_UUID_GENERATOR = new ReverseTimeBasedUUIDGenerator();
 
     /** Generates a time-based UUID (similar to Flake IDs), which is preferred when generating an ID to be indexed into a Lucene index as
      *  primary key.  The id is opaque and the implementation is free to change at any time! */

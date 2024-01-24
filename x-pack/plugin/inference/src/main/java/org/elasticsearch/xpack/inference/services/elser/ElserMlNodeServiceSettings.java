@@ -12,25 +12,16 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.settings.MlNodeDeployedServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ElserMlNodeServiceSettings implements ServiceSettings {
+public class ElserMlNodeServiceSettings extends MlNodeDeployedServiceSettings {
 
     public static final String NAME = "elser_mlnode_service_settings";
-    public static final String NUM_ALLOCATIONS = "num_allocations";
-    public static final String NUM_THREADS = "num_threads";
-    public static final String MODEL_VERSION = "model_version";
-
-    private final int numAllocations;
-    private final int numThreads;
-    private final String modelVariant;
 
     /**
      * Parse the Elser service setting from map and validate the setting values.
@@ -46,19 +37,7 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         Integer numAllocations = ServiceUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
         Integer numThreads = ServiceUtils.removeAsType(map, NUM_THREADS, Integer.class);
 
-        if (numAllocations == null) {
-            validationException.addValidationError(
-                ServiceUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
-            );
-        } else if (numAllocations < 1) {
-            validationException.addValidationError(mustBeAPositiveNumberError(NUM_ALLOCATIONS, numAllocations));
-        }
-
-        if (numThreads == null) {
-            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
-        } else if (numThreads < 1) {
-            validationException.addValidationError(mustBeAPositiveNumberError(NUM_THREADS, numThreads));
-        }
+        validateParameters(numAllocations, validationException, numThreads);
 
         String version = ServiceUtils.removeAsType(map, MODEL_VERSION, String.class);
         if (version != null && ElserMlNodeService.VALID_ELSER_MODELS.contains(version) == false) {
@@ -69,7 +48,12 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
             throw validationException;
         }
 
-        var builder = new Builder();
+        var builder = new MlNodeDeployedServiceSettings.Builder() {
+            @Override
+            public ElserMlNodeServiceSettings build() {
+                return new ElserMlNodeServiceSettings(getNumAllocations(), getNumThreads(), getModelVariant());
+            }
+        };
         builder.setNumAllocations(numAllocations);
         builder.setNumThreads(numThreads);
         builder.setModelVariant(version);
@@ -77,19 +61,18 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
     }
 
     public ElserMlNodeServiceSettings(int numAllocations, int numThreads, String variant) {
-        this.numAllocations = numAllocations;
-        this.numThreads = numThreads;
-        this.modelVariant = Objects.requireNonNull(variant);
+        super(numAllocations, numThreads, variant);
+        Objects.requireNonNull(variant);
     }
 
     public ElserMlNodeServiceSettings(StreamInput in) throws IOException {
-        numAllocations = in.readVInt();
-        numThreads = in.readVInt();
-        if (transportVersionIsCompatibleWithElserModelVersion(in.getTransportVersion())) {
-            modelVariant = in.readString();
-        } else {
-            modelVariant = ElserMlNodeService.ELSER_V2_MODEL;
-        }
+        super(
+            in.readVInt(),
+            in.readVInt(),
+            transportVersionIsCompatibleWithElserModelVersion(in.getTransportVersion())
+                ? in.readString()
+                : ElserMlNodeService.ELSER_V2_MODEL
+        );
     }
 
     static boolean transportVersionIsCompatibleWithElserModelVersion(TransportVersion transportVersion) {
@@ -103,31 +86,9 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         }
     }
 
-    public int getNumAllocations() {
-        return numAllocations;
-    }
-
-    public int getNumThreads() {
-        return numThreads;
-    }
-
-    public String getModelVariant() {
-        return modelVariant;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(NUM_ALLOCATIONS, numAllocations);
-        builder.field(NUM_THREADS, numThreads);
-        builder.field(MODEL_VERSION, modelVariant);
-        builder.endObject();
-        return builder;
-    }
-
     @Override
     public String getWriteableName() {
-        return NAME;
+        return ElserMlNodeServiceSettings.NAME;
     }
 
     @Override
@@ -137,16 +98,16 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(numAllocations);
-        out.writeVInt(numThreads);
+        out.writeVInt(getNumAllocations());
+        out.writeVInt(getNumThreads());
         if (transportVersionIsCompatibleWithElserModelVersion(out.getTransportVersion())) {
-            out.writeString(modelVariant);
+            out.writeString(getModelVariant());
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numAllocations, numThreads, modelVariant);
+        return Objects.hash(NAME, getNumAllocations(), getNumThreads(), getModelVariant());
     }
 
     @Override
@@ -154,36 +115,9 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ElserMlNodeServiceSettings that = (ElserMlNodeServiceSettings) o;
-        return numAllocations == that.numAllocations && numThreads == that.numThreads && Objects.equals(modelVariant, that.modelVariant);
+        return getNumAllocations() == that.getNumAllocations()
+            && getNumThreads() == that.getNumThreads()
+            && Objects.equals(getModelVariant(), that.getModelVariant());
     }
 
-    private static String mustBeAPositiveNumberError(String settingName, int value) {
-        return "Invalid value [" + value + "]. [" + settingName + "] must be a positive integer";
-    }
-
-    public static class Builder {
-        private int numAllocations;
-        private int numThreads;
-        private String modelVariant;
-
-        public void setNumAllocations(int numAllocations) {
-            this.numAllocations = numAllocations;
-        }
-
-        public void setNumThreads(int numThreads) {
-            this.numThreads = numThreads;
-        }
-
-        public void setModelVariant(String modelVariant) {
-            this.modelVariant = modelVariant;
-        }
-
-        public String getModelVariant() {
-            return modelVariant;
-        }
-
-        public ElserMlNodeServiceSettings build() {
-            return new ElserMlNodeServiceSettings(numAllocations, numThreads, modelVariant);
-        }
-    }
 }

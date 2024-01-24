@@ -59,6 +59,28 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         );
     }
 
+    public static TextEmbeddingResults of(List<? extends InferenceResults> results) {
+        List<Embedding> embeddings = new ArrayList<>(results.size());
+        for (InferenceResults result : results) {
+            if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
+                embeddings.add(new Embedding(convertEmbeddingResultToEmbedding(embeddingResult)));
+            } else {
+                throw new IllegalArgumentException("Received invalid legacy inference result");
+            }
+        }
+        return new TextEmbeddingResults(embeddings);
+    }
+
+    private static List<Float> convertEmbeddingResultToEmbedding(
+        org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult
+    ) {
+        List<Float> embedding = new ArrayList<>();
+        for (float dim : embeddingResult.getInferenceAsFloat()) {
+            embedding.add(dim);
+        }
+        return embedding;
+    }
+
     @Override
     public int getFirstEmbeddingSize() {
         return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));

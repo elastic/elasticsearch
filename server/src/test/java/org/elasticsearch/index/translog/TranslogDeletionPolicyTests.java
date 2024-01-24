@@ -10,8 +10,6 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -102,9 +100,10 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             for (int ops = randomIntBetween(0, 20); ops > 0; ops--) {
                 out.reset(bytes);
                 out.writeInt(ops);
-                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), ops);
+                writer.add(new TestTranslogOperation(bytes), ops);
             }
         }
         return new Tuple<>(readers, writer);
     }
+
 }

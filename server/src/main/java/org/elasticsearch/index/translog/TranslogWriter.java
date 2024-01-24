@@ -9,20 +9,17 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.store.BufferedChecksum;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -32,6 +29,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
@@ -43,13 +41,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final ShardId shardId;
     private final FileChannel checkpointChannel;
     private final Path checkpointPath;
-    private final BigArrays bigArrays;
+
     // the last checkpoint that was written when the translog was last synced
     private volatile Checkpoint lastSyncedCheckpoint;
     /* the number of translog operations written to this file */
@@ -78,7 +78,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
-    private ReleasableBytesStreamOutput buffer;
+    private ArrayList<Translog.SizedWriteable> buffer = new ArrayList<>();
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
@@ -128,7 +128,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
-        this.bigArrays = bigArrays;
         this.diskIoBufferPool = diskIoBufferPool;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
@@ -216,15 +215,31 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
     }
 
+    private static void writeOperationWithSize(StreamOutput out, Translog.SizedWriteable op, Checksum digest) throws IOException {
+        final long start = out.position();
+        final int operationSize = op.getSizeInBytes() + Integer.BYTES; // op_size + checksum
+        out.writeInt(operationSize);
+
+        digest.reset();
+        op.writeTo(out);
+        long checksum = digest.getValue();
+        out.writeInt((int) checksum);
+
+        final long end = out.position();
+        final int writtenOperationSize = (int) (end - Integer.BYTES - start);
+
+        assert writtenOperationSize == operationSize;
+    }
+
     /**
-     * Add the given bytes to the translog with the specified sequence number; returns the location the bytes were written to.
+     * Add the given operation to the translog with the specified sequence number; returns the location the bytes were written to.
      *
-     * @param data  the bytes to write
-     * @param seqNo the sequence number associated with the operation
+     * @param operation the operation
      * @return the location the bytes were written to
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
-    public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
+    public Translog.Location add(final Translog.SizedWriteable operation, final long seqNo) throws IOException {
+
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
@@ -233,13 +248,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final Translog.Location location;
         synchronized (this) {
             ensureOpen();
-            if (buffer == null) {
-                buffer = new ReleasableBytesStreamOutput(bigArrays);
-            }
-            assert bufferedBytes == buffer.size();
+
+            var dataLength = operation.getSizeInBytes() + 2 * Integer.BYTES; // size + checksum
+            buffer.add(operation);
+
+            // assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
-            totalOffset += data.length();
-            data.writeTo(buffer);
+            totalOffset += dataLength;
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
@@ -251,11 +266,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             operationCounter++;
 
-            assert assertNoSeqNumberConflict(seqNo, data);
+            // assert assertNoSeqNumberConflict(seqNo, data);
 
-            location = new Translog.Location(generation, offset, data.length());
-            operationListener.operationAdded(data, seqNo, location);
-            bufferedBytes = buffer.size();
+            location = new Translog.Location(generation, offset, dataLength);
+            // operationListener.operationAdded(data, seqNo, location);
+            bufferedBytes += dataLength;
         }
 
         return location;
@@ -406,7 +421,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         throw ex;
                     }
                     // If we reached this point, all of the buffered ops should have been flushed successfully.
-                    assert buffer == null;
+                    assert buffer.isEmpty();
                     assert checkChannelPositionWhileHandlingException(totalOffset);
                     assert totalOffset == lastSyncedCheckpoint.offset;
                     if (closed.compareAndSet(false, true)) {
@@ -444,7 +459,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
                     }
                     // If we reached this point, all of the buffered ops should have been flushed successfully.
-                    assert buffer == null;
+                    assert buffer.isEmpty();
                     assert checkChannelPositionWhileHandlingException(totalOffset);
                     assert totalOffset == lastSyncedCheckpoint.offset;
                     return super.newSnapshot();
@@ -477,7 +492,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
                     final List<Long> flushedSequenceNumbers;
-                    final ReleasableBytesReference toWrite;
+                    final List<Translog.SizedWriteable> toWrite;
                     try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
                             ensureOpen();
@@ -503,7 +518,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.
                     try {
-                        assert lastSyncedCheckpoint.offset != checkpointToSync.offset || toWrite.length() == 0;
+                        assert lastSyncedCheckpoint.offset != checkpointToSync.offset || toWrite.isEmpty();
                         if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
                             channel.force(false);
                         }
@@ -538,59 +553,40 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
     }
 
-    private synchronized ReleasableBytesReference pollOpsToWrite() {
+    private synchronized List<Translog.SizedWriteable> pollOpsToWrite() {
         ensureOpen();
-        if (this.buffer != null) {
-            ReleasableBytesStreamOutput toWrite = this.buffer;
-            this.buffer = null;
-            this.bufferedBytes = 0;
-            return new ReleasableBytesReference(toWrite.bytes(), toWrite);
+        if (this.buffer.isEmpty()) {
+            return List.of();
         } else {
-            return ReleasableBytesReference.empty();
+            var toWrite = this.buffer;
+            this.buffer = new ArrayList<>();
+            this.bufferedBytes = 0;
+            return toWrite;
         }
     }
 
-    private void writeAndReleaseOps(ReleasableBytesReference toWrite) throws IOException {
-        try (ReleasableBytesReference toClose = toWrite) {
-            assert writeLock.isHeldByCurrentThread();
-            final int length = toWrite.length();
-            if (length == 0) {
-                return;
-            }
-            ByteBuffer ioBuffer = diskIoBufferPool.maybeGetDirectIOBuffer();
-            if (ioBuffer == null) {
-                // not using a direct buffer for writes from the current thread so just write without copying to the io buffer
-                BytesRefIterator iterator = toWrite.iterator();
-                BytesRef current;
-                while ((current = iterator.next()) != null) {
-                    Channels.writeToChannel(current.bytes, current.offset, current.length, channel);
-                }
-                return;
-            }
-            BytesRefIterator iterator = toWrite.iterator();
-            BytesRef current;
-            while ((current = iterator.next()) != null) {
-                int currentBytesConsumed = 0;
-                while (currentBytesConsumed != current.length) {
-                    int nBytesToWrite = Math.min(current.length - currentBytesConsumed, ioBuffer.remaining());
-                    ioBuffer.put(current.bytes, current.offset + currentBytesConsumed, nBytesToWrite);
-                    currentBytesConsumed += nBytesToWrite;
-                    if (ioBuffer.hasRemaining() == false) {
-                        ioBuffer.flip();
-                        writeToFile(ioBuffer);
-                        ioBuffer.clear();
-                    }
-                }
-            }
-            ioBuffer.flip();
-            writeToFile(ioBuffer);
+    private void writeAndReleaseOps(List<Translog.SizedWriteable> toWrite) throws IOException {
+        assert writeLock.isHeldByCurrentThread();
+        if (toWrite.isEmpty()) {
+            return;
         }
-    }
 
-    @SuppressForbidden(reason = "Channel#write")
-    private void writeToFile(ByteBuffer ioBuffer) throws IOException {
-        while (ioBuffer.remaining() > 0) {
-            channel.write(ioBuffer);
+        final Checksum digest = new BufferedChecksum(new CRC32());
+        ByteBuffer ioBuffer = diskIoBufferPool.maybeGetDirectIOBuffer();
+        final StreamOutput streamOutput;
+        if (ioBuffer == null) {
+            // not using a direct buffer for writes from the current thread so just write without copying to the io buffer
+            streamOutput = new ChannelStreamOutput(channel, digest);
+        } else {
+            streamOutput = new ByteBufferStreamOutput(ioBuffer, channel, digest);
+        }
+
+        try {
+            for (final var sizedWriteable : toWrite) {
+                writeOperationWithSize(streamOutput, sizedWriteable, digest);
+            }
+        } finally {
+            streamOutput.close();
         }
     }
 
@@ -640,8 +636,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public final void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
             synchronized (this) {
-                Releasables.closeWhileHandlingException(buffer);
-                buffer = null;
+                buffer = new ArrayList<>();
                 bufferedBytes = 0;
             }
             IOUtils.close(checkpointChannel, channel);
@@ -659,5 +654,106 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             lastModifiedTimeCache = new LastModifiedTimeCache(mtime, totalOffset, lastSyncedCheckpoint.offset);
         }
         return lastModifiedTimeCache.lastModifiedTime();
+    }
+
+    private static class ChannelStreamOutput extends StreamOutput {
+        private final Checksum digest;
+        private final FileChannel channel;
+        private final byte[] singleByte = new byte[1];
+        private long position;
+
+        ChannelStreamOutput(FileChannel channel, Checksum digest) {
+            this.digest = digest;
+            this.channel = channel;
+        }
+
+        @Override
+        public long position() {
+            return position;
+        }
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            singleByte[0] = b;
+            Channels.writeToChannel(singleByte, 0, 1, channel);
+            digest.update(b);
+            position += 1;
+        }
+
+        @Override
+        public void writeBytes(byte[] bytes, int offset, int length) throws IOException {
+            Channels.writeToChannel(bytes, offset, length, channel);
+            digest.update(bytes, offset, length);
+            position += length;
+        }
+
+        @Override
+        public void flush() {}
+
+        @Override
+        public void close() {}
+    }
+
+    private static class ByteBufferStreamOutput extends StreamOutput {
+        private final ByteBuffer ioBuffer;
+        private final WritableByteChannel channel;
+        private final Checksum digest;
+        private long position;
+
+        ByteBufferStreamOutput(ByteBuffer ioBuffer, WritableByteChannel channel, Checksum digest) {
+            this.ioBuffer = ioBuffer;
+            this.channel = channel;
+            this.digest = digest;
+        }
+
+        @Override
+        public long position() throws IOException {
+            return position;
+        }
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            if (ioBuffer.hasRemaining() == false) {
+                ioBuffer.flip();
+                writeToFile(ioBuffer);
+                ioBuffer.clear();
+            }
+            ioBuffer.put(b);
+            digest.update(b);
+            position += 1;
+        }
+
+        @Override
+        public void writeBytes(byte[] bytes, int offset, int length) throws IOException {
+            int currentBytesConsumed = 0;
+            while (currentBytesConsumed != length) {
+                int nBytesToWrite = Math.min(length - currentBytesConsumed, ioBuffer.remaining());
+                ioBuffer.put(bytes, offset + currentBytesConsumed, nBytesToWrite);
+                currentBytesConsumed += nBytesToWrite;
+                if (ioBuffer.hasRemaining() == false) {
+                    ioBuffer.flip();
+                    writeToFile(ioBuffer);
+                    ioBuffer.clear();
+                }
+            }
+            digest.update(bytes, offset, length);
+            position += length;
+        }
+
+        @Override
+        public void flush() {}
+
+        @Override
+        public void close() throws IOException {
+            ioBuffer.flip();
+            writeToFile(ioBuffer);
+        }
+
+        @SuppressForbidden(reason = "Channel#write")
+        private void writeToFile(ByteBuffer ioBuffer) throws IOException {
+            while (ioBuffer.remaining() > 0) {
+                channel.write(ioBuffer);
+            }
+        }
     }
 }

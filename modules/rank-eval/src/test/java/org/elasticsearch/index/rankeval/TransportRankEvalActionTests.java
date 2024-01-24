@@ -41,6 +41,7 @@ public final class TransportRankEvalActionTests extends ESTestCase {
     /**
      * Test that request parameters like indicesOptions or searchType from ranking evaluation request are transfered to msearch request
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104570")
     public void testTransferRequestParameters() throws Exception {
         String indexName = "test_index";
         List<RatedRequest> specifications = new ArrayList<>();

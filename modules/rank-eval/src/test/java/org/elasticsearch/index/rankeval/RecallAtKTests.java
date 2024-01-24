@@ -173,6 +173,7 @@ public class RecallAtKTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104569")
     public void testXContentParsingIsNotLenient() throws IOException {
         RecallAtK testItem = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());

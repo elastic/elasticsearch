@@ -239,7 +239,6 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
             );
             EnumSet<Option> options = request.indicesOptions().options();
             options.add(Option.IGNORE_UNAVAILABLE);
-            options.add(Option.DEPRECATED__ALLOW_NO_INDICES);
             request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
             try {
                 client.execute(

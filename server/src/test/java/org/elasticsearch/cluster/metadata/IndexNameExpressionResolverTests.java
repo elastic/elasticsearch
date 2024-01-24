@@ -2735,7 +2735,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             IndicesOptions indicesOptions = randomFrom(
                 IndicesOptions.STRICT_EXPAND_OPEN,
-                new IndicesOptions(EnumSet.of(IndicesOptions.Option.DEPRECATED__ALLOW_NO_INDICES), doNotExpandWildcards())
+                new IndicesOptions(IndicesOptions.Option.NONE, doNotExpandWildcards())
             );
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias1);
             assertThat(result, arrayContainingInAnyOrder(index1.getIndex(), index2.getIndex(), index3.getIndex(), index4.getIndex()));
@@ -2751,7 +2751,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             IndicesOptions indicesOptions = randomFrom(
                 IndicesOptions.STRICT_EXPAND_OPEN,
-                new IndicesOptions(EnumSet.of(IndicesOptions.Option.DEPRECATED__ALLOW_NO_INDICES), doNotExpandWildcards())
+                new IndicesOptions(IndicesOptions.Option.NONE, doNotExpandWildcards())
             );
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias3);
             assertThat(result, arrayContainingInAnyOrder(index5.getIndex(), index6.getIndex()));

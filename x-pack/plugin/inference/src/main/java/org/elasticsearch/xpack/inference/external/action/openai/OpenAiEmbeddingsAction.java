@@ -11,12 +11,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.batching.OpenAiEmbeddingsRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiClient;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
@@ -25,28 +27,26 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class OpenAiEmbeddingsAction implements ExecutableAction {
 
-    private final OpenAiAccount account;
-    private final OpenAiClient client;
-    private final OpenAiEmbeddingsModel model;
-    private final String errorMessage;
-    private final Truncator truncator;
+    private static final ResponseHandler EMBEDDINGS_HANDLER = new OpenAiResponseHandler(
+        "openai text embedding",
+        OpenAiEmbeddingsResponseEntity::fromResponse
+    );
 
-    public OpenAiEmbeddingsAction(Sender sender, OpenAiEmbeddingsModel model, ServiceComponents serviceComponents) {
-        this.model = Objects.requireNonNull(model);
-        this.account = new OpenAiAccount(
-            this.model.getServiceSettings().uri(),
-            this.model.getServiceSettings().organizationId(),
-            this.model.getSecretSettings().apiKey()
-        );
-        this.client = new OpenAiClient(Objects.requireNonNull(sender), Objects.requireNonNull(serviceComponents));
-        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri());
-        this.truncator = Objects.requireNonNull(serviceComponents.truncator());
+    private final String errorMessage;
+    private final Sender<OpenAiAccount> sender;
+    private final RequestCreator<OpenAiAccount> requestCreator;
+
+    public OpenAiEmbeddingsAction(Sender<OpenAiAccount> sender, OpenAiEmbeddingsModel model, ServiceComponents serviceComponents) {
+        Objects.requireNonNull(model);
+
+        this.sender = Objects.requireNonNull(sender);
+        errorMessage = getErrorMessage(model.getServiceSettings().uri());
+        requestCreator = new OpenAiEmbeddingsRequestCreator(model, EMBEDDINGS_HANDLER, serviceComponents.truncator());
     }
 
     private static String getErrorMessage(@Nullable URI uri) {
@@ -60,12 +60,8 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
     @Override
     public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
-            var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
-
-            OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model.getTaskSettings());
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
-
-            client.send(request, wrappedListener);
+            sender.send(requestCreator, input, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

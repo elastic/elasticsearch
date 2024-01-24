@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
@@ -19,10 +20,10 @@ import java.util.Objects;
  * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the openai model type.
  */
 public class OpenAiActionCreator implements OpenAiActionVisitor {
-    private final Sender sender;
+    private final Sender<OpenAiAccount> sender;
     private final ServiceComponents serviceComponents;
 
-    public OpenAiActionCreator(Sender sender, ServiceComponents serviceComponents) {
+    public OpenAiActionCreator(Sender<OpenAiAccount> sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }

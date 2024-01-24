@@ -17,8 +17,10 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.batching.OpenAiRequestBatcherFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.junit.After;
 import org.junit.Before;
 
@@ -30,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -52,11 +55,12 @@ public class SenderServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    @SuppressWarnings("unchecked")
     public void testStart_InitializesTheSender() throws IOException {
         var sender = mock(Sender.class);
 
-        var factory = mock(HttpRequestSenderFactory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
+        var factory = mock(InferenceRequestSenderFactory.class);
+        when(factory.createSender(anyString(), any())).thenReturn(sender);
 
         try (var service = new TestSenderService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
@@ -64,7 +68,7 @@ public class SenderServiceTests extends ESTestCase {
 
             listener.actionGet(TIMEOUT);
             verify(sender, times(1)).start();
-            verify(factory, times(1)).createSender(anyString());
+            verify(factory, times(1)).createSender(anyString(), any());
         }
 
         verify(sender, times(1)).close();
@@ -72,11 +76,12 @@ public class SenderServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    @SuppressWarnings("unchecked")
     public void testStart_CallingStartTwiceKeepsSameSenderReference() throws IOException {
         var sender = mock(Sender.class);
 
-        var factory = mock(HttpRequestSenderFactory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
+        var factory = mock(InferenceRequestSenderFactory.class);
+        when(factory.createSender(anyString(), any())).thenReturn(sender);
 
         try (var service = new TestSenderService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
@@ -86,7 +91,7 @@ public class SenderServiceTests extends ESTestCase {
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
 
-            verify(factory, times(1)).createSender(anyString());
+            verify(factory, times(1)).createSender(anyString(), any());
             verify(sender, times(2)).start();
         }
 
@@ -95,9 +100,9 @@ public class SenderServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    private static final class TestSenderService extends SenderService {
-        TestSenderService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
-            super(factory, serviceComponents);
+    private static final class TestSenderService extends SenderService<OpenAiAccount> {
+        TestSenderService(SetOnce<InferenceRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+            super(factory, serviceComponents, OpenAiRequestBatcherFactory::new);
         }
 
         @Override

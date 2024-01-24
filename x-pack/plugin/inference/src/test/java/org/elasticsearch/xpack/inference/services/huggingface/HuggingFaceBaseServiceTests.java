@@ -16,7 +16,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.junit.After;
@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.Utils.getInvalidModel;
 import static org.hamcrest.CoreMatchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -54,11 +55,12 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    @SuppressWarnings("unchecked")
     public void testInfer_ThrowsErrorWhenModelIsNotHuggingFaceModel() throws IOException {
         var sender = mock(Sender.class);
 
-        var factory = mock(HttpRequestSenderFactory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
+        var factory = mock(InferenceRequestSenderFactory.class);
+        when(factory.createSender(anyString(), any())).thenReturn(sender);
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
@@ -72,7 +74,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
                 is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
             );
 
-            verify(factory, times(1)).createSender(anyString());
+            verify(factory, times(1)).createSender(anyString(), any());
             verify(sender, times(1)).start();
         }
 
@@ -83,7 +85,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
     private static final class TestService extends HuggingFaceBaseService {
 
-        TestService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+        TestService(SetOnce<InferenceRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
             super(factory, serviceComponents);
         }
 

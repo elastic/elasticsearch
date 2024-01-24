@@ -18,14 +18,19 @@ module org.elasticsearch.inference {
     requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.lucene.core;
 
+    exports org.elasticsearch.xpack.inference.common;
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;
     exports org.elasticsearch.xpack.inference.rest;
     exports org.elasticsearch.xpack.inference.services;
-    exports org.elasticsearch.xpack.inference.external.http.sender;
-    exports org.elasticsearch.xpack.inference.external.http;
-    exports org.elasticsearch.xpack.inference.services.elser;
-    exports org.elasticsearch.xpack.inference.services.huggingface.elser;
-    exports org.elasticsearch.xpack.inference.services.openai;
+//    exports org.elasticsearch.xpack.inference.external.http;
+//    exports org.elasticsearch.xpack.inference.external.http.sender;
+//    exports org.elasticsearch.xpack.inference.external.http.retry;
+//    exports org.elasticsearch.xpack.inference.external.http.batching;
+//    exports org.elasticsearch.xpack.inference.external.huggingface;
+//    exports org.elasticsearch.xpack.inference.external.openai;
+//    exports org.elasticsearch.xpack.inference.services.elser;
+//    exports org.elasticsearch.xpack.inference.services.huggingface.elser;
+//    exports org.elasticsearch.xpack.inference.services.openai;
     exports org.elasticsearch.xpack.inference;
 }

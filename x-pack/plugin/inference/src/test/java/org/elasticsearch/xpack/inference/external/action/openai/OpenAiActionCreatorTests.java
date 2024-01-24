@@ -19,7 +19,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.batching.OpenAiRequestBatcherFactory;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactoryTests.createFactoryWithEmptySettings;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -63,9 +64,9 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     }
 
     public void testCreate_OpenAiEmbeddingsModel() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", OpenAiRequestBatcherFactory::new)) {
             sender.start();
 
             String responseJson = """
@@ -116,9 +117,9 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     }
 
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From413StatusCode() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", OpenAiRequestBatcherFactory::new)) {
             sender.start();
 
             var contentTooLargeErrorMessage =
@@ -199,9 +200,9 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     }
 
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From400StatusCode() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", OpenAiRequestBatcherFactory::new)) {
             sender.start();
 
             var contentTooLargeErrorMessage =
@@ -282,9 +283,9 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     }
 
     public void testExecute_TruncatesInputBeforeSending() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", OpenAiRequestBatcherFactory::new)) {
             sender.start();
 
             String responseJson = """

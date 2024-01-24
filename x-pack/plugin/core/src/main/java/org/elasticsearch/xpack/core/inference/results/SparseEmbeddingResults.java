@@ -102,6 +102,11 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
             .toList();
     }
 
+    @Override
+    public InferenceServiceResults subList(int start, int end) {
+        return new SparseEmbeddingResults(embeddings.subList(start, end));
+    }
+
     public record Embedding(List<WeightedToken> tokens, boolean isTruncated) implements Writeable, ToXContentObject {
 
         public static final String EMBEDDING = "embedding";

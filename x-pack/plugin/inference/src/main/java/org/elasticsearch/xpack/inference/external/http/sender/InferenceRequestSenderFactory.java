@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,9 +16,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.batching.BatchingComponents;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
+import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,41 +32,53 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 /**
- * A helper class for constructing a {@link HttpRequestSender}.
+ * A helper class for constructing a {@link InferenceRequestSender}.
  */
-public class HttpRequestSenderFactory {
-    private final ThreadPool threadPool;
+public class InferenceRequestSenderFactory {
     private final HttpClientManager httpClientManager;
     private final ClusterService clusterService;
-    private final Settings settings;
+    private final ServiceComponents serviceComponents;
+    private final RetryingHttpSender retryingHttpSender;
 
-    public HttpRequestSenderFactory(
-        ThreadPool threadPool,
+    public InferenceRequestSenderFactory(
+        ServiceComponents serviceComponents,
         HttpClientManager httpClientManager,
-        ClusterService clusterService,
-        Settings settings
+        ClusterService clusterService
     ) {
-        this.threadPool = Objects.requireNonNull(threadPool);
+        this.serviceComponents = Objects.requireNonNull(serviceComponents);
         this.httpClientManager = Objects.requireNonNull(httpClientManager);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.settings = Objects.requireNonNull(settings);
+        this.retryingHttpSender = new RetryingHttpSender(
+            this.httpClientManager.getHttpClient(),
+            serviceComponents.throttlerManager(),
+            new RetrySettings(serviceComponents.settings(), clusterService),
+            serviceComponents.threadPool()
+        );
     }
 
-    public Sender createSender(String serviceName) {
-        return new HttpRequestSender(serviceName, threadPool, httpClientManager, clusterService, settings);
+    public <K> Sender<K> createSender(String serviceName, Function<BatchingComponents, RequestBatcherFactory<K>> factoryCreator) {
+        return new InferenceRequestSender<>(
+            serviceName,
+            serviceComponents.threadPool(),
+            httpClientManager,
+            clusterService,
+            serviceComponents.settings(),
+            factoryCreator.apply(new BatchingComponents(retryingHttpSender, serviceComponents.threadPool()))
+        );
     }
 
     /**
      * A class for providing a more friendly interface for sending an {@link HttpUriRequest}. This leverages the queuing logic for sending
      * a request.
      */
-    public static final class HttpRequestSender implements Sender {
-        private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
+    public static final class InferenceRequestSender<K> implements Sender<K> {
+        private static final Logger logger = LogManager.getLogger(InferenceRequestSender.class);
         private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
         /**
@@ -78,21 +95,22 @@ public class HttpRequestSenderFactory {
 
         private final ThreadPool threadPool;
         private final HttpClientManager manager;
-        private final HttpRequestExecutorService service;
+        private final HttpRequestExecutorService<K> service;
         private final AtomicBoolean started = new AtomicBoolean(false);
         private volatile TimeValue maxRequestTimeout;
         private final CountDownLatch startCompleted = new CountDownLatch(2);
 
-        private HttpRequestSender(
+        private InferenceRequestSender(
             String serviceName,
             ThreadPool threadPool,
             HttpClientManager httpClientManager,
             ClusterService clusterService,
-            Settings settings
+            Settings settings,
+            RequestBatcherFactory<K> batcherFactory
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService(serviceName, manager.getHttpClient(), threadPool, startCompleted);
+            service = new HttpRequestExecutorService<>(serviceName, threadPool, startCompleted, batcherFactory);
 
             this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
             addSettingsUpdateConsumers(clusterService);
@@ -128,17 +146,19 @@ public class HttpRequestSenderFactory {
         }
 
         /**
-         * Send a request at some point in the future with a timeout specified.
-         * @param request the http request to send
-         * @param timeout the maximum time the request should wait for a response before timing out. If null, the timeout is ignored.
-         *                The queuing logic may still throw a timeout if it fails to send the request because it couldn't get a leased
-         *                connection from the connection pool
+         * Send a request at some point in the future. The timeout used is retrieved from the settings.
+         * @param input the list of string input to send in the request
          * @param listener a listener to handle the response
          */
-        public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+        public void send(
+            RequestCreator<K> requestCreator,
+            List<String> input,
+            @Nullable TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send(request, timeout, listener);
+            service.send(requestCreator, input, timeout, listener);
         }
 
         private void waitForStartToComplete() {
@@ -153,13 +173,13 @@ public class HttpRequestSenderFactory {
 
         /**
          * Send a request at some point in the future. The timeout used is retrieved from the settings.
-         * @param request the http request to send
+         * @param input the list of string input to send in the request
          * @param listener a listener to handle the response
          */
-        public void send(HttpRequestBase request, ActionListener<HttpResult> listener) {
+        public void send(RequestCreator<K> requestCreator, List<String> input, ActionListener<InferenceServiceResults> listener) {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
-            service.send(request, maxRequestTimeout, listener);
+            service.send(requestCreator, input, maxRequestTimeout, listener);
         }
 
         public static List<Setting<?>> getSettings() {

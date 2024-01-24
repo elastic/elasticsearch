@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
 
 import java.io.Closeable;
+import java.util.List;
 
-public interface Sender extends Closeable {
+public interface Sender<K> extends Closeable {
     void start();
 
-    void send(HttpRequestBase request, ActionListener<HttpResult> listener);
+    void send(RequestCreator<K> requestCreator, List<String> input, ActionListener<InferenceServiceResults> listener);
 
-    void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener);
+    void send(RequestCreator<K> requestCreator, List<String> input, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
 }

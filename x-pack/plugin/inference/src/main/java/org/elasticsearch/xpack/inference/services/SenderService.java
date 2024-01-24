@@ -13,7 +13,9 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.batching.BatchingComponents;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.io.IOException;
@@ -21,18 +23,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
-public abstract class SenderService implements InferenceService {
-    private final SetOnce<HttpRequestSenderFactory> factory;
+public abstract class SenderService<K> implements InferenceService {
+    private final SetOnce<InferenceRequestSenderFactory> factory;
     private final SetOnce<ServiceComponents> serviceComponents;
-    private final AtomicReference<Sender> sender = new AtomicReference<>();
+    private final AtomicReference<Sender<K>> sender = new AtomicReference<>();
+    private final Function<BatchingComponents, RequestBatcherFactory<K>> batchFactoryCreator;
 
-    public SenderService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public SenderService(
+        SetOnce<InferenceRequestSenderFactory> factory,
+        SetOnce<ServiceComponents> serviceComponents,
+        Function<BatchingComponents, RequestBatcherFactory<K>> batchFactoryCreator
+    ) {
         this.factory = Objects.requireNonNull(factory);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.batchFactoryCreator = Objects.requireNonNull(batchFactoryCreator);
     }
 
-    protected Sender getSender() {
+    protected Sender<K> getSender() {
         return sender.get();
     }
 
@@ -66,7 +75,9 @@ public abstract class SenderService implements InferenceService {
     }
 
     private void init() {
-        sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
+        sender.updateAndGet(
+            current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name(), batchFactoryCreator))
+        );
         sender.get().start();
     }
 

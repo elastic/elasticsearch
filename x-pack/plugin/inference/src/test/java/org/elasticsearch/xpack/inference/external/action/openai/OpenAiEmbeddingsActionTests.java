@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -22,8 +23,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.batching.OpenAiRequestBatcherFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
@@ -37,6 +39,9 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
+import static org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactoryTests.createFactoryWithEmptySettings;
+import static org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactoryTests.createFactoryWithSettings;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -70,9 +75,9 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
     }
 
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", OpenAiRequestBatcherFactory::new)) {
             sender.start();
 
             String responseJson = """
@@ -119,6 +124,164 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         }
     }
 
+    public void testExecute_ReturnsSuccessfulResponse_WithoutUser() throws IOException {
+        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
+
+        try (var sender = senderFactory.createSender("test_service", OpenAiRequestBatcherFactory::new)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var action = createAction(getUrl(webServer), "org", "secret", "model", null, sender);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(List.of("abc"), listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
+            assertThat(requestMap.get("model"), is("model"));
+        }
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_WithoutOrganization() throws IOException {
+        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
+
+        try (var sender = senderFactory.createSender("test_service", OpenAiRequestBatcherFactory::new)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var action = createAction(getUrl(webServer), null, "secret", "model", null, sender);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(List.of("abc"), listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
+            assertThat(requestMap.get("model"), is("model"));
+        }
+    }
+
+    public void testExecute_FailsFromInvalidResponseFormat() throws IOException {
+        var senderFactory = createFactoryWithSettings(
+            threadPool,
+            clientManager,
+            // timeout as zero for no retries
+            buildSettingsWithRetryFields(TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1), TimeValue.timeValueSeconds(0))
+        );
+
+        try (var sender = senderFactory.createSender("test_service", OpenAiRequestBatcherFactory::new)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data_does_not_exist": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(List.of("abc"), listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI embeddings request to [%s]", getUrl(webServer))));
+            assertThat(
+                thrownException.getCause().getMessage(),
+                is(format("Failed to find required field [data] in OpenAI embeddings response"))
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
+            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("user"), is("user"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
     public void testExecute_ThrowsURISyntaxException_ForInvalidUrl() throws IOException {
         try (var sender = mock(Sender.class)) {
             var thrownException = expectThrows(
@@ -129,9 +292,10 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute_ThrowsElasticsearchException() {
         var sender = mock(Sender.class);
-        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
+        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
@@ -143,16 +307,16 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is("failed"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled() {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
             ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
-        }).when(sender).send(any(), any());
+        }).when(sender).send(any(), any(), any());
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
@@ -164,6 +328,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI embeddings request to [%s]", getUrl(webServer))));
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
         var sender = mock(Sender.class);
 
@@ -173,7 +338,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
-        }).when(sender).send(any(), any());
+        }).when(sender).send(any(), any(), any());
 
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
@@ -185,9 +350,10 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is("Failed to send OpenAI embeddings request"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute_ThrowsException() {
         var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
+        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
@@ -199,9 +365,10 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI embeddings request to [%s]", getUrl(webServer))));
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute_ThrowsExceptionWithNullUrl() {
         var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
+        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
@@ -215,11 +382,11 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
     private OpenAiEmbeddingsAction createAction(
         String url,
-        String org,
+        @Nullable String org,
         String apiKey,
         String modelName,
         @Nullable String user,
-        Sender sender
+        Sender<OpenAiAccount> sender
     ) {
         var model = createModel(url, org, apiKey, modelName, user);
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -16,8 +17,8 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
@@ -29,36 +30,32 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-public class RetryingHttpSender implements Retrier {
-    private final Sender sender;
+public class RetryingHttpSender implements RequestSender {
+    private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;
-    private final Logger logger;
     private final RetrySettings retrySettings;
     private final ThreadPool threadPool;
     private final Executor executor;
 
     public RetryingHttpSender(
-        Sender sender,
+        HttpClient httpClient,
         ThrottlerManager throttlerManager,
-        Logger logger,
         RetrySettings retrySettings,
         ThreadPool threadPool
     ) {
-        this(sender, throttlerManager, logger, retrySettings, threadPool, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+        this(httpClient, throttlerManager, retrySettings, threadPool, threadPool.executor(UTILITY_THREAD_POOL_NAME));
     }
 
     // For testing only
     RetryingHttpSender(
-        Sender sender,
+        HttpClient httpClient,
         ThrottlerManager throttlerManager,
-        Logger logger,
         RetrySettings retrySettings,
         ThreadPool threadPool,
         Executor executor
     ) {
-        this.sender = Objects.requireNonNull(sender);
+        this.httpClient = Objects.requireNonNull(httpClient);
         this.throttlerManager = Objects.requireNonNull(throttlerManager);
-        this.logger = Objects.requireNonNull(logger);
         this.retrySettings = Objects.requireNonNull(retrySettings);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.executor = Objects.requireNonNull(executor);
@@ -67,19 +64,29 @@ public class RetryingHttpSender implements Retrier {
     private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
         private Request request;
         private final ResponseHandler responseHandler;
+        private final Logger logger;
+        private final HttpClientContext context;
 
-        InternalRetrier(Request request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
+        InternalRetrier(
+            Logger logger,
+            Request request,
+            HttpClientContext context,
+            ResponseHandler responseHandler,
+            ActionListener<InferenceServiceResults> listener
+        ) {
             super(
-                logger,
+                Objects.requireNonNull(logger),
                 threadPool,
-                retrySettings.getSettings().initialDelay(),
-                retrySettings.getSettings().maxDelayBound(),
-                retrySettings.getSettings().timeoutValue(),
+                retrySettings.getInitialDelay(),
+                retrySettings.getMaxDelayBound(),
+                retrySettings.getTimeout(),
                 listener,
                 executor
             );
-            this.request = request;
-            this.responseHandler = responseHandler;
+            this.logger = logger;
+            this.request = Objects.requireNonNull(request);
+            this.context = Objects.requireNonNull(context);
+            this.responseHandler = Objects.requireNonNull(responseHandler);
         }
 
         @Override
@@ -93,15 +100,24 @@ public class RetryingHttpSender implements Retrier {
 
                     listener.onResponse(inferenceResults);
                 } catch (Exception e) {
-                    logException(httpRequest, result, responseHandler.getRequestType(), e);
+                    logException(logger, httpRequest, result, responseHandler.getRequestType(), e);
                     listener.onFailure(e);
                 }
             }, e -> {
-                logException(httpRequest, responseHandler.getRequestType(), e);
+                logException(logger, httpRequest, responseHandler.getRequestType(), e);
                 listener.onFailure(transformIfRetryable(e));
             });
 
-            sender.send(httpRequest, responseListener);
+            try {
+                httpClient.send(httpRequest, context, responseListener);
+            } catch (Exception e) {
+                logException(logger, httpRequest, responseHandler.getRequestType(), e);
+
+                // TODO should we log?
+                // TODO is this the right exception to return? This is what we were doing for the runnable that the executor would execute
+                // listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
+                listener.onFailure(transformIfRetryable(e));
+            }
         }
 
         @Override
@@ -141,12 +157,18 @@ public class RetryingHttpSender implements Retrier {
     }
 
     @Override
-    public void send(Request request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
-        InternalRetrier retrier = new InternalRetrier(request, responseHandler, listener);
+    public void send(
+        Logger logger,
+        Request request,
+        HttpClientContext context,
+        ResponseHandler responseHandler,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        InternalRetrier retrier = new InternalRetrier(logger, request, context, responseHandler, listener);
         retrier.run();
     }
 
-    private void logException(HttpRequestBase request, String requestType, Exception exception) {
+    private void logException(Logger logger, HttpRequestBase request, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(
@@ -156,7 +178,7 @@ public class RetryingHttpSender implements Retrier {
         );
     }
 
-    private void logException(HttpRequestBase request, HttpResult result, String requestType, Exception exception) {
+    private void logException(Logger logger, HttpRequestBase request, HttpResult result, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(

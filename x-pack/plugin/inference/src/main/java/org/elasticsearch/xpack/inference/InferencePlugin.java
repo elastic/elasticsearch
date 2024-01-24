@@ -46,7 +46,7 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
@@ -73,7 +73,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     private final Settings settings;
     // We'll keep a reference to the http manager just in case the inference services don't get closed individually
     private final SetOnce<HttpClientManager> httpManager = new SetOnce<>();
-    private final SetOnce<HttpRequestSenderFactory> httpFactory = new SetOnce<>();
+    private final SetOnce<InferenceRequestSenderFactory> httpFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
@@ -121,11 +121,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
         httpManager.set(HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager));
 
-        var httpRequestSenderFactory = new HttpRequestSenderFactory(
-            services.threadPool(),
+        var httpRequestSenderFactory = new InferenceRequestSenderFactory(
+            serviceComponents.get(),
             httpManager.get(),
-            services.clusterService(),
-            settings
+            services.clusterService()
         );
         httpFactory.set(httpRequestSenderFactory);
 
@@ -212,7 +211,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         return Stream.of(
             HttpSettings.getSettings(),
             HttpClientManager.getSettings(),
-            HttpRequestSenderFactory.HttpRequestSender.getSettings(),
+            InferenceRequestSenderFactory.InferenceRequestSender.getSettings(),
             ThrottlerManager.getSettings(),
             RetrySettings.getSettingsDefinitions(),
             Truncator.getSettings()

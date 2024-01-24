@@ -16,6 +16,8 @@ public interface Request {
 
     URI getURI();
 
+    // TODO should we add a getter for the account? maybe it should just be destinationId which includes the account and url?
+
     /**
      * Create a new request with less input text.
      * @return a new {@link Request} with the truncated input text

@@ -93,6 +93,9 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
         /**
          * This converter to XContent only includes the fields a user can interact, internal options like the resolveAlias
          * are not added.
+         * @param wildcardStatesAsString, some parts of the code expect the serialization of the expand_wildcards field
+         *                                to be a comma separated string instead of a list. This can be enabled with this
+         *                                flag. We preseve this option for bwc purposes.
          */
         public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder, boolean wildcardStatesAsString)
             throws IOException {
@@ -112,8 +115,6 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
                 builder.field("expand_wildcards", "all");
             } else {
                 if (wildcardStatesAsString) {
-                    // In order to be backwards compatible the value "expand_wildcards" needs to be a comma separated string
-                    // and not an array of strings.
                     builder.field("expand_wildcards", Strings.join(legacyStates, ","));
                 } else {
                     builder.field("expand_wildcards", legacyStates);

@@ -454,7 +454,7 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the is_native property of a {@link Connector}. It always sets the connector's status to
+     * Updates the is_native property of a {@link Connector}. It always sets the {@link ConnectorStatus} to
      * CONFIGURED.
      *
      * @param request  The request for updating the connector's is_native property.

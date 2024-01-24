@@ -12,7 +12,6 @@ import org.apache.http.HttpEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;

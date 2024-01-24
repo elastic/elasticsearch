@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.grok.GrokCaptureExtracter;
@@ -28,14 +28,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Response> {
+public class TestGrokPatternAction {
 
-    public static final TestGrokPatternAction INSTANCE = new TestGrokPatternAction();
-    public static final String NAME = "cluster:monitor/text_structure/test_grok_pattern";
-
-    private TestGrokPatternAction() {
-        super(NAME, Response::new);
-    }
+    public static final ActionType<TestGrokPatternAction.Response> INSTANCE = ActionType.localOnly(
+        "cluster:monitor/text_structure/test_grok_pattern"
+    );
 
     public static class Request extends ActionRequest {
 
@@ -87,23 +84,13 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
             this.ecsCompatibility = ecsCompatibility;
         }
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            grokPattern = in.readString();
-            text = in.readStringCollectionAsList();
-            ecsCompatibility = in.readOptionalString();
-        }
-
         public static Request parseRequest(String ecsCompatibility, XContentParser parser) throws IOException {
             return PARSER.parse(parser, null).ecsCompatibility(ecsCompatibility).build();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(grokPattern);
-            out.writeStringCollection(text);
-            out.writeOptionalString(ecsCompatibility);
+            TransportAction.localOnly();
         }
 
         public String getGrokPattern() {
@@ -150,11 +137,6 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
             this.ranges = ranges;
         }
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            ranges = in.readCollectionAsList(StreamInput::readGenericMap);
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -193,7 +175,7 @@ public class TestGrokPatternAction extends ActionType<TestGrokPatternAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeGenericList(ranges, StreamOutput::writeGenericMap);
+            TransportAction.localOnly();
         }
     }
 }

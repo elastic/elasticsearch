@@ -503,8 +503,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             this.clusterState = clusterState;
             this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
             // pre-size with a bit of headroom so the collection isn't resized too often
-            this.stackFrameIds = Collections.newSetFromMap(new ConcurrentHashMap<>(stackTraceCount * 5));
-            this.executableIds = Collections.newSetFromMap(new ConcurrentHashMap<>(stackTraceCount));
+            this.stackFrameIds = ConcurrentHashMap.newKeySet(stackTraceCount * 5);
+            this.executableIds = ConcurrentHashMap.newKeySet(stackTraceCount);
             this.expectedResponses = new AtomicInteger(expectedResponses);
             this.client = client;
             this.responseBuilder = responseBuilder;

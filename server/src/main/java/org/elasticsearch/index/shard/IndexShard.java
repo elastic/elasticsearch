@@ -225,7 +225,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReplicationTracker replicationTracker;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
-    private final Set<String> fieldHasValue;
+    private final Map<String, Boolean> fieldHasValue;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -317,7 +317,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
         final Engine.IndexCommitListener indexCommitListener,
-        final Set<String> fieldHasValue
+        final Map<String, Boolean> fieldHasValue
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -1005,11 +1005,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void setFieldHasValue(String fieldName) {
-        fieldHasValue.add(fieldName);
+        fieldHasValue.putIfAbsent(fieldName, true);
     }
 
     public boolean fieldHasValue(String fieldName) {
-        return fieldHasValue.contains(fieldName);
+        return fieldHasValue.getOrDefault(fieldName, false);
     }
 
     public static Engine.Index prepareIndex(

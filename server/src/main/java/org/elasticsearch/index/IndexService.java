@@ -167,7 +167,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     // nodes. The only limitation is that if a shard gets relocated to a different data node
     // the response of that data node could be outdated but the _field_caps API response
     // would still be correct, this works because we are not handling deletes.
-    private final Set<String> fieldHasValue;
+    private final Map<String, Boolean> fieldHasValue;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -283,7 +283,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
-        this.fieldHasValue = ConcurrentCollections.newConcurrentSet();
+        this.fieldHasValue = ConcurrentCollections.newConcurrentMap();
         updateFsyncTaskIfNecessary();
     }
 

@@ -630,7 +630,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,
             null,
-            ConcurrentCollections.newConcurrentSet()
+            ConcurrentCollections.newConcurrentMap()
         );
     }
 

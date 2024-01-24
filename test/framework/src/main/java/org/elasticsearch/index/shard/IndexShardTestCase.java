@@ -542,7 +542,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,
                 null,
-                ConcurrentCollections.newConcurrentSet()
+                ConcurrentCollections.newConcurrentMap()
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

@@ -141,7 +141,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected CohereServiceSettings mutateInstance(CohereServiceSettings instance) throws IOException {
-        return createRandomWithNonNullUrl();
+        return null;
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {

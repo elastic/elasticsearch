@@ -15,7 +15,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-
 public class GetConnectorSecretActionTests extends ESTestCase {
 
     public void testValidate_WhenConnectorSecretIdIsPresent_ExpectNoValidationError() {

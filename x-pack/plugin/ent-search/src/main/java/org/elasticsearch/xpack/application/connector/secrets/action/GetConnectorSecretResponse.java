@@ -37,6 +37,10 @@ public class GetConnectorSecretResponse extends ActionResponse implements ToXCon
         return id;
     }
 
+    public String value() {
+        return value;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);

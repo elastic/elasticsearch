@@ -40,7 +40,6 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -355,21 +354,25 @@ public final class SearchPhaseController {
      * Expects sortedDocs to have top search docs across all shards, optionally followed by top suggest docs for each named
      * completion suggestion ordered by suggestion name
      */
-    public static InternalSearchResponse merge(
+    public static SearchResponseSections merge(
         boolean ignoreFrom,
         ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray
     ) {
         if (reducedQueryPhase.isEmptyResult) {
-            return InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
+            return SearchResponseSections.EMPTY_WITH_TOTAL_HITS;
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         var fetchResults = fetchResultsArray.asList();
-        SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
-        if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
-            mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
+        final SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+        try {
+            if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
+                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
+            }
+            return reducedQueryPhase.buildResponse(hits, fetchResults);
+        } finally {
+            hits.decRef();
         }
-        return reducedQueryPhase.buildResponse(hits, fetchResults);
     }
 
     private static void mergeSuggest(
@@ -463,10 +466,11 @@ public final class SearchPhaseController {
                     searchHit.score(shardDoc.score);
                 }
                 hits.add(searchHit);
+                searchHit.incRef();
             }
         }
         return new SearchHits(
-            hits.toArray(new SearchHit[0]),
+            hits.toArray(SearchHits.EMPTY),
             reducedQueryPhase.totalHits,
             reducedQueryPhase.maxScore,
             sortedTopDocs.sortFields,
@@ -753,14 +757,14 @@ public final class SearchPhaseController {
          * Creates a new search response from the given merged hits.
          * @see #merge(boolean, ReducedQueryPhase, AtomicArray)
          */
-        public InternalSearchResponse buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
-            return new InternalSearchResponse(
+        public SearchResponseSections buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
+            return new SearchResponseSections(
                 hits,
                 aggregations,
                 suggest,
-                buildSearchProfileResults(fetchResults),
                 timedOut,
                 terminatedEarly,
+                buildSearchProfileResults(fetchResults),
                 numReducePhases
             );
         }
@@ -783,7 +787,7 @@ public final class SearchPhaseController {
     /**
      * Returns a new {@link QueryPhaseResultConsumer} instance that reduces search responses incrementally.
      */
-    QueryPhaseResultConsumer newSearchPhaseResults(
+    SearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(
         Executor executor,
         CircuitBreaker circuitBreaker,
         Supplier<Boolean> isCanceled,
@@ -792,6 +796,19 @@ public final class SearchPhaseController {
         int numShards,
         Consumer<Exception> onPartialMergeFailure
     ) {
+        final int size = request.source() == null || request.source().size() == -1 ? SearchService.DEFAULT_SIZE : request.source().size();
+        // Use CountOnlyQueryPhaseResultConsumer for requests without aggs, suggest, etc. things only wanting a total count and
+        // returning no hits
+        if (size == 0
+            && (request.source() == null
+                || (request.source().aggregations() == null
+                    && request.source().suggest() == null
+                    && request.source().rankBuilder() == null
+                    && request.source().knnSearch().isEmpty()
+                    && request.source().profile() == false))
+            && request.resolveTrackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+            return new CountOnlyQueryPhaseResultConsumer(listener, numShards);
+        }
         return new QueryPhaseResultConsumer(
             request,
             executor,

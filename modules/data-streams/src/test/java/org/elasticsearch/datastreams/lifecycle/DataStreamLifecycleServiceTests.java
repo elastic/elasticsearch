@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -62,6 +62,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.datastreams.DataStreamFeatures;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -159,6 +162,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
+        DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> now);
         dataStreamLifecycleService = new DataStreamLifecycleService(
             Settings.EMPTY,
             client,
@@ -166,8 +170,15 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             clock,
             threadPool,
             () -> now,
-            new DataStreamLifecycleErrorStore(() -> now),
-            allocationService
+            errorStore,
+            allocationService,
+            new DataStreamLifecycleHealthInfoPublisher(
+                Settings.EMPTY,
+                client,
+                clusterService,
+                errorStore,
+                new FeatureService(List.of(new DataStreamFeatures()))
+            )
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -567,7 +578,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         // We want this test method to get fake force merge responses, because this is what triggers a cluster state update
         clientDelegate = (action, request, listener) -> {
             if (action.name().equals("indices:admin/forcemerge")) {
-                listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
+                listener.onResponse(new BroadcastResponse(5, 5, 0, List.of()));
             }
         };
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -737,7 +748,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             clientDelegate = (action, request, listener) -> {
                 if (action.name().equals("indices:admin/forcemerge")) {
                     listener.onResponse(
-                        new ForceMergeResponse(
+                        new BroadcastResponse(
                             5,
                             5,
                             1,
@@ -768,7 +779,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
             clientDelegate = (action, request, listener) -> {
                 if (action.name().equals("indices:admin/forcemerge")) {
-                    listener.onResponse(new ForceMergeResponse(5, 4, 0, List.of()));
+                    listener.onResponse(new BroadcastResponse(5, 4, 0, List.of()));
                     forceMergeFailedCount.incrementAndGet();
                 }
             };
@@ -789,7 +800,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             // For the final data stream lifecycle run, we let forcemerge run normally
             clientDelegate = (action, request, listener) -> {
                 if (action.name().equals("indices:admin/forcemerge")) {
-                    listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
+                    listener.onResponse(new BroadcastResponse(5, 5, 0, List.of()));
                 }
             };
             dataStreamLifecycleService.run(clusterService.state());
@@ -889,7 +900,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         setState(clusterService, state);
         clientDelegate = (action, request, listener) -> {
             if (action.name().equals("indices:admin/forcemerge")) {
-                listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
+                listener.onResponse(new BroadcastResponse(5, 5, 0, List.of()));
             }
         };
         for (int i = 0; i < 100; i++) {
@@ -1383,6 +1394,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     public void testTrackingTimeStats() {
         AtomicLong now = new AtomicLong(0);
         long delta = randomLongBetween(10, 10000);
+        DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> Clock.systemUTC().millis());
         DataStreamLifecycleService service = new DataStreamLifecycleService(
             Settings.EMPTY,
             getTransportRequestsRecordingClient(),
@@ -1390,8 +1402,15 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             Clock.systemUTC(),
             threadPool,
             () -> now.getAndAdd(delta),
-            new DataStreamLifecycleErrorStore(() -> Clock.systemUTC().millis()),
-            mock(AllocationService.class)
+            errorStore,
+            mock(AllocationService.class),
+            new DataStreamLifecycleHealthInfoPublisher(
+                Settings.EMPTY,
+                getTransportRequestsRecordingClient(),
+                clusterService,
+                errorStore,
+                new FeatureService(List.of(new DataStreamFeatures()))
+            )
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));

@@ -17,6 +17,17 @@ import java.util.Map;
 public interface InferenceServiceResults extends NamedWriteable, ToXContentFragment {
 
     /**
+     * Transform the result to match the format required for the TransportCoordinatedInferenceAction.
+     * For the inference plugin TextEmbeddingResults, the {@link #transformToLegacyFormat()} transforms the
+     * results into an intermediate format only used by the plugin's return value. It doesn't align with what the
+     * TransportCoordinatedInferenceAction expects. TransportCoordinatedInferenceAction expects an ml plugin
+     * TextEmbeddingResults.
+     *
+     * For other results like SparseEmbeddingResults, this method can be a pass through to the transformToLegacyFormat.
+     */
+    List<? extends InferenceResults> transformToCoordinationFormat();
+
+    /**
      * Transform the result to match the format required for versions prior to
      * {@link org.elasticsearch.TransportVersions#INFERENCE_SERVICE_RESULTS_ADDED}
      */

@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
@@ -450,7 +449,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         listener.onResponse(new FlushResult(true, lastCommittedSegmentInfos.getGeneration()));
     }
 
@@ -526,14 +525,11 @@ public class ReadOnlyEngine extends Engine {
         final long recoverUpToSeqNo,
         ActionListener<Void> listener
     ) {
-        ActionListener.run(listener, l -> {
-            try (ReleasableLock lock = readLock.acquire()) {
-                ensureOpen();
-                try {
-                    translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
-                } catch (final Exception e) {
-                    throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
-                }
+        ActionListener.runWithResource(listener, this::acquireEnsureOpenRef, (l, ignoredRef) -> {
+            try {
+                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
+            } catch (final Exception e) {
+                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
             }
             l.onResponse(null);
         });

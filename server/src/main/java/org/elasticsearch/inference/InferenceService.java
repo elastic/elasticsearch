@@ -55,7 +55,20 @@ public interface InferenceService extends Closeable {
      * @param secrets Sensitive configuration options (e.g. api key)
      * @return The parsed {@link Model}
      */
-    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
+    Model parsePersistedConfigWithSecrets(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
+
+    /**
+     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
+     * This function modifies {@code config map}, fields are removed from the map as they are read.
+     *
+     * If the map contains unrecognized configuration options, no error is thrown.
+     *
+     * @param modelId Model Id
+     * @param taskType The model task type
+     * @param config Configuration options
+     * @return The parsed {@link Model}
+     */
+    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
 
     /**
      * Perform inference on the model.
@@ -73,6 +86,38 @@ public interface InferenceService extends Closeable {
      * @param listener The listener
      */
     void start(Model model, ActionListener<Boolean> listener);
+
+    /**
+     * Stop the model deployment.
+     * The default action does nothing except acknowledge the request (true).
+     * @param modelId The ID of the model to be stopped
+     * @param listener The listener
+     */
+    default void stop(String modelId, ActionListener<Boolean> listener) {
+        listener.onResponse(true);
+    }
+
+    /**
+     * Put the model definition (if applicable)
+     * The main purpose of this function is to download ELSER
+     * The default action does nothing except acknowledge the request (true).
+     * @param modelVariant The configuration of the model variant to be downloaded
+     * @param listener The listener
+     */
+    default void putModel(Model modelVariant, ActionListener<Boolean> listener) {
+        listener.onResponse(true);
+    }
+
+    /**
+     * Optionally test the new model configuration in the inference service.
+     * This function should be called when the model is first created, the
+     * default action is to do nothing.
+     * @param model The new model
+     * @param listener The listener
+     */
+    default void checkModelConfig(Model model, ActionListener<Model> listener) {
+        listener.onResponse(model);
+    };
 
     /**
      * Return true if this model is hosted in the local Elasticsearch cluster

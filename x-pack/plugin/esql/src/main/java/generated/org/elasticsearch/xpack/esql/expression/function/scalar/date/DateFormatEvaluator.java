@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Locale;
@@ -17,12 +18,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
  * This class is generated. Do not edit it.
  */
 public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator val;
 
   private final EvalOperator.ExpressionEvaluator formatter;
@@ -31,8 +36,9 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final DriverContext driverContext;
 
-  public DateFormatEvaluator(EvalOperator.ExpressionEvaluator val,
+  public DateFormatEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator formatter, Locale locale, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.val = val;
     this.formatter = formatter;
     this.locale = locale;
@@ -60,11 +66,25 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        if (valBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (formatterBlock.isNull(p) || formatterBlock.getValueCount(p) != 1) {
+        if (valBlock.getValueCount(p) != 1) {
+          if (valBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (formatterBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (formatterBlock.getValueCount(p) != 1) {
+          if (formatterBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -96,14 +116,17 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
     private final EvalOperator.ExpressionEvaluator.Factory val;
 
     private final EvalOperator.ExpressionEvaluator.Factory formatter;
 
     private final Locale locale;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory val,
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
         EvalOperator.ExpressionEvaluator.Factory formatter, Locale locale) {
+      this.source = source;
       this.val = val;
       this.formatter = formatter;
       this.locale = locale;
@@ -111,7 +134,7 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
     @Override
     public DateFormatEvaluator get(DriverContext context) {
-      return new DateFormatEvaluator(val.get(context), formatter.get(context), locale, context);
+      return new DateFormatEvaluator(source, val.get(context), formatter.get(context), locale, context);
     }
 
     @Override

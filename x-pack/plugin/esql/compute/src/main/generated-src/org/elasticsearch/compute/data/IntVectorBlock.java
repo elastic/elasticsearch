@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a IntVector.
+ * Block view of a {@link IntVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
@@ -74,13 +74,18 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
-    }
-
-    @Override
     public void closeInternal() {
         assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

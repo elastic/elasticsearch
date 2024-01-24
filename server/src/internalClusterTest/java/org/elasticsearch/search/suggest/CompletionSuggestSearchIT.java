@@ -12,13 +12,13 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
@@ -58,6 +58,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
@@ -424,7 +425,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex(INDEX).setId("1")
+            prepareIndex(INDEX).setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -435,7 +436,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         assertThat(e.getCause().getMessage(), equalTo("weight must be an integer, but was [2.5]"));
     }
@@ -484,7 +484,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex(INDEX).setId("1")
+            prepareIndex(INDEX).setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -495,7 +495,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         assertThat(e.getCause().toString(), containsString("thisIsNotValid"));
     }
@@ -507,7 +506,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex(INDEX).setId("1")
+            prepareIndex(INDEX).setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -518,7 +517,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         assertThat(e.getCause().toString(), containsString(weight));
     }
@@ -945,10 +943,11 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ensureGreen();
         // load the fst index into ram
         prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion("foo", SuggestBuilders.completionSuggestion(FIELD).prefix("f")))
-            .get();
+            .get()
+            .decRef();
         prepareSearch(INDEX).suggest(
             new SuggestBuilder().addSuggestion("foo", SuggestBuilders.completionSuggestion(otherField).prefix("f"))
-        ).get();
+        ).get().decRef();
 
         // Get all stats
         IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).get();
@@ -995,7 +994,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD)).get()
+            prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD))
         );
         assertThat(e.status().getStatus(), is(400));
         assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
@@ -1268,7 +1267,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             .get();
         // we have 2 docs in a segment...
         prepareIndex(INDEX).setId("2").setSource(jsonBuilder().startObject().field("somefield", "somevalue").endObject()).get();
-        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
+        BroadcastResponse actionGet = indicesAdmin().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();
         // update the first one and then merge.. the target segment will have no value in FIELD
@@ -1278,7 +1277,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         assertSuggestions("b");
-        assertThat(2L, equalTo(prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits().value));
+        assertHitCount(prepareSearch(INDEX).setSize(0), 2);
         for (IndexShardSegments seg : indicesAdmin().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.shards();
             for (ShardSegments shardSegments : shards) {
@@ -1334,7 +1333,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         String string = "foo" + (char) 0x00 + "bar";
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex(INDEX).setId("1")
+            prepareIndex(INDEX).setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -1345,7 +1344,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         assertThat(e.getMessage(), containsString("failed to parse"));
     }
@@ -1374,9 +1372,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch(INDEX).addAggregation(
+            prepareSearch(INDEX).addAggregation(
                 AggregationBuilders.terms("suggest_agg").field(FIELD).collectMode(randomFrom(SubAggCollectionMode.values()))
-            ).get()
+            )
         );
         assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
     }

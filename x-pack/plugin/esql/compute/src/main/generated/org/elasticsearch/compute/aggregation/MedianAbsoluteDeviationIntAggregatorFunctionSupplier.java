@@ -8,7 +8,6 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -16,13 +15,9 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Do not edit it.
  */
 public final class MedianAbsoluteDeviationIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
   private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationIntAggregatorFunctionSupplier(BigArrays bigArrays,
-      List<Integer> channels) {
-    this.bigArrays = bigArrays;
+  public MedianAbsoluteDeviationIntAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
   }
 
@@ -34,7 +29,7 @@ public final class MedianAbsoluteDeviationIntAggregatorFunctionSupplier implemen
   @Override
   public MedianAbsoluteDeviationIntGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
-    return MedianAbsoluteDeviationIntGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
+    return MedianAbsoluteDeviationIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

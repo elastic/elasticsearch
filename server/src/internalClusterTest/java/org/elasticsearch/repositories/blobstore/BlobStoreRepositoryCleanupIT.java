@@ -23,7 +23,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -98,7 +98,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                     garbageFuture,
                     () -> repository.blobStore()
                         .blobContainer(repository.basePath())
-                        .writeBlob(randomPurpose(), "snap-foo.dat", new BytesArray(new byte[1]), true)
+                        .writeBlob(randomNonDataPurpose(), "snap-foo.dat", new BytesArray(new byte[1]), true)
                 )
             );
         garbageFuture.get();
@@ -147,7 +147,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
                             .writeBlob(
-                                randomPurpose(),
+                                randomNonDataPurpose(),
                                 BlobStoreRepository.INDEX_FILE_PREFIX + generation,
                                 new BytesArray(new byte[1]),
                                 true

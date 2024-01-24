@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
@@ -271,7 +272,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
         final List<ActionFuture<ActionResponse.Empty>> deleteDesiredNodesFutures = new ArrayList<>(15);
         for (int i = 0; i < 15; i++) {
-            deleteDesiredNodesFutures.add(client().execute(DeleteDesiredNodesAction.INSTANCE, new DeleteDesiredNodesAction.Request()));
+            deleteDesiredNodesFutures.add(client().execute(TransportDeleteDesiredNodesAction.TYPE, new AcknowledgedRequest.Plain()));
         }
 
         for (ActionFuture<ActionResponse.Empty> future : deleteDesiredNodesFutures) {
@@ -347,8 +348,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     private void deleteDesiredNodes() {
-        final DeleteDesiredNodesAction.Request request = new DeleteDesiredNodesAction.Request();
-        client().execute(DeleteDesiredNodesAction.INSTANCE, request).actionGet();
+        client().execute(TransportDeleteDesiredNodesAction.TYPE, new AcknowledgedRequest.Plain()).actionGet();
     }
 
     private DesiredNodes getLatestDesiredNodes() {

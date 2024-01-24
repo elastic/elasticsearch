@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -52,7 +51,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.util.Holder;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -150,32 +148,18 @@ public class EsqlSession {
 
     private <T> void preAnalyze(LogicalPlan parsed, BiFunction<IndexResolution, EnrichResolution, T> action, ActionListener<T> listener) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        Set<String> policyNames = new HashSet<>(preAnalysis.policyNames);
-        EnrichResolution resolution = new EnrichResolution(ConcurrentCollections.newConcurrentSet(), enrichPolicyResolver.allPolicyNames());
-
-        ActionListener<Void> groupedListener = listener.delegateFailureAndWrap((l, unused) -> {
-            assert resolution.resolvedPolicies().size() == policyNames.size()
-                : resolution.resolvedPolicies().size() + " != " + policyNames.size();
-
+        enrichPolicyResolver.resolvePolicy(preAnalysis.policyNames, listener.delegateFailureAndWrap((l, enrichResolution) -> {
             // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-            var matchFields = resolution.resolvedPolicies()
-                .stream()
-                .filter(p -> p.index().isValid()) // only if the policy by the specified name was found; later the Verifier will be
-                                                  // triggered
-                .map(p -> p.policy().getMatchField())
+            var matchFields = enrichResolution.resolvedEnrichPolicies()
+                .stream()                 // triggered
+                .map(EnrichPolicy::getMatchField)
                 .collect(Collectors.toSet());
-
             preAnalyzeIndices(
                 parsed,
-                ActionListener.wrap(indexResolution -> l.onResponse(action.apply(indexResolution, resolution)), listener::onFailure),
+                l.delegateFailureAndWrap((ll, indexResolution) -> ll.onResponse(action.apply(indexResolution, enrichResolution))),
                 matchFields
             );
-        });
-        try (RefCountingListener refs = new RefCountingListener(groupedListener)) {
-            for (String policyName : policyNames) {
-                enrichPolicyResolver.resolvePolicy(policyName, refs.acquire(resolution.resolvedPolicies()::add));
-            }
-        }
+        }));
     }
 
     private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {

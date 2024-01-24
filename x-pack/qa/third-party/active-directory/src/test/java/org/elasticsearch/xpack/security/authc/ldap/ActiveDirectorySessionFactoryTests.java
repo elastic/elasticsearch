@@ -75,7 +75,11 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     public void testAdAuth() throws Exception {
-        RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false));
+        RealmConfig config = configureRealm(
+            "ad-test",
+            LdapRealmSettings.AD_TYPE,
+            buildAdSettings(smbFixture.getAdLdapUrl(), AD_DOMAIN, false)
+        );
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             String userName = "ironman";
@@ -115,7 +119,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     public void testNetbiosAuth() throws Exception {
-        final String adUrl = randomFrom(AD_LDAP_URL, AD_LDAP_GC_URL);
+        final String adUrl = randomFrom(smbFixture.getAdLdapUrl(), smbFixture.getAdLdapGcUrl());
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, buildAdSettings(adUrl, AD_DOMAIN, false));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
@@ -142,7 +146,11 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     public void testAdAuthAvengers() throws Exception {
-        RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false));
+        RealmConfig config = configureRealm(
+            "ad-test",
+            LdapRealmSettings.AD_TYPE,
+            buildAdSettings(smbFixture.getAdLdapUrl(), AD_DOMAIN, false)
+        );
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow" };
@@ -158,7 +166,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     public void testAuthenticate() throws Exception {
         Settings settings = buildAdSettings(
             REALM_ID,
-            AD_LDAP_URL,
+            smbFixture.getAdLdapUrl(),
             AD_DOMAIN,
             "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
             LdapSearchScope.ONE_LEVEL,
@@ -191,7 +199,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     public void testAuthenticateBaseUserSearch() throws Exception {
         Settings settings = buildAdSettings(
             REALM_ID,
-            AD_LDAP_URL,
+            smbFixture.getAdLdapUrl(),
             AD_DOMAIN,
             "CN=Bruce Banner, CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
             LdapSearchScope.BASE,
@@ -226,7 +234,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             .put(
                 buildAdSettings(
                     REALM_ID,
-                    AD_LDAP_URL,
+                    smbFixture.getAdLdapUrl(),
                     AD_DOMAIN,
                     "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                     LdapSearchScope.ONE_LEVEL,
@@ -255,7 +263,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     public void testAuthenticateWithUserPrincipalName() throws Exception {
         Settings settings = buildAdSettings(
             REALM_ID,
-            AD_LDAP_URL,
+            smbFixture.getAdLdapUrl(),
             AD_DOMAIN,
             "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
             LdapSearchScope.ONE_LEVEL,
@@ -281,7 +289,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     public void testAuthenticateWithSAMAccountName() throws Exception {
         Settings settings = buildAdSettings(
             REALM_ID,
-            AD_LDAP_URL,
+            smbFixture.getAdLdapUrl(),
             AD_DOMAIN,
             "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
             LdapSearchScope.ONE_LEVEL,
@@ -310,7 +318,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             .put(
                 buildAdSettings(
                     REALM_ID,
-                    AD_LDAP_URL,
+                    smbFixture.getAdLdapUrl(),
                     AD_DOMAIN,
                     "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                     LdapSearchScope.SUB_TREE,
@@ -349,7 +357,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             .put(
                 LdapTestCase.buildLdapSettings(
                     realmId,
-                    new String[] { AD_LDAP_URL },
+                    new String[] { smbFixture.getAdLdapUrl() },
                     new String[] { userTemplate },
                     groupSearchBase,
                     LdapSearchScope.SUB_TREE,
@@ -389,7 +397,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             .put(
                 LdapTestCase.buildLdapSettings(
                     realmId,
-                    new String[] { AD_LDAP_URL },
+                    new String[] { smbFixture.getAdLdapUrl() },
                     new String[] { userTemplate },
                     groupSearchBase,
                     LdapSearchScope.SUB_TREE,
@@ -423,7 +431,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             .put(
                 LdapTestCase.buildLdapSettings(
                     realmId,
-                    new String[] { AD_LDAP_URL },
+                    new String[] { smbFixture.getAdLdapUrl() },
                     new String[] { userTemplate },
                     groupSearchBase,
                     LdapSearchScope.SUB_TREE,
@@ -456,7 +464,11 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     public void testADLookup() throws Exception {
-        RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false, true));
+        RealmConfig config = configureRealm(
+            "ad-test",
+            LdapRealmSettings.AD_TYPE,
+            buildAdSettings(smbFixture.getAdLdapUrl(), AD_DOMAIN, false, true)
+        );
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             List<String> users = randomSubsetOf(
@@ -499,7 +511,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             .put(
                 buildAdSettings(
                     REALM_ID,
-                    AD_LDAP_URL,
+                    smbFixture.getAdLdapUrl(),
                     AD_DOMAIN,
                     "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                     LdapSearchScope.SUB_TREE,
@@ -511,14 +523,14 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             .put(getFullSettingKey(REALM_ID, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "tokenGroups")
             .build();
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
-        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        final PlainActionFuture<LdapMetadataResolver.LdapMetadataResult> future = new PlainActionFuture<>();
         LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
             String userName = "hulk";
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 resolver.resolve(ldap.getConnection(), BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, null, future);
-                Map<String, Object> metadataGroupSIDs = future.get();
+                Map<String, Object> metadataGroupSIDs = future.get().getMetaData();
                 assertThat(metadataGroupSIDs.size(), equalTo(1));
                 assertNotNull(metadataGroupSIDs.get("tokenGroups"));
                 List<String> SIDs = ((List<String>) metadataGroupSIDs.get("tokenGroups"));
@@ -536,10 +548,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         Settings.Builder builder = Settings.builder()
             .put(getFullSettingKey(REALM_ID, SessionFactorySettings.URLS_SETTING), ldapUrl)
             .put(getFullSettingKey(REALM_ID, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
-            .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
-            .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
-            .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
-            .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
             .put(getFullSettingKey(REALM_ID, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS);
         if (randomBoolean()) {
             builder.put(

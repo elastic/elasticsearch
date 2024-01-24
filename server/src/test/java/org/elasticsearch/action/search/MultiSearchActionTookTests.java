@@ -19,7 +19,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -147,21 +147,18 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 requests.add(request);
                 commonExecutor.execute(() -> {
                     counter.decrementAndGet();
-                    var resp = new SearchResponse(
-                        InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                        null,
-                        0,
-                        0,
-                        0,
-                        0L,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
+                    ActionListener.respondAndRelease(
+                        listener,
+                        SearchResponseUtils.emptyWithTotalHits(
+                            null,
+                            0,
+                            0,
+                            0,
+                            0L,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        )
                     );
-                    try {
-                        listener.onResponse(resp);
-                    } finally {
-                        resp.decRef();
-                    }
                 });
             }
 

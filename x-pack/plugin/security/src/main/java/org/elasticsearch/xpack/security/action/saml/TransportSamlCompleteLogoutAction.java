@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.security.action.saml;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutRequest;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.saml.SamlLogoutResponseHandler;
@@ -30,17 +30,14 @@ import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlReal
  */
 public final class TransportSamlCompleteLogoutAction extends HandledTransportAction<SamlCompleteLogoutRequest, ActionResponse.Empty> {
 
+    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse(
+        "cluster:admin/xpack/security/saml/complete_logout"
+    );
     private final Realms realms;
 
     @Inject
     public TransportSamlCompleteLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(
-            SamlCompleteLogoutAction.NAME,
-            transportService,
-            actionFilters,
-            SamlCompleteLogoutRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(TYPE.name(), transportService, actionFilters, SamlCompleteLogoutRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.realms = realms;
     }
 

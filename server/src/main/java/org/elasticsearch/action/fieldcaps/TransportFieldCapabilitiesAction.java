@@ -12,12 +12,13 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -63,7 +64,13 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
-    public static final String ACTION_NODE_NAME = FieldCapabilitiesAction.NAME + "[n]";
+    public static final String NAME = "indices:data/read/field_caps";
+    public static final ActionType<FieldCapabilitiesResponse> TYPE = ActionType.localOnly(NAME);
+    public static final RemoteClusterActionType<FieldCapabilitiesResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        FieldCapabilitiesResponse::new
+    );
+    public static final String ACTION_NODE_NAME = NAME + "[n]";
     public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
     private final ThreadPool threadPool;
@@ -86,7 +93,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(
-            FieldCapabilitiesAction.NAME,
+            NAME,
             transportService,
             actionFilters,
             FieldCapabilitiesRequest::new,
@@ -210,8 +217,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
-                Client remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(threadPool, clusterAlias, searchCoordinationExecutor);
+                var remoteClusterClient = transportService.getRemoteClusterService()
+                    .getRemoteClusterClient(clusterAlias, searchCoordinationExecutor);
                 FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
@@ -231,7 +238,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                     }
                 });
-                remoteClusterClient.fieldCaps(remoteRequest, ActionListener.releaseAfter(remoteListener, refs.acquire()));
+                remoteClusterClient.execute(
+                    TransportFieldCapabilitiesAction.REMOTE_TYPE,
+                    remoteRequest,
+                    ActionListener.releaseAfter(remoteListener, refs.acquire())
+                );
             }
         }
     }

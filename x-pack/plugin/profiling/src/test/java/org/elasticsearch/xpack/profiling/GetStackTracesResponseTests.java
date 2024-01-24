@@ -7,20 +7,18 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-public class GetStackTracesResponseTests extends AbstractWireSerializingTestCase<GetStackTracesResponse> {
+public class GetStackTracesResponseTests extends ESTestCase {
     private <T> T randomNullable(T v) {
         return randomBoolean() ? v : null;
     }
 
-    @Override
-    protected GetStackTracesResponse createTestInstance() {
+    private GetStackTracesResponse createTestInstance() {
         int totalFrames = randomIntBetween(1, 100);
 
         Map<String, StackTrace> stackTraces = randomNullable(
@@ -55,16 +53,6 @@ public class GetStackTracesResponseTests extends AbstractWireSerializingTestCase
         Map<String, TraceEvent> stackTraceEvents = randomNullable(Map.of(stackTraceID, new TraceEvent(stackTraceID, totalSamples)));
 
         return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0, totalSamples);
-    }
-
-    @Override
-    protected GetStackTracesResponse mutateInstance(GetStackTracesResponse instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
-    }
-
-    @Override
-    protected Writeable.Reader<GetStackTracesResponse> instanceReader() {
-        return GetStackTracesResponse::new;
     }
 
     public void testChunking() {

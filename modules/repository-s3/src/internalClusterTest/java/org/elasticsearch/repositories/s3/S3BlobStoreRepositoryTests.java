@@ -15,8 +15,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -37,6 +37,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -74,8 +75,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
-import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
@@ -85,8 +86,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -192,7 +191,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             waitForDocs(nbDocs, indexer);
         }
         flushAndRefresh(index);
-        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        BroadcastResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
         assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
@@ -235,7 +234,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             waitForDocs(nbDocs, indexer);
         }
         flushAndRefresh(index);
-        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        BroadcastResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
         assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
         assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
@@ -268,11 +267,15 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 .filterPlugins(TestTelemetryPlugin.class)
                 .toList();
             assertThat(plugins, hasSize(1));
-            final List<Measurement> metrics = Measurement.combine(plugins.get(0).getLongCounterMeasurement(METRIC_REQUESTS_COUNT));
+            final List<Measurement> metrics = Measurement.combine(plugins.get(0).getLongCounterMeasurement(METRIC_REQUESTS_TOTAL));
 
             assertThat(
-                statsCollectors.size(),
-                equalTo(metrics.stream().map(m -> m.attributes().get("operation")).collect(Collectors.toSet()).size())
+                statsCollectors.keySet().stream().map(S3BlobStore.StatsKey::operation).collect(Collectors.toSet()),
+                equalTo(
+                    metrics.stream()
+                        .map(m -> S3BlobStore.Operation.parse((String) m.attributes().get("operation")))
+                        .collect(Collectors.toSet())
+                )
             );
             metrics.forEach(metric -> {
                 assertThat(
@@ -303,23 +306,24 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final String repoName = createRepository(randomRepositoryName());
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
-        final BlobStore blobStore = repository.blobStore();
-        assertThat(blobStore, instanceOf(BlobStoreWrapper.class));
-        final BlobStore delegateBlobStore = ((BlobStoreWrapper) blobStore).delegate();
-        assertThat(delegateBlobStore, instanceOf(S3BlobStore.class));
-        final S3BlobStore.StatsCollectors statsCollectors = ((S3BlobStore) delegateBlobStore).getStatsCollectors();
+        final BlobStoreWrapper blobStore = asInstanceOf(BlobStoreWrapper.class, repository.blobStore());
+        final S3BlobStore delegateBlobStore = asInstanceOf(S3BlobStore.class, blobStore.delegate());
+        final S3BlobStore.StatsCollectors statsCollectors = delegateBlobStore.getStatsCollectors();
 
-        // Initial stats are collected with the default operation purpose
+        // Initial stats are collected for repository verification, which counts as SNAPSHOT_METADATA
         final Set<String> allOperations = EnumSet.allOf(S3BlobStore.Operation.class)
             .stream()
             .map(S3BlobStore.Operation::getKey)
             .collect(Collectors.toUnmodifiableSet());
-        statsCollectors.collectors.keySet().forEach(statsKey -> assertThat(statsKey.purpose(), is(OperationPurpose.SNAPSHOT)));
+        assertThat(
+            statsCollectors.collectors.keySet().stream().map(S3BlobStore.StatsKey::purpose).collect(Collectors.toUnmodifiableSet()),
+            equalTo(Set.of(OperationPurpose.SNAPSHOT_METADATA))
+        );
         final Map<String, Long> initialStats = blobStore.stats();
         assertThat(initialStats.keySet(), equalTo(allOperations));
 
         // Collect more stats with an operation purpose other than the default
-        final OperationPurpose purpose = randomValueOtherThan(OperationPurpose.SNAPSHOT, BlobStoreTestUtil::randomPurpose);
+        final OperationPurpose purpose = randomValueOtherThan(OperationPurpose.SNAPSHOT_METADATA, BlobStoreTestUtil::randomPurpose);
         final BlobPath blobPath = repository.basePath().add(randomAlphaOfLength(10));
         final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
         final BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
@@ -332,7 +336,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         // Internal stats collection is fine-grained and records different purposes
         assertThat(
             statsCollectors.collectors.keySet().stream().map(S3BlobStore.StatsKey::purpose).collect(Collectors.toUnmodifiableSet()),
-            equalTo(Set.of(OperationPurpose.SNAPSHOT, purpose))
+            equalTo(Set.of(OperationPurpose.SNAPSHOT_METADATA, purpose))
         );
         // The stats report aggregates over different purposes
         final Map<String, Long> newStats = blobStore.stats();
@@ -341,7 +345,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         final Set<String> operationsSeenForTheNewPurpose = statsCollectors.collectors.keySet()
             .stream()
-            .filter(sk -> sk.purpose() != OperationPurpose.SNAPSHOT)
+            .filter(sk -> sk.purpose() != OperationPurpose.SNAPSHOT_METADATA)
             .map(sk -> sk.operation().getKey())
             .collect(Collectors.toUnmodifiableSet());
 
@@ -396,7 +400,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
                             .writeBlobAtomic(
-                                randomPurpose(),
+                                randomNonDataPurpose(),
                                 BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
                                 serialized,
                                 true
@@ -441,9 +445,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             NamedXContentRegistry registry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, getMeterRegistry()) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, repositoriesMetrics) {
 
                 @Override
                 public BlobStore blobStore() {

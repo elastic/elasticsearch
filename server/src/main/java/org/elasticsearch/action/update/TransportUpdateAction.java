@@ -11,6 +11,7 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -58,6 +59,8 @@ import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.t
 
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
+    public static final String NAME = "indices:data/write/update";
+    public static final ActionType<UpdateResponse> TYPE = new ActionType<>(NAME, UpdateResponse::new);
     private final AutoCreateIndex autoCreateIndex;
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
@@ -76,15 +79,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         AutoCreateIndex autoCreateIndex,
         NodeClient client
     ) {
-        super(
-            UpdateAction.NAME,
-            threadPool,
-            clusterService,
-            transportService,
-            actionFilters,
-            indexNameExpressionResolver,
-            UpdateRequest::new
-        );
+        super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpdateRequest::new);
         this.updateHelper = updateHelper;
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;

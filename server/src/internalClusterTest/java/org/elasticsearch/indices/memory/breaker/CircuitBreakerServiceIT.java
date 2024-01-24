@@ -193,7 +193,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         indexRandom(true, false, true, reqs);
 
         // execute a search that loads field data (sorting on the "test" field)
-        client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
+        client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get().decRef();
 
         // clear field data cache (thus setting the loaded field data back to 0)
         clearFieldData();

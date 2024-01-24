@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
@@ -31,7 +32,9 @@ public class MockBlockFactory extends BlockFactory {
     static final boolean TRACK_ALLOCATIONS = true;
 
     static Object trackDetail() {
-        return TRACK_ALLOCATIONS ? new RuntimeException("Block allocated from test: " + LuceneTestCase.getTestClass().getName()) : true;
+        return TRACK_ALLOCATIONS
+            ? new RuntimeException("Releasable allocated from test: " + LuceneTestCase.getTestClass().getName())
+            : true;
     }
 
     final ConcurrentMap<Object, Object> TRACKED_BLOCKS = new ConcurrentHashMap<>();
@@ -49,7 +52,7 @@ public class MockBlockFactory extends BlockFactory {
             Iterator<Object> causes = copy.values().iterator();
             Object firstCause = causes.next();
             RuntimeException exception = new RuntimeException(
-                copy.size() + " blocks have not been released",
+                copy.size() + " releasables have not been released",
                 firstCause instanceof Throwable ? (Throwable) firstCause : null
             );
             while (causes.hasNext()) {
@@ -63,13 +66,29 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        super(breaker, bigArrays);
+        this(breaker, bigArrays, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
+    }
+
+    public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
+        this(breaker, bigArrays, maxPrimitiveArraySize, null);
+    }
+
+    private MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
+        super(breaker, bigArrays, maxPrimitiveArraySize, parent);
     }
 
     @Override
-    void adjustBreaker(final long delta, final boolean isDataAlreadyCreated) {
+    public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {
+        if (childBreaker.parentBreaker() != breaker()) {
+            throw new IllegalStateException("Different parent breaker");
+        }
+        return new MockBlockFactory(childBreaker, bigArrays(), ByteSizeValue.ofBytes(maxPrimitiveArrayBytes()), this);
+    }
+
+    @Override
+    void adjustBreaker(final long delta) {
         purgeTrackBlocks();
-        super.adjustBreaker(delta, isDataAlreadyCreated);
+        super.adjustBreaker(delta);
     }
 
     void purgeTrackBlocks() {
@@ -104,7 +123,7 @@ public class MockBlockFactory extends BlockFactory {
                     TRACKED_BLOCKS.remove(vecBuilder);
                 }
             } else if (b instanceof Vector vector) {
-                if (vector.asBlock().isReleased()) {
+                if (vector.isReleased()) {
                     TRACKED_BLOCKS.remove(vector);
                 }
             } else {

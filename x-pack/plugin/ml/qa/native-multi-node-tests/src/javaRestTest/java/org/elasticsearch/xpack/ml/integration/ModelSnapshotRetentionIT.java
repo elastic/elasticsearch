@@ -11,8 +11,8 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -51,7 +51,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
@@ -191,8 +190,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
     private List<String> getDocIdsFromSearch(SearchRequest searchRequest) throws Exception {
         List<String> docIds = new ArrayList<>();
         assertResponse(client().execute(TransportSearchAction.TYPE, searchRequest), searchResponse -> {
-            assertThat(searchResponse.getHits(), notNullValue());
-            for (SearchHit searchHit : searchResponse.getHits().getHits()) {
+            for (SearchHit searchHit : searchResponse.getHits()) {
                 docIds.add(searchHit.getId());
             }
         });
@@ -239,7 +237,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         modelSnapshotBuilder.build().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         indexRequest.source(xContentBuilder);
 
-        DocWriteResponse indexResponse = client().execute(IndexAction.INSTANCE, indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().execute(TransportIndexAction.TYPE, indexRequest).actionGet();
         assertThat(indexResponse.getResult(), is(DocWriteResponse.Result.CREATED));
     }
 

@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
@@ -171,16 +171,22 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
     }
 
     private static SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
-        SearchResponseSections sections = new SearchResponseSections(
-            null,
+        return new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             new Aggregations(Arrays.asList(minTimestamp, maxTimestamp)),
             null,
             false,
             null,
             null,
-            1
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
         );
-        return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
     }
 
 }

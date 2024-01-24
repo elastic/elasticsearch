@@ -147,7 +147,8 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         try {
             client().prepareSearch(defaultIndexName)
                 .setQuery(queryBuilder().shapeQuery(defaultFieldName, geometry).relation(ShapeRelation.INTERSECTS))
-                .get();
+                .get()
+                .decRef();
         } catch (Exception e) {
             assertThat(
                 e.getCause().getMessage(),
@@ -353,7 +354,8 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         try {
             client().prepareSearch(defaultIndexName)
                 .setQuery(queryBuilder().shapeQuery(defaultFieldName, line).relation(ShapeRelation.WITHIN))
-                .get();
+                .get()
+                .decRef();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getCause().getMessage(), containsString("Field [" + defaultFieldName + "] found an unsupported shape Line"));
         }
@@ -371,7 +373,8 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         try {
             client().prepareSearch(defaultIndexName)
                 .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiline).relation(ShapeRelation.WITHIN))
-                .get();
+                .get()
+                .decRef();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getCause().getMessage(), containsString("Field [" + defaultFieldName + "] found an unsupported shape Line"));
         }

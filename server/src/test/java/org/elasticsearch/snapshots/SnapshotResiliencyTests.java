@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupReposi
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -27,7 +26,6 @@ import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAct
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
@@ -42,14 +40,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -62,6 +56,7 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -178,6 +173,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -273,7 +269,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo")
             );
             deterministicTaskQueue.runAllRunnableTasks();
-            assertNull(future.result());
+            assertTrue(future.isDone());
+            final var result = future.result();
+            if (result != null) {
+                fail(result);
+            }
         } finally {
             testClusterNodes.nodes.values().forEach(TestClusterNodes.TestClusterNode::stop);
         }
@@ -762,16 +762,22 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(
                 new SearchRequest("restored_" + index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
-                searchResponseListener
+                searchResponseListener.delegateFailure((l, r) -> {
+                    r.incRef();
+                    l.onResponse(r);
+                })
             );
         });
 
         deterministicTaskQueue.runAllRunnableTasks();
 
-        assertEquals(
-            documentsFirstSnapshot + documentsSecondSnapshot,
-            Objects.requireNonNull(safeResult(searchResponseListener).getHits().getTotalHits()).value
-        );
+        var response = safeResult(searchResponseListener);
+        try {
+            assertEquals(documentsFirstSnapshot + documentsSecondSnapshot, Objects.requireNonNull(response.getHits().getTotalHits()).value);
+        } finally {
+            response.decRef();
+        }
+
         assertThat(safeResult(deleteSnapshotStepListener).isAcknowledged(), is(true));
         assertThat(safeResult(restoreSnapshotResponseListener).getRestoreInfo().failedShards(), is(0));
 
@@ -1972,7 +1978,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool
                 );
                 actions.put(
-                    PutMappingAction.INSTANCE,
+                    TransportPutMappingAction.TYPE,
                     new TransportPutMappingAction(
                         transportService,
                         clusterService,
@@ -1985,7 +1991,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    AutoPutMappingAction.INSTANCE,
+                    TransportAutoPutMappingAction.TYPE,
                     new TransportAutoPutMappingAction(
                         transportService,
                         clusterService,
@@ -2011,7 +2017,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
-                        EmptySystemIndices.INSTANCE.getExecutorSelector()
+                        EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                        new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry())
                     )
                 );
                 actions.put(
@@ -2026,7 +2033,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    DeleteIndexAction.INSTANCE,
+                    TransportDeleteIndexAction.TYPE,
                     new TransportDeleteIndexAction(
                         transportService,
                         clusterService,
@@ -2038,7 +2045,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    PutRepositoryAction.INSTANCE,
+                    TransportPutRepositoryAction.TYPE,
                     new TransportPutRepositoryAction(
                         transportService,
                         clusterService,
@@ -2092,7 +2099,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    IndicesShardStoresAction.INSTANCE,
+                    TransportIndicesShardStoresAction.TYPE,
                     new TransportIndicesShardStoresAction(
                         transportService,
                         clusterService,
@@ -2116,7 +2123,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    DeleteSnapshotAction.INSTANCE,
+                    TransportDeleteSnapshotAction.TYPE,
                     new TransportDeleteSnapshotAction(
                         transportService,
                         clusterService,
@@ -2131,8 +2138,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService.getTaskManager(),
                     () -> clusterService.localNode().getId(),
                     transportService.getLocalNodeConnection(),
-                    transportService.getRemoteClusterService(),
-                    new NamedWriteableRegistry(List.of())
+                    transportService.getRemoteClusterService()
                 );
             }
 

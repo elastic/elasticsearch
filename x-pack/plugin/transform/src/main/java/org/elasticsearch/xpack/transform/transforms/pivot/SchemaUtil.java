@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -28,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -39,6 +41,11 @@ public final class SchemaUtil {
 
     // Full collection of numeric field type strings and whether they are floating point or not
     private static final Map<String, Boolean> NUMERIC_FIELD_MAPPER_TYPES;
+    // Full collection of date field type strings
+    private static final Set<String> DATE_FIELD_MAPPER_TYPES = Set.of(
+        DateFieldMapper.CONTENT_TYPE,
+        DateFieldMapper.DATE_NANOS_CONTENT_TYPE
+    );
     static {
         Map<String, Boolean> types = Stream.of(NumberFieldMapper.NumberType.values())
             .collect(Collectors.toMap(t -> t.typeName(), t -> t.numericType().isFloatingPoint()));
@@ -53,6 +60,10 @@ public final class SchemaUtil {
 
     public static boolean isNumericType(String type) {
         return type != null && NUMERIC_FIELD_MAPPER_TYPES.containsKey(type);
+    }
+
+    public static boolean isDateType(String type) {
+        return type != null && DATE_FIELD_MAPPER_TYPES.contains(type);
     }
 
     /**
@@ -185,7 +196,7 @@ public final class SchemaUtil {
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
-            FieldCapabilitiesAction.INSTANCE,
+            TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(r -> listener.onResponse(extractFieldMappings(r)), listener::onFailure)
         );
@@ -270,7 +281,7 @@ public final class SchemaUtil {
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            FieldCapabilitiesAction.INSTANCE,
+            TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)
         );

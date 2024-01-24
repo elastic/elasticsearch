@@ -20,9 +20,9 @@ import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -31,7 +31,7 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -451,20 +451,26 @@ public class ProfileService {
             final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> executeAsyncWithOrigin(client, getActionOrigin(), GetAction.INSTANCE, getRequest, ActionListener.wrap(response -> {
-                    if (false == response.isExists()) {
-                        logger.debug("profile with uid [{}] does not exist", uid);
-                        listener.onResponse(null);
-                        return;
-                    }
-                    listener.onResponse(
-                        new VersionedDocument(
-                            buildProfileDocument(response.getSourceAsBytesRef()),
-                            response.getPrimaryTerm(),
-                            response.getSeqNo()
-                        )
-                    );
-                }, listener::onFailure))
+                () -> executeAsyncWithOrigin(
+                    client,
+                    getActionOrigin(),
+                    TransportGetAction.TYPE,
+                    getRequest,
+                    ActionListener.wrap(response -> {
+                        if (false == response.isExists()) {
+                            logger.debug("profile with uid [{}] does not exist", uid);
+                            listener.onResponse(null);
+                            return;
+                        }
+                        listener.onResponse(
+                            new VersionedDocument(
+                                buildProfileDocument(response.getSourceAsBytesRef()),
+                                response.getPrimaryTerm(),
+                                response.getSeqNo()
+                            )
+                        );
+                    }, listener::onFailure)
+                )
             );
         });
     }
@@ -943,7 +949,7 @@ public class ProfileService {
             () -> executeAsyncWithOrigin(
                 client,
                 getActionOrigin(),
-                UpdateAction.INSTANCE,
+                TransportUpdateAction.TYPE,
                 updateRequest,
                 ActionListener.wrap(updateResponse -> {
                     assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED

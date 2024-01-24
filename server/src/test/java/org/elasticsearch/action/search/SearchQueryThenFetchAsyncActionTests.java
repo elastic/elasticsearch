@@ -157,13 +157,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     queryResult.size(1);
                     successfulOps.incrementAndGet();
                     queryResult.incRef();
-                    new Thread(() -> {
-                        try {
-                            listener.onResponse(queryResult);
-                        } finally {
-                            queryResult.decRef();
-                        }
-                    }).start();
+                    new Thread(() -> ActionListener.respondAndRelease(listener, queryResult)).start();
                 } finally {
                     queryResult.decRef();
                 }
@@ -193,19 +187,21 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.allowPartialSearchResults(false);
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
-        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            controller,
-            task::isCancelled,
-            task.getProgressListener(),
-            shardsIter.size(),
-            exc -> {}
-        );
-        try {
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                controller,
+                task::isCancelled,
+                task.getProgressListener(),
+                shardsIter.size(),
+                exc -> {}
+            )
+        ) {
             SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
                 logger,
+                null,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -257,8 +253,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
             assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields.length, equalTo(1));
             assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
-        } finally {
-            resultConsumer.decRef();
         }
     }
 
@@ -357,6 +351,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         final List<Object> responses = new ArrayList<>();
         SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -505,6 +500,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),
@@ -654,6 +650,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,
+            null,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", AliasFilter.EMPTY),

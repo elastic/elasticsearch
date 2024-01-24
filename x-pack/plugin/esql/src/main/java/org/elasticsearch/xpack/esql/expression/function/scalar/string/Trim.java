@@ -51,7 +51,7 @@ public final class Trim extends UnaryScalarFunction implements EvaluatorMapper {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var field = toEvaluator.apply(field());
-        return new TrimEvaluator.Factory(field);
+        return new TrimEvaluator.Factory(source(), field);
     }
 
     @Override

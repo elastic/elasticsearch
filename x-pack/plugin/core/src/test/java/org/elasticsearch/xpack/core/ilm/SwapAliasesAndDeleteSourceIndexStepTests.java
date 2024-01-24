@@ -10,9 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -134,7 +134,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(IndicesAliasesAction.NAME));
+                assertThat(action.name(), is(TransportIndicesAliasesAction.NAME));
                 assertTrue(request instanceof IndicesAliasesRequest);
                 assertThat(((IndicesAliasesRequest) request).getAliasActions(), equalTo(expectedAliasActions));
             }

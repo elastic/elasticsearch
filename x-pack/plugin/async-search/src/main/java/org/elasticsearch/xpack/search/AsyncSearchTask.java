@@ -7,12 +7,13 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.search.CCSSingleCoordinatorSearchProgressListener;
 import org.elasticsearch.action.search.SearchProgressActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -23,6 +24,8 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -42,7 +45,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -52,7 +54,7 @@ import static java.util.Collections.singletonList;
 /**
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
-final class AsyncSearchTask extends SearchTask implements AsyncTask {
+final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable {
     private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
@@ -71,7 +73,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private volatile long expirationTimeMillis;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
-    private final AtomicReference<MutableSearchResponse> searchResponse = new AtomicReference<>();
+    private final SetOnce<MutableSearchResponse> searchResponse = new SetOnce<>();
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -153,7 +155,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(searchId.getTaskId()).setReason(reason);
             client.admin().cluster().cancelTasks(req, new ActionListener<>() {
                 @Override
-                public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                public void onResponse(ListTasksResponse cancelTasksResponse) {
                     runnable.run();
                 }
 
@@ -180,7 +182,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * listener when the task is finished or when the provided <code>waitForCompletion</code>
      * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
      */
-    public void addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    public boolean addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
         boolean executeImmediately = false;
         long startTime = threadPool.relativeTimeInMillis();
         synchronized (this) {
@@ -201,8 +203,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
         }
+        return true; // unused
     }
 
     /**
@@ -219,7 +222,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.accept(getResponseWithHeaders());
+            var response = getResponseWithHeaders();
+            try {
+                listener.accept(response);
+            } finally {
+                response.decRef();
+            }
         }
     }
 
@@ -238,7 +246,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            listener.onResponse(getResponseWithHeaders());
+                            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
                         }
                     }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
@@ -255,7 +263,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
         }
     }
 
@@ -307,10 +315,13 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
         AsyncSearchResponse finalResponse = getResponse();
-        for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
-            consumer.accept(finalResponse);
+        try {
+            for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
+                consumer.accept(finalResponse);
+            }
+        } finally {
+            finalResponse.decRef();
         }
-
     }
 
     /**
@@ -366,6 +377,11 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             asyncTask.getStartTime(),
             asyncTask.expirationTimeMillis
         );
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(searchResponse.get());
     }
 
     class Listener extends SearchProgressActionListener {
@@ -437,8 +453,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
                 delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
             }
-            searchResponse.compareAndSet(
-                null,
+            searchResponse.set(
                 new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
             );
             executeInitListeners();
@@ -484,6 +499,19 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
         }
 
+        /**
+         * Indicates that a cluster has finished a search operation. Used for CCS minimize_roundtrips=true only.
+         *
+         * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
+         *                     The cluster alias for the local cluster is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
+         * @param clusterResponse SearchResponse from cluster 'clusterAlias'
+         */
+        @Override
+        public void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
+            // no need to call the delegate progress listener, since this method is only called for minimize_roundtrips=true
+            searchResponse.get().updateResponseMinimizeRoundtrips(clusterAlias, clusterResponse);
+        }
+
         @Override
         public void onResponse(SearchResponse response) {
             searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
@@ -493,7 +521,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         @Override
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
-            searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
+            var r = new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext());
+            if (searchResponse.trySet(r) == false) {
+                r.close();
+            }
             searchResponse.get()
                 .updateWithFailure(new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc));
             executeInitListeners();

@@ -927,8 +927,9 @@ public class JobResultsProviderTests extends ESTestCase {
 
             list.add(hit);
         }
-        SearchHits hits = new SearchHits(list.toArray(new SearchHit[0]), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
-        when(response.getHits()).thenReturn(hits);
+        SearchHits hits = new SearchHits(list.toArray(SearchHits.EMPTY), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
+        when(response.getHits()).thenReturn(hits.asUnpooled());
+        hits.decRef();
 
         return response;
     }
@@ -948,15 +949,13 @@ public class JobResultsProviderTests extends ESTestCase {
             queryBuilderConsumer.accept(multiSearchRequest.requests().get(0).source().query());
             @SuppressWarnings("unchecked")
             ActionListener<MultiSearchResponse> actionListener = (ActionListener<MultiSearchResponse>) invocationOnMock.getArguments()[1];
-            MultiSearchResponse mresponse = new MultiSearchResponse(
-                new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(response, null) },
-                randomNonNegativeLong()
+            ActionListener.respondAndRelease(
+                actionListener,
+                new MultiSearchResponse(
+                    new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(response, null) },
+                    randomNonNegativeLong()
+                )
             );
-            try {
-                actionListener.onResponse(mresponse);
-            } finally {
-                mresponse.decRef();
-            }
             return null;
         }).when(client).multiSearch(any(), any());
         doAnswer(invocationOnMock -> {

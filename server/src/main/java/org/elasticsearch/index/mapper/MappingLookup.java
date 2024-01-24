@@ -281,7 +281,7 @@ public final class MappingLookup {
     }
 
     void checkFieldLimit(long limit, int additionalFieldsToAdd) {
-        if (totalFieldsCount + additionalFieldsToAdd > limit) {
+        if (exceedsLimit(limit, additionalFieldsToAdd)) {
             throw new IllegalArgumentException(
                 "Limit of total fields ["
                     + limit
@@ -289,6 +289,10 @@ public final class MappingLookup {
                     + (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : "")
             );
         }
+    }
+
+    boolean exceedsLimit(long limit, int additionalFieldsToAdd) {
+        return getTotalFieldsCount() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit;
     }
 
     private void checkDimensionFieldLimit(long limit) {

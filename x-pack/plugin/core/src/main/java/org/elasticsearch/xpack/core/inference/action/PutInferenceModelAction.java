@@ -20,6 +20,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -82,7 +84,16 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
+            if (MlStrings.isValidId(this.modelId) == false) {
+                validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, "model_id", this.modelId));
+            }
+
+            if (validationException.validationErrors().isEmpty() == false) {
+                return validationException;
+            } else {
+                return null;
+            }
         }
 
         @Override

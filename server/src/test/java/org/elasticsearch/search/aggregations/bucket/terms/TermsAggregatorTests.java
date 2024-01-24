@@ -28,6 +28,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHits;
@@ -285,6 +286,26 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
+    public void testMatchNoDocsQuery() throws Exception {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string");
+        CheckedConsumer<RandomIndexWriter, IOException> createIndex = iw -> {
+            iw.addDocument(doc(fieldType, "a", "b"));
+            iw.addDocument(doc(fieldType, "", "c", "a"));
+            iw.addDocument(doc(fieldType, "b", "d"));
+            iw.addDocument(doc(fieldType, ""));
+        };
+        testCase(
+            createIndex,
+            (InternalTerms<?, ?> result) -> { assertEquals(0, result.getBuckets().size()); },
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+        );
+
+        debugTestCase(aggregationBuilder, new MatchNoDocsQuery(), createIndex, (result, impl, debug) -> {
+            assertEquals(impl, MapStringTermsAggregator.class);
+        }, fieldType);
+    }
+
     public void testStringShardMinDocCount() throws IOException {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", true, true, Collections.emptyMap());
         for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
@@ -419,7 +440,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private List<IndexableField> doc(MappedFieldType ft, String... values) {
+    static List<IndexableField> doc(MappedFieldType ft, String... values) {
         List<IndexableField> doc = new ArrayList<IndexableField>();
         for (String v : values) {
             BytesRef bytes = new BytesRef(v);

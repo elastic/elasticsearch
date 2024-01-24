@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -67,7 +68,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
-import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -204,7 +204,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 16; i++) {
             repository.blobContainer()
-                .writeBlob(randomPurpose(), BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
+                .writeBlob(OperationPurpose.SNAPSHOT_METADATA, BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
             if (i == 8) {
                 assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(generation));
             } else {

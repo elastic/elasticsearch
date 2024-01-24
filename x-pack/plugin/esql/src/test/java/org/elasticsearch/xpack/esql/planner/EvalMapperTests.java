@@ -12,12 +12,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
@@ -74,7 +74,8 @@ public class EvalMapperTests extends ESTestCase {
         null,
         10000000,
         10000,
-        StringUtils.EMPTY
+        StringUtils.EMPTY,
+        false
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -161,7 +162,7 @@ public class EvalMapperTests extends ESTestCase {
     static DriverContext driverContext() {
         return new DriverContext(
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            BlockFactory.getNonBreakingInstance()
+            TestBlockFactory.getNonBreakingInstance()
         );
     }
 }

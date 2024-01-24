@@ -24,13 +24,7 @@ public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
         org.elasticsearch.telemetry.metric.DoubleHistogram {
 
     public DoubleHistogramAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, name, description, unit);
-    }
-
-    @Override
-    protected io.opentelemetry.api.metrics.DoubleHistogram buildInstrument(Meter meter) {
-        var builder = Objects.requireNonNull(meter).histogramBuilder(getName());
-        return builder.setDescription(getDescription()).setUnit(getUnit()).build();
+        super(meter, new Builder(name, description, unit));
     }
 
     @Override
@@ -41,5 +35,16 @@ public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
     @Override
     public void record(double value, Map<String, Object> attributes) {
         getInstrument().record(value, OtelHelper.fromMap(attributes));
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<DoubleHistogram> {
+        private Builder(String name, String description, String unit) {
+            super(name, description, unit);
+        }
+
+        @Override
+        public DoubleHistogram build(Meter meter) {
+            return Objects.requireNonNull(meter).histogramBuilder(name).setDescription(description).setUnit(unit).build();
+        }
     }
 }

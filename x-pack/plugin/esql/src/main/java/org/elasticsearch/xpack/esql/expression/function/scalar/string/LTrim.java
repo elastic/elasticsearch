@@ -50,7 +50,7 @@ public class LTrim extends UnaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return new LTrimEvaluator.Factory(toEvaluator.apply(field()));
+        return new LTrimEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

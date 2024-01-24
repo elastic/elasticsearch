@@ -355,7 +355,7 @@ public class RecordingOtelMeter implements Meter {
 
     private class DoubleUpDownRecorder extends AbstractInstrument implements DoubleUpDownCounter, OtelInstrument {
         DoubleUpDownRecorder(String name) {
-            super(name, InstrumentType.LONG_UP_DOWN_COUNTER);
+            super(name, InstrumentType.DOUBLE_UP_DOWN_COUNTER);
         }
 
         protected DoubleUpDownRecorder(String name, InstrumentType instrument) {
@@ -616,7 +616,9 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public DoubleHistogram build() {
-            return new DoubleHistogramRecorder(name);
+            DoubleHistogramRecorder histogram = new DoubleHistogramRecorder(name);
+            recorder.register(histogram, histogram.getInstrument(), name, description, unit);
+            return histogram;
         }
     }
 
@@ -661,7 +663,9 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public LongHistogram build() {
-            return new LongHistogramRecorder(name);
+            LongHistogramRecorder histogram = new LongHistogramRecorder(name);
+            recorder.register(histogram, histogram.getInstrument(), name, description, unit);
+            return histogram;
         }
     }
 

@@ -152,15 +152,15 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
     }
 
     public void testFromXContent() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"fields\" : [\"FOO\"] }");
-        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
-        ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
-        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), new ParseField("fields"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"fields\" : [\"FOO\"] }")) {
+            FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+            ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
+            PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), new ParseField("fields"));
 
-        PARSER.parse(parser, request, null);
+            PARSER.parse(parser, request, null);
 
-        assertArrayEquals(request.fields(), new String[] { "FOO" });
-
+            assertArrayEquals(request.fields(), new String[] { "FOO" });
+        }
     }
 
     public void testValidation() {

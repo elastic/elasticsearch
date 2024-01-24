@@ -20,13 +20,19 @@ setup:
           id: test-connector
           job_type: full
           trigger_method: on_demand
+
   - set: { id: sync-job-id-to-delete }
+
   - do:
       connector_sync_job.delete:
         connector_sync_job_id: $sync-job-id-to-delete
 
   - match: { acknowledged: true }
 
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $sync-job-id-to-delete
+      catch: missing
 
 ---
 "Delete Connector Sync Job - Connector Sync Job does not exist":

@@ -21,6 +21,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
@@ -356,8 +357,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                     }
 
                     @Override
-                    public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), false) {
+                    public FieldComparator<?> getComparator(int numHits, Pruning enableSkipping) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), Pruning.NONE) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {

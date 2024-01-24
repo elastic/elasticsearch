@@ -1081,6 +1081,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertThat(extractor.value(1577836800000L, "date"), equalTo("2020-01-01T00:00:00.000Z"));
         assertThat(extractor.value(1577836800000L, "date_nanos"), equalTo("2020-01-01T00:00:00.000Z"));
         assertThat(extractor.value(1577836800000L, "long"), equalTo(1577836800000L));
+        assertThat(extractor.value(1577836800000L, null), equalTo(1577836800000L));
     }
 
     public void testDatesAsEpochBucketKeyExtractor() {
@@ -1091,6 +1092,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertThat(extractor.value(1577836800000L, "date"), equalTo(1577836800000L));
         assertThat(extractor.value(1577836800000L, "date_nanos"), equalTo(1577836800000L));
         assertThat(extractor.value(1577836800000L, "long"), equalTo(1577836800000L));
+        assertThat(extractor.value(1577836800000L, null), equalTo(1577836800000L));
     }
 
     private void executeTest(

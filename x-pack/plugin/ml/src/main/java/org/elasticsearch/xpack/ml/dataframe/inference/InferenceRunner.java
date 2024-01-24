@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.dataframe.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -115,15 +116,14 @@ public class InferenceRunner {
             }
         } catch (Exception e) {
             LOGGER.error(() -> format("[%s] Error running inference on model [%s]", config.getId(), modelId), e);
-
-            if (e instanceof ElasticsearchException) {
-                Throwable rootCause = ((ElasticsearchException) e).getRootCause();
-                throw new ElasticsearchException(
+            if (e instanceof ElasticsearchException elasticsearchException) {
+                throw new ElasticsearchStatusException(
                     "[{}] failed running inference on model [{}]; cause was [{}]",
-                    rootCause,
+                    elasticsearchException.status(),
+                    elasticsearchException.getRootCause(),
                     config.getId(),
                     modelId,
-                    rootCause.getMessage()
+                    elasticsearchException.getRootCause().getMessage()
                 );
             }
             throw ExceptionsHelper.serverError(
@@ -155,21 +155,24 @@ public class InferenceRunner {
             client,
             () -> client.search(searchRequest).actionGet()
         );
-
-        Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
-        long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
-        Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
-        if (lastIncrementalId != null) {
-            LOGGER.debug(
-                () -> format(
-                    "[%s] Resuming inference; last incremental id [%s]; processed test doc count [%s]",
-                    config.getId(),
-                    lastIncrementalId,
-                    processedTestDocCount
-                )
-            );
+        try {
+            Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
+            long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
+            Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
+            if (lastIncrementalId != null) {
+                LOGGER.debug(
+                    () -> format(
+                        "[%s] Resuming inference; last incremental id [%s]; processed test doc count [%s]",
+                        config.getId(),
+                        lastIncrementalId,
+                        processedTestDocCount
+                    )
+                );
+            }
+            return new InferenceState(lastIncrementalId, processedTestDocCount);
+        } finally {
+            searchResponse.decRef();
         }
-        return new InferenceState(lastIncrementalId, processedTestDocCount);
     }
 
     // Visible for testing

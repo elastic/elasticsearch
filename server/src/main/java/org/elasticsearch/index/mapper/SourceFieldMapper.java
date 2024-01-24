@@ -179,9 +179,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return sourceFieldMapper;
         }
 
-        private IndexMode getIndexMode() {
-            return indexMode;
-        }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(

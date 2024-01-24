@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -39,7 +40,9 @@ import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
+import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -52,6 +55,7 @@ import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 
@@ -85,13 +89,15 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
             new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
-            new ActionHandler<>(DeleteInferenceModelAction.INSTANCE, TransportDeleteInferenceModelAction.class)
+            new ActionHandler<>(DeleteInferenceModelAction.INSTANCE, TransportDeleteInferenceModelAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -110,7 +116,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     @Override
     public Collection<?> createComponents(PluginServices services) {
         var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
-        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings));
+        var truncator = new Truncator(settings, services.clusterService());
+        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
 
         httpManager.set(HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager));
 
@@ -147,6 +154,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         return List.of(
             ElserMlNodeService::new,
             context -> new HuggingFaceElserService(httpFactory, serviceComponents),
+            context -> new HuggingFaceService(httpFactory, serviceComponents),
             context -> new OpenAiService(httpFactory, serviceComponents)
         );
     }
@@ -206,7 +214,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             HttpClientManager.getSettings(),
             HttpRequestSenderFactory.HttpRequestSender.getSettings(),
             ThrottlerManager.getSettings(),
-            RetrySettings.getSettingsDefinitions()
+            RetrySettings.getSettingsDefinitions(),
+            Truncator.getSettings()
         ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 

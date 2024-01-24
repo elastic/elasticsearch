@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -427,10 +426,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         // if all requested indices failed, we fail the request by throwing the exception
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareFieldCaps("index1-error", "index2-error")
-                .setFields("*")
-                .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
-                .get()
+            client().prepareFieldCaps("index1-error", "index2-error").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
         );
         assertEquals("I throw because I choose to.", ex.getMessage());
     }
@@ -478,7 +474,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
-            final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
             assertTrue(failedRequest.get());
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
@@ -500,7 +496,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         {
             final ElasticsearchException ex = expectThrows(
                 ElasticsearchException.class,
-                () -> client().prepareFieldCaps("log-index-*").setFields("*").get()
+                client().prepareFieldCaps("log-index-*").setFields("*")
             );
             assertThat(ex.getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
         }
@@ -512,7 +508,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
-            final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));
@@ -574,7 +570,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
-            final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));
@@ -630,7 +626,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             }
         };
         // Single mapping
-        verifyResponse.accept(client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet());
+        verifyResponse.accept(client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet());
 
         // add an extra field for some indices
         String[] indicesWithExtraField = randomSubsetOf(between(1, indices.length), indices).stream().sorted().toArray(String[]::new);
@@ -639,7 +635,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         for (String index : indicesWithExtraField) {
             prepareIndex(index).setSource("extra_field", randomIntBetween(1, 1000)).get();
         }
-        FieldCapabilitiesResponse resp = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+        FieldCapabilitiesResponse resp = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
         verifyResponse.accept(resp);
         assertThat(resp.getField("extra_field"), hasKey("integer"));
         assertThat(resp.getField("extra_field").get("integer").indices(), nullValue());

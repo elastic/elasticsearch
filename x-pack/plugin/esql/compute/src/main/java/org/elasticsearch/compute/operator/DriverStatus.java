@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,20 +47,41 @@ public class DriverStatus implements Task.Status {
      * The state of the overall driver - queue, starting, running, finished.
      */
     private final Status status;
+
     /**
-     * Status of each {@link Operator} in the driver.
+     * Status of each completed {@link Operator} in the driver.
+     */
+    private final List<OperatorStatus> completedOperators;
+
+    /**
+     * Status of each active {@link Operator} in the driver.
      */
     private final List<OperatorStatus> activeOperators;
 
-    DriverStatus(String sessionId, long lastUpdated, Status status, List<OperatorStatus> activeOperators) {
+    DriverStatus(
+        String sessionId,
+        long lastUpdated,
+        Status status,
+        List<OperatorStatus> completedOperators,
+        List<OperatorStatus> activeOperators
+    ) {
         this.sessionId = sessionId;
         this.lastUpdated = lastUpdated;
         this.status = status;
+        this.completedOperators = completedOperators;
         this.activeOperators = activeOperators;
     }
 
-    DriverStatus(StreamInput in) throws IOException {
-        this(in.readString(), in.readLong(), Status.valueOf(in.readString()), in.readCollectionAsImmutableList(OperatorStatus::new));
+    public DriverStatus(StreamInput in) throws IOException {
+        this.sessionId = in.readString();
+        this.lastUpdated = in.readLong();
+        this.status = Status.valueOf(in.readString());
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+            this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
+        } else {
+            this.completedOperators = List.of();
+        }
+        this.activeOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
     }
 
     @Override
@@ -67,6 +89,9 @@ public class DriverStatus implements Task.Status {
         out.writeString(sessionId);
         out.writeLong(lastUpdated);
         out.writeString(status.toString());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+            out.writeCollection(completedOperators);
+        }
         out.writeCollection(activeOperators);
     }
 
@@ -97,7 +122,14 @@ public class DriverStatus implements Task.Status {
     }
 
     /**
-     * Status of each {@link Operator} in the driver.
+     * Status of each completed {@link Operator} in the driver.
+     */
+    public List<OperatorStatus> completedOperators() {
+        return completedOperators;
+    }
+
+    /**
+     * Status of each active {@link Operator} in the driver.
      */
     public List<OperatorStatus> activeOperators() {
         return activeOperators;
@@ -109,6 +141,11 @@ public class DriverStatus implements Task.Status {
         builder.field("sessionId", sessionId);
         builder.field("last_updated", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lastUpdated));
         builder.field("status", status.toString().toLowerCase(Locale.ROOT));
+        builder.startArray("completed_operators");
+        for (OperatorStatus completed : completedOperators) {
+            builder.value(completed);
+        }
+        builder.endArray();
         builder.startArray("active_operators");
         for (OperatorStatus active : activeOperators) {
             builder.value(active);
@@ -125,12 +162,13 @@ public class DriverStatus implements Task.Status {
         return sessionId.equals(that.sessionId)
             && lastUpdated == that.lastUpdated
             && status == that.status
+            && completedOperators.equals(that.completedOperators)
             && activeOperators.equals(that.activeOperators);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, lastUpdated, status, activeOperators);
+        return Objects.hash(sessionId, lastUpdated, status, completedOperators, activeOperators);
     }
 
     @Override
@@ -153,12 +191,12 @@ public class DriverStatus implements Task.Status {
         @Nullable
         private final Operator.Status status;
 
-        OperatorStatus(String operator, Operator.Status status) {
+        public OperatorStatus(String operator, Operator.Status status) {
             this.operator = operator;
             this.status = status;
         }
 
-        private OperatorStatus(StreamInput in) throws IOException {
+        OperatorStatus(StreamInput in) throws IOException {
             operator = in.readString();
             status = in.readOptionalNamedWriteable(Operator.Status.class);
         }

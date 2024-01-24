@@ -257,7 +257,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         createTime = in.readOptionalInstant();
         transformVersion = in.readBoolean() ? TransformConfigVersion.readVersion(in) : null;
         settings = new SettingsConfig(in);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 

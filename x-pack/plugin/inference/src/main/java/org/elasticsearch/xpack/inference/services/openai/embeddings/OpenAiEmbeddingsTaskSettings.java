@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
  * Defines the task settings for the openai service.

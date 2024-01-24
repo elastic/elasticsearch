@@ -7,7 +7,8 @@
   ],
   "priority": 100,
   "_meta": {
-    "description": "Index template for .profiling-symbols-private"
+    "description": "Index template for .profiling-symbols-private",
+    "managed": true
   },
   "version": ${xpack.profiling.template.version}
 }

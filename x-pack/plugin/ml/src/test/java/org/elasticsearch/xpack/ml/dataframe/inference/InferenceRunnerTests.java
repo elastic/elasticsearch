@@ -150,10 +150,14 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     private static Deque<SearchHit> buildSearchHits(List<Map<String, Object>> vals) {
-        return vals.stream()
-            .map(InferenceRunnerTests::fromMap)
-            .map(reference -> SearchHit.createFromMap(Collections.singletonMap("_source", reference)))
-            .collect(Collectors.toCollection(ArrayDeque::new));
+        return vals.stream().map(InferenceRunnerTests::fromMap).map(reference -> {
+            var pooled = SearchHit.createFromMap(Collections.singletonMap("_source", reference));
+            try {
+                return pooled.asUnpooled();
+            } finally {
+                pooled.decRef();
+            }
+        }).collect(Collectors.toCollection(ArrayDeque::new));
     }
 
     private static BytesReference fromMap(Map<String, Object> map) {

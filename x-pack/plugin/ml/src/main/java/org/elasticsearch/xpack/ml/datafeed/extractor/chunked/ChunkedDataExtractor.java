@@ -146,7 +146,15 @@ public class ChunkedDataExtractor implements DataExtractor {
             client,
             searchRequestBuilder::get
         );
-        checkForSkippedClusters(searchResponse);
+        boolean success = false;
+        try {
+            checkForSkippedClusters(searchResponse);
+            success = true;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
+        }
         return searchResponse;
     }
 
@@ -232,20 +240,24 @@ public class ChunkedDataExtractor implements DataExtractor {
             SearchRequestBuilder searchRequestBuilder = rangeSearchRequest();
 
             SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-            LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
-            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            try {
+                LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
+                timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
-            long earliestTime = 0;
-            long latestTime = 0;
-            long totalHits = searchResponse.getHits().getTotalHits().value;
-            if (totalHits > 0) {
-                Aggregations aggregations = searchResponse.getAggregations();
-                Min min = aggregations.get(EARLIEST_TIME);
-                earliestTime = (long) min.value();
-                Max max = aggregations.get(LATEST_TIME);
-                latestTime = (long) max.value();
+                long earliestTime = 0;
+                long latestTime = 0;
+                long totalHits = searchResponse.getHits().getTotalHits().value;
+                if (totalHits > 0) {
+                    Aggregations aggregations = searchResponse.getAggregations();
+                    Min min = aggregations.get(EARLIEST_TIME);
+                    earliestTime = (long) min.value();
+                    Max max = aggregations.get(LATEST_TIME);
+                    latestTime = (long) max.value();
+                }
+                return new ScrolledDataSummary(earliestTime, latestTime, totalHits);
+            } finally {
+                searchResponse.decRef();
             }
-            return new ScrolledDataSummary(earliestTime, latestTime, totalHits);
         }
 
         private DataSummary newAggregatedDataSummary() {
@@ -253,20 +265,24 @@ public class ChunkedDataExtractor implements DataExtractor {
             ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder =
                 dataExtractorFactory instanceof RollupDataExtractorFactory ? rollupRangeSearchRequest() : rangeSearchRequest();
             SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-            LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
-            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            try {
+                LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
+                timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
-            Aggregations aggregations = searchResponse.getAggregations();
-            // This can happen if all the indices the datafeed is searching are deleted after it started.
-            // Note that unlike the scrolled data summary method above we cannot check for this situation
-            // by checking for zero hits, because aggregations that work on rollups return zero hits even
-            // when they retrieve data.
-            if (aggregations == null) {
-                return AggregatedDataSummary.noDataSummary(context.histogramInterval);
+                Aggregations aggregations = searchResponse.getAggregations();
+                // This can happen if all the indices the datafeed is searching are deleted after it started.
+                // Note that unlike the scrolled data summary method above we cannot check for this situation
+                // by checking for zero hits, because aggregations that work on rollups return zero hits even
+                // when they retrieve data.
+                if (aggregations == null) {
+                    return AggregatedDataSummary.noDataSummary(context.histogramInterval);
+                }
+                Min min = aggregations.get(EARLIEST_TIME);
+                Max max = aggregations.get(LATEST_TIME);
+                return new AggregatedDataSummary(min.value(), max.value(), context.histogramInterval);
+            } finally {
+                searchResponse.decRef();
             }
-            Min min = aggregations.get(EARLIEST_TIME);
-            Max max = aggregations.get(LATEST_TIME);
-            return new AggregatedDataSummary(min.value(), max.value(), context.histogramInterval);
         }
 
         private SearchSourceBuilder rangeSearchBuilder() {

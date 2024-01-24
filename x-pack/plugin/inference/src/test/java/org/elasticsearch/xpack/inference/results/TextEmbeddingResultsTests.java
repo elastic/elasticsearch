@@ -100,6 +100,30 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             }"""));
     }
 
+    public void testTransformToCoordinationFormat() {
+        var results = new TextEmbeddingResults(
+            List.of(new TextEmbeddingResults.Embedding(List.of(0.1F, 0.2F)), new TextEmbeddingResults.Embedding(List.of(0.3F, 0.4F)))
+        ).transformToCoordinationFormat();
+
+        assertThat(
+            results,
+            is(
+                List.of(
+                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
+                        TextEmbeddingResults.TEXT_EMBEDDING,
+                        new double[] { 0.1F, 0.2F },
+                        false
+                    ),
+                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
+                        TextEmbeddingResults.TEXT_EMBEDDING,
+                        new double[] { 0.3F, 0.4F },
+                        false
+                    )
+                )
+            )
+        );
+    }
+
     @Override
     protected Writeable.Reader<TextEmbeddingResults> instanceReader() {
         return TextEmbeddingResults::new;

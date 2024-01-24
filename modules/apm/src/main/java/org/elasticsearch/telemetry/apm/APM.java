@@ -8,6 +8,8 @@
 
 package org.elasticsearch.telemetry.apm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +34,7 @@ import java.util.List;
  * make this approach difficult to the point of impossibility.
  * <p>
  * All settings are found under the <code>tracing.apm.</code> prefix. Any setting under
- * the <code>tracing.apm.agent.</code> prefix will be forwarded on to the APM Java agent
+ * the <code>telemetry.agent.</code> prefix will be forwarded on to the APM Java agent
  * by setting appropriate system properties. Some settings can only be set once, and must be
  * set when the agent starts. We therefore also create and configure a config file in
  * the {@code APMJvmOptions} class, which we then delete when Elasticsearch starts, so that
@@ -44,6 +46,7 @@ import java.util.List;
  * and applies the new settings values, provided those settings can be dynamically updated.
  */
 public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
+    private static final Logger logger = LogManager.getLogger(APM.class);
     private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
     private final Settings settings;
 
@@ -69,6 +72,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         apmAgentSettings.syncAgentSystemProperties(settings);
         final APMMeterService apmMeter = new APMMeterService(settings);
         apmAgentSettings.addClusterSettingsListeners(services.clusterService(), telemetryProvider.get(), apmMeter);
+        logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
+        logger.info("Sending apm tracing is {}", APMAgentSettings.APM_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
         return List.of(apmTracer, apmMeter);
     }

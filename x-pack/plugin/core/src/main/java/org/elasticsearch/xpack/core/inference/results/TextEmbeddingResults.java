@@ -79,6 +79,14 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     }
 
     @Override
+    public List<? extends InferenceResults> transformToCoordinationFormat() {
+        return embeddings.stream()
+            .map(embedding -> embedding.values.stream().mapToDouble(value -> value).toArray())
+            .map(values -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING, values, false))
+            .toList();
+    }
+
+    @Override
     @SuppressWarnings("deprecation")
     public List<? extends InferenceResults> transformToLegacyFormat() {
         var legacyEmbedding = new LegacyTextEmbeddingResults(

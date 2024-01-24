@@ -253,7 +253,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
         final IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(prefix + "nonsense", "foo")).get()
+            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(prefix + "nonsense", "foo"))
         );
         assertThat(illegalArgumentException.getMessage(), containsString("[cluster.routing.allocation.awareness.force.]"));
         assertThat(illegalArgumentException.getCause(), instanceOf(SettingsException.class));
@@ -262,9 +262,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(prefix + "attr.not_values", "foo"))
-                    .get()
+                clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(prefix + "attr.not_values", "foo"))
             ).getMessage(),
             containsString("[cluster.routing.allocation.awareness.force.attr.not_values]")
         );
@@ -272,9 +270,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(prefix + "attr.values.junk", "foo"))
-                    .get()
+                clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(prefix + "attr.values.junk", "foo"))
             ).getMessage(),
             containsString("[cluster.routing.allocation.awareness.force.attr.values.junk]")
         );

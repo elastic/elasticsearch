@@ -7,21 +7,39 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
+import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
+import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
+import org.elasticsearch.xpack.application.connector.ConnectorUtils;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents a sync job in the Elasticsearch ecosystem. Sync jobs refer to a unit of work, which syncs data from a 3rd party
@@ -60,27 +78,27 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     static final ParseField CREATED_AT_FIELD = new ParseField("created_at");
 
-    static final ParseField DELETED_DOCUMENT_COUNT = new ParseField("deleted_document_count");
+    public static final ParseField DELETED_DOCUMENT_COUNT_FIELD = new ParseField("deleted_document_count");
 
-    static final ParseField ERROR_FIELD = new ParseField("error");
+    public static final ParseField ERROR_FIELD = new ParseField("error");
 
     public static final ParseField ID_FIELD = new ParseField("id");
 
-    static final ParseField INDEXED_DOCUMENT_COUNT_FIELD = new ParseField("indexed_document_count");
+    public static final ParseField INDEXED_DOCUMENT_COUNT_FIELD = new ParseField("indexed_document_count");
 
-    static final ParseField INDEXED_DOCUMENT_VOLUME_FIELD = new ParseField("indexed_document_volume");
+    public static final ParseField INDEXED_DOCUMENT_VOLUME_FIELD = new ParseField("indexed_document_volume");
 
     public static final ParseField JOB_TYPE_FIELD = new ParseField("job_type");
 
-    static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
+    public static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
 
     static final ParseField METADATA_FIELD = new ParseField("metadata");
 
     static final ParseField STARTED_AT_FIELD = new ParseField("started_at");
 
-    static final ParseField STATUS_FIELD = new ParseField("status");
+    public static final ParseField STATUS_FIELD = new ParseField("status");
 
-    static final ParseField TOTAL_DOCUMENT_COUNT_FIELD = new ParseField("total_document_count");
+    public static final ParseField TOTAL_DOCUMENT_COUNT_FIELD = new ParseField("total_document_count");
 
     public static final ParseField TRIGGER_METHOD_FIELD = new ParseField("trigger_method");
 
@@ -92,6 +110,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     static final ConnectorSyncJobTriggerMethod DEFAULT_TRIGGER_METHOD = ConnectorSyncJobTriggerMethod.ON_DEMAND;
 
+    @Nullable
     private final Instant cancelationRequestedAt;
 
     @Nullable
@@ -127,7 +146,6 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     private final ConnectorSyncStatus status;
 
-    @Nullable
     private final long totalDocumentCount;
 
     private final ConnectorSyncJobTriggerMethod triggerMethod;
@@ -217,44 +235,312 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         this.workerHostname = in.readOptionalString();
     }
 
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<ConnectorSyncJob, Void> PARSER = new ConstructingObjectParser<>(
+        "connector_sync_job",
+        true,
+        (args) -> {
+            int i = 0;
+            return new Builder().setCancellationRequestedAt((Instant) args[i++])
+                .setCanceledAt((Instant) args[i++])
+                .setCompletedAt((Instant) args[i++])
+                .setConnector((Connector) args[i++])
+                .setCreatedAt((Instant) args[i++])
+                .setDeletedDocumentCount((Long) args[i++])
+                .setError((String) args[i++])
+                .setId((String) args[i++])
+                .setIndexedDocumentCount((Long) args[i++])
+                .setIndexedDocumentVolume((Long) args[i++])
+                .setJobType((ConnectorSyncJobType) args[i++])
+                .setLastSeen((Instant) args[i++])
+                .setMetadata((Map<String, Object>) args[i++])
+                .setStartedAt((Instant) args[i++])
+                .setStatus((ConnectorSyncStatus) args[i++])
+                .setTotalDocumentCount((Long) args[i++])
+                .setTriggerMethod((ConnectorSyncJobTriggerMethod) args[i++])
+                .setWorkerHostname((String) args[i])
+                .build();
+        }
+    );
+
+    static {
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, CANCELATION_REQUESTED_AT_FIELD.getPreferredName()),
+            CANCELATION_REQUESTED_AT_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, CANCELED_AT_FIELD.getPreferredName()),
+            CANCELED_AT_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, COMPLETED_AT_FIELD.getPreferredName()),
+            COMPLETED_AT_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorSyncJob.syncJobConnectorFromXContent(p, null),
+            CONNECTOR_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorUtils.parseInstant(p, CREATED_AT_FIELD.getPreferredName()),
+            CREATED_AT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareLong(constructorArg(), DELETED_DOCUMENT_COUNT_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), ERROR_FIELD);
+        PARSER.declareString(constructorArg(), ID_FIELD);
+        PARSER.declareLong(constructorArg(), INDEXED_DOCUMENT_COUNT_FIELD);
+        PARSER.declareLong(constructorArg(), INDEXED_DOCUMENT_VOLUME_FIELD);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorSyncJobType.fromString(p.text()),
+            JOB_TYPE_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, LAST_SEEN_FIELD.getPreferredName()),
+            LAST_SEEN_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
+        PARSER.declareField(constructorArg(), (p, c) -> p.map(), METADATA_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, STARTED_AT_FIELD.getPreferredName()),
+            STARTED_AT_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorSyncStatus.fromString(p.text()),
+            STATUS_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareLong(constructorArg(), TOTAL_DOCUMENT_COUNT_FIELD);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ConnectorSyncJobTriggerMethod.fromString(p.text()),
+            TRIGGER_METHOD_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareStringOrNull(optionalConstructorArg(), WORKER_HOSTNAME_FIELD);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<Connector, String> SYNC_JOB_CONNECTOR_PARSER = new ConstructingObjectParser<>(
+        "sync_job_connector",
+        true,
+        (args, connectorId) -> {
+            int i = 0;
+
+            // Parse the connector ID from the arguments. The ID uniquely identifies the connector.
+            String parsedConnectorId = (String) args[i++];
+
+            // Determine the actual connector ID to use. If the context parameter `connectorId` is not null or empty,
+            // it takes precedence over the `parsedConnectorId` extracted from the arguments.
+            // This approach allows for flexibility in specifying the connector ID, either from a context or as a parsed argument.
+            String syncJobConnectorId = Strings.isNullOrEmpty(connectorId) ? parsedConnectorId : connectorId;
+
+            return new Connector.Builder().setConnectorId(syncJobConnectorId)
+                .setFiltering((List<ConnectorFiltering>) args[i++])
+                .setIndexName((String) args[i++])
+                .setLanguage((String) args[i++])
+                .setPipeline((ConnectorIngestPipeline) args[i++])
+                .setServiceType((String) args[i++])
+                .setConfiguration((Map<String, ConnectorConfiguration>) args[i++])
+                .build();
+        }
+    );
+
+    static {
+        SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.ID_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorFiltering.fromXContent(p),
+            Connector.FILTERING_FIELD
+        );
+        SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.INDEX_NAME_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.LANGUAGE_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareObjectOrNull(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorIngestPipeline.fromXContent(p),
+            null,
+            Connector.PIPELINE_FIELD
+        );
+        SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.SERVICE_TYPE_FIELD);
+        SYNC_JOB_CONNECTOR_PARSER.declareObject(
+            optionalConstructorArg(),
+            (p, c) -> p.map(HashMap::new, ConnectorConfiguration::fromXContent),
+            Connector.CONFIGURATION_FIELD
+        );
+    }
+
+    public static ConnectorSyncJob fromXContentBytes(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return ConnectorSyncJob.fromXContent(parser);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse a connector sync job document.", e);
+        }
+    }
+
+    public static ConnectorSyncJob fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    public static Connector syncJobConnectorFromXContentBytes(BytesReference source, String connectorId, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return ConnectorSyncJob.syncJobConnectorFromXContent(parser, connectorId);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse a connector document.", e);
+        }
+    }
+
+    public static Connector syncJobConnectorFromXContent(XContentParser parser, String connectorId) throws IOException {
+        return SYNC_JOB_CONNECTOR_PARSER.parse(parser, connectorId);
+    }
+
     public String getId() {
         return id;
+    }
+
+    public Instant getCancelationRequestedAt() {
+        return cancelationRequestedAt;
+    }
+
+    public Instant getCanceledAt() {
+        return canceledAt;
+    }
+
+    public Instant getCompletedAt() {
+        return completedAt;
+    }
+
+    public Connector getConnector() {
+        return connector;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public long getDeletedDocumentCount() {
+        return deletedDocumentCount;
+    }
+
+    public String getError() {
+        return error;
+    }
+
+    public long getIndexedDocumentCount() {
+        return indexedDocumentCount;
+    }
+
+    public long getIndexedDocumentVolume() {
+        return indexedDocumentVolume;
+    }
+
+    public ConnectorSyncJobType getJobType() {
+        return jobType;
+    }
+
+    public Instant getLastSeen() {
+        return lastSeen;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public Instant getStartedAt() {
+        return startedAt;
+    }
+
+    public ConnectorSyncStatus getStatus() {
+        return status;
+    }
+
+    public long getTotalDocumentCount() {
+        return totalDocumentCount;
+    }
+
+    public ConnectorSyncJobTriggerMethod getTriggerMethod() {
+        return triggerMethod;
+    }
+
+    public String getWorkerHostname() {
+        return workerHostname;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(CANCELATION_REQUESTED_AT_FIELD.getPreferredName(), cancelationRequestedAt);
-            builder.field(CANCELED_AT_FIELD.getPreferredName(), canceledAt);
-            builder.field(COMPLETED_AT_FIELD.getPreferredName(), completedAt);
+            if (cancelationRequestedAt != null) {
+                builder.field(CANCELATION_REQUESTED_AT_FIELD.getPreferredName(), cancelationRequestedAt);
+            }
+            if (canceledAt != null) {
+                builder.field(CANCELED_AT_FIELD.getPreferredName(), canceledAt);
+            }
+            if (completedAt != null) {
+                builder.field(COMPLETED_AT_FIELD.getPreferredName(), completedAt);
+            }
 
             builder.startObject(CONNECTOR_FIELD.getPreferredName());
             {
-                builder.field(Connector.ID_FIELD.getPreferredName(), connector.getConnectorId());
-                builder.field(Connector.FILTERING_FIELD.getPreferredName(), connector.getFiltering());
-                builder.field(Connector.INDEX_NAME_FIELD.getPreferredName(), connector.getIndexName());
-                builder.field(Connector.LANGUAGE_FIELD.getPreferredName(), connector.getLanguage());
-                builder.field(Connector.PIPELINE_FIELD.getPreferredName(), connector.getPipeline());
-                builder.field(Connector.SERVICE_TYPE_FIELD.getPreferredName(), connector.getServiceType());
-                builder.field(Connector.CONFIGURATION_FIELD.getPreferredName(), connector.getConfiguration());
+                if (connector.getConnectorId() != null) {
+                    builder.field(Connector.ID_FIELD.getPreferredName(), connector.getConnectorId());
+                }
+                if (connector.getFiltering() != null) {
+                    builder.field(Connector.FILTERING_FIELD.getPreferredName(), connector.getFiltering());
+                }
+                if (connector.getIndexName() != null) {
+                    builder.field(Connector.INDEX_NAME_FIELD.getPreferredName(), connector.getIndexName());
+                }
+                if (connector.getLanguage() != null) {
+                    builder.field(Connector.LANGUAGE_FIELD.getPreferredName(), connector.getLanguage());
+                }
+                if (connector.getPipeline() != null) {
+                    builder.field(Connector.PIPELINE_FIELD.getPreferredName(), connector.getPipeline());
+                }
+                if (connector.getServiceType() != null) {
+                    builder.field(Connector.SERVICE_TYPE_FIELD.getPreferredName(), connector.getServiceType());
+                }
+                if (connector.getConfiguration() != null) {
+                    builder.field(Connector.CONFIGURATION_FIELD.getPreferredName(), connector.getConfiguration());
+                }
             }
             builder.endObject();
 
             builder.field(CREATED_AT_FIELD.getPreferredName(), createdAt);
-            builder.field(DELETED_DOCUMENT_COUNT.getPreferredName(), deletedDocumentCount);
-            builder.field(ERROR_FIELD.getPreferredName(), error);
+            builder.field(DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(), deletedDocumentCount);
+            if (error != null) {
+                builder.field(ERROR_FIELD.getPreferredName(), error);
+            }
             builder.field(ID_FIELD.getPreferredName(), id);
             builder.field(INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(), indexedDocumentCount);
             builder.field(INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName(), indexedDocumentVolume);
             builder.field(JOB_TYPE_FIELD.getPreferredName(), jobType);
-            builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+            if (lastSeen != null) {
+                builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+            }
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
-            builder.field(STARTED_AT_FIELD.getPreferredName(), startedAt);
+            if (startedAt != null) {
+                builder.field(STARTED_AT_FIELD.getPreferredName(), startedAt);
+            }
             builder.field(STATUS_FIELD.getPreferredName(), status);
             builder.field(TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName(), totalDocumentCount);
             builder.field(TRIGGER_METHOD_FIELD.getPreferredName(), triggerMethod);
-            builder.field(WORKER_HOSTNAME_FIELD.getPreferredName(), workerHostname);
+            if (workerHostname != null) {
+                builder.field(WORKER_HOSTNAME_FIELD.getPreferredName(), workerHostname);
+            }
         }
         builder.endObject();
         return builder;

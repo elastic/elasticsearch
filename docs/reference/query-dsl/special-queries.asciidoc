@@ -60,3 +60,5 @@ include::wrapper-query.asciidoc[]
 include::pinned-query.asciidoc[]
 
 include::rule-query.asciidoc[]
+
+include::weighted-tokens-query.asciidoc[]

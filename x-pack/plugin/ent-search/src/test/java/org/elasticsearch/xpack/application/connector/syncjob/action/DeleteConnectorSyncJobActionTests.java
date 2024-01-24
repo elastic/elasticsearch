@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTestUtils;
 
 import static org.hamcrest.Matchers.containsString;
@@ -28,7 +29,7 @@ public class DeleteConnectorSyncJobActionTests extends ESTestCase {
         ActionRequestValidationException exception = requestWithMissingConnectorId.validate();
 
         assertThat(exception, notNullValue());
-        assertThat(exception.getMessage(), containsString(DeleteConnectorSyncJobAction.Request.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));
+        assertThat(exception.getMessage(), containsString(ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));
     }
 
 }

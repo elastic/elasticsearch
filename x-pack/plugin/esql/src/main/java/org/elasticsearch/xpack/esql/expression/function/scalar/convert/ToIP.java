@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,16 +21,19 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 public class ToIP extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(IP, (field, source) -> field),
-        Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new)
+        Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new)
     );
 
-    public ToIP(Source source, Expression field) {
+    @FunctionInfo(returnType = "ip", description = "Converts an input string to an IP value.")
+    public ToIP(Source source, @Param(name = "v", type = { "ip", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 

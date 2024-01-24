@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -71,17 +71,17 @@ public class AnnotationIndex {
         final ActionListener<Boolean> finalListener
     ) {
 
-        final ActionListener<Boolean> annotationsIndexCreatedListener = ActionListener.wrap(success -> {
+        final ActionListener<Boolean> annotationsIndexCreatedListener = finalListener.delegateFailureAndWrap((delegate, success) -> {
             final ClusterHealthRequest request = new ClusterHealthRequest(READ_ALIAS_NAME).waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                ClusterHealthAction.INSTANCE,
+                TransportClusterHealthAction.TYPE,
                 request,
-                ActionListener.wrap(r -> finalListener.onResponse(r.isTimedOut() == false), finalListener::onFailure)
+                delegate.delegateFailureAndWrap((l, r) -> l.onResponse(r.isTimedOut() == false))
             );
-        }, finalListener::onFailure);
+        });
 
         createAnnotationsIndexIfNecessary(client, state, masterNodeTimeout, annotationsIndexCreatedListener);
     }
@@ -97,17 +97,16 @@ public class AnnotationIndex {
         final ActionListener<Boolean> finalListener
     ) {
 
-        final ActionListener<Boolean> checkMappingsListener = ActionListener.wrap(
-            success -> ElasticsearchMappings.addDocMappingIfMissing(
+        final ActionListener<Boolean> checkMappingsListener = finalListener.delegateFailureAndWrap(
+            (delegate, success) -> ElasticsearchMappings.addDocMappingIfMissing(
                 WRITE_ALIAS_NAME,
                 AnnotationIndex::annotationsMapping,
                 client,
                 state,
                 masterNodeTimeout,
-                finalListener,
+                delegate,
                 ANNOTATION_INDEX_MAPPINGS_VERSION
-            ),
-            finalListener::onFailure
+            )
         );
 
         final ActionListener<String> createAliasListener = finalListener.delegateFailureAndWrap((finalDelegate, currentIndexName) -> {

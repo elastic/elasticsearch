@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -349,30 +348,18 @@ public class CompositeRolesStore {
         );
     }
 
-    public void getRoleDescriptorsList(Subject subject, ActionListener<Collection<Set<RoleDescriptor>>> listener) {
-        tryGetRoleDescriptorForInternalUser(subject).ifPresentOrElse(
-            roleDescriptor -> listener.onResponse(List.of(Set.of(roleDescriptor))),
-            () -> {
-                final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
-                final GroupedActionListener<Set<RoleDescriptor>> groupedActionListener = new GroupedActionListener<>(
-                    roleReferences.size(),
-                    listener
-                );
+    public void getRoleDescriptors(Subject subject, ActionListener<Set<RoleDescriptor>> listener) {
+        tryGetRoleDescriptorForInternalUser(subject).ifPresentOrElse(roleDescriptor -> listener.onResponse(Set.of(roleDescriptor)), () -> {
+            final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
+            assert roleReferences.size() == 1; // we only handle the singleton case today, but that may change with derived API keys
 
-                roleReferences.forEach(
-                    roleReference -> roleReference.resolve(
-                        roleReferenceResolver,
-                        groupedActionListener.delegateFailureAndWrap((delegate, rolesRetrievalResult) -> {
-                            if (rolesRetrievalResult.isSuccess()) {
-                                delegate.onResponse(rolesRetrievalResult.getRoleDescriptors());
-                            } else {
-                                delegate.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
-                            }
-                        })
-                    )
-                );
-            }
-        );
+            ActionListener.run(listener.<RolesRetrievalResult>map(rolesRetrievalResult -> {
+                if (rolesRetrievalResult.isSuccess() == false) {
+                    throw new ElasticsearchException("role retrieval had one or more failures");
+                }
+                return rolesRetrievalResult.getRoleDescriptors();
+            }), l -> roleReferences.iterator().next().resolve(roleReferenceResolver, l));
+        });
     }
 
     // Package private for testing

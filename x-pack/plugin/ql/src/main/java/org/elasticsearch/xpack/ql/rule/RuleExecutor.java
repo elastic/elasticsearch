@@ -67,6 +67,10 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         public String name() {
             return name;
         }
+
+        public Rule<?, TreeType>[] rules() {
+            return rules;
+        }
     }
 
     private Iterable<Batch<TreeType>> batches = null;

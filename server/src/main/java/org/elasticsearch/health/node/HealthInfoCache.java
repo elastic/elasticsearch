@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.selection.HealthNode;
 
 import java.util.Map;
@@ -26,6 +27,8 @@ public class HealthInfoCache implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(HealthInfoCache.class);
     private volatile ConcurrentHashMap<String, DiskHealthInfo> diskInfoByNode = new ConcurrentHashMap<>();
+    @Nullable
+    private volatile DataStreamLifecycleHealthInfo dslHealthInfo = null;
 
     private HealthInfoCache() {}
 
@@ -35,8 +38,17 @@ public class HealthInfoCache implements ClusterStateListener {
         return healthInfoCache;
     }
 
-    public void updateNodeHealth(String nodeId, DiskHealthInfo diskHealthInfo) {
-        diskInfoByNode.put(nodeId, diskHealthInfo);
+    public void updateNodeHealth(
+        String nodeId,
+        @Nullable DiskHealthInfo diskHealthInfo,
+        @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo
+    ) {
+        if (diskHealthInfo != null) {
+            diskInfoByNode.put(nodeId, diskHealthInfo);
+        }
+        if (latestDslHealthInfo != null) {
+            dslHealthInfo = latestDslHealthInfo;
+        }
     }
 
     @Override
@@ -56,6 +68,7 @@ public class HealthInfoCache implements ClusterStateListener {
         } else if (diskInfoByNode.isEmpty() == false) {
             logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
             diskInfoByNode = new ConcurrentHashMap<>();
+            dslHealthInfo = null;
         }
     }
 
@@ -65,6 +78,6 @@ public class HealthInfoCache implements ClusterStateListener {
      */
     public HealthInfo getHealthInfo() {
         // A shallow copy is enough because the inner data is immutable.
-        return new HealthInfo(Map.copyOf(diskInfoByNode));
+        return new HealthInfo(Map.copyOf(diskInfoByNode), dslHealthInfo);
     }
 }

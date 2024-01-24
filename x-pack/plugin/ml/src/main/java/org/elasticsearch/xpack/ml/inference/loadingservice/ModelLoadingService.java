@@ -37,6 +37,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -298,7 +298,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId  the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
-    public void getModelForLearnToRank(String modelId, ActionListener<LocalModel> modelActionListener) {
+    public void getModelForLearningToRank(String modelId, ActionListener<LocalModel> modelActionListener) {
         getModel(modelId, Consumer.SEARCH_RESCORER, null, modelActionListener);
     }
 

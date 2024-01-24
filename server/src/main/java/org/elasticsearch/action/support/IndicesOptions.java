@@ -8,6 +8,7 @@
 package org.elasticsearch.action.support;
 
 import joptsimple.internal.Strings;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,10 +28,8 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -87,11 +86,16 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
             return builder.build();
         }
 
+        public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder) throws IOException {
+            return toXContent(options, builder, false);
+        }
+
         /**
          * This converter to XContent only includes the fields a user can interact, internal options like the resolveAlias
          * are not added.
          */
-        public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder) throws IOException {
+        public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder, boolean wildcardStatesAsString)
+            throws IOException {
             List<String> legacyStates = new ArrayList<>(3);
             if (options.includeOpen()) {
                 legacyStates.add("open");
@@ -107,9 +111,13 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
             } else if (legacyStates.size() == 3) {
                 builder.field("expand_wildcards", "all");
             } else {
-                // In order to be backwards compatible the value "expand_wildcards" needs to be a comma separated string
-                // and not an array of strings.
-                builder.field("expand_wildcards", Strings.join(legacyStates, ","));
+                if (wildcardStatesAsString) {
+                    // In order to be backwards compatible the value "expand_wildcards" needs to be a comma separated string
+                    // and not an array of strings.
+                    builder.field("expand_wildcards", Strings.join(legacyStates, ","));
+                } else {
+                    builder.field("expand_wildcards", legacyStates);
+                }
             }
             builder.field("allow_no_indices", options.allowEmptyExpressions());
             return builder;

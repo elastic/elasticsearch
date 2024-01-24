@@ -181,9 +181,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
         if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
             // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
-            if (value instanceof GeoPoint point) {
-                return normalizedGeoPoint(point.getX(), point.getY());
-            }
             if (value instanceof String wkt) {
                 try {
                     Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);

@@ -154,7 +154,7 @@ m:long  | languages:i
 ;
 
 
-countDistinctWithGroupPrecisionAndNestedExpression
+countDistinctWithGroupPrecisionAndNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
 from employees | stats m = count_distinct(height + 5, 9876) by languages | sort languages;
 
 m:long  | languages:i

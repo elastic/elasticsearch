@@ -750,9 +750,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          * @return true if successful, i.e., not evicted and data available, false if evicted
          */
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
-            SharedBytes.IO io = this.io;
-            if (io != null) {
-                int readBytes = io.read(buf, getRegionRelativePosition(offset));
+            SharedBytes.IO ioRef = this.io;
+            if (ioRef != null) {
+                int readBytes = ioRef.read(buf, getRegionRelativePosition(offset));
                 if (isEvicted()) {
                     buf.position(buf.position() - readBytes);
                     return false;
@@ -1086,6 +1086,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private boolean assertValidRegionAndLength(CacheFileRegion fileRegion, int channelPos, int len) {
+            assert fileRegion.io != null;
+            assert fileRegion.hasReferences();
             assert regionOwners.get(fileRegion.io) == fileRegion;
             assert channelPos >= 0 && channelPos + len <= regionSize;
             return true;
@@ -1388,25 +1390,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         /**
          * Cycles through the {@link LFUCacheEntry} from 0 to max frequency and
-         * tries to evict a chunk if no one is holding onto its resources anymore
+         * tries to evict a chunk if no one is holding onto its resources anymore.
          *
-         * @return the frequency of the evicted entry as integer or -1 if no entry was evicted from cache
+         * Also regularly polls for free regions and thus might steal one in case any become available.
+         *
+         * @return a now free IO region or null if none available.
          */
-        private int maybeEvict() {
-            assert Thread.holdsLock(SharedBlobCacheService.this);
-            for (int currentFreq = 0; currentFreq < maxFreq; currentFreq++) {
-                for (LFUCacheEntry entry = freqs[currentFreq]; entry != null; entry = entry.next) {
-                    boolean evicted = entry.chunk.tryEvict();
-                    if (evicted && entry.chunk.io != null) {
-                        unlink(entry);
-                        keyMapping.remove(entry.chunk.regionKey, entry);
-                        return currentFreq;
-                    }
-                }
-            }
-            return -1;
-        }
-
         private SharedBytes.IO maybeEvictAndTake(Runnable evictedNotification) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
             for (int currentFreq = 0; currentFreq < maxFreq; currentFreq++) {
@@ -1419,14 +1408,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     boolean evicted = entry.chunk.tryEvictNoDecRef();
                     if (evicted) {
                         try {
-                            if (entry.chunk.io != null) {
+                            SharedBytes.IO ioRef = entry.chunk.io;
+                            if (ioRef != null) {
                                 try {
                                     if (entry.chunk.refCount() == 1) {
                                         // grab io, rely on incref'ers also checking evicted field.
-                                        final SharedBytes.IO result = entry.chunk.io;
                                         entry.chunk.io = null;
-                                        assert regionOwners.remove(result) == entry.chunk;
-                                        return result;
+                                        assert regionOwners.remove(ioRef) == entry.chunk;
+                                        return ioRef;
                                     }
                                 } finally {
                                     unlink(entry);

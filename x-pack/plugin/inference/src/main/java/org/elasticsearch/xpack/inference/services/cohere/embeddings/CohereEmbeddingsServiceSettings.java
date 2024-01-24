@@ -57,7 +57,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     }
 
     public CohereEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        commonSettings = in.readNamedWriteable(CohereServiceSettings.class);
+        commonSettings = new CohereServiceSettings(in);
         embeddingType = in.readOptionalEnum(CohereEmbeddingType.class);
     }
 
@@ -92,7 +92,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(commonSettings);
+        commonSettings.writeTo(out);
         out.writeOptionalEnum(embeddingType);
     }
 

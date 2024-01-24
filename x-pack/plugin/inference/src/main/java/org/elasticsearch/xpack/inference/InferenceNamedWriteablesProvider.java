@@ -99,9 +99,6 @@ public class InferenceNamedWriteablesProvider {
             new NamedWriteableRegistry.Entry(ServiceSettings.class, CohereServiceSettings.NAME, CohereServiceSettings::new)
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(CohereServiceSettings.class, CohereServiceSettings.NAME, CohereServiceSettings::new)
-        );
-        namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
                 CohereEmbeddingsServiceSettings.NAME,

@@ -12,7 +12,7 @@ import io.netty.handler.codec.http.HttpMessage;
 
 import org.elasticsearch.http.HttpResponse;
 
-public interface Netty4RestResponse extends HttpResponse, HttpMessage {
+public sealed interface Netty4RestResponse extends HttpResponse, HttpMessage permits Netty4FullHttpResponse, Netty4ChunkedHttpResponse {
 
     int getSequence();
 

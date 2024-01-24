@@ -9,13 +9,16 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class GetIndexAction extends ActionType<GetIndexResponse> {
 
     public static final GetIndexAction INSTANCE = new GetIndexAction();
     public static final String NAME = "indices:admin/get";
+    public static final RemoteClusterActionType<GetIndexResponse> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, GetIndexResponse::new);
 
     private GetIndexAction() {
-        super(NAME, GetIndexResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

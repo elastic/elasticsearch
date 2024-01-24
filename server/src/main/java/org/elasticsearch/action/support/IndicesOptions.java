@@ -27,9 +27,11 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -93,11 +95,11 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
         /**
          * This converter to XContent only includes the fields a user can interact, internal options like the resolveAlias
          * are not added.
-         * @param wildcardStatesAsString, some parts of the code expect the serialization of the expand_wildcards field
-         *                                to be a comma separated string instead of a list. This can be enabled with this
-         *                                flag. We preseve this option for bwc purposes.
+         * @param wildcardStatesAsUserInput, some parts of the code expect the serialization of the expand_wildcards field
+         *                                   to be a comma separated string that matches the user allowed input, this includes
+         *                                   all the states along with the values 'all' and 'none'.
          */
-        public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder, boolean wildcardStatesAsString)
+        public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder, boolean wildcardStatesAsUserInput)
             throws IOException {
             List<String> legacyStates = new ArrayList<>(3);
             if (options.includeOpen()) {
@@ -109,16 +111,20 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
             if (options.removeHidden() == false) {
                 legacyStates.add("hidden");
             }
-            if (legacyStates.isEmpty()) {
-                builder.field("expand_wildcards", "none");
-            } else if (legacyStates.size() == 3) {
-                builder.field("expand_wildcards", "all");
-            } else {
-                if (wildcardStatesAsString) {
-                    builder.field("expand_wildcards", Strings.join(legacyStates, ","));
+            if (wildcardStatesAsUserInput) {
+                if (legacyStates.isEmpty()) {
+                    builder.field("expand_wildcards", "none");
+                } else if (legacyStates.size() == 3) {
+                    builder.field("expand_wildcards", "all");
                 } else {
-                    builder.field("expand_wildcards", legacyStates);
+                    builder.field("expand_wildcards", Strings.join(legacyStates, ","));
                 }
+            } else {
+                builder.startArray("expand_wildcards");
+                for (String state : legacyStates) {
+                    builder.value(state);
+                }
+                builder.endArray();
             }
             builder.field("allow_no_indices", options.allowEmptyExpressions());
             return builder;
@@ -217,6 +223,8 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
              * changes the outcome.
              */
             public Builder expandStates(String[] expandStates) {
+                // Calling none() simulates a user providing an empty set of states
+                none();
                 for (String expandState : expandStates) {
                     switch (expandState) {
                         case "open" -> includeOpen(true);
@@ -226,11 +234,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
                         case "none" -> {
                             none();
                             if (expandStates.length > 1) {
-                                DEPRECATION_LOGGER.warn(
-                                    DeprecationCategory.API,
-                                    "expand_wildcards",
-                                    "Combining the value 'none' with other options is deprecated because it is order sensitive."
-                                );
+                                DEPRECATION_LOGGER.warn(DeprecationCategory.API, "expand_wildcards", WILDCARD_NONE_DEPRECATION_MESSAGE);
                             }
                         }
                     }
@@ -286,11 +290,18 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions expandWild
         IGNORE_THROTTLED;
 
         public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
+
+        public static EnumSet<Option> VALUES_IN_USE = Arrays.stream(Option.values())
+            .filter(option -> option.name().startsWith("DEPRECATED_") == false)
+            .collect(Collectors.toCollection(() -> EnumSet.noneOf(Option.class)));
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
     private static final String IGNORE_THROTTLED_DEPRECATION_MESSAGE = "[ignore_throttled] parameter is deprecated "
         + "because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.";
+
+    private static final String WILDCARD_NONE_DEPRECATION_MESSAGE = "Combining the value 'none' with other options is deprecated "
+        + "because it is order sensitive. Please revise the expression to work without the 'none' option or only use 'none'.";
 
     public static final IndicesOptions STRICT_EXPAND_OPEN = new IndicesOptions(EnumSet.noneOf(Option.class), WildcardOptions.DEFAULT_OPEN);
     public static final IndicesOptions LENIENT_EXPAND_OPEN = new IndicesOptions(

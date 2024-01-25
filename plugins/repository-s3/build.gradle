@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.749'
+  'aws': '1.12.270'
 ]
 
 dependencies {
@@ -318,6 +318,7 @@ tasks.named("thirdPartyAudit").configure {
     // We don't use the kms dependency
     'com.amazonaws.services.kms.AWSKMS',
     'com.amazonaws.services.kms.AWSKMSClient',
+    'com.amazonaws.services.kms.AWSKMSClientBuilder',
     'com.amazonaws.services.kms.model.DecryptRequest',
     'com.amazonaws.services.kms.model.DecryptResult',
     'com.amazonaws.services.kms.model.EncryptRequest',

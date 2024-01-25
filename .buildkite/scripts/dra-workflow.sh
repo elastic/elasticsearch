@@ -28,7 +28,6 @@ if [[ "$WORKFLOW" == "snapshot" ]]; then
   VERSION_SUFFIX="-SNAPSHOT"
 fi
 
-BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
 ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
 
 LICENSE_KEY_ARG=""
@@ -46,7 +45,6 @@ fi
 echo --- Building release artifacts
 
 .ci/scripts/run-gradle.sh -Ddra.artifacts=true \
-  -Ddra.artifacts.dependency.beats="${BEATS_BUILD_ID}" \
   -Ddra.artifacts.dependency.ml-cpp="${ML_CPP_BUILD_ID}" \
   -Ddra.workflow="$WORKFLOW" \
   -Dcsv="$WORKSPACE/build/distributions/dependencies-${ES_VERSION}${VERSION_SUFFIX}.csv" \
@@ -86,5 +84,4 @@ docker run --rm \
   --workflow "$WORKFLOW" \
   --version "$ES_VERSION" \
   --artifact-set main \
-  --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
   --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"

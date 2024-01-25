@@ -1,0 +1,42 @@
+[[release-notes-7.17.17]]
+== {es} version 7.17.17
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[bug-7.17.17]]
+[float]
+=== Bug fixes
+
+Distributed::
+* Dispatch `ClusterStateAction#buildResponse` to executor {es-pull}103435[#103435]
+
+Infra/Scripting::
+* Wrap painless explain error {es-pull}103151[#103151] (issue: {es-issue}103018[#103018])
+
+Snapshot/Restore::
+* Fix cancellation order in `CancellableRateLimitedFluxIterator` {es-pull}104259[#104259] (issue: {es-issue}103054[#103054])
+* Fix snapshot version in `createSnapshotLegacy` {es-pull}104354[#104354] (issue: {es-issue}86889[#86889])
+
+[[upgrade-7.17.17]]
+[float]
+=== Upgrades
+
+Discovery-Plugins::
+* [7.x] Sync `discovery_gce` versions with main {es-pull}104086[#104086]
+* [7x] bump dependency in discovery azure classic plugin {es-pull}104171[#104171]
+
+Ingest Node::
+* [7x] ingest attachment dependency version bumps {es-pull}104169[#104169]
+
+Packaging::
+* Upgrade bundled JDK to 21.0.2 {es-pull}104481[#104481] (issue: {es-issue}4449[#4449])
+
+Security::
+* Upgrade Bouncy Castle jars (except for the FIPS jars) {es-pull}103818[#103818]
+* Upgrade Bouncy Castle jars for plugin cli {es-pull}103801[#103801]
+* [7.x] Bump commons codec version {es-pull}104106[#104106]
+
+Snapshot/Restore::
+* [7.x] Bump protobuf version {es-pull}104076[#104076]
+
+

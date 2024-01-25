@@ -382,11 +382,11 @@ public class TransportService extends AbstractLifecycleComponent
                         holderToNotify.action(),
                         new NodeClosedException(localNode)
                     );
-                    final var executor = handler.executor(threadPool);
+                    final var executor = handler.executor();
                     if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         handler.handleException(exception);
                     } else {
-                        executor.execute(new ForkingResponseHandlerRunnable(handler, exception, threadPool) {
+                        executor.execute(new ForkingResponseHandlerRunnable(handler, exception) {
                             @Override
                             protected void doRun() {
                                 handler.handleException(exception);
@@ -999,7 +999,7 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
-        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
+        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this);
         try {
             onRequestSent(localNode, requestId, action, request, options);
             onRequestReceived(requestId, action);
@@ -1437,8 +1437,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
-            return delegate.executor(threadPool);
+        public Executor executor() {
+            return delegate.executor();
         }
 
         @Override
@@ -1465,14 +1465,12 @@ public class TransportService extends AbstractLifecycleComponent
         private final String action;
         private final long requestId;
         final TransportService service;
-        final ThreadPool threadPool;
 
-        DirectResponseChannel(DiscoveryNode localNode, String action, long requestId, TransportService service, ThreadPool threadPool) {
+        DirectResponseChannel(DiscoveryNode localNode, String action, long requestId, TransportService service) {
             this.localNode = localNode;
             this.action = action;
             this.requestId = requestId;
             this.service = service;
-            this.threadPool = threadPool;
         }
 
         @Override
@@ -1482,43 +1480,39 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
-            try {
-                service.onResponseSent(requestId, action, response);
-                try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
-                    if (shutdownBlock == null) {
-                        // already shutting down, the handler will be completed by sendRequestInternal or doStop
-                        return;
-                    }
-                    final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
-                    if (handler == null) {
-                        // handler already completed, likely by a timeout which is logged elsewhere
-                        return;
-                    }
-                    final var executor = handler.executor(threadPool);
-                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                        processResponse(handler, response);
-                    } else {
-                        response.mustIncRef();
-                        executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
-                            @Override
-                            protected void doRun() {
-                                processResponse(handler, response);
-                            }
-
-                            @Override
-                            public void onAfter() {
-                                response.decRef();
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "delivery of response to [" + requestId + "][" + action + "]: " + response;
-                            }
-                        });
-                    }
+            service.onResponseSent(requestId, action, response);
+            try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
+                if (shutdownBlock == null) {
+                    // already shutting down, the handler will be completed by sendRequestInternal or doStop
+                    return;
                 }
-            } finally {
-                response.decRef();
+                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
+                if (handler == null) {
+                    // handler already completed, likely by a timeout which is logged elsewhere
+                    return;
+                }
+                final var executor = handler.executor();
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                    processResponse(handler, response);
+                } else {
+                    response.mustIncRef();
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
+                        @Override
+                        protected void doRun() {
+                            processResponse(handler, response);
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            response.decRef();
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "delivery of response to [" + requestId + "][" + action + "]: " + response;
+                        }
+                    });
+                }
             }
         }
 
@@ -1545,11 +1539,11 @@ public class TransportService extends AbstractLifecycleComponent
                     return;
                 }
                 final RemoteTransportException rtx = wrapInRemote(exception);
-                final var executor = handler.executor(threadPool);
+                final var executor = handler.executor();
                 if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     processException(handler, rtx);
                 } else {
-                    executor.execute(new ForkingResponseHandlerRunnable(handler, rtx, threadPool) {
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, rtx) {
                         @Override
                         protected void doRun() {
                             processException(handler, rtx);
@@ -1718,8 +1712,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
-            return handler.executor(threadPool);
+        public Executor executor() {
+            return handler.executor();
         }
 
         @Override

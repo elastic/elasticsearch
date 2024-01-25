@@ -42,7 +42,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/explain";
 
     private ExplainDataFrameAnalyticsAction() {
-        super(NAME, ExplainDataFrameAnalyticsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

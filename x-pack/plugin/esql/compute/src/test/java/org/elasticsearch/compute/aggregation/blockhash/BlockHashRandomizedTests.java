@@ -140,7 +140,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                     randomBlocks[g] = BasicBlockTests.randomBlock(
                         types.get(g),
                         positionCount,
-                        randomBoolean(),
+                        types.get(g) == ElementType.NULL ? true : randomBoolean(),
                         1,
                         maxValuesPerPosition,
                         0,

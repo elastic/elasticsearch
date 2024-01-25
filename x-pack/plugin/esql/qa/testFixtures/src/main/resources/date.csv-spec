@@ -1048,3 +1048,29 @@ hires:long     | year:date
 1              |1999-01-01T00:00:00.000Z
 // end::docsDateTruncHistogram-result[]
 ;
+
+docsNow
+// tag::docsNow[]
+ROW current_date = NOW()
+// end::docsNow[]
+| EVAL y = SUBSTRING(DATE_FORMAT("yyyy", current_date), 0, 2)
+| KEEP y
+;
+
+// tag::docsNow-result[]
+y:keyword
+20
+// end::docsNow-result[]  
+;
+
+docsNowWhere
+// tag::docsNowWhere[]
+FROM sample_data
+| WHERE @timestamp > NOW() - 1 hour
+// end::docsNowWhere[]
+;
+
+// tag::docsNowWhere-result[]
+@timestamp:date   | client_ip:ip | event_duration:long | message:keyword
+// end::docsNowWhere-result[]
+;

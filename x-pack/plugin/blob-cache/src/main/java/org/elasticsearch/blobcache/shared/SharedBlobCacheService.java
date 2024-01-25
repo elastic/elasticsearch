@@ -1496,7 +1496,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             synchronized (SharedBlobCacheService.this) {
                 for (int i = 1; i < maxFreq; i++) {
                     // todo: link over entire list
-                    for (LFUCacheEntry entry = freqs[i]; entry != null; entry = entry.next) {
+                    for (LFUCacheEntry entry = freqs[i], next = null; entry != null; entry = next) {
+                        next = entry.next; // captured before unlink
                         unlink(entry);
                         entry.freq--;
                         pushEntryToBack(entry);

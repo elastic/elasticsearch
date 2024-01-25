@@ -34,8 +34,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
@@ -268,14 +270,18 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
+            final var cacheKey3 = generateCacheKey();
             assertEquals(5, cacheService.freeRegionCount());
             final var region0 = cacheService.get(cacheKey1, size(250), 0);
             assertEquals(4, cacheService.freeRegionCount());
             final var region1 = cacheService.get(cacheKey2, size(250), 1);
             assertEquals(3, cacheService.freeRegionCount());
+            final var region2 = cacheService.get(cacheKey3, size(250), 1);
+            assertEquals(2, cacheService.freeRegionCount());
 
             assertEquals(1, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
 
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
@@ -284,6 +290,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertSame(region0Again, region0);
             assertEquals(2, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
 
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
@@ -291,6 +298,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(3, cacheService.getFreq(region0));
             cacheService.get(cacheKey1, size(250), 0);
             assertEquals(3, cacheService.getFreq(region0));
+            assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(0, cacheService.getFreq(region2));
 
             // advance 2 ticks (decay only starts after 2 ticks)
             taskQueue.advanceTime();
@@ -299,18 +308,21 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             taskQueue.runAllRunnableTasks();
             assertEquals(2, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(0, cacheService.getFreq(region2));
 
             // advance another tick
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
             assertEquals(1, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(0, cacheService.getFreq(region2));
 
             // advance another tick
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
             assertEquals(0, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
+            assertEquals(0, cacheService.getFreq(region2));
         }
     }
 
@@ -720,8 +732,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testMaybeEvictLeastUsed() throws Exception {
-        final int numRegions = 3;
-        randomIntBetween(1, 500);
+        final int numRegions = 10;randomIntBetween(1, 500);
         final long regionSize = size(1L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -743,7 +754,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 BlobCacheMetrics.NOOP
             )
         ) {
-            final Set<Object> cacheKeys = new HashSet<>();
+            final Map<Object, SharedBlobCacheService<Object>.CacheFileRegion> cacheEntries = new HashMap<>();
 
             assertThat("All regions are free", cacheService.freeRegionCount(), equalTo(numRegions));
             assertThat("Cache has no entries", cacheService.maybeEvictLeastUsed(), is(false));
@@ -759,8 +770,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ActionListener.noop()
                 );
                 assertThat(cacheService.getFreq(entry), equalTo(1));
-                relativeTimeInMillis.incrementAndGet();
-                cacheKeys.add(cacheKey);
+                cacheEntries.put(cacheKey, entry);
             }
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
@@ -776,28 +786,34 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             relativeTimeInMillis.addAndGet(minInternalMillis);
 
             // touch some random cache entries
-            var unusedCacheKeys = Set.copyOf(randomSubsetOf(cacheKeys));
-            cacheKeys.forEach(key -> {
-                if (unusedCacheKeys.contains(key) == false) {
-                    var entry = cacheService.get(key, regionSize, 0);
-                    assertThat(cacheService.getFreq(entry), equalTo(2));
-                }
-            });
+            var useedCacheKeys = Set.copyOf(randomSubsetOf(cacheEntries.keySet()));
+            useedCacheKeys.forEach(key -> cacheService.get(key, regionSize, 0));
+
+            cacheEntries.forEach(
+                (key, entry) -> assertThat(cacheService.getFreq(entry), useedCacheKeys.contains(key) ? equalTo(2) : equalTo(1))
+            );
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
             assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
 
-            for (int i = 1; i <= unusedCacheKeys.size(); i++) {
-                // need to advance time and compute decay to decrease frequencies in cache and have an evictable entry
-                relativeTimeInMillis.addAndGet(minInternalMillis);
-                cacheService.computeDecay();
+            // need to advance time and compute decay to decrease frequencies in cache
+            relativeTimeInMillis.addAndGet(minInternalMillis);
+            cacheService.computeDecay();
 
-                assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(true));
+            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            cacheEntries.forEach(
+                (key, entry) -> assertThat(cacheService.getFreq(entry), useedCacheKeys.contains(key) ? equalTo(2) : equalTo(0))
+            );
+
+            var zeroFrequencyCacheEntries = cacheEntries.size() - useedCacheKeys.size();
+            for (int i = 0; i < zeroFrequencyCacheEntries; i++) {
                 assertThat(cacheService.freeRegionCount(), equalTo(i));
+                assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(true));
+                assertThat(cacheService.freeRegionCount(), equalTo(i + 1));
             }
 
             assertThat("No more cache entries old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
-            assertThat(cacheService.freeRegionCount(), equalTo(unusedCacheKeys.size()));
+            assertThat(cacheService.freeRegionCount(), equalTo(zeroFrequencyCacheEntries));
         }
     }
 

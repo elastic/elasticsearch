@@ -15,8 +15,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-
-
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;

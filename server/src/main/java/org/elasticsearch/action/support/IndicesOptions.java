@@ -744,7 +744,9 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             throw new ElasticsearchParseException("indices options xcontent did not contain " + EXPAND_WILDCARDS_FIELD.getPreferredName());
         } else {
             if (allowNoIndices == null) {
-                throw new ElasticsearchParseException("indices options xcontent did not contain " + ALLOW_NO_INDICES_FIELD.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "indices options xcontent did not contain " + ALLOW_NO_INDICES_FIELD.getPreferredName()
+                );
             } else {
                 wildcardsBuilder.allowEmptyExpressions(allowNoIndices);
             }
@@ -764,7 +766,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             wildcardOptions.removeHidden() == false,
             true,
             false,
-            false,
+            wildcardOptions.resolveAliases() == false,
             ignoreThrottled
         );
     }

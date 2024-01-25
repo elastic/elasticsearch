@@ -36,7 +36,7 @@ public class ListConnectorSyncJobsAction extends ActionType<ListConnectorSyncJob
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/list";
 
     public ListConnectorSyncJobsAction() {
-        super(NAME, ListConnectorSyncJobsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -32,7 +32,7 @@ public class DeleteConnectorAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/connector/delete";
 
     private DeleteConnectorAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

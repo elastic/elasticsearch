@@ -35,7 +35,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
     TransportNodesInfoAction.NodeInfoRequest,
     NodeInfo> {
 
-    public static final ActionType<NodesInfoResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/info");
+    public static final ActionType<NodesInfoResponse> TYPE = new ActionType<>("cluster:monitor/nodes/info");
     private final NodeService nodeService;
 
     @Inject

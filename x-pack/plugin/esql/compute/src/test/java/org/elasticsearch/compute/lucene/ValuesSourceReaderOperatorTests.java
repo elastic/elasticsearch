@@ -495,6 +495,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             }
 
             @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 throw new UnsupportedOperationException();
             }

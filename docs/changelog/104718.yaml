@@ -1,0 +1,6 @@
+pr: 104718
+summary: "ESQL: Fix replacement of nested expressions in aggs with multiple parameters"
+area: ES|QL
+type: bug
+issues:
+ - 104706

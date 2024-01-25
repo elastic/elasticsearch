@@ -22,6 +22,20 @@ final class CloudProviders {
         return PROVIDERS.get(providerName);
     }
 
+    /**
+     * Returns the PUE for the given provider, or the default value if the provider is unknown.
+     * PUE stands for Power Usage Effectiveness, and is a measure of how much power is used by
+     * the datacenter infrastructure (cooling, lighting, etc.) vs. the IT equipment (servers, etc.).
+     * A PUE of 1.0 means that all power is used by the IT equipment, and a PUE of 2.0 means that
+     * half of the power is used by the IT equipment and half is used by the infrastructure.
+     * See also https://en.wikipedia.org/wiki/Power_usage_effectiveness .
+     *
+     * @param providerName The name of the provider.
+     *                     Currently supported providers are "aws", "gcp", and "azure".
+     *                     If the provider is unknown, the default value is returned.
+     * @param defaultPUEValue The default value to return if the provider is unknown.
+     * @return The PUE for the given provider, or the default value if the provider is unknown.
+     */
     public static double getPUEOrDefault(String providerName, double defaultPUEValue) {
         Provider provider = getProvider(providerName);
         if (provider == null) {
@@ -30,6 +44,20 @@ final class CloudProviders {
         return provider.pue;
     }
 
+    /**
+     * Returns the CO2 emission factor for the given provider and region, or the default value if
+     * the provider or region is unknown. The CO2 emission factor is the amount of CO2 emitted per
+     * kWh of electricity consumed and measured in metric tons.
+     *
+     * @param providerName The name of the provider.
+     *                     Currently supported providers are "aws", "gcp", and "azure".
+     *                     If the provider is unknown, the default value is returned.
+     * @param region The name of the region.
+     *               If the region is unknown, the default value is returned.
+     * @param defaultCO2Value The default value to return if the provider or region is unknown.
+     * @return The CO2 emission factor for the given provider and region, or the default value if
+     *         the provider or region is unknown.
+     */
     public static double getCO2TonsPerKWHOrDefault(String providerName, String region, double defaultCO2Value) {
         Provider provider = getProvider(providerName);
         if (provider == null) {

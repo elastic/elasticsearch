@@ -130,13 +130,18 @@ return output;
 
 */
 
+        record LookupData(Map<String, Object> fields, float[] queryScores) {
+        }
 
-        Map<RankKey, Map<String, Object>> lookup = new HashMap<>();
-        for (var fetchResult : fetchResultsArray.asList()) { // TODO maybe a better way
+        Map<RankKey, LookupData> lookup = new HashMap<>();
+        for (var fetchResult : fetchResultsArray.asList()) {
             for (var hit : fetchResult.fetchResult().hits().getHits()) {
                 lookup.put(
                     new RankKey(hit.docId(), fetchResult.getShardIndex()),
-                    ((ScriptRankHitData) hit.getRankHitData()).getFieldData()
+                    new LookupData(
+                        ((ScriptRankHitData) hit.getRankHitData()).getFieldData(),
+                        ((ScriptRankHitData) hit.getRankHitData()).getQueryScores()
+                    )
                 );
             }
         }
@@ -146,11 +151,12 @@ return output;
             List<ScriptRankDoc> currentRetrieverResults = new ArrayList<>();
             while (queue.size() != 0) {
                 ScoreDoc scoreDoc = queue.pop();
-                var fields = lookup.get(new RankKey(scoreDoc.doc, scoreDoc.shardIndex));
+                var lookupData = lookup.get(new RankKey(scoreDoc.doc, scoreDoc.shardIndex));
                 currentRetrieverResults.add(
                     new ScriptRankDoc(
                         scoreDoc,
-                        fields
+                        lookupData.fields,
+                        lookupData.queryScores
                     )
                 );
             }

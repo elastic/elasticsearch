@@ -12,5 +12,5 @@ import org.apache.lucene.search.ScoreDoc;
 
 import java.util.Map;
 
-public record ScriptRankDoc(ScoreDoc scoreDoc, Map<String, Object> fields) {
+public record ScriptRankDoc(ScoreDoc scoreDoc, Map<String, Object> fields, float[] queryScores) {
 }

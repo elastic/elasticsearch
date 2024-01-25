@@ -9,35 +9,59 @@
 package org.elasticsearch.search.scriptrank;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import static org.apache.lucene.search.ScoreMode.COMPLETE;
 
 public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor {
 
     private final FetchContext fetchContext;
     private final List<String> fields;
+    private final List<Query> queries;
 
     private final SourceFilter sourceFilter;
+    private LeafReaderContext leafReaderContext;
 
-    public ScriptRankFetchSubPhaseProcessor(FetchContext fetchContext, List<String> fields) {
+    public ScriptRankFetchSubPhaseProcessor(
+        FetchContext fetchContext,
+        List<String> fields,
+        List<QueryBuilder> queries
+    ) {
         this.fetchContext = fetchContext;
         this.fields = fields;
         sourceFilter = new SourceFilter(
             fields.toArray(String[]::new),
             null
         );
+        this.queries = new ArrayList<>();
+        try {
+            for (QueryBuilder queryBuilder : queries) {
+                queryBuilder = queryBuilder.rewrite(fetchContext.getSearchExecutionContext());
+                Query query = queryBuilder.toQuery(fetchContext.getSearchExecutionContext());
+                this.queries.add(query.rewrite(fetchContext.getSearchExecutionContext().searcher()));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
     public void setNextReader(LeafReaderContext readerContext) throws IOException {
-
+        this.leafReaderContext = readerContext;
     }
 
     @Override
@@ -48,10 +72,28 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
                 "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]"
             );
         }
-        if (fields.isEmpty() == false) {
-            Source source = hitContext.source().filter(sourceFilter);
-            hitContext.hit().setRankHitData(new ScriptRankHitData(source.source()));
+
+        float[] queryScores = null;
+        if (queries != null && queries.isEmpty() == false) {
+            queryScores = new float[queries.size()];
+            for (int i = 0; i < queries.size(); ++i) {
+                var weight = queries.get(i).createWeight(fetchContext.searcher(), COMPLETE, 1f); // TODO boost is 1?
+                var scorer = weight.scorer(leafReaderContext);
+                var x = scorer.iterator().advance(hitContext.docId());
+                if (x == DocIdSetIterator.NO_MORE_DOCS) {
+                    queryScores[i] = 0f;
+                } else {
+                    queryScores[i] = scorer.score();
+                }
+            }
         }
+
+        Map<String, Object> filteredSource = new HashMap<>();
+        if (fields.isEmpty() == false) {
+            filteredSource = hitContext.source().filter(sourceFilter).source();
+        }
+
+        hitContext.hit().setRankHitData(new ScriptRankHitData(filteredSource, queryScores));
     }
 
     @Override

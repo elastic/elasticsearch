@@ -23,9 +23,10 @@ class org.elasticsearch.search.scriptrank.RankKey {
 }
 
 class org.elasticsearch.search.scriptrank.ScriptRankDoc{
-    (ScoreDoc, Map)
+    (ScoreDoc, Map, float[])
     ScoreDoc scoreDoc()
     Map fields()
+    float[] queryScores()
 }
 
 class org.apache.lucene.util.PriorityQueue @no_import{

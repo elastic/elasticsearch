@@ -15,6 +15,6 @@ public class GetScriptLanguageAction extends ActionType<GetScriptLanguageRespons
     public static final String NAME = "cluster:admin/script_language/get";
 
     private GetScriptLanguageAction() {
-        super(NAME, GetScriptLanguageResponse::new);
+        super(NAME);
     }
 }

@@ -46,7 +46,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
     public static final String NAME = "cluster:monitor/transform/stats/get";
 
     public GetTransformStatsAction() {
-        super(NAME, GetTransformStatsAction.Response::new);
+        super(NAME);
     }
 
     public static final class Request extends BaseTasksRequest<Request> {

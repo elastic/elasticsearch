@@ -931,6 +931,21 @@ sum(sal):l | sum(salary + 10000):l | left(first_name, 1):s  | concat(gender,   t
 43370      | 43370                  |  B                    | F2
 ;
 
+nestedExpressionMultipleParams#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS p = percentile(emp_no + 10, 50), m = median(emp_no + 10) BY languages
+| SORT languages
+;
+
+p:double     | m:double      | languages:integer
+10053.0      | 10053.0       | 1
+10069.0      | 10069.0       | 2
+10068.0      | 10068.0       | 3
+10060.5      | 10060.5       | 4
+10076.0      | 10076.0       | 5
+10034.5      | 10034.5       | null
+;
+
 groupByNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
 ROW a = 1, c = null
 | STATS COUNT(a) BY c;

@@ -37,7 +37,7 @@ public class UpdateConnectorSchedulingAction extends ActionType<ConnectorUpdateA
     public static final String NAME = "cluster:admin/xpack/connector/update_scheduling";
 
     public UpdateConnectorSchedulingAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

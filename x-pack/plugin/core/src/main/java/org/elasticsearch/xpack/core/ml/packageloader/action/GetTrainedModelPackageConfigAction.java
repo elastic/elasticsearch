@@ -29,7 +29,7 @@ public class GetTrainedModelPackageConfigAction extends ActionType<GetTrainedMod
     public static final GetTrainedModelPackageConfigAction INSTANCE = new GetTrainedModelPackageConfigAction();
 
     private GetTrainedModelPackageConfigAction() {
-        super(NAME, GetTrainedModelPackageConfigAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<GetTrainedModelPackageConfigAction.Request> {

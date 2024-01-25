@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -65,6 +67,7 @@ import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINA
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -374,26 +377,88 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(localSource.output()), contains("count", "seen"));
     }
 
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+     * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     *       \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#13], limit[500], sort[] estimatedRowSize[324]
+     */
     public void testIsNotNullPushdownFilter() {
         var plan = plan("from test | where emp_no is not null");
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
-        var query = as(exchange.child(), EsQueryExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
         assertThat(query.limit().fold(), is(500));
         var expected = QueryBuilders.existsQuery("emp_no");
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+     * ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     *       \_EsQueryExec[test], query[{"bool":{"must_not":[{"exists":{"field":"emp_no","boost":1.0}}],"boost":1.0}}][_doc{f}#13],
+     *         limit[500], sort[] estimatedRowSize[324]
+     */
     public void testIsNullPushdownFilter() {
         var plan = plan("from test | where emp_no is null");
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
-        var query = as(exchange.child(), EsQueryExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var query = as(field.child(), EsQueryExec.class);
         assertThat(query.limit().fold(), is(500));
         var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
         assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#8, emp_no{r}#2, first_name{r}#3, gender{f}#4, job{f}#9, job.raw{f}#10, languages{f}#5, first_n
+     * ame{r}#3 AS last_name, long_noidx{f}#11, emp_no{r}#2 AS salary]]
+     *     \_FieldExtractExec[_meta_field{f}#8, gender{f}#4, job{f}#9, job.raw{f}..]
+     *       \_EvalExec[[null[INTEGER] AS emp_no, null[KEYWORD] AS first_name]]
+     *         \_EsQueryExec[test], query[][_doc{f}#12], limit[500], sort[] estimatedRowSize[270]
+     */
+    public void testMissingFieldsDoNotGetExtracted() {
+        var stats = EsqlTestUtils.statsForMissingField("first_name", "last_name", "emp_no", "salary");
+
+        var plan = plan("from test", stats);
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var projections = project.projections();
+        assertThat(
+            Expressions.names(projections),
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
+        );
+        // emp_no
+        assertThat(projections.get(1), instanceOf(ReferenceAttribute.class));
+        // first_name
+        assertThat(projections.get(2), instanceOf(ReferenceAttribute.class));
+
+        // last_name --> first_name
+        var nullAlias = Alias.unwrap(projections.get(7));
+        assertThat(Expressions.name(nullAlias), is("first_name"));
+        // salary --> emp_no
+        nullAlias = Alias.unwrap(projections.get(9));
+        assertThat(Expressions.name(nullAlias), is("emp_no"));
+        // check field extraction is skipped and that evaled fields are not extracted anymore
+        var field = as(project.child(), FieldExtractExec.class);
+        var fields = field.attributesToExtract();
+        assertThat(Expressions.names(fields), contains("_meta_field", "gender", "job", "job.raw", "languages", "long_noidx"));
     }
 
     private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {
@@ -422,15 +487,15 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
         // System.out.println("* Physical Before\n" + plan);
-        var p = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(plan));
-        // System.out.println("* Physical After\n" + p);
+        var physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(plan));
+        // System.out.println("* Physical After\n" + physicalPlan);
         // the real execution breaks the plan at the exchange and then decouples the plan
         // this is of no use in the unit tests, which checks the plan as a whole instead of each
         // individually hence why here the plan is kept as is
 
         var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(config, searchStats));
         var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(config, searchStats), true);
-        var l = PlannerUtils.localPlan(plan, logicalTestOptimizer, physicalTestOptimizer);
+        var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer);
 
         // handle local reduction alignment
         l = PhysicalPlanOptimizerTests.localRelationshipAlignment(l);

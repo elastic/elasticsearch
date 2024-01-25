@@ -23,7 +23,7 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/xpack/inference/delete";
 
     public DeleteInferenceModelAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<DeleteInferenceModelAction.Request> {

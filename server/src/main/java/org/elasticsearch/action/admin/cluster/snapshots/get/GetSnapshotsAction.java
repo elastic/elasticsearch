@@ -19,7 +19,7 @@ public class GetSnapshotsAction extends ActionType<GetSnapshotsResponse> {
     public static final String NAME = "cluster:admin/snapshot/get";
 
     private GetSnapshotsAction() {
-        super(NAME, GetSnapshotsResponse::new);
+        super(NAME);
     }
 
 }

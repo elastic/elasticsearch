@@ -31,7 +31,7 @@ public class DeleteSearchApplicationAction extends ActionType<AcknowledgedRespon
     public static final String NAME = "cluster:admin/xpack/application/search_application/delete";
 
     private DeleteSearchApplicationAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -65,6 +65,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -975,10 +976,10 @@ public final class RestoreService implements ClusterStateApplier {
         if (IndexVersion.current().before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "the snapshot was created with index version ["
-                    + snapshotInfo.version()
-                    + "] which is higher than the version used by this node ["
-                    + IndexVersion.current()
+                "the snapshot was created with version ["
+                    + IndexVersions.toReleaseVersion(snapshotInfo.version())
+                    + "] which is higher than the version of this node ["
+                    + IndexVersions.toReleaseVersion(IndexVersion.current())
                     + "]"
             );
         }

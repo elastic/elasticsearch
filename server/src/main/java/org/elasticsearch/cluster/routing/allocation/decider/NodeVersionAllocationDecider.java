@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.index.IndexVersions;
 
 /**
  * An allocation decider that prevents relocation or allocation from nodes
@@ -124,16 +125,16 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
                 Decision.YES,
                 NAME,
                 "max supported index version [%s] is the same or newer than snapshot version [%s]",
-                target.node().getMaxIndexVersion(),
-                recoverySource.version()
+                IndexVersions.toReleaseVersion(target.node().getMaxIndexVersion()),
+                IndexVersions.toReleaseVersion(recoverySource.version())
             );
         } else {
             return allocation.decision(
                 Decision.NO,
                 NAME,
                 "max supported index version [%s] is older than the snapshot version [%s]",
-                target.node().getMaxIndexVersion(),
-                recoverySource.version()
+                IndexVersions.toReleaseVersion(target.node().getMaxIndexVersion()),
+                IndexVersions.toReleaseVersion(recoverySource.version())
             );
         }
     }

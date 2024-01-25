@@ -54,10 +54,13 @@ image::images/ml-annotations.png["Delayed data annotations in the Single Metric 
 
 IMPORTANT: Because we are comparing `doc_count` from an aggregation with the
 job's bucket results, the delayed data check will not work correctly if the
-job has a `summary_count_field` other than `doc_count`. If your job's datafeed
-is using aggregations then it's highly likely that your `summary_count_field`
-should be `doc_count`. If `summary_count_field` is set at all, and is _not_ set
-to `doc_count`, then you must disable the delayed data check for that job.
+job's datafeed is using aggregations and its `analysis_config` does not have
+its `summary_count_field_name` set to `doc_count`, or if your job is _not_
+using aggregations and `summary_count_field_name` is set to anything. If your
+job's datafeed is using aggregations then it's highly likely that your
+`summary_count_field_name` should be `doc_count`. If `summary_count_field_name`
+is set at all, and is _not_ set to `doc_count`, then you must disable the
+delayed data check for that job.
 
 There is another tool for visualizing the delayed data on the *Annotations* tab
 in the {anomaly-detect} job management page:

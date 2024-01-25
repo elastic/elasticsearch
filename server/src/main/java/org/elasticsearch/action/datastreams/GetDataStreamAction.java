@@ -44,7 +44,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static final String NAME = "indices:admin/data_stream/get";
 
     private GetDataStreamAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {

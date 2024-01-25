@@ -10,6 +10,7 @@ package org.elasticsearch.client.internal;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -33,6 +34,6 @@ public class RedirectToLocalClusterRemoteClusterClient implements RemoteClusterC
         Request request,
         ActionListener<Response> listener
     ) {
-        delegate.execute(ActionType.localOnly(action.name()), request, listener.map(r -> (Response) r));
+        delegate.execute(new ActionType<ActionResponse>(action.name()), request, listener.map(r -> (Response) r));
     }
 }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.nativeaccess;
 
-class WindowsNativeAccess extends NativeAccess {
+class WindowsNativeAccess extends AbstractNativeAccess {
 
     @Override
     public boolean definitelyRunningAsRoot() {
@@ -21,7 +21,17 @@ class WindowsNativeAccess extends NativeAccess {
     }
 
     @Override
-    public boolean isMemoryLocked() {
-        return false;
+    public void trySetMaxNumberOfThreads() {
+        // no way to set limit for number of threads in Windows
+    }
+
+    @Override
+    public void trySetMaxVirtualMemorySize() {
+        // no way to set limit for virtual memory size in Windows
+    }
+
+    @Override
+    public void trySetMaxFileSize() {
+        // no way to set limit for max file size in Windows
     }
 }

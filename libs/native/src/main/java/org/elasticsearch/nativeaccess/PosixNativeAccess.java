@@ -12,7 +12,7 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
-abstract class PosixNativeAccess extends NativeAccess {
+abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     // libc constants
     protected static final int MCL_CURRENT = 1;
@@ -24,10 +24,6 @@ abstract class PosixNativeAccess extends NativeAccess {
     protected final int RLIMIT_FSIZE = 1; // same on mac and linux
 
     protected final PosixCLibrary libc;
-
-    private boolean mlockallSucceeded = false;
-    private long maxVirtualMemorySize = Long.MIN_VALUE;
-    private long maxFileSize = Long.MIN_VALUE;
 
     PosixNativeAccess(NativeLibraryProvider libraryProvider, int RLIMIT_MEMLOCK, long RLIMIT_INFINITY, int RLIMIT_AS) {
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
@@ -45,7 +41,7 @@ abstract class PosixNativeAccess extends NativeAccess {
     public void tryLockMemory() {
         int result = libc.mlockall(MCL_CURRENT);
         if (result == 0) {
-            mlockallSucceeded = true;
+            memoryLocked = true;
             return;
         }
 
@@ -84,11 +80,6 @@ abstract class PosixNativeAccess extends NativeAccess {
         }
     }
 
-    @Override
-    public boolean isMemoryLocked() {
-        return mlockallSucceeded;
-    }
-
     protected abstract void logMemoryLimitInstructions();
 
     @Override
@@ -102,11 +93,6 @@ abstract class PosixNativeAccess extends NativeAccess {
     }
 
     @Override
-    public long getMaxVirtualMemorySize() {
-        return maxVirtualMemorySize;
-    }
-
-    @Override
     public void trySetMaxFileSize() {
         var rlimit = new RLimit();
         if (libc.getrlimit(RLIMIT_FSIZE, rlimit) == 0) {
@@ -114,11 +100,6 @@ abstract class PosixNativeAccess extends NativeAccess {
         } else {
             logger.warn("unable to retrieve max file size [" + libc.strerror(libc.errno()) + "]");
         }
-    }
-
-    @Override
-    public long getMaxFileSize() {
-        return maxFileSize;
     }
 
     String rlimitToString(long value) {

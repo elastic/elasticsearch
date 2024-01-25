@@ -18,9 +18,4 @@ public class JdkNativeLibraryProvider extends NativeLibraryProvider {
     public JdkNativeLibraryProvider() {
         super(Map.of(PosixCLibrary.class, JdkPosixCLibrary::new));
     }
-
-    @Override
-    public PosixCLibrary getCLibrary() {
-        return new JdkPosixCLibrary();
-    }
 }

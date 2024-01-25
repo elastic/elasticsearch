@@ -9,7 +9,6 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
-import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 class MacNativeAccess extends PosixNativeAccess {
     MacNativeAccess(NativeLibraryProvider libraryProvider) {
@@ -19,5 +18,11 @@ class MacNativeAccess extends PosixNativeAccess {
     @Override
     protected void logMemoryLimitInstructions() {
         // we don't have instructions for macos
+    }
+
+    @Override
+    public void trySetMaxNumberOfThreads() {
+        // On mac the rlimit for NPROC is processes, unlike in linux where it is threads.
+        // So on mac NPROC is used in conjunction with syscall filtering.
     }
 }

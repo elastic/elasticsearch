@@ -8,68 +8,30 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
-
-public abstract class NativeAccess {
-    protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
-
-    private static class Holder {
-        private static final NativeAccess INSTANCE;
-        static {
-            var libraryProvider = NativeLibraryProvider.getInstance();
-            logger.info("Using native provider: " + libraryProvider.getClass().getSimpleName());
-            var os = System.getProperty("os.name");
-            NativeAccess inst = null;
-            try {
-                if (os.startsWith("Linux")) {
-                    inst = new LinuxNativeAccess(libraryProvider);
-                } else if (os.startsWith("Mac OS")) {
-                    inst = new MacNativeAccess(libraryProvider);
-                } else if (os.startsWith("Windows")) {
-                    inst = new WindowsNativeAccess();
-                } else {
-                    logger.warn("Unsupported OS " + os + ". Native methods will be disabled.");
-                }
-            } catch (LinkageError e) {
-                logger.warn("Unable to load native provider. Native methods will be disabled.", e);
-            }
-            if (inst == null) {
-                inst = new NoopNativeAccess();
-            }
-            INSTANCE = inst;
-        }
-    }
-    public static NativeAccess instance() {
-        return Holder.INSTANCE;
+public interface NativeAccess {
+    static NativeAccess instance() {
+        return NativeAccessHolder.INSTANCE;
     }
 
-    public abstract boolean definitelyRunningAsRoot();
+    boolean definitelyRunningAsRoot();
 
-    public abstract void tryLockMemory();
-    public abstract boolean isMemoryLocked();
+    void tryLockMemory();
+    boolean isMemoryLocked();
 
     /*public abstract void tryInstallSystemCallFilter(Path tmpFile);
     public abstract boolean isSystemCallFilterInstalled();*/
 
-    public void trySetMaxNumberOfThreads() {}
+    void trySetMaxNumberOfThreads();
 
-    public long getMaxNumberOfThreads() {
-        return -1;
-    }
+    long getMaxNumberOfThreads();
 
-    public void trySetMaxVirtualMemorySize() {}
+    void trySetMaxVirtualMemorySize();
 
-    public long getMaxVirtualMemorySize() {
-        return Long.MIN_VALUE;
-    }
+    long getMaxVirtualMemorySize();
 
-    public void trySetMaxFileSize() {}
+    void trySetMaxFileSize();
 
-    public long getMaxFileSize() {
-        return Long.MIN_VALUE;
-    }
+    long getMaxFileSize();
     /*
 
 

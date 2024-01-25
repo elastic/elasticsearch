@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,7 @@ import java.util.stream.Collectors;
  *     ]
  * }
  */
-public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults {
+public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults, TextEmbedding {
     public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
@@ -56,6 +57,11 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
                 .map(embedding -> new Embedding(embedding.values()))
                 .collect(Collectors.toList())
         );
+    }
+
+    @Override
+    public int getFirstEmbeddingSize() {
+        return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
     }
 
     @Override
@@ -103,11 +109,16 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         return map;
     }
 
-    public record Embedding(List<Float> values) implements Writeable, ToXContentObject {
+    public record Embedding(List<Float> values) implements Writeable, ToXContentObject, EmbeddingInt {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(StreamInput in) throws IOException {
             this(in.readCollectionAsImmutableList(StreamInput::readFloat));
+        }
+
+        @Override
+        public int getSize() {
+            return values.size();
         }
 
         @Override

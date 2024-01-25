@@ -14,6 +14,6 @@ public class XPackUsageAction extends ActionType<XPackUsageResponse> {
     public static final XPackUsageAction INSTANCE = new XPackUsageAction();
 
     public XPackUsageAction() {
-        super(NAME, XPackUsageResponse::new);
+        super(NAME);
     }
 }

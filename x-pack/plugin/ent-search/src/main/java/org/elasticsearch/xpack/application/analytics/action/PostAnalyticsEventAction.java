@@ -43,7 +43,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
     public static final String NAME = "cluster:admin/xpack/application/analytics/post_event";
 
     private PostAnalyticsEventAction() {
-        super(NAME, Response::readFromStreamInput);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements AnalyticsEvent.Context, ToXContentObject {

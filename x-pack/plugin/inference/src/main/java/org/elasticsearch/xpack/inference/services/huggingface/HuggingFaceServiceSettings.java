@@ -52,9 +52,7 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
 
     public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
         String parsedUrl = extractRequiredString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        if (parsedUrl == null) {
-            return null;
-        }
+
         return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
     }
 

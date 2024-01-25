@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorRes
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
+import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
     /**
@@ -114,13 +114,5 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         );
 
         return RATE_LIMIT + ". " + usageMessage;
-    }
-
-    private static String getFirstHeaderOrUnknown(HttpResponse response, String name) {
-        var header = response.getFirstHeader(name);
-        if (header != null && header.getElements().length > 0) {
-            return header.getElements()[0].getName();
-        }
-        return "unknown";
     }
 }

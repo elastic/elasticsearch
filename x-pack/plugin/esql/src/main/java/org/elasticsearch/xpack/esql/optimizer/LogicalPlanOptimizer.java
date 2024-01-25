@@ -1141,7 +1141,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                                 return newAlias.toAttribute();
                             });
                             // replace field with attribute
-                            result = af.replaceChildren(Collections.singletonList(attr));
+                            List<Expression> newChildren = new ArrayList<>(af.children());
+                            newChildren.set(0, attr);
+                            result = af.replaceChildren(newChildren);
                         }
                         return result;
                     });

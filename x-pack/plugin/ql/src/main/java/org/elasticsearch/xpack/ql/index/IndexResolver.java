@@ -117,11 +117,11 @@ public class IndexResolver {
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
         EnumSet.of(Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED),
-        new IndicesOptions.WildcardOptions.Builder().resolveAlias(false).build()
+        new IndicesOptions.WildcardOptions.Builder().resolveAliases(false).build()
     );
     private static final IndicesOptions FROZEN_INDICES_OPTIONS = new IndicesOptions(
         EnumSet.of(Option.IGNORE_UNAVAILABLE),
-        new IndicesOptions.WildcardOptions.Builder().resolveAlias(false).build()
+        new IndicesOptions.WildcardOptions.Builder().resolveAliases(false).build()
     );
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = new IndicesOptions(

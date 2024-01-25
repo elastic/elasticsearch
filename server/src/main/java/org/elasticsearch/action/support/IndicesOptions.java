@@ -48,7 +48,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
      * @param includeClosed, closed indices will be included
      * @param removeHidden, hidden indices will be removed from the result. This is a post filter, it requires includeOpen or includeClosed
      *                      to have an effect
-     * @param resolveAlias, aliases will be included in the result, if false we treat them like they do not exist
+     * @param resolveAliases, aliases will be included in the result, if false we treat them like they do not exist
      * @param allowEmptyExpressions, when an expression does not result in any indices, if false it throws an error if true it treats it as
      *                               an empty result
      */
@@ -56,7 +56,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         boolean includeOpen,
         boolean includeClosed,
         boolean removeHidden,
-        boolean resolveAlias,
+        boolean resolveAliases,
         boolean allowEmptyExpressions
     ) implements Writeable {
 
@@ -93,7 +93,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         }
 
         /**
-         * This converter to XContent only includes the fields a user can interact, internal options like the resolveAlias
+         * This converter to XContent only includes the fields a user can interact, internal options like the resolveAliases
          * are not added.
          * @param wildcardStatesAsUserInput, some parts of the code expect the serialization of the expand_wildcards field
          *                                   to be a comma separated string that matches the allowed user input, this includes
@@ -135,7 +135,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             out.writeBoolean(includeOpen);
             out.writeBoolean(includeClosed);
             out.writeBoolean(removeHidden);
-            out.writeBoolean(resolveAlias);
+            out.writeBoolean(resolveAliases);
             out.writeBoolean(allowEmptyExpressions);
         }
 
@@ -143,7 +143,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             private boolean includeOpen = true;
             private boolean includeClosed = false;
             private boolean removeHidden = true;
-            private boolean resolveAlias = true;
+            private boolean resolveAliases = true;
             private boolean allowEmptyExpressions = true;
 
             public Builder() {}
@@ -152,7 +152,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
                 includeOpen = options.includeOpen;
                 includeClosed = options.includeClosed;
                 removeHidden = options.removeHidden;
-                resolveAlias = options.resolveAlias;
+                resolveAliases = options.resolveAliases;
                 allowEmptyExpressions = options.allowEmptyExpressions;
             }
 
@@ -183,14 +183,16 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             /**
              * Aliases will be included in the result. Defaults to true.
              */
-            public Builder resolveAlias(boolean resolveAlias) {
-                this.resolveAlias = resolveAlias;
+            public Builder resolveAliases(boolean resolveAliases) {
+                this.resolveAliases = resolveAliases;
                 return this;
             }
 
             /**
-             * If true, when each expression does not match any indices we consider it an empty result. If false,
-             * we throw an error. Defaults to true.
+             * If true, when any of the expressions does not match any indices, we consider the result of this expression
+             * empty; if all the expressions are empty then we have a successful but empty response.
+             * If false, we throw an error immediately, so even if other expressions would result into indices the response
+             * will contain only the error. Defaults to true.
              */
             public Builder allowEmptyExpressions(boolean allowEmptyExpressions) {
                 this.allowEmptyExpressions = allowEmptyExpressions;
@@ -243,7 +245,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             }
 
             public WildcardOptions build() {
-                return new WildcardOptions(includeOpen, includeClosed, removeHidden, resolveAlias, allowEmptyExpressions);
+                return new WildcardOptions(includeOpen, includeClosed, removeHidden, resolveAliases, allowEmptyExpressions);
             }
         }
     }
@@ -276,7 +278,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
                 .includeClosed(states.contains(CLOSED))
                 .removeHidden(states.contains(HIDDEN) == false)
                 .allowEmptyExpressions(allowNoIndices)
-                .resolveAlias(ignoreAlias == false)
+                .resolveAliases(ignoreAlias == false)
                 .build();
         }
     }
@@ -284,7 +286,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
     public enum Option {
         IGNORE_UNAVAILABLE,
         /**
-         * Please use {@link WildcardOptions#resolveAlias}
+         * Please use {@link WildcardOptions#resolveAliases}
          */
         @Deprecated
         DEPRECATED__IGNORE_ALIASES,
@@ -427,7 +429,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
      * @return whether aliases should be ignored (when resolving a wildcard)
      */
     public boolean ignoreAliases() {
-        return wildcardOptions.resolveAlias() == false;
+        return wildcardOptions.resolveAliases() == false;
     }
 
     /**
@@ -572,7 +574,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         final WildcardOptions wildcards = new WildcardOptions.Builder().includeOpen(expandToOpenIndices)
             .includeClosed(expandToClosedIndices)
             .removeHidden(expandToHiddenIndices == false)
-            .resolveAlias(ignoreAliases == false)
+            .resolveAliases(ignoreAliases == false)
             .allowEmptyExpressions(allowNoIndices)
             .build();
 

@@ -36,8 +36,7 @@ import java.util.Objects;
 public class ExplainDataStreamLifecycleAction {
 
     public static final ActionType<ExplainDataStreamLifecycleAction.Response> INSTANCE = new ActionType<>(
-        "indices:admin/data_stream/lifecycle/explain",
-        Response::new
+        "indices:admin/data_stream/lifecycle/explain"
     );
 
     private ExplainDataStreamLifecycleAction() {/* no instances */}

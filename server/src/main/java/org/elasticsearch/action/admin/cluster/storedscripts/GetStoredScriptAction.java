@@ -16,6 +16,6 @@ public class GetStoredScriptAction extends ActionType<GetStoredScriptResponse> {
     public static final String NAME = "cluster:admin/script/get";
 
     private GetStoredScriptAction() {
-        super(NAME, GetStoredScriptResponse::new);
+        super(NAME);
     }
 }

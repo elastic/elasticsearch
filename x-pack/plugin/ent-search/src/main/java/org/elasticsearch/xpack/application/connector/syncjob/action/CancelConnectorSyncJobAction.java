@@ -33,7 +33,7 @@ public class CancelConnectorSyncJobAction extends ActionType<ConnectorUpdateActi
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/cancel";
 
     private CancelConnectorSyncJobAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

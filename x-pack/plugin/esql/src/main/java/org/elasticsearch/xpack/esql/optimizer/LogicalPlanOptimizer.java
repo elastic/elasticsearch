@@ -411,17 +411,25 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             var collectRefs = new AttributeMap<Expression>();
-            // collect aliases
+
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
+
+            // collect aliases bottom-up
             plan.forEachExpressionUp(Alias.class, a -> {
                 var c = a.child();
-                if (c.foldable()) {
-                    collectRefs.put(a.toAttribute(), c);
+                boolean shouldCollect = c.foldable();
+                // try to resolve the expression based on an existing foldables
+                if (shouldCollect == false) {
+                    c = c.transformUp(ReferenceAttribute.class, replaceReference);
+                    shouldCollect = c.foldable();
+                }
+                if (shouldCollect) {
+                    collectRefs.put(a.toAttribute(), Literal.of(c));
                 }
             });
             if (collectRefs.isEmpty()) {
                 return plan;
             }
-            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
 
             plan = plan.transformUp(p -> {
                 // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
@@ -1138,7 +1146,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                                 return newAlias.toAttribute();
                             });
                             // replace field with attribute
-                            result = af.replaceChildren(Collections.singletonList(attr));
+                            List<Expression> newChildren = new ArrayList<>(af.children());
+                            newChildren.set(0, attr);
+                            result = af.replaceChildren(newChildren);
                         }
                         return result;
                     });

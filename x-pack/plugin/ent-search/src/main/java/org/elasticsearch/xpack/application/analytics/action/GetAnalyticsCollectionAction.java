@@ -34,7 +34,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
     public static final String NAME = "cluster:admin/xpack/application/analytics/get";
 
     private GetAnalyticsCollectionAction() {
-        super(NAME, GetAnalyticsCollectionAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {

@@ -25,6 +25,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
@@ -266,5 +267,12 @@ public class FetchContext {
         } else {
             return hitContext.source();
         }
+    }
+
+    public RankBuilder getRankBuilder() {
+        if (searchContext.request().source() != null) {
+            return searchContext.request().source().rankBuilder();
+        }
+        return null;
     }
 }

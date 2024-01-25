@@ -9,7 +9,6 @@
 package org.elasticsearch.search.scriptrank;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.ScriptContext;
 
@@ -26,7 +25,7 @@ public abstract class RankScript {
         this.params = params;
     }
 
-    public abstract List<ScoreDoc> execute(List<PriorityQueue<ScoreDoc>> docs);
+    public abstract List<ScoreDoc> execute(List<List<ScriptRankDoc>> docs);
 
     public Map<String, Object> getParams() {
         return params;

@@ -143,7 +143,7 @@ public class ScriptRankRetrieverBuilder extends RetrieverBuilder<ScriptRankRetri
         }
 
         if (searchSourceBuilder.rankBuilder() == null) {
-            searchSourceBuilder.rankBuilder(new ScriptRankBuilder(windowSize, script));
+            searchSourceBuilder.rankBuilder(new ScriptRankBuilder(windowSize, script, fields));
         } else {
             throw new IllegalStateException("[rank] cannot be declared as a retriever value and as a global value");
         }

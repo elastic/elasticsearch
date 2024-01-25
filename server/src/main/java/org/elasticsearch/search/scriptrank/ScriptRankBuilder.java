@@ -15,6 +15,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.fetch.FetchContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;
@@ -31,16 +35,19 @@ public class ScriptRankBuilder extends RankBuilder {
         throw new UnsupportedOperationException("Use Retrievers instead");
     }
 
-    Script script = null;
+    private final Script script;
+    private final List<String> fields;
 
-    public ScriptRankBuilder(int windowSize, Script script) {
+    public ScriptRankBuilder(int windowSize, Script script, List<String> fields) {
         super(windowSize);
-        this.script = script;
+        this.script = Objects.requireNonNull(script);
+        this.fields = Objects.requireNonNull(fields);
     }
 
     public ScriptRankBuilder(StreamInput in) throws IOException {
         super(in);
         this.script = new Script(in);
+        this.fields = in.readStringCollectionAsList();
     }
 
     @Override
@@ -56,6 +63,7 @@ public class ScriptRankBuilder extends RankBuilder {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         this.script.writeTo(out);
+        out.writeStringCollection(fields);
     }
 
     @Override
@@ -74,12 +82,23 @@ public class ScriptRankBuilder extends RankBuilder {
     }
 
     @Override
+    public FetchSubPhaseProcessor buildFetchSubPhaseProcessor(FetchContext fetchContext) {
+        FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
+        if (fetchSourceContext == null || fetchSourceContext.fetchSource() == false) {
+            return null;
+        }
+        assert fetchSourceContext.fetchSource();
+        return new ScriptRankFetchSubPhaseProcessor(fetchContext, fields);
+    }
+
+    @Override
     protected boolean doEquals(RankBuilder other) {
-        return Objects.equals(script, ((ScriptRankBuilder) other).script);
+        return Objects.equals(script, ((ScriptRankBuilder) other).script)
+            && Objects.equals(fields, ((ScriptRankBuilder) other).fields);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(script);
+        return Objects.hash(script, fields);
     }
 }

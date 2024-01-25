@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.fetch.FetchContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,6 +80,8 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      */
     public abstract RankCoordinatorContext buildRankCoordinatorContext(int size, int from, ScriptService scriptService);
 
+    public abstract FetchSubPhaseProcessor buildFetchSubPhaseProcessor(FetchContext fetchContext);
+
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {
@@ -104,4 +108,5 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     public String toString() {
         return Strings.toString(this, true, true);
     }
+
 }

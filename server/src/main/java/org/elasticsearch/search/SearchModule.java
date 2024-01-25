@@ -227,6 +227,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankFetchSubPhase;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -1035,6 +1036,7 @@ public class SearchModule {
         registerFetchSubPhase(new MatchedQueriesPhase());
         registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new FetchScorePhase());
+        registerFetchSubPhase(new RankFetchSubPhase());
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);

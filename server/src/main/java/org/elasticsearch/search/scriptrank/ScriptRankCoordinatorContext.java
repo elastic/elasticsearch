@@ -22,6 +22,7 @@ import org.elasticsearch.search.rank.RankCoordinatorContext;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
 
@@ -86,24 +87,10 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
                 seen.putIfAbsent(new RankKey(scoreDoc.doc, scoreDoc.shardIndex), scoreDoc);
             }
         }
-
-        // if (true) {
-        // var output = new StringBuilder();
-        // seen.forEach((k, v) -> {
-        // output.append(k.toString());
-        // output.append("\tscore: " + v.score + " ");
-        // });
-        //
-        // throw new IllegalArgumentException(
-        // output.toString()
-        // );
-        // }
         topDocStats.fetchHits = seen.size();
 
         return new SearchPhaseController.SortedTopDocs(seen.values().toArray(ScoreDoc[]::new), false, null, null, null, 0);
     }
-
-    protected record ScriptDocContext(RankKey rankKey, String source, ScoreDoc scoreDoc) {}
 
     @Override
     @SuppressWarnings("unchecked")
@@ -114,33 +101,63 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
         RankScript.Factory factory = scriptService.compile(script, RankScript.CONTEXT);
         RankScript rankScript = factory.newInstance(script.getParams());
 
-        /*
-            def results = [:];
-            for (def queue : docs) {
-                int index = 1;
-                while(queue.size() != 0) {
-                    def scoreDoc = queue.pop();
-                    results.compute(
-                        new RankKey(scoreDoc.doc, scoreDoc.shardIndex),
-                        (key, value) -> {
-                            def v = value;
-                            if (v == null) {
-                                v = new ScoreDoc(scoreDoc.doc, 0f, scoreDoc.shardIndex);
-                            }
-                            v.score += 1.0f / (60 + index);
-                            return v;
-                        }
-                    );
-                    ++index;
+
+// Example that calculates RRF
+/*
+def results = [:];
+for (def retrieverResult : docs) {
+    int index = retrieverResult.size();
+    for (ScriptRankDoc scriptRankDoc : retrieverResult) {
+        ScoreDoc scoreDoc = scriptRankDoc.scoreDoc();
+        String kwField = scriptRankDoc.fields().get(\"kw\");
+        results.compute(
+                new RankKey(scoreDoc.doc, scoreDoc.shardIndex),
+                (key, value) -> {
+                    def v = value;
+                    if (v == null) {
+                        v = new ScoreDoc(scoreDoc.doc, 0f, scoreDoc.shardIndex);
+                    }
+                    v.score += 1.0f / (60 + index );
+                    return v;
                 }
+        );
+        --index;
+    }
+}
+def output = new ArrayList(results.values());
+output.sort((ScoreDoc sd1, ScoreDoc sd2) -> { return sd1.score < sd2.score ? 1 : -1; });
+return output;
+
+*/
+
+
+        Map<RankKey, Map<String, Object>> lookup = new HashMap<>();
+        for (var fetchResult : fetchResultsArray.asList()) { // TODO maybe a better way
+            for (var hit : fetchResult.fetchResult().hits().getHits()) {
+                lookup.put(
+                    new RankKey(hit.docId(), fetchResult.getShardIndex()),
+                    ((ScriptRankHitData) hit.getRankHitData()).getFieldData()
+                );
             }
-            def output = new ArrayList(results.values());
-            output.sort((ScoreDoc sd1, ScoreDoc sd2) -> { return sd1.score < sd2.score ? 1 : -1; });
-            return output;
+        }
 
-         */
+        List<List<ScriptRankDoc>> allRetrieverResults = new ArrayList<>(queues.size());
+        for (PriorityQueue<ScoreDoc> queue : queues) {
+            List<ScriptRankDoc> currentRetrieverResults = new ArrayList<>();
+            while (queue.size() != 0) {
+                ScoreDoc scoreDoc = queue.pop();
+                var fields = lookup.get(new RankKey(scoreDoc.doc, scoreDoc.shardIndex));
+                currentRetrieverResults.add(
+                    new ScriptRankDoc(
+                        scoreDoc,
+                        fields
+                    )
+                );
+            }
+            allRetrieverResults.add(currentRetrieverResults);
+        }
 
-        List<ScoreDoc> scriptResult = rankScript.execute(queues);
+        List<ScoreDoc> scriptResult = rankScript.execute(allRetrieverResults);
 
         var sortedTopDocs = new SearchPhaseController.SortedTopDocs(scriptResult.toArray(ScoreDoc[]::new), false, null, null, null, 0);
         var updatedReducedQueryPhase = new SearchPhaseController.ReducedQueryPhase(

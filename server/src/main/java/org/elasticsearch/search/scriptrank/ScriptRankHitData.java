@@ -9,28 +9,40 @@
 package org.elasticsearch.search.scriptrank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class ScriptRankHitData implements RankHitData {
-    public ScriptRankHitData() {}
+    private final Map<String, Object> fieldData;
 
-    public ScriptRankHitData(StreamInput in) {}
+    public ScriptRankHitData(Map<String, Object> fieldData) {
+        this.fieldData = fieldData;
+    }
+
+    public ScriptRankHitData(StreamInput in) throws IOException {
+        fieldData = in.readGenericMap();
+    }
 
     @Override
     public String getWriteableName() {
-        return null;
+        return ScriptRankRetrieverBuilder.NAME;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return null;
+        return TransportVersions.SCRIPT_RANK_ADDED;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeGenericMap(fieldData);
+    }
 
+    public Map<String, Object> getFieldData() {
+        return fieldData;
     }
 }

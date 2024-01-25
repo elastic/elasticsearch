@@ -22,6 +22,12 @@ class org.elasticsearch.search.scriptrank.RankKey {
     int shardIndex()
 }
 
+class org.elasticsearch.search.scriptrank.ScriptRankDoc{
+    (ScoreDoc, Map)
+    ScoreDoc scoreDoc()
+    Map fields()
+}
+
 class org.apache.lucene.util.PriorityQueue @no_import{
     def pop()
     def top()

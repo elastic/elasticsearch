@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -318,7 +319,8 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field(TEXT.getPreferredName(), getText());
                 if (hit != null) {
-                    hit.toInnerXContent(builder, params);
+                    // TODO: switch the enclosing class to ChunkedToXContent too
+                    ChunkedToXContentObject.wrapAsToXContentObject(hit).toXContent(builder, params);
                 } else {
                     builder.field(SCORE.getPreferredName(), getScore());
                 }

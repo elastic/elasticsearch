@@ -18,6 +18,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.index.shard.ShardId;
@@ -162,7 +163,12 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHit searchHit = createTestItem(xContentType, true, false);
         try {
             boolean humanReadable = randomBoolean();
-            BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+            BytesReference originalBytes = toShuffledXContent(
+                ChunkedToXContent.wrapAsToXContent(searchHit),
+                xContentType,
+                ToXContent.EMPTY_PARAMS,
+                humanReadable
+            );
             SearchHit parsed;
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
@@ -233,7 +239,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         try {
             searchHit.score(1.5f);
             XContentBuilder builder = JsonXContent.contentBuilder();
-            searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(searchHit).toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals("""
                 {"_id":"id1","_score":1.5}""", Strings.toString(builder));
         } finally {
@@ -245,7 +251,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHit searchHit = SearchHit.unpooled(1, "id1");
         searchHit.setRank(1);
         XContentBuilder builder = JsonXContent.contentBuilder();
-        searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(searchHit).toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("""
             {"_id":"id1","_score":null,"_rank":1}""", Strings.toString(builder));
     }
@@ -404,7 +410,12 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHit hit = SearchHit.unpooled(0, "_id");
         hit.addDocumentFields(fields, Map.of());
         {
-            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            BytesReference originalBytes = toShuffledXContent(
+                ChunkedToXContent.wrapAsToXContent(hit),
+                XContentType.JSON,
+                ToXContent.EMPTY_PARAMS,
+                randomBoolean()
+            );
             // checks that the fields section is completely omitted in the rendering.
             assertThat(originalBytes.utf8ToString(), not(containsString("fields")));
             final SearchHit parsed;
@@ -427,7 +438,12 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         hit = SearchHit.unpooled(0, "_id");
         hit.addDocumentFields(fields, Collections.emptyMap());
         {
-            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            BytesReference originalBytes = toShuffledXContent(
+                ChunkedToXContent.wrapAsToXContent(hit),
+                XContentType.JSON,
+                ToXContent.EMPTY_PARAMS,
+                randomBoolean()
+            );
             final SearchHit parsed;
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
@@ -444,7 +460,12 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         hit = SearchHit.unpooled(0, "_id");
         hit.addDocumentFields(fields, Collections.emptyMap());
         {
-            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            BytesReference originalBytes = toShuffledXContent(
+                ChunkedToXContent.wrapAsToXContent(hit),
+                XContentType.JSON,
+                ToXContent.EMPTY_PARAMS,
+                randomBoolean()
+            );
             final SearchHit parsed;
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT

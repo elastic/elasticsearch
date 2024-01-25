@@ -16,7 +16,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -98,11 +98,7 @@ public class RestRankEvalAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parseRankEvalRequest(rankEvalRequest, request, parser);
         }
-        return channel -> client.executeLocally(
-            RankEvalPlugin.ACTION,
-            rankEvalRequest,
-            new RestToXContentListener<RankEvalResponse>(channel)
-        );
+        return channel -> client.executeLocally(RankEvalPlugin.ACTION, rankEvalRequest, new RestChunkedToXContentListener<>(channel));
     }
 
     private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {

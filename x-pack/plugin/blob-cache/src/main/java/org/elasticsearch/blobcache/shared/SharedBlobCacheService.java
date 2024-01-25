@@ -1419,23 +1419,26 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             var front1 = freqs[1];
             if (front0 == null) {
                 freqs[0] = front1;
-                decrementFreqList(front1);
                 freqs[1] = null;
+                decrementFreqList(front1);
                 assert front1 == null || invariant(front1, true);
-            } else if (front1 != null){
+            } else if (front1 != null) {
                 var back0 = front0.prev;
                 var back1 = front1.prev;
                 assert invariant(front0, true);
                 assert invariant(front1, true);
                 assert invariant(back0, true);
                 assert invariant(back1, true);
+
                 decrementFreqList(front1);
 
                 front0.prev = back1;
                 back0.next = front1;
                 front1.prev = back0;
                 assert back1.next == null;
+
                 freqs[1] = null;
+
                 assert invariant(front0, true);
                 assert invariant(front1, true);
                 assert invariant(back0, true);

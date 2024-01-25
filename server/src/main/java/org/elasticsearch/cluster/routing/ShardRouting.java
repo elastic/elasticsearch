@@ -395,7 +395,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             role.writeTo(out);
         } else if (role != Role.DEFAULT) {
             throw new IllegalStateException(
-                Strings.format("cannot send role [%s] to node with version [%s]", role, TransportVersions.toReleaseVersion(out.getTransportVersion()))
+                Strings.format(
+                    "cannot send role [%s] to node with version [%s]",
+                    role,
+                    TransportVersions.toReleaseVersion(out.getTransportVersion())
+                )
             );
         }
     }

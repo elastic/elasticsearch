@@ -305,9 +305,9 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         ConnectorStatus newStatus = ConnectorTestUtils.getRandomConnectorNextStatus(connector.getStatus());
 
-        UpdateConnectorStatusAction.Request updateIndexNameRequest = new UpdateConnectorStatusAction.Request(connectorId, newStatus);
+        UpdateConnectorStatusAction.Request updateStatusRequest = new UpdateConnectorStatusAction.Request(connectorId, newStatus);
 
-        DocWriteResponse updateResponse = awaitUpdateConnectorIndexName(updateIndexNameRequest);
+        DocWriteResponse updateResponse = awaitUpdateConnectorStatus(updateStatusRequest);
         assertThat(updateResponse.status(), equalTo(RestStatus.OK));
 
         Connector indexedConnector = awaitGetConnector(connectorId);
@@ -517,7 +517,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private UpdateResponse awaitUpdateConnectorIndexName(UpdateConnectorStatusAction.Request updateStatusRequest) throws Exception {
+    private UpdateResponse awaitUpdateConnectorStatus(UpdateConnectorStatusAction.Request updateStatusRequest) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);

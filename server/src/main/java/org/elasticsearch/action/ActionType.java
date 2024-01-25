@@ -26,6 +26,22 @@ import org.elasticsearch.transport.TransportService;
 @SuppressWarnings("unused") // Response type arg is used to enable better type inference when calling Client#execute
 public class ActionType<Response extends ActionResponse> {
 
+    /**
+     * Construct an {@link ActionType} with the given name.
+     * <p>
+     * There is no facility for directly executing an action on a different node in the local cluster. To achieve this, implement an action
+     * which runs on the local node and knows how to use the {@link TransportService} to forward the request to a different node. There are
+     * several utilities that help implement such an action, including {@link TransportNodesAction} or {@link TransportMasterNodeAction}.
+     *
+     * @param name The name of the action, which must be unique across actions.
+     * @return an {@link ActionType} which callers can execute on the local node.
+     * @deprecated Just create the {@link ActionType} directly.
+     */
+    @Deprecated(forRemoval = true)
+    public static <T extends ActionResponse> ActionType<T> localOnly(String name) {
+        return new ActionType<>(name);
+    }
+
     private final String name;
 
     /**

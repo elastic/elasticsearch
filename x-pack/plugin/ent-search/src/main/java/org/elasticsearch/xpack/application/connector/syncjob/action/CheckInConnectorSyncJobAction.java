@@ -33,7 +33,7 @@ public class CheckInConnectorSyncJobAction extends ActionType<ConnectorUpdateAct
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/check_in";
 
     private CheckInConnectorSyncJobAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -33,7 +33,7 @@ public class GetConnectorAction extends ActionType<GetConnectorAction.Response> 
     public static final String NAME = "cluster:admin/xpack/connector/get";
 
     private GetConnectorAction() {
-        super(NAME, GetConnectorAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -37,7 +37,7 @@ public class UpdateConnectorErrorAction extends ActionType<ConnectorUpdateAction
     public static final String NAME = "cluster:admin/xpack/connector/update_error";
 
     public UpdateConnectorErrorAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -398,7 +398,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
       noCache = BuildParams.isCi
       tags = generateTags(base, architecture)
-      platform = architecture.dockerPlatform
+      platforms.add(architecture.dockerPlatform)
 
       // We don't build the Iron Bank image when we release Elasticsearch, as there's
       // separate process for submitting new releases. However, for testing we do a
@@ -468,7 +468,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
       noCache = BuildParams.isCi
       baseImages = []
       tags = generateTags(base, architecture)
-      platform = architecture.dockerPlatform
+      platforms.add(architecture.dockerPlatform)
 
       onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }

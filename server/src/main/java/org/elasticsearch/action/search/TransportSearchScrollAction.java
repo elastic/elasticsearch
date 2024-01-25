@@ -28,7 +28,7 @@ import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TY
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
-    public static final ActionType<SearchResponse> TYPE = ActionType.localOnly("indices:data/read/scroll");
+    public static final ActionType<SearchResponse> TYPE = new ActionType<>("indices:data/read/scroll");
     public static final RemoteClusterActionType<SearchResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         TYPE.name(),
         SearchResponse::new

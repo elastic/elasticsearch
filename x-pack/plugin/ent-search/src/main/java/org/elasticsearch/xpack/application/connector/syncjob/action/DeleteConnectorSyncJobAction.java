@@ -33,7 +33,7 @@ public class DeleteConnectorSyncJobAction extends ActionType<AcknowledgedRespons
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/delete";
 
     private DeleteConnectorSyncJobAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

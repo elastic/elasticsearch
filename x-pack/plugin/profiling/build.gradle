@@ -25,5 +25,6 @@ dependencies {
   testImplementation project(':modules:data-streams')
 }
 tasks.named("dependencyLicenses").configure {
-   ignoreFile 'cloudcarbonfootprint-LICENSE.txt'
+  ignoreFile 'cloudcarbonfootprint-LICENSE.txt'
+  ignoreFile 'cloudcarbonfootprint-NOTICE.txt' 
 }

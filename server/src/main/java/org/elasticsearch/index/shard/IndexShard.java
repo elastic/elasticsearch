@@ -13,10 +13,13 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -226,6 +229,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
     private final Map<String, Boolean> fieldHasValue;
+    private final AtomicBoolean availableFieldsLoaded = new AtomicBoolean(false);
+    private final CountDownLatch lazyLoadCompleted = new CountDownLatch(1);
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -1009,7 +1014,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean fieldHasValue(String fieldName) {
+        loadNonEmptyFields();
         return fieldHasValue.getOrDefault(fieldName, false);
+    }
+
+    private void loadNonEmptyFields() {
+        if (availableFieldsLoaded.compareAndSet(false, true)) {
+            try (Engine.Searcher hasValueSearcher = acquireSearcher("field_has_value")) {
+                IndexReader hasValueReader = hasValueSearcher.getIndexReader();
+                for (LeafReaderContext leaf : hasValueReader.leaves()) {
+                    LeafReader leafReader = leaf.reader();
+                    for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
+                        setFieldHasValue(fieldInfo.getName());
+                    }
+                }
+            }
+            lazyLoadCompleted.countDown();
+        } else {
+            try {
+                lazyLoadCompleted.await();
+            } catch (InterruptedException ignore) {}
+        }
     }
 
     public static Engine.Index prepareIndex(

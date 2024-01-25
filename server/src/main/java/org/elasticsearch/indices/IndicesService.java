@@ -11,11 +11,7 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.CacheHelper;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -93,8 +89,6 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -643,30 +637,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
-        final IndexEventListener afterShardRecoveryLoadFieldHasValue = new IndexEventListener() {
-            @Override
-            public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
-                Engine engine = indexShard.getEngineOrNull();
-                if (engine == null) {
-                    listener.onFailure(new EngineException(indexShard.shardId(), "Engine not available after recovery"));
-                    return;
-                }
-                try (Engine.Searcher hasValueSearcher = engine.acquireSearcher("field_has_value")) {
-                    IndexReader hasValueReader = hasValueSearcher.getIndexReader();
-                    for (LeafReaderContext leaf : hasValueReader.leaves()) {
-                        LeafReader leafReader = leaf.reader();
-                        for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
-                            indexShard.setFieldHasValue(fieldInfo.getName());
-                        }
-                    }
-                }
-                listener.onResponse(null);
-            }
-        };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
         finalListeners.add(beforeIndexShardRecovery);
-        finalListeners.add(afterShardRecoveryLoadFieldHasValue);
         IndexService indexService;
         try (var ignored = threadPool.getThreadContext().newStoredContext()) {
             indexService = createIndexService(

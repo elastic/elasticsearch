@@ -86,30 +86,6 @@ final class Natives {
         JNANatives.tryInstallSystemCallFilter(tmpFile);
     }
 
-    static void trySetMaxNumberOfThreads() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot getrlimit RLIMIT_NPROC because JNA is not available");
-            return;
-        }
-        JNANatives.trySetMaxNumberOfThreads();
-    }
-
-    static void trySetMaxSizeVirtualMemory() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot getrlimit RLIMIT_AS because JNA is not available");
-            return;
-        }
-        JNANatives.trySetMaxSizeVirtualMemory();
-    }
-
-    static void trySetMaxFileSize() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot getrlimit RLIMIT_FSIZE because JNA is not available");
-            return;
-        }
-        JNANatives.trySetMaxFileSize();
-    }
-
     static boolean isSystemCallFilterInstalled() {
         if (JNA_AVAILABLE == false) {
             return false;

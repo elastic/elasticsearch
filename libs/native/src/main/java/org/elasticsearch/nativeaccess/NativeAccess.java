@@ -12,6 +12,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
+import java.nio.file.Path;
+
 public abstract class NativeAccess {
     protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
 
@@ -53,6 +55,27 @@ public abstract class NativeAccess {
 
     public abstract void tryLockMemory();
     public abstract boolean isMemoryLocked();
+
+    /*public abstract void tryInstallSystemCallFilter(Path tmpFile);
+    public abstract boolean isSystemCallFilterInstalled();*/
+
+    public void trySetMaxNumberOfThreads() {}
+
+    public long getMaxNumberOfThreads() {
+        return -1;
+    }
+
+    public void trySetMaxVirtualMemorySize() {}
+
+    public long getMaxVirtualMemorySize() {
+        return Long.MIN_VALUE;
+    }
+
+    public void trySetMaxFileSize() {}
+
+    public long getMaxFileSize() {
+        return Long.MIN_VALUE;
+    }
     /*
 
 
@@ -60,15 +83,9 @@ public abstract class NativeAccess {
     String getShortPathName(String path);
     void addConsoleCtrlHandler(ConsoleCtrlHandler handler);
 
-    void tryInstallSystemCallFilter(Path tmpFile);
-    boolean isSystemCallFilterInstalled();
 
-    void trySetMaxNumberOfThreads();
-    void trySetMaxSizeVirtualMemory();
-    void trySetMaxFileSize();
 
     int preallocate(int fd, long offset, long length);
-    int getLastError();
 */
     /**
      * Windows callback for console events

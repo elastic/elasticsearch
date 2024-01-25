@@ -315,16 +315,9 @@ class Elasticsearch {
             });
         }
 
-        // force remainder of JNA to be loaded (if available).
-        try {
-            JNAKernel32Library.getInstance();
-        } catch (NoClassDefFoundError|Exception ignored) {
-            // we've already logged this.
-        }
-
-        Natives.trySetMaxNumberOfThreads();
-        Natives.trySetMaxSizeVirtualMemory();
-        Natives.trySetMaxFileSize();
+        nativeAccess.trySetMaxNumberOfThreads();
+        nativeAccess.trySetMaxVirtualMemorySize();
+        nativeAccess.trySetMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();

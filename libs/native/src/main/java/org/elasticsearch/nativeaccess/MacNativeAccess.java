@@ -12,7 +12,7 @@ import org.elasticsearch.nativeaccess.lib.CLibrary;
 
 class MacNativeAccess extends PosixNativeAccess {
     MacNativeAccess(CLibrary libc) {
-        super(libc, 6, 9223372036854775807L);
+        super(libc, 6, 9223372036854775807L, 5);
     }
 
     @Override

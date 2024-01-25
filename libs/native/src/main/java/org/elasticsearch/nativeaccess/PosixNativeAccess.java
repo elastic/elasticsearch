@@ -9,24 +9,30 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.nativeaccess.lib.CLibrary;
+import org.elasticsearch.nativeaccess.lib.CLibrary.RLimit;
 
 abstract class PosixNativeAccess extends NativeAccess {
 
     // libc constants
-    private static final int MCL_CURRENT = 1;
-    private static final int ENOMEM = 12;
+    protected static final int MCL_CURRENT = 1;
+    protected static final int ENOMEM = 12;
 
-    private final int RLIMIT_MEMLOCK;
-    private final long RLIM_INFINITY;
+    protected final int RLIMIT_MEMLOCK;
+    protected final long RLIMIT_INFINITY;
+    protected final int RLIMIT_AS;
+    protected final int RLIMIT_FSIZE = 1; // same on mac and linux
 
-    private final CLibrary libc;
+    protected final CLibrary libc;
 
     private boolean mlockallSucceeded = false;
+    private long maxVirtualMemorySize = Long.MIN_VALUE;
+    private long maxFileSize = Long.MIN_VALUE;
 
-    PosixNativeAccess(CLibrary libc, int RLIMIT_MEMLOCK, long RLIMIT_INFINITY) {
+    PosixNativeAccess(CLibrary libc, int RLIMIT_MEMLOCK, long RLIMIT_INFINITY, int RLIMIT_AS) {
         this.libc = libc;
         this.RLIMIT_MEMLOCK = RLIMIT_MEMLOCK;
-        this.RLIM_INFINITY = RLIMIT_INFINITY;
+        this.RLIMIT_INFINITY = RLIMIT_INFINITY;
+        this.RLIMIT_AS = RLIMIT_AS;
     }
 
     @Override
@@ -55,7 +61,7 @@ abstract class PosixNativeAccess extends NativeAccess {
             long hardLimit = 0;
 
             // we only know RLIMIT_MEMLOCK for these two at the moment.
-            var rlimit = new CLibrary.RLimit();
+            var rlimit = new RLimit();
             if (libc.getrlimit(RLIMIT_MEMLOCK, rlimit) == 0) {
                 rlimitSuccess = true;
                 softLimit = rlimit.rlim_cur;
@@ -84,8 +90,38 @@ abstract class PosixNativeAccess extends NativeAccess {
 
     protected abstract void logMemoryLimitInstructions();
 
+    @Override
+    public void trySetMaxVirtualMemorySize() {
+        var rlimit = new RLimit();
+        if (libc.getrlimit(RLIMIT_AS, rlimit) == 0) {
+            maxVirtualMemorySize = rlimit.rlim_cur;
+        } else {
+            logger.warn("unable to retrieve max size virtual memory [" + libc.strerror(libc.errno()) + "]");
+        }
+    }
+
+    @Override
+    public long getMaxVirtualMemorySize() {
+        return maxVirtualMemorySize;
+    }
+
+    @Override
+    public void trySetMaxFileSize() {
+        var rlimit = new RLimit();
+        if (libc.getrlimit(RLIMIT_FSIZE, rlimit) == 0) {
+            maxFileSize = rlimit.rlim_cur;
+        } else {
+            logger.warn("unable to retrieve max file size [" + libc.strerror(libc.errno()) + "]");
+        }
+    }
+
+    @Override
+    public long getMaxFileSize() {
+        return maxFileSize;
+    }
+
     String rlimitToString(long value) {
-        if (value == RLIM_INFINITY) {
+        if (value == RLIMIT_INFINITY) {
             return "unlimited";
         } else {
             return Long.toUnsignedString(value);

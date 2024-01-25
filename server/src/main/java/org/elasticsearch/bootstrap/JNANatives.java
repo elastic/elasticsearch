@@ -47,64 +47,6 @@ class JNANatives {
 
     static long MAX_FILE_SIZE = Long.MIN_VALUE;
 
-    static void tryMlockall() {
-        int errno = Integer.MIN_VALUE;
-        String errMsg = null;
-        boolean rlimitSuccess = false;
-        long softLimit = 0;
-        long hardLimit = 0;
-
-        try {
-            int result = JNACLibrary.mlockall(JNACLibrary.MCL_CURRENT);
-            if (result == 0) {
-                LOCAL_MLOCKALL = true;
-                return;
-            }
-
-            errno = Native.getLastError();
-            errMsg = JNACLibrary.strerror(errno);
-            if (Constants.LINUX || Constants.MAC_OS_X) {
-                // we only know RLIMIT_MEMLOCK for these two at the moment.
-                JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
-                if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_MEMLOCK, rlimit) == 0) {
-                    rlimitSuccess = true;
-                    softLimit = rlimit.rlim_cur.longValue();
-                    hardLimit = rlimit.rlim_max.longValue();
-                } else {
-                    logger.warn("Unable to retrieve resource limits: {}", JNACLibrary.strerror(Native.getLastError()));
-                }
-            }
-        } catch (UnsatisfiedLinkError e) {
-            // this will have already been logged by CLibrary, no need to repeat it
-            return;
-        }
-
-        // mlockall failed for some reason
-        logger.warn("Unable to lock JVM Memory: error={}, reason={}", errno, errMsg);
-        logger.warn("This can result in part of the JVM being swapped out.");
-        if (errno == JNACLibrary.ENOMEM) {
-            if (rlimitSuccess) {
-                logger.warn(
-                    "Increase RLIMIT_MEMLOCK, soft limit: {}, hard limit: {}",
-                    rlimitToString(softLimit),
-                    rlimitToString(hardLimit)
-                );
-                if (Constants.LINUX) {
-                    // give specific instructions for the linux case to make it easy
-                    String user = System.getProperty("user.name");
-                    logger.warn("""
-                        These can be adjusted by modifying /etc/security/limits.conf, for example:
-                        \t# allow user '{}' mlockall
-                        \t{} soft memlock unlimited
-                        \t{} hard memlock unlimited""", user, user, user);
-                    logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
-                }
-            } else {
-                logger.warn("Increase RLIMIT_MEMLOCK (ulimit).");
-            }
-        }
-    }
-
     static void trySetMaxNumberOfThreads() {
         if (Constants.LINUX) {
             // this is only valid on Linux and the value *is* different on OS X

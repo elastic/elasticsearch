@@ -860,11 +860,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
-                    ensureOpen();
                     if (cacheFileRegion.tryIncRef() == false) {
                         throw new AlreadyClosedException("File chunk [" + cacheFileRegion.regionKey + "] has been released");
                     }
                     try {
+                        ensureOpen();
                         final int start = Math.toIntExact(gap.start());
                         var ioRef = io;
                         assert regionOwners.get(ioRef) == cacheFileRegion;

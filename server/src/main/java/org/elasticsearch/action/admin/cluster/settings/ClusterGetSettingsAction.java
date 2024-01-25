@@ -26,7 +26,7 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
     public static final String NAME = "cluster:monitor/settings";
 
     public ClusterGetSettingsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     /**

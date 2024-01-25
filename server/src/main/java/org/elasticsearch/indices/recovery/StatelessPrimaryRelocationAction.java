@@ -23,7 +23,7 @@ import java.util.Objects;
 
 public class StatelessPrimaryRelocationAction {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse(
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(
         "internal:index/shard/recovery/stateless_primary_relocation"
     );
 

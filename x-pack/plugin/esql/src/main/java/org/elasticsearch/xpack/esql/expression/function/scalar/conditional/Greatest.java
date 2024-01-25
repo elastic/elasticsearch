@@ -111,6 +111,8 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        // force datatype initialization
+        var dataType = dataType();
         ExpressionEvaluator.Factory[] factories = children().stream()
             .map(e -> toEvaluator.apply(new MvMax(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);

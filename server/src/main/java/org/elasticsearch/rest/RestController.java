@@ -29,6 +29,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
@@ -824,10 +826,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (response.isChunked() == false) {
                     methodHandlers.addResponseStats(response.content().length());
                 } else {
-                    response = RestResponse.chunked(
-                        response.status(),
-                        new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers)
-                    );
+                    final var wrapped = new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers);
+                    response = RestResponse.chunked(response.status(), wrapped, Releasables.wrap(wrapped, response));
                 }
                 delegate.sendResponse(response);
                 success = true;
@@ -851,7 +851,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private static class EncodedLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
+    private static class EncodedLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody, Releasable {
 
         private final ChunkedRestResponseBody delegate;
         private final RunOnce onCompletion;
@@ -884,7 +884,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void close() {
-            delegate.close();
             // the client might close the connection before we send the last chunk, in which case we won't have recorded the response in the
             // stats yet, so we do it now:
             onCompletion.run();

@@ -9,7 +9,6 @@
 package org.elasticsearch.search.scriptrank;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -52,7 +51,7 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
             for (QueryBuilder queryBuilder : queries) {
                 queryBuilder = queryBuilder.rewrite(fetchContext.getSearchExecutionContext());
                 Query query = queryBuilder.toQuery(fetchContext.getSearchExecutionContext());
-                this.queries.add(query.rewrite(fetchContext.getSearchExecutionContext().searcher()));
+                this.queries.add(fetchContext.searcher().rewrite(query));
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

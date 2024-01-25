@@ -11,7 +11,11 @@ import java.util.Map;
 
 import static java.util.Map.entry;
 
-public class CloudProviders {
+final class CloudProviders {
+    private CloudProviders() {
+        // no instances intended
+    }
+
     public record Provider(double pue, Map<String, Double> co2TonsPerKWH) {}
 
     private static Provider getProvider(String providerName) {

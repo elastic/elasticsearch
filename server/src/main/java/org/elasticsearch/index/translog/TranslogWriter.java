@@ -10,6 +10,7 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
@@ -223,7 +224,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private static void writeOperationWithSize(StreamOutput out, Translog.SizedWriteable op, Checksum digest) throws IOException {
         final long start = out.position();
-        final int operationSize = op.getSizeInBytes() + Integer.BYTES; // op_size + checksum
+        final int operationSize = op.getSizeInBytes(TransportVersion::current) + Integer.BYTES; // payload + checksum
         out.writeInt(operationSize);
 
         digest.reset();
@@ -255,7 +256,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
 
-            var dataLength = data.getSizeInBytes() + 2 * Integer.BYTES; // size + checksum
+            var dataLength = data.getSizeInBytes(TransportVersion::current) + 2 * Integer.BYTES; // payload + size + checksum
             buffer.add(data);
 
             final long offset = totalOffset;
@@ -287,7 +288,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             return true;
         }
 
-        var dataLength = operation.getSizeInBytes() + 2 * Integer.BYTES; // size + checksum
+        var dataLength = operation.getSizeInBytes(TransportVersion::current) + 2 * Integer.BYTES; // payload + size + checksum
         var digest = new BufferedChecksum(new CRC32());
         BytesArray data = new BytesArray(new byte[dataLength]);
         writeOperationWithSize(new BytesArrayStreamOutput(data, digest), operation, digest);

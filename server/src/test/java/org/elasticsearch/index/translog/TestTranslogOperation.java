@@ -8,9 +8,11 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 class TestTranslogOperation implements Translog.SizedWriteable {
     private final byte[] bytes;
@@ -20,7 +22,7 @@ class TestTranslogOperation implements Translog.SizedWriteable {
     }
 
     @Override
-    public int getSizeInBytes() {
+    public int getSizeInBytes(Supplier<TransportVersion> transportVersionSupplier) {
         return bytes.length;
     }
 

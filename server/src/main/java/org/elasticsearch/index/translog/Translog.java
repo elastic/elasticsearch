@@ -9,6 +9,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -55,6 +56,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -1049,7 +1051,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     public interface SizedWriteable extends Writeable {
-        int getSizeInBytes();
+        int getSizeInBytes(Supplier<TransportVersion> trasportVersionSupplier);
     }
 
     /**
@@ -1126,13 +1128,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        public final int getSizeInBytes() {
-            return 1 + getBodySizeInBytes();
+        public final int getSizeInBytes(Supplier<TransportVersion> transportVersionSupplier) {
+            return 1 + getBodySizeInBytes(transportVersionSupplier);
         }
 
         protected abstract void writeBody(StreamOutput out) throws IOException;
 
-        protected abstract int getBodySizeInBytes();
+        protected abstract int getBodySizeInBytes(Supplier<TransportVersion> transportVersionSupplier);
     }
 
     public static final class Index extends Operation {
@@ -1245,11 +1247,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        protected int getBodySizeInBytes() {
-            // format - 1 byte
-            return StreamOutput.getVIntSizeInBytes(SERIALIZATION_FORMAT) // format - 1 byte
-                + StreamOutput.getStringSizeInBytes(id) + StreamOutput.getBytesReferenceSizeInBytes(source) + StreamOutput
-                    .getOptionalStringSizeInBytes(routing) + 4 * Long.BYTES; // version, timestamp, seq_no, primary_term
+        protected int getBodySizeInBytes(Supplier<TransportVersion> transportVersionSupplier) {
+            final int format = transportVersionSupplier.get().onOrAfter(TransportVersions.V_8_0_0)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_VERSION_TYPE;
+            return StreamOutput.getVIntSizeInBytes(format) // format - 1 byte
+                + StreamOutput.getStringSizeInBytes(id) + (format < FORMAT_NO_DOC_TYPE
+                    ? StreamOutput.getStringSizeInBytes(MapperService.SINGLE_MAPPING_NAME)
+                    : 0) + StreamOutput.getBytesReferenceSizeInBytes(source) + StreamOutput.getOptionalStringSizeInBytes(routing) + 4
+                        * Long.BYTES; // version, timestamp, seq_no, primary_term
         }
 
         @Override
@@ -1395,7 +1401,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        protected int getBodySizeInBytes() {
+        protected int getBodySizeInBytes(Supplier<TransportVersion> transportVersionSupplier) {
+            final int format = transportVersionSupplier.get().onOrAfter(TransportVersions.V_8_0_0)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_VERSION_TYPE;
+            if (format < FORMAT_NO_DOC_TYPE) {
+                return StreamOutput.getVIntSizeInBytes(format) + StreamOutput.getStringSizeInBytes(MapperService.SINGLE_MAPPING_NAME)
+                    + StreamOutput.getStringSizeInBytes(id) + StreamOutput.getStringSizeInBytes(IdFieldMapper.NAME) + StreamOutput
+                        .getBytesRefSizeInBytes(Uid.encodeId(id)) + 3 * Long.BYTES; // seq_no, primary_term, and version;
+            }
             return StreamOutput.getVIntSizeInBytes(SERIALIZATION_FORMAT) // format
                 + StreamOutput.getStringSizeInBytes(id) + 3 * Long.BYTES; // seq_no, primary_term, and version;
         }
@@ -1456,7 +1470,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        protected int getBodySizeInBytes() {
+        protected int getBodySizeInBytes(Supplier<TransportVersion> transportVersionSupplier) {
             return 2 * Long.BYTES // // seq_no, primary_term
                 + StreamOutput.getStringSizeInBytes(reason);
         }

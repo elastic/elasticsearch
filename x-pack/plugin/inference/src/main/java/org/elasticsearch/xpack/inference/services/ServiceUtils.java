@@ -11,10 +11,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -110,7 +110,7 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
-    public static String invalidValue(String settingName, String scope, String invalidType, String... requiredTypes) {
+    public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredTypes) {
         return Strings.format(
             "[%s] Invalid value [%s] received. [%s] must be one of [%s]",
             scope,
@@ -225,8 +225,8 @@ public class ServiceUtils {
         Map<String, Object> map,
         String settingName,
         String scope,
-        CheckedFunction<String, T, IllegalArgumentException> converter,
-        T[] validTypes,
+        EnumConstructor<T> constructor,
+        T[] validValues,
         ValidationException validationException
     ) {
         var enumString = extractOptionalString(map, settingName, scope, validationException);
@@ -234,14 +234,32 @@ public class ServiceUtils {
             return null;
         }
 
-        var validTypesAsStrings = Arrays.stream(validTypes).map(type -> type.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+        var validValuesAsStrings = Arrays.stream(validValues).map(type -> type.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
         try {
-            return converter.apply(enumString);
+            var createdEnum = constructor.apply(enumString);
+            validateEnumValue(createdEnum, validValues);
+
+            return createdEnum;
         } catch (IllegalArgumentException e) {
-            validationException.addValidationError(invalidValue(settingName, scope, enumString, validTypesAsStrings));
+            validationException.addValidationError(invalidValue(settingName, scope, enumString, validValuesAsStrings));
         }
 
         return null;
+    }
+
+    private static <T> void validateEnumValue(T enumValue, T[] validValues) {
+        if (Arrays.asList(validValues).contains(enumValue) == false) {
+            throw new IllegalArgumentException(Strings.format("Enum value [%s] is not one of the acceptable values", enumValue.toString()));
+        }
+    }
+
+    /**
+     * Functional interface for creating an enum from a string.
+     * @param <T>
+     */
+    @FunctionalInterface
+    public interface EnumConstructor<T> {
+        T apply(String name) throws IllegalArgumentException;
     }
 
     public static String parsePersistedConfigErrorMsg(String modelId, String serviceName) {
@@ -268,7 +286,7 @@ public class ServiceUtils {
     public static void getEmbeddingSize(Model model, InferenceService service, ActionListener<Integer> listener) {
         assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
 
-        service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), listener.delegateFailureAndWrap((delegate, r) -> {
+        service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), InputType.INGEST, listener.delegateFailureAndWrap((delegate, r) -> {
             if (r instanceof TextEmbedding embeddingResults) {
                 try {
                     delegate.onResponse(embeddingResults.getFirstEmbeddingSize());

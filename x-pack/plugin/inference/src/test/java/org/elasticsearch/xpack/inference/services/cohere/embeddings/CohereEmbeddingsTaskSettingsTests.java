@@ -15,18 +15,20 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsTaskSettings> {
 
     public static CohereEmbeddingsTaskSettings createRandom() {
-        var inputType = randomBoolean() ? randomFrom(InputType.values()) : null;
+        var inputType = randomBoolean() ? randomWithoutUnspecified() : null;
         var truncation = randomBoolean() ? randomFrom(CohereTruncation.values()) : null;
 
         return new CohereEmbeddingsTaskSettings(inputType, truncation);
@@ -37,6 +39,10 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())),
             is(new CohereEmbeddingsTaskSettings(null, null))
         );
+    }
+
+    public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {
+        MatcherAssert.assertThat(CohereEmbeddingsTaskSettings.fromMap(null), is(new CohereEmbeddingsTaskSettings(null, null)));
     }
 
     public void testFromMap_CreatesSettings_WhenAllFieldsOfSettingsArePresent() {
@@ -67,6 +73,25 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         );
     }
 
+    public void testFromMap_ReturnsFailure_WhenInputTypeIsUnspecified() {
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> CohereEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
+            )
+        );
+
+        MatcherAssert.assertThat(
+            exception.getMessage(),
+            is("Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [ingest, search];")
+        );
+    }
+
+    public void testXContent_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
+        var thrownException = expectThrows(AssertionError.class, () -> new CohereEmbeddingsTaskSettings(InputType.UNSPECIFIED, null));
+        MatcherAssert.assertThat(thrownException.getMessage(), CoreMatchers.is("received invalid input type value [unspecified]"));
+    }
+
     public void testOverrideWith_KeepsOriginalValuesWhenOverridesAreNull() {
         var taskSettings = CohereEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(CohereServiceSettings.MODEL, "model", CohereServiceFields.TRUNCATE, CohereTruncation.END.toString()))
@@ -87,6 +112,27 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
         var overriddenTaskSettings = taskSettings.overrideWith(requestTaskSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(null, CohereTruncation.START)));
+    }
+
+    public void testSetIfAbsent_DoesNotSetInputType_IfAlreadySetInTaskSettings() {
+        MatcherAssert.assertThat(
+            new CohereEmbeddingsTaskSettings(InputType.INGEST, null).setIfAbsent(InputType.SEARCH),
+            is(new CohereEmbeddingsTaskSettings(InputType.INGEST, null))
+        );
+    }
+
+    public void testSetIfAbsent_DoesNotSetInputType_IfInputTypeIsInvalid() {
+        MatcherAssert.assertThat(
+            new CohereEmbeddingsTaskSettings(null, null).setIfAbsent(InputType.UNSPECIFIED),
+            is(new CohereEmbeddingsTaskSettings(null, null))
+        );
+    }
+
+    public void testSetIfAbsent_SetsInputType_IfFieldIsNull() {
+        MatcherAssert.assertThat(
+            new CohereEmbeddingsTaskSettings(null, null).setIfAbsent(InputType.INGEST),
+            is(new CohereEmbeddingsTaskSettings(InputType.INGEST, null))
+        );
     }
 
     @Override

@@ -7,22 +7,26 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
-public class InferenceActionRequestTests extends AbstractWireSerializingTestCase<InferenceAction.Request> {
+public class InferenceActionRequestTests extends AbstractBWCWireSerializationTestCase<InferenceAction.Request> {
 
     @Override
     protected Writeable.Reader<InferenceAction.Request> instanceReader() {
@@ -70,7 +74,7 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
             var request = InferenceAction.Request.parseRequest("model_id", "sparse_embedding", parser);
-            assertThat(request.getInputType(), is(InputType.INGEST));
+            assertThat(request.getInputType(), is(InputType.UNSPECIFIED));
         }
     }
 
@@ -134,5 +138,77 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
             }
             default -> throw new UnsupportedOperationException();
         };
+    }
+
+    @Override
+    protected InferenceAction.Request mutateInstanceForVersion(InferenceAction.Request instance, TransportVersion version) {
+        if (version.before(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+            return new InferenceAction.Request(
+                instance.getTaskType(),
+                instance.getModelId(),
+                instance.getInput().subList(0, 1),
+                instance.getTaskSettings(),
+                InputType.UNSPECIFIED
+            );
+        } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+            return new InferenceAction.Request(
+                instance.getTaskType(),
+                instance.getModelId(),
+                instance.getInput(),
+                instance.getTaskSettings(),
+                InputType.UNSPECIFIED
+            );
+        } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED)
+            && instance.getInputType() == InputType.UNSPECIFIED) {
+                return new InferenceAction.Request(
+                    instance.getTaskType(),
+                    instance.getModelId(),
+                    instance.getInput(),
+                    instance.getTaskSettings(),
+                    InputType.INGEST
+                );
+            }
+
+        return instance;
+    }
+
+    public void testWriteTo_WhenVersionIsOnAfterUnspecifiedAdded() throws IOException {
+        assertBwcSerialization(
+            new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.UNSPECIFIED),
+            TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED
+        );
+    }
+
+    public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest() throws IOException {
+        assertBwcSerialization(
+            new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.UNSPECIFIED),
+            TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED
+        );
+    }
+
+    public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest_ManualCheck() throws IOException {
+        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.UNSPECIFIED);
+
+        InferenceAction.Request deserializedInstance = copyWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED
+        );
+
+        assertThat(deserializedInstance.getInputType(), is(InputType.INGEST));
+    }
+
+    public void testWriteTo_WhenVersionIsBeforeInputTypeAdded_ShouldSetInputTypeToUnspecified() throws IOException {
+        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.INGEST);
+
+        InferenceAction.Request deserializedInstance = copyWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            TransportVersions.HOT_THREADS_AS_BYTES
+        );
+
+        assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
     }
 }

@@ -1,0 +1,5 @@
+pr: 104758
+summary: Stop capturing the `BucketAggregator` when building internal sub-aggregations
+area: Aggregations
+type: bug
+issues: []

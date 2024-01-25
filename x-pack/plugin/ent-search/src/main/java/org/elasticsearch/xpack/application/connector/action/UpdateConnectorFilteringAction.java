@@ -38,7 +38,7 @@ public class UpdateConnectorFilteringAction extends ActionType<ConnectorUpdateAc
     public static final String NAME = "cluster:admin/xpack/connector/update_filtering";
 
     public UpdateConnectorFilteringAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

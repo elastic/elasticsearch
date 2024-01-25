@@ -16,6 +16,6 @@ public class SimulateBulkAction extends ActionType<BulkResponse> {
     public static final String NAME = "indices:data/write/simulate/bulk";
 
     private SimulateBulkAction() {
-        super(NAME, BulkResponse::new);
+        super(NAME);
     }
 }

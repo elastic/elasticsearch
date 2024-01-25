@@ -1956,8 +1956,8 @@ public class Security extends Plugin
             this.getReloadableSecurityComponents().forEach(component -> {
                 try {
                     component.reload(settings);
-                } catch (Exception e) {
-                    reloadExceptions.add(e);
+                } catch (Exception ex) {
+                    reloadExceptions.add(ex);
                 }
             });
 

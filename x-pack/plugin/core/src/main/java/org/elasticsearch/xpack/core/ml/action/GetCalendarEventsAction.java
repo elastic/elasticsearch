@@ -34,7 +34,7 @@ public class GetCalendarEventsAction extends ActionType<GetCalendarEventsAction.
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/events/get";
 
     private GetCalendarEventsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

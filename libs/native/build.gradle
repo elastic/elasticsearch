@@ -8,6 +8,7 @@
 
 import org.elasticsearch.gradle.transform.UnzipTransform
 import org.elasticsearch.gradle.internal.GenerateProviderManifest
+import org.elasticsearch.gradle.internal.util.JavaUtil
 import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 import java.util.stream.Collectors
@@ -16,7 +17,7 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 
 sourceSets {
-  java22
+  java21
 }
 
 def isImplAttr = Attribute.of("is.impl", Boolean)
@@ -44,16 +45,17 @@ dependencies {
   })
 
   api project(':libs:elasticsearch-core')
-  java22Implementation sourceSets.main.output
+  api project(':libs:elasticsearch-logging')
+  java21Implementation sourceSets.main.output
   jnaImpl project(':libs:elasticsearch-native:jna')
   testImplementation(project(":test:framework"))
 }
 
 tasks {
   jar {
-    dependsOn("compileJava22Java")
-    into("META-INF/versions/22") {
-      from(sourceSets.java22.output)
+    dependsOn("compileJava21Java")
+    into("META-INF/versions/21") {
+      from(sourceSets.java21.output)
     }
     manifest {
       attributes "Multi-Release": "true"
@@ -82,9 +84,16 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.named("compileJava22Java").configure {
+tasks.named("compileJava21Java").configure {
   javaCompiler = javaToolchains.compilerFor {
-    languageVersion = JavaLanguageVersion.of("22")
+    languageVersion = JavaLanguageVersion.of("21")
+  }
+  sourceCompatibility = 21
+  options.release = 21
+  options.compilerArgs.add("--enable-preview")
+  options.compilerArgs.add("-Xlint:-preview")
+  doLast {
+    JavaUtil.stripPreviewFromFiles(destinationDirectory.getAsFile().get().toPath())
   }
 }
 

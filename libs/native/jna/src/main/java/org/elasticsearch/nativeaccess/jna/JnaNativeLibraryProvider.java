@@ -8,49 +8,38 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.NativeAccessProvider;
+import org.elasticsearch.nativeaccess.lib.CLibrary;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
-public class JnaNativeAccessProvider extends NativeAccessProvider {
+public class JnaNativeLibraryProvider extends NativeLibraryProvider {
+    private static final Logger logger = LogManager.getLogger(JnaNativeLibraryProvider.class);
+
     // marker to determine if the JNA class files are available to the JVM
     static final boolean JNA_AVAILABLE;
 
     static {
-        boolean v = false;
+        boolean success = false;
         try {
             // load one of the main JNA classes to see if the classes are available. this does not ensure that all native
             // libraries are available, only the ones necessary by JNA to function
             Class.forName("com.sun.jna.Native");
-            v = true;
+            success = true;
         } catch (ClassNotFoundException e) {
-            //logger.warn("JNA not found. native methods will be disabled.", e);
+            logger.warn("JNA not found. native methods will be disabled.", e);
         } catch (UnsatisfiedLinkError e) {
-            //logger.warn("unable to load JNA native support library, native methods will be disabled.", e);
+            logger.warn("unable to load JNA native support library, native methods will be disabled.", e);
         }
-        JNA_AVAILABLE = v;
+        JNA_AVAILABLE = success;
     }
 
     @Override
-    protected NativeAccess loadLinuxNativeAccess() {
-        if (JNA_AVAILABLE) {
-            return new JnaLinuxNativeAccess();
+    public CLibrary getCLibrary() {
+        if (JNA_AVAILABLE && JnaStaticCLibrary.loaded) {
+            return new JnaCLibrary();
         }
-        return new NoopNativeAccess();
-    }
-
-    @Override
-    protected NativeAccess loadMacOSNativeAccess() {
-        if (JNA_AVAILABLE) {
-            return new JnaMacOSNativeAccess();
-        }
-        return new NoopNativeAccess();
-    }
-
-    @Override
-    protected NativeAccess loadWindowsNativeAccess() {
-        if (JNA_AVAILABLE) {
-            return new JnaWindowsNativeAccess();
-        }
-        return new NoopNativeAccess();
+        return null;
     }
 }

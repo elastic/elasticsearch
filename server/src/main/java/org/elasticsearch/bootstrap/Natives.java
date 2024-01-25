@@ -41,22 +41,6 @@ final class Natives {
         JNA_AVAILABLE = v;
     }
 
-    static void tryMlockall() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot mlockall because JNA is not available");
-            return;
-        }
-        JNANatives.tryMlockall();
-    }
-
-    static boolean definitelyRunningAsRoot() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot check if running as root because JNA is not available");
-            return false;
-        }
-        return JNANatives.definitelyRunningAsRoot();
-    }
-
     static void tryVirtualLock() {
         if (JNA_AVAILABLE == false) {
             logger.warn("cannot virtual lock because JNA is not available");

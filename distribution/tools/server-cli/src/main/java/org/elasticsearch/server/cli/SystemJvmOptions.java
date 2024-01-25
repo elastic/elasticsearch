@@ -65,6 +65,7 @@ final class SystemJvmOptions {
              * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
              */
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
+            "--enable-native-access=org.elasticsearch.nativeaccess",
             maybeOverrideDockerCgroup(),
             maybeSetActiveProcessorCount(nodeSettings),
             // Pass through distribution type

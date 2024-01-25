@@ -8,19 +8,54 @@
 
 package org.elasticsearch.nativeaccess;
 
-import java.nio.file.Path;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
-public interface NativeAccess {
-    static NativeAccess instance() {
-        return NativeAccessProvider.getNativeAccess();
+public abstract class NativeAccess {
+    protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
+
+    private static class Holder {
+        private static final NativeAccess INSTANCE;
+        static {
+            var libraryProvider = NativeLibraryProvider.getInstance();
+            logger.info("Using native provider: " + libraryProvider.getClass().getSimpleName());
+            var os = System.getProperty("os.name");
+            NativeAccess inst = null;
+            if (os.startsWith("Linux")) {
+                var libc = libraryProvider.getCLibrary();
+                if (libc != null) {
+                    inst = new LinuxNativeAccess(libraryProvider.getCLibrary());
+                } else {
+                    logger.warn("Could not get libc from library provider");
+                }
+            } else if (os.startsWith("Mac OS")) {
+                var libc = libraryProvider.getCLibrary();
+                if (libc != null) {
+                    inst = new MacNativeAccess(libraryProvider.getCLibrary());
+                } else {
+                    logger.warn("Could not get libc from library provider");
+                }
+            } else if (os.startsWith("Windows")) {
+                inst = new WindowsNativeAccess();
+            }
+            if (inst == null) {
+                inst = new NoopNativeAccess();
+            }
+            INSTANCE = inst;
+        }
+    }
+    public static NativeAccess instance() {
+        return Holder.INSTANCE;
     }
 
-    String getDummyString();
-    /*
-    void tryLockMemory();
-    boolean isMemoryLocked();
+    public abstract boolean definitelyRunningAsRoot();
 
-    boolean definitelyRunningAsRoot();
+    public abstract void tryLockMemory();
+    public abstract boolean isMemoryLocked();
+    /*
+
+
 
     String getShortPathName(String path);
     void addConsoleCtrlHandler(ConsoleCtrlHandler handler);

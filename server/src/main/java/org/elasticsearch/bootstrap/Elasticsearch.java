@@ -278,10 +278,11 @@ class Elasticsearch {
     static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Elasticsearch.class);
 
-        logger.info("Native access: " + NativeAccess.instance().getDummyString());
+        var nativeAccess = NativeAccess.instance();
+        logger.info("Native access: " + nativeAccess.getClass().getSimpleName());
 
         // check if the user is running as root, and bail
-        if (Natives.definitelyRunningAsRoot()) {
+        if (nativeAccess.definitelyRunningAsRoot()) {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
@@ -296,11 +297,7 @@ class Elasticsearch {
 
         // mlockall if requested
         if (mlockAll) {
-            if (Constants.WINDOWS) {
-                Natives.tryVirtualLock();
-            } else {
-                Natives.tryMlockall();
-            }
+            nativeAccess.tryLockMemory();
         }
 
         // listener for windows close event

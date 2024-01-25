@@ -8,11 +8,7 @@
 
 package org.elasticsearch.nativeaccess.jna;
 
-import org.elasticsearch.nativeaccess.NativeAccess;
-
-public class JnaLinuxNativeAccess implements NativeAccess {
-    @Override
-    public String getDummyString() {
-        return "JNA linux impl";
-    }
+// temp, move to core
+public class Constants {
+    public static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS");
 }

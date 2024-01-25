@@ -6,13 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.jna;
+package org.elasticsearch.nativeaccess.ffi;
 
-import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.lib.CLibrary;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
-public class JnaMacOSNativeAccess implements NativeAccess {
+public class JdkNativeLibraryProvider extends NativeLibraryProvider {
+
     @Override
-    public String getDummyString() {
-        return "JNA macos impl";
+    public CLibrary getCLibrary() {
+        return new JdkCLibrary();
     }
 }

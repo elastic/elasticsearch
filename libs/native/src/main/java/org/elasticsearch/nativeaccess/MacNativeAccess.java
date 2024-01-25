@@ -6,13 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.jna;
+package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.lib.CLibrary;
 
-public class NoopNativeAccess implements NativeAccess {
+class MacNativeAccess extends PosixNativeAccess {
+    MacNativeAccess(CLibrary libc) {
+        super(libc, 6, 9223372036854775807L);
+    }
+
     @Override
-    public String getDummyString() {
-        return "Noop";
+    protected void logMemoryLimitInstructions() {
+        // we don't have instructions for macos
     }
 }

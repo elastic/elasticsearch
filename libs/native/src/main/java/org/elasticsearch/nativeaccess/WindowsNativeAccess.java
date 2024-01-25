@@ -6,13 +6,22 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.jna;
+package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.NativeAccess;
+class WindowsNativeAccess extends NativeAccess {
 
-public class JnaWindowsNativeAccess implements NativeAccess {
     @Override
-    public String getDummyString() {
-        return "JNA windows impl";
+    public boolean definitelyRunningAsRoot() {
+        return false; // don't know
+    }
+
+    @Override
+    public void tryLockMemory() {
+
+    }
+
+    @Override
+    public boolean isMemoryLocked() {
+        return false;
     }
 }

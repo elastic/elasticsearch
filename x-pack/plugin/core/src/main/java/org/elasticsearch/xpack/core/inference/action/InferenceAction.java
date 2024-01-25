@@ -88,7 +88,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
             this.taskSettings = in.readGenericMap();
             if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
-                this.inputType = InputType.fromStream(in);
+                this.inputType = in.readEnum(InputType.class);
             } else {
                 this.inputType = InputType.INGEST;
             }
@@ -141,7 +141,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
             out.writeGenericMap(taskSettings);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
-                inputType.writeTo(out);
+                out.writeEnum(inputType);
             }
         }
 

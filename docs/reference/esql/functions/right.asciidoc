@@ -17,7 +17,7 @@ The number of characters to return.
 
 *Description*
 
-Return the substring that extracts 'length' chars from the 'string' starting
+Return the substring that extracts 'length' chars from 'str' starting
 from the right.
 
 *Supported types*

@@ -84,8 +84,6 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // Add human-readable (nested) time fields.
-        builder.humanReadable(true);
         builder.startObject();
         builder.startObject(INDICES_FIELD.getPreferredName());
         for (IndexLifecycleExplainResponse indexResponse : indexResponses.values()) {

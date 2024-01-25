@@ -12,15 +12,29 @@ import org.elasticsearch.core.internal.provider.ProviderLocator;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public abstract class NativeLibraryProvider {
+
+    private final Map<Class<?>, Supplier<?>> libraries;
+
+    protected NativeLibraryProvider(Map<Class<?>, Supplier<?>> libraries) {
+        this.libraries = libraries;
+    }
 
     public static NativeLibraryProvider getInstance() {
         return Holder.INSTANCE;
     }
 
-    public abstract PosixCLibrary getCLibrary();
+    public <T> T getLibrary(Class<T> cls) {
+        Supplier<?> libraryCtor = libraries.get(cls);
+        Object library = libraryCtor.get();
+        assert library != null;
+        assert cls.isAssignableFrom(library.getClass());
+        return cls.cast(library);
+    }
 
     private static NativeLibraryProvider loadProvider() {
         final int runtimeVersion = Runtime.version().feature();

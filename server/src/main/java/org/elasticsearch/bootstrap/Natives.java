@@ -71,13 +71,6 @@ final class Natives {
         JNANatives.addConsoleCtrlHandler(handler);
     }
 
-    static boolean isMemoryLocked() {
-        if (JNA_AVAILABLE == false) {
-            return false;
-        }
-        return JNANatives.LOCAL_MLOCKALL;
-    }
-
     static void tryInstallSystemCallFilter(Path tmpFile) {
         if (JNA_AVAILABLE == false) {
             logger.warn("cannot install system call filter because JNA is not available");

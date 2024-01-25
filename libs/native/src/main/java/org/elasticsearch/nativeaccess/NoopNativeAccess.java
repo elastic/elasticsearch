@@ -22,11 +22,23 @@ public class NoopNativeAccess extends NativeAccess {
 
     @Override
     public void tryLockMemory() {
-        logger.warn("cannot lock memory because native access is not available");
+        logger.warn("Cannot lock memory because native access is not available.");
     }
 
     @Override
     public boolean isMemoryLocked() {
         return false;
+    }
+
+    public void trySetMaxNumberOfThreads() {
+        logger.warn("Cannot set max number of threads because native access is not available.");
+    }
+
+    public void trySetMaxVirtualMemorySize() {
+        logger.warn("Cannot set max size of virtual memory because native access is not available.");
+    }
+
+    public void trySetMaxFileSize() {
+        logger.warn("Cannot set max file size because native access is not available.");
     }
 }

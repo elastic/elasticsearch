@@ -11,7 +11,13 @@ package org.elasticsearch.nativeaccess.ffi;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
+import java.util.Map;
+
 public class JdkNativeLibraryProvider extends NativeLibraryProvider {
+
+    public JdkNativeLibraryProvider() {
+        super(Map.of(PosixCLibrary.class, JdkPosixCLibrary::new));
+    }
 
     @Override
     public PosixCLibrary getCLibrary() {

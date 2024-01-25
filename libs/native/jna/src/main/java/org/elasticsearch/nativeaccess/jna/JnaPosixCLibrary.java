@@ -10,10 +10,16 @@ package org.elasticsearch.nativeaccess.jna;
 
 import com.sun.jna.Native;
 
+import org.elasticsearch.jdk.JdkUtils;
 import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaRLimit;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 public class JnaPosixCLibrary implements PosixCLibrary {
+
+    static {
+        JdkUtils.ensureInitialized(JnaStaticPosixCLibrary.class);
+    }
+
     @Override
     public int mlockall(int flags) {
         return JnaStaticPosixCLibrary.mlockall(flags);

@@ -12,8 +12,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
-import java.nio.file.Path;
-
 public abstract class NativeAccess {
     protected static final Logger logger = LogManager.getLogger(NativeAccess.class);
 
@@ -24,22 +22,18 @@ public abstract class NativeAccess {
             logger.info("Using native provider: " + libraryProvider.getClass().getSimpleName());
             var os = System.getProperty("os.name");
             NativeAccess inst = null;
-            if (os.startsWith("Linux")) {
-                var libc = libraryProvider.getCLibrary();
-                if (libc != null) {
-                    inst = new LinuxNativeAccess(libraryProvider.getCLibrary());
+            try {
+                if (os.startsWith("Linux")) {
+                    inst = new LinuxNativeAccess(libraryProvider);
+                } else if (os.startsWith("Mac OS")) {
+                    inst = new MacNativeAccess(libraryProvider);
+                } else if (os.startsWith("Windows")) {
+                    inst = new WindowsNativeAccess();
                 } else {
-                    logger.warn("Could not get libc from library provider");
+                    logger.warn("Unsupported OS " + os + ". Native methods will be disabled.");
                 }
-            } else if (os.startsWith("Mac OS")) {
-                var libc = libraryProvider.getCLibrary();
-                if (libc != null) {
-                    inst = new MacNativeAccess(libraryProvider.getCLibrary());
-                } else {
-                    logger.warn("Could not get libc from library provider");
-                }
-            } else if (os.startsWith("Windows")) {
-                inst = new WindowsNativeAccess();
+            } catch (LinkageError e) {
+                logger.warn("Unable to load native provider. Native methods will be disabled.", e);
             }
             if (inst == null) {
                 inst = new NoopNativeAccess();

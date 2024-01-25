@@ -13,6 +13,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
+import java.util.Map;
+
 public class JnaNativeLibraryProvider extends NativeLibraryProvider {
     private static final Logger logger = LogManager.getLogger(JnaNativeLibraryProvider.class);
 
@@ -34,11 +36,7 @@ public class JnaNativeLibraryProvider extends NativeLibraryProvider {
         JNA_AVAILABLE = success;
     }
 
-    @Override
-    public PosixCLibrary getCLibrary() {
-        if (JNA_AVAILABLE && JnaStaticPosixCLibrary.loaded) {
-            return new JnaPosixCLibrary();
-        }
-        return null;
+    public JnaNativeLibraryProvider() {
+        super(Map.of(PosixCLibrary.class, JnaPosixCLibrary::new));
     }
 }

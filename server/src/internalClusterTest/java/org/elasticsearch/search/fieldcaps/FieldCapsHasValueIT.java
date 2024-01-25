@@ -136,6 +136,34 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
         );
     }
 
+    public void testFieldsWithValueAfterUpdate() {
+        DocWriteResponse doc = prepareIndex(INDEX1).setSource("foo", "foo-text").get();
+        prepareIndex(INDEX1).setId(doc.getId()).setSource("bar", "bar-keyword").get();
+        refresh(INDEX1);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(INDEX1).setFields("*").setIncludeFieldsWithNoValue(false).get();
+
+        assertIndices(response, INDEX1);
+        assertThat(response.get(), Matchers.hasKey("foo"));
+        assertThat(response.get(), Matchers.hasKey("bar"));
+        // Check the capabilities for the 'foo' field.
+        Map<String, FieldCapabilities> fooField = response.getField("foo");
+        assertEquals(1, fooField.size());
+        assertThat(fooField, Matchers.hasKey("text"));
+        assertEquals(
+            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
+            fooField.get("text")
+        );
+        // Check the capabilities for the 'bar' field.
+        Map<String, FieldCapabilities> barField = response.getField("bar");
+        assertEquals(1, barField.size());
+        assertThat(barField, Matchers.hasKey("keyword"));
+        assertEquals(
+            new FieldCapabilities("bar", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
+            barField.get("keyword")
+        );
+    }
+
     public void testOnlyFieldsWithValueAfterNodesRestart() throws Exception {
         prepareIndex(INDEX1).setSource("foo", "foo-text").get();
         internalCluster().fullRestart();
@@ -153,7 +181,6 @@ public class FieldCapsHasValueIT extends ESIntegTestCase {
             new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
             fooField.get("text")
         );
-
     }
 
     public void testFieldsAndAliasWithValue() {

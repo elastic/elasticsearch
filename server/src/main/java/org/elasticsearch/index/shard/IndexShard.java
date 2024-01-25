@@ -402,7 +402,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.fieldHasValue = fieldHasValue; // fieldHasValue Set is shared between all shards for a certain index in a data node
+        this.fieldHasValue = fieldHasValue; // fieldHasValue Map is shared between all shards for a certain index in a data node
     }
 
     public ThreadPool getThreadPool() {
@@ -990,7 +990,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
         Engine.IndexResult indexResult = index(engine, operation);
-        if (indexResult.isCreated()) {
+        if (indexResult.getResultType().equals(Engine.Result.Type.SUCCESS) && origin.equals(Engine.Operation.Origin.PRIMARY)) {
             updateFieldHasValueWithFieldsFromParsedDoc(operation.parsedDoc());
         }
         return indexResult;

@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -69,9 +68,11 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected void assertSampled(InternalGeoCentroid sampled, InternalGeoCentroid reduced, SamplingContext samplingContext) {
-        assertEquals(sampled.centroid().getY(), reduced.centroid().getY(), 1e-12);
-        assertEquals(sampled.centroid().getX(), reduced.centroid().getX(), 1e-12);
         assertEquals(sampled.count(), samplingContext.scaleUp(reduced.count()), 0);
+        if (sampled.count() > 0) {
+            assertEquals(sampled.centroid().getY(), reduced.centroid().getY(), 1e-12);
+            assertEquals(sampled.centroid().getX(), reduced.centroid().getX(), 1e-12);
+        }
     }
 
     public void testReduceMaxCount() {
@@ -135,11 +136,5 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoCentroid(name, centroid, count, metadata);
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104545")
-    public void testReduceRandom() throws IOException {
-        super.testReduceRandom();
     }
 }

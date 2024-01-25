@@ -33,7 +33,7 @@ public class GetSearchApplicationAction extends ActionType<GetSearchApplicationA
     public static final String NAME = "cluster:admin/xpack/application/search_application/get";
 
     private GetSearchApplicationAction() {
-        super(NAME, GetSearchApplicationAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

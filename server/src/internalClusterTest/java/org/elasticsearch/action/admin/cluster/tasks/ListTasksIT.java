@@ -142,7 +142,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         return List.of(TestPlugin.class);
     }
 
-    private static final ActionType<ActionResponse.Empty> TEST_ACTION = ActionType.emptyResponse(TestTransportAction.NAME);
+    private static final ActionType<ActionResponse.Empty> TEST_ACTION = new ActionType<>(TestTransportAction.NAME);
 
     public static class TestPlugin extends Plugin implements ActionPlugin {
         volatile CyclicBarrier barrier;

@@ -22,8 +22,10 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorFilte
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSeenAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorLastSyncStatsAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNameAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNativeAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
+import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -216,6 +218,27 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updatedScheduling, equalTo(indexedConnector.getScheduling()));
     }
 
+    public void testUpdateConnectorServiceType() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        String newServiceType = randomAlphaOfLengthBetween(3, 10);
+
+        UpdateConnectorServiceTypeAction.Request updateServiceTypeRequest = new UpdateConnectorServiceTypeAction.Request(
+            connectorId,
+            newServiceType
+        );
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorServiceType(updateServiceTypeRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(newServiceType, equalTo(indexedConnector.getServiceType()));
+    }
+
     public void testUpdateConnectorError() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
@@ -252,6 +275,24 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(updateNameDescriptionRequest.getName(), equalTo(indexedConnector.getName()));
         assertThat(updateNameDescriptionRequest.getDescription(), equalTo(indexedConnector.getDescription()));
+    }
+
+    public void testUpdateConnectorNative() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        boolean isNative = randomBoolean();
+
+        UpdateConnectorNativeAction.Request updateNativeRequest = new UpdateConnectorNativeAction.Request(connectorId, isNative);
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorNative(updateNativeRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(isNative, equalTo(indexedConnector.isNative()));
     }
 
     private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
@@ -508,6 +549,31 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    private UpdateResponse awaitUpdateConnectorNative(UpdateConnectorNativeAction.Request updateIndexNameRequest) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorNative(updateIndexNameRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update is_native request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update is_native request", resp.get());
+        return resp.get();
+    }
+
     private UpdateResponse awaitUpdateConnectorPipeline(UpdateConnectorPipelineAction.Request updatePipeline) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
@@ -555,6 +621,32 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from update scheduling request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorServiceType(UpdateConnectorServiceTypeAction.Request updateServiceTypeRequest)
+        throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorServiceType(updateServiceTypeRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for update service type request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update service type request", resp.get());
         return resp.get();
     }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
@@ -145,10 +146,13 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                 phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
 
                 // Try to add default rollover conditions to the response.
-                var rolloverAction = (RolloverAction) phaseExecutionInfo.getPhase().getActions().get(RolloverAction.NAME);
-                if (rolloverAction != null) {
-                    var conditions = applyDefaultConditions(rolloverAction.getConditions(), rolloverOnlyIfHasDocuments);
-                    phaseExecutionInfo.getPhase().getActions().put(RolloverAction.NAME, new RolloverAction(conditions));
+                var phase = phaseExecutionInfo.getPhase();
+                if (phase != null) {
+                    var rolloverAction = (RolloverAction) phase.getActions().get(RolloverAction.NAME);
+                    if (rolloverAction != null) {
+                        var conditions = applyDefaultConditions(rolloverAction.getConditions(), rolloverOnlyIfHasDocuments);
+                        phase.getActions().put(RolloverAction.NAME, new RolloverAction(conditions));
+                    }
                 }
             }
         }

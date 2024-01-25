@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.arrow;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -18,12 +21,15 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -35,82 +41,47 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.IntFunction;
 import java.util.function.IntToDoubleFunction;
 import java.util.function.IntToLongFunction;
+import java.util.function.IntUnaryOperator;
 import java.util.function.LongSupplier;
 import java.util.function.LongUnaryOperator;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ArrowResponseTests extends ESTestCase {
-    public void testLongNoPages() throws IOException {
-        compareSerializationToArrow(new ArrowResponse(List.of(new ArrowResponse.Column("long", "a")), List.of(), () -> {}));
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        List<ArrowResponse.Column> justInt = List.of(new ArrowResponse.Column("int", "a"));
+        List<ArrowResponse.Column> justLong = List.of(new ArrowResponse.Column("long", "a"));
+        List<ArrowResponse.Column> justDouble = List.of(new ArrowResponse.Column("double", "a"));
+
+        List<TestCase> cases = new ArrayList<>();
+
+        cases.add(new TestCase("int no pages", justInt, () -> List.of()));
+        TestCase.cases(cases, "int all zeros", justInt, () -> new Page(intVector(10, i -> 0).asBlock()));
+        TestCase.cases(cases, "int increment", justInt, () -> new Page(intVector(10, i -> i).asBlock()));
+        TestCase.cases(cases, "int random", justInt, () -> new Page(intVector(10, i -> randomInt()).asBlock()));
+
+        cases.add(new TestCase("long no pages", justLong, () -> List.of()));
+        TestCase.cases(cases, "long all zeros", justLong, () -> new Page(longVector(10, i -> 0L).asBlock()));
+        TestCase.cases(cases, "long increment", justLong, () -> new Page(longVector(10, i -> i).asBlock()));
+        TestCase.cases(cases, "long random", justLong, () -> new Page(longVector(10, i -> randomLong()).asBlock()));
+
+        cases.add(new TestCase("double no pages", justDouble, () -> List.of()));
+        TestCase.cases(cases, "double all zeros", justDouble, () -> new Page(doubleVector(10, i -> 0L).asBlock()));
+        TestCase.cases(cases, "double increment", justDouble, () -> new Page(doubleVector(10, i -> i).asBlock()));
+        TestCase.cases(cases, "double random", justDouble, () -> new Page(doubleVector(10, i -> randomLong()).asBlock()));
+
+        return () -> Iterators.map(cases.iterator(), c -> new Object[] { c });
     }
 
-    public void testLongZeros() throws IOException {
-        compareSerializationToArrow(
-            new ArrowResponse(
-                List.of(new ArrowResponse.Column("long", "a")),
-                List.of(new Page(longVector(10, i -> 0L).asBlock())),
-                () -> {}
-            )
-        );
-    }
+    private final TestCase testCase;
 
-    public void testLongIncrement() throws IOException {
-        compareSerializationToArrow(
-            new ArrowResponse(List.of(new ArrowResponse.Column("long", "a")), List.of(new Page(longVector(10, i -> i).asBlock())), () -> {})
-        );
-    }
-
-    public void testLongRandom() throws IOException {
-        compareSerializationToArrow(
-            new ArrowResponse(
-                List.of(new ArrowResponse.Column("long", "a")),
-                List.of(new Page(longVector(10, i -> randomLong()).asBlock())),
-                () -> {}
-            )
-        );
-    }
-
-    public void testLongZerosTwoPage() throws IOException {
-        compareSerializationToArrow(
-            new ArrowResponse(
-                List.of(new ArrowResponse.Column("long", "a")),
-                List.of(new Page(longVector(10, i -> 0L).asBlock()), new Page(longVector(10, i -> 0L).asBlock())),
-                () -> {}
-            )
-        );
-    }
-
-    public void testRandomLong() throws IOException {
-        int pageCount = between(0, 100);
-        List<Page> pages = new ArrayList<>(pageCount);
-        for (int p = 0; p < pageCount; p++) {
-            int positions = between(1, 10_000);
-            pages.add(new Page(longVector(positions, i -> randomLong()).asBlock()));
-        }
-        compareSerializationToArrow(new ArrowResponse(List.of(new ArrowResponse.Column("long", "a")), pages, () -> {}));
-    }
-
-    public void testDoubleZeros() throws IOException {
-        compareSerializationToArrow(
-            new ArrowResponse(
-                List.of(new ArrowResponse.Column("double", "a")),
-                List.of(new Page(doubleVector(10, i -> 0.0).asBlock())),
-                () -> {}
-            )
-        );
-    }
-
-    public void testDoubleIncrement() throws IOException {
-        compareSerializationToArrow(
-            new ArrowResponse(
-                List.of(new ArrowResponse.Column("double", "a")),
-                List.of(new Page(doubleVector(10, i -> i).asBlock())),
-                () -> {}
-            )
-        );
+    public ArrowResponseTests(@Name("desc") TestCase testCase) {
+        this.testCase = testCase;
     }
 
     // TODO more schemata
@@ -118,9 +89,9 @@ public class ArrowResponseTests extends ESTestCase {
     private static final int BEFORE = 20;
     private static final int AFTER = 80;
 
-    private void compareSerializationToArrow(ArrowResponse response) throws IOException {
-        BytesReference directBlocks = serializeBlocksDirectly(response);
-        BytesReference nativeArrow = serializeWithNativeArrow(response);
+    public void test() throws IOException {
+        BytesReference directBlocks = serializeBlocksDirectly();
+        BytesReference nativeArrow = serializeWithNativeArrow();
 
         int length = Math.max(directBlocks.length(), nativeArrow.length());
         for (int i = 0; i < length; i++) {
@@ -159,8 +130,8 @@ public class ArrowResponseTests extends ESTestCase {
         return i < bytes.length() ? String.format(Locale.ROOT, "%02X", Byte.toUnsignedInt(bytes.get(i))) : "--";
     }
 
-    private BytesReference serializeBlocksDirectly(ArrowResponse response) throws IOException {
-        ChunkedRestResponseBody body = response.chunkedResponse();
+    private BytesReference serializeBlocksDirectly() throws IOException {
+        ChunkedRestResponseBody body = testCase.response().chunkedResponse();
         List<BytesReference> ourEncoding = new ArrayList<>();
         while (body.isDone() == false) {
             ourEncoding.add(body.encodeChunk(1500, BytesRefRecycler.NON_RECYCLING_INSTANCE));
@@ -169,18 +140,18 @@ public class ArrowResponseTests extends ESTestCase {
         return CompositeBytesReference.of(ourEncoding.toArray(BytesReference[]::new));
     }
 
-    private BytesReference serializeWithNativeArrow(ArrowResponse response) throws IOException {
-        Schema schema = new Schema(response.columns().stream().map(ArrowResponse.Column::arrowField).toList());
+    private BytesReference serializeWithNativeArrow() throws IOException {
+        Schema schema = new Schema(testCase.response().columns().stream().map(ArrowResponse.Column::arrowField).toList());
         try (
             BufferAllocator rootAllocator = new RootAllocator();
             VectorSchemaRoot schemaRoot = VectorSchemaRoot.create(schema, rootAllocator);
             BytesStreamOutput out = new BytesStreamOutput();
         ) {
             try (ArrowStreamWriter writer = new ArrowStreamWriter(schemaRoot, null, out)) {
-                for (Page page : response.pages()) {
+                for (Page page : testCase.response.pages()) {
                     schemaRoot.clear();
-                    for (int c = 0; c < response.columns().size(); c++) {
-                        switch (response.columns().get(c).esqlType()) {
+                    for (int c = 0; c < testCase.response.columns().size(); c++) {
+                        switch (testCase.response.columns().get(c).esqlType()) {
                             case "double" -> {
                                 DoubleBlock b = page.getBlock(c);
                                 DoubleVector v = b.asVector();
@@ -191,6 +162,19 @@ public class ArrowResponseTests extends ESTestCase {
                                 arrow.allocateNew(v.getPositionCount());
                                 for (int p = 0; p < v.getPositionCount(); p++) {
                                     arrow.set(p, v.getDouble(p));
+                                }
+                                arrow.setValueCount(v.getPositionCount());
+                            }
+                            case "int" -> {
+                                IntBlock b = page.getBlock(c);
+                                IntVector v = b.asVector();
+                                if (v == null) {
+                                    throw new IllegalArgumentException();
+                                }
+                                org.apache.arrow.vector.IntVector arrow = (org.apache.arrow.vector.IntVector) schemaRoot.getVector(c);
+                                arrow.allocateNew(v.getPositionCount());
+                                for (int p = 0; p < v.getPositionCount(); p++) {
+                                    arrow.set(p, v.getInt(p));
                                 }
                                 arrow.setValueCount(v.getPositionCount());
                             }
@@ -219,15 +203,7 @@ public class ArrowResponseTests extends ESTestCase {
         }
     }
 
-    private ArrowResponse randomResponse(List<ArrowResponse.Column> columns) {
-        List<Page> pages = new ArrayList<>();
-
-        // NOCOMMIT randomize number of pages
-        pages.add(randomPage(columns));
-        return new ArrowResponse(columns, pages, () -> {});
-    }
-
-    private Page randomPage(List<ArrowResponse.Column> schema) {
+    private static Page randomPage(List<ArrowResponse.Column> schema) {
         int positions = 10; // between(10, 65535); NOCOMMIT randomize
         Block[] blocks = new Block[schema.size()];
         for (int b = 0; b < blocks.length; b++) {
@@ -239,7 +215,15 @@ public class ArrowResponseTests extends ESTestCase {
         return new Page(blocks);
     }
 
-    private LongVector longVector(int positions, IntToLongFunction v) {
+    private static IntVector intVector(int positions, IntUnaryOperator v) {
+        IntVector.FixedBuilder builder = BLOCK_FACTORY.newIntVectorFixedBuilder(positions);
+        for (int i = 0; i < positions; i++) {
+            builder.appendInt(v.applyAsInt(i));
+        }
+        return builder.build();
+    }
+
+    private static LongVector longVector(int positions, IntToLongFunction v) {
         LongVector.FixedBuilder builder = BLOCK_FACTORY.newLongVectorFixedBuilder(positions);
         for (int i = 0; i < positions; i++) {
             builder.appendLong(v.applyAsLong(i));
@@ -247,7 +231,7 @@ public class ArrowResponseTests extends ESTestCase {
         return builder.build();
     }
 
-    private DoubleVector doubleVector(int positions, IntToDoubleFunction v) {
+    private static DoubleVector doubleVector(int positions, IntToDoubleFunction v) {
         DoubleVector.FixedBuilder builder = BLOCK_FACTORY.newDoubleVectorFixedBuilder(positions);
         for (int i = 0; i < positions; i++) {
             builder.appendDouble(v.applyAsDouble(i));
@@ -255,9 +239,59 @@ public class ArrowResponseTests extends ESTestCase {
         return builder.build();
     }
 
-
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
         new NoopCircuitBreaker("test-noop"),
         BigArrays.NON_RECYCLING_INSTANCE
     );
+
+    private static class TestCase {
+        private final String description;
+        private final List<ArrowResponse.Column> columns;
+        private final Supplier<List<Page>> pages;
+        private ArrowResponse response;
+
+        static void cases(List<TestCase> cases, String description, List<ArrowResponse.Column> columns, Supplier<Page> page) {
+            cases.add(onePage(description, columns, page));
+            cases.add(twoPages(description, columns, page));
+            cases.add(randomPages(description, columns, page));
+        }
+
+        static TestCase onePage(String description, List<ArrowResponse.Column> columns, Supplier<Page> page) {
+            return new TestCase(description + " one page", columns, () -> List.of(page.get()));
+        }
+
+        static TestCase twoPages(String description, List<ArrowResponse.Column> columns, Supplier<Page> page) {
+            return new TestCase(description + " one page", columns, () -> List.of(page.get(), page.get()));
+        }
+
+        static TestCase randomPages(String description, List<ArrowResponse.Column> columns, Supplier<Page> page) {
+            return new TestCase(description + " random pages", columns, () -> {
+                int pageCount = between(0, 100);
+                List<Page> pages = new ArrayList<>(pageCount);
+                for (int p = 0; p < pageCount; p++) {
+                    int positions = between(1, 10_000);
+                    pages.add(page.get());
+                }
+                return pages;
+            });
+        }
+
+        private TestCase(String description, List<ArrowResponse.Column> columns, Supplier<List<Page>> pages) {
+            this.description = description;
+            this.columns = columns;
+            this.pages = pages;
+        }
+
+        ArrowResponse response() {
+            if (response == null) {
+                response = new ArrowResponse(columns, pages.get(), () -> {});
+            }
+            return response;
+        }
+
+        @Override
+        public String toString() {
+            return description;
+        }
+    }
 }

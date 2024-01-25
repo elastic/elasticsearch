@@ -15,6 +15,8 @@ import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
@@ -277,7 +279,18 @@ public class ArrowResponse implements Releasable {
                     DoubleVector v = b.asVector();
                     if (v != null) {
                         accumulateVectorValidity(out, bufs, writeBufs, v);
-                        bufs.add(dummy().writerIndex(Long.BYTES * block.getPositionCount()));
+                        bufs.add(dummy().writerIndex(Double.BYTES * block.getPositionCount()));
+                        writeBufs.add(() -> writeVector(out, v));
+                        return;
+                    }
+                    throw new UnsupportedOperationException();
+                }
+                case INT -> {
+                    IntBlock b = (IntBlock) block;
+                    IntVector v = b.asVector();
+                    if (v != null) {
+                        accumulateVectorValidity(out, bufs, writeBufs, v);
+                        bufs.add(dummy().writerIndex(Integer.BYTES * block.getPositionCount()));
                         writeBufs.add(() -> writeVector(out, v));
                         return;
                     }
@@ -316,6 +329,14 @@ public class ArrowResponse implements Releasable {
             return allOnesCount + 1;
         }
 
+        private long writeVector(RecyclerBytesStreamOutput out, IntVector vector) throws IOException {
+            // TODO could we "just" get the memory of the array and dump it?
+            for (int i = 0; i < vector.getPositionCount(); i++) {
+                out.writeIntLE(vector.getInt(i));
+            }
+            return vector.getPositionCount() * Integer.BYTES;
+        }
+
         private long writeVector(RecyclerBytesStreamOutput out, LongVector vector) throws IOException {
             // TODO could we "just" get the memory of the array and dump it?
             for (int i = 0; i < vector.getPositionCount(); i++) {
@@ -329,7 +350,7 @@ public class ArrowResponse implements Releasable {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 out.writeDoubleLE(vector.getDouble(i));
             }
-            return vector.getPositionCount() * Long.BYTES;
+            return vector.getPositionCount() * Double.BYTES;
         }
 
         private ArrowBuf dummy() {
@@ -364,6 +385,7 @@ public class ArrowResponse implements Releasable {
     static FieldType arrowFieldType(String fieldType) {
         return switch (fieldType) {
             case "double" -> FieldType.nullable(Types.MinorType.FLOAT8.getType());
+            case "int" -> FieldType.nullable(Types.MinorType.INT.getType());
             case "long" -> FieldType.nullable(Types.MinorType.BIGINT.getType());
             default -> throw new UnsupportedOperationException("NOCOMMIT");
         };

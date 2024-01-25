@@ -33,6 +33,7 @@ import java.util.Objects;
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
     static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
     static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
     static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
@@ -106,6 +107,17 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         } else {
             BytesRef currentPage = pages.get(pageIndex).v();
             VH_BE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            currentPageOffset += 4;
+        }
+    }
+
+    @Override
+    public void writeIntLE(int i) throws IOException {
+        if (4 > (pageSize - currentPageOffset)) {
+            super.writeIntLE(i);
+        } else {
+            BytesRef currentPage = pages.get(pageIndex).v();
+            VH_LE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
             currentPageOffset += 4;
         }
     }

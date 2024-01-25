@@ -167,7 +167,7 @@ public class MetadataMappingService {
                 DocumentMapper mergedMapper = mapperService.merge(
                     MapperService.SINGLE_MAPPING_NAME,
                     mappingUpdateSource,
-                    MergeReason.MAPPING_UPDATE
+                    request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE
                 );
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 

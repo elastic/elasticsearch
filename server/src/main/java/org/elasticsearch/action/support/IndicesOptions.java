@@ -743,15 +743,16 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         if (wildcardsBuilder == null) {
             throw new ElasticsearchParseException("indices options xcontent did not contain " + EXPAND_WILDCARDS_FIELD.getPreferredName());
         } else {
-            wildcardsBuilder.allowEmptyExpressions(allowNoIndices);
+            if (allowNoIndices == null) {
+                throw new ElasticsearchParseException("indices options xcontent did not contain " + ALLOW_NO_INDICES_FIELD.getPreferredName());
+            } else {
+                wildcardsBuilder.allowEmptyExpressions(allowNoIndices);
+            }
         }
         if (ignoreUnavailable == null) {
             throw new ElasticsearchParseException(
                 "indices options xcontent did not contain " + IGNORE_UNAVAILABLE_FIELD.getPreferredName()
             );
-        }
-        if (allowNoIndices == null) {
-            throw new ElasticsearchParseException("indices options xcontent did not contain " + ALLOW_NO_INDICES_FIELD.getPreferredName());
         }
 
         WildcardOptions wildcardOptions = wildcardsBuilder.build();

@@ -1424,7 +1424,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          */
         private SharedBytes.IO maybeEvictAndTake(Runnable evictedNotification) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
-            long currentEpoch = epoch.get();
+            long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
             SharedBytes.IO freq0 = maybeEvictAndTakeForFrequency(evictedNotification, 0);
             if (freqs[0] == null) {
                 // no frequency 0 entries, let us switch epoch and decay so we get some for next time.

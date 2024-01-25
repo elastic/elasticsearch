@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -79,6 +80,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -893,16 +895,54 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 );
             } else {
                 return actionListener.map(response -> {
-                    BulkItemResponse[] items = response.getItems();
-                    for (int i = 0; i < items.length; i++) {
-                        itemResponses.add(originalSlots.get(i), response.getItems()[i]);
+                    // these items are the responses from the subsequent bulk request, their 'slots'
+                    // are not correct for this response we're building
+                    final BulkItemResponse[] bulkResponses = response.getItems();
+
+                    final BulkItemResponse[] allResponses = new BulkItemResponse[bulkResponses.length + itemResponses.size()];
+
+                    // the item responses are from the original request, so their slots are correct.
+                    // these are the responses for requests that failed early and were not passed on to the subsequent bulk.
+                    for (BulkItemResponse item : itemResponses) {
+                        allResponses[item.getItemId()] = item;
                     }
-                    return new BulkResponse(
-                        itemResponses.toArray(new BulkItemResponse[0]),
-                        response.getTook().getMillis(),
-                        ingestTookInMillis
-                    );
+
+                    // use the original slots for the responses from the bulk
+                    for (int i = 0; i < bulkResponses.length; i++) {
+                        allResponses[originalSlots.get(i)] = bulkResponses[i];
+                    }
+
+                    if (Assertions.ENABLED) {
+                        assertResponsesAreCorrect(bulkResponses, allResponses);
+                    }
+
+                    return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis);
                 });
+            }
+        }
+
+        private void assertResponsesAreCorrect(BulkItemResponse[] bulkResponses, BulkItemResponse[] allResponses) {
+            // check for an empty intersection between the ids
+            final Set<Integer> failedIds = itemResponses.stream().map(BulkItemResponse::getItemId).collect(Collectors.toSet());
+            final Set<Integer> responseIds = IntStream.range(0, bulkResponses.length)
+                .map(originalSlots::get) // resolve subsequent bulk ids back to the original slots
+                .boxed()
+                .collect(Collectors.toSet());
+            assert Sets.haveEmptyIntersection(failedIds, responseIds)
+                : "bulk item response slots cannot have failed and been processed in the subsequent bulk request, failed ids: "
+                    + failedIds
+                    + ", response ids: "
+                    + responseIds;
+
+            // check for the correct number of responses
+            final int expectedResponseCount = bulkRequest.requests.size();
+            final int actualResponseCount = failedIds.size() + responseIds.size();
+            assert expectedResponseCount == actualResponseCount
+                : "Expected [" + expectedResponseCount + "] responses, but found [" + actualResponseCount + "]";
+
+            // check that every response is present
+            for (int i = 0; i < allResponses.length; i++) {
+                assert allResponses[i] != null : "BulkItemResponse at index [" + i + "] was null";
             }
         }
 
@@ -942,7 +982,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             );
 
             // We hit a error during preprocessing a request, so we:
-            // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
+            // 1) Remember the request item slot from the bulk, so that when we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
             failedSlots.set(slot);

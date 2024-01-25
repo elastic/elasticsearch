@@ -7,12 +7,13 @@
 package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public final class GetTopNFunctionsAction extends ActionType<GetTopNFunctionsResponse> {
     public static final GetTopNFunctionsAction INSTANCE = new GetTopNFunctionsAction();
     public static final String NAME = "indices:data/read/profiling/topn/functions";
 
     private GetTopNFunctionsAction() {
-        super(NAME, GetTopNFunctionsResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

@@ -11,3 +11,16 @@ include::{esql-specs}/stats.csv-spec[tag=max]
 |===
 include::{esql-specs}/stats.csv-spec[tag=max-result]
 |===
+
+The expression can use inline functions. For example, to calculate the maximum
+average salary change, you can use `MV_AVG` to first average the multiple values
+per employee, and use the result with the `MAX` function:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=docsStatsMaxNestedExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=docsStatsMaxNestedExpression-result]
+|===

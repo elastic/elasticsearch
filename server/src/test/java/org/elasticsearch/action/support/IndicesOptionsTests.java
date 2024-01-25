@@ -498,17 +498,7 @@ public class IndicesOptionsTests extends ESTestCase {
 
     public void testOptionsStillInUse() {
         EnumSet<Option> values = Option.VALUES_IN_USE;
-        assertThat(
-            values,
-            equalTo(
-                EnumSet.of(
-                    Option.DEPRECATED__IGNORE_THROTTLED,
-                    Option.DEPRECATED__FORBID_CLOSED_INDICES,
-                    Option.IGNORE_UNAVAILABLE,
-                    Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES
-                )
-            )
-        );
+        assertThat(values, equalTo(EnumSet.of(Option.IGNORE_UNAVAILABLE)));
     }
 
     private BytesReference toXContentBytes(IndicesOptions indicesOptions, XContentType type) throws IOException {

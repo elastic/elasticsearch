@@ -10,7 +10,6 @@ package org.elasticsearch.action.support;
 import joptsimple.internal.Strings;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -265,20 +264,6 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         CLOSED,
         HIDDEN;
 
-        static EnumSet<WildcardStates> fromWildcardOptions(WildcardOptions options) {
-            EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
-            if (options.includeOpen()) {
-                states.add(OPEN);
-            }
-            if (options.includeClosed) {
-                states.add(CLOSED);
-            }
-            if (options.removeHidden() == false) {
-                states.add(HIDDEN);
-            }
-            return states;
-        }
-
         static WildcardOptions toWildcardOptions(EnumSet<WildcardStates> states, boolean allowNoIndices, boolean ignoreAlias) {
             return new WildcardOptions.Builder().includeOpen(states.contains(OPEN))
                 .includeClosed(states.contains(CLOSED))
@@ -408,6 +393,9 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         public static final EnumSet<Option> VALUES_IN_USE = Arrays.stream(Option.values())
             .filter(option -> option.name().startsWith("DEPRECATED_") == false)
             .collect(Collectors.toCollection(() -> EnumSet.noneOf(Option.class)));
+
+        // ./gradlew ':server:test' --tests "org.elasticsearch.action.support.IndicesOptionsTests.testOptionsStillInUse"
+        // -Dtests.seed=CAF046A25FF1DC03
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
@@ -565,56 +553,52 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.GROUP_INDICES_OPTIONS)) {
-            out.writeEnumSet(options);
-            wildcardOptions.writeTo(out);
-            generalOptions.writeTo(out);
-        } else {
-            EnumSet<Option> backwardsCompatibleOptions = options.clone();
-            if (allowNoIndices()) {
-                backwardsCompatibleOptions.add(Option.DEPRECATED__ALLOW_NO_INDICES);
-            }
-            if (ignoreAliases()) {
-                backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_ALIASES);
-            }
-            if (allowAliasesToMultipleIndices() == false) {
-                backwardsCompatibleOptions.add(Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES);
-            }
-            if (forbidClosedIndices()) {
-                backwardsCompatibleOptions.add(Option.DEPRECATED__FORBID_CLOSED_INDICES);
-            }
-            if (ignoreThrottled()) {
-                backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_THROTTLED);
-            }
-            out.writeEnumSet(backwardsCompatibleOptions);
-            out.writeEnumSet(WildcardStates.fromWildcardOptions(wildcardOptions));
+        EnumSet<Option> backwardsCompatibleOptions = options.clone();
+        if (allowNoIndices()) {
+            backwardsCompatibleOptions.add(Option.DEPRECATED__ALLOW_NO_INDICES);
         }
+        if (ignoreAliases()) {
+            backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_ALIASES);
+        }
+        if (allowAliasesToMultipleIndices() == false) {
+            backwardsCompatibleOptions.add(Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES);
+        }
+        if (forbidClosedIndices()) {
+            backwardsCompatibleOptions.add(Option.DEPRECATED__FORBID_CLOSED_INDICES);
+        }
+        if (ignoreThrottled()) {
+            backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_THROTTLED);
+        }
+        out.writeEnumSet(backwardsCompatibleOptions);
+        EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
+        if (wildcardOptions.includeOpen()) {
+            states.add(WildcardStates.OPEN);
+        }
+        if (wildcardOptions.includeClosed) {
+            states.add(WildcardStates.CLOSED);
+        }
+        if (wildcardOptions.removeHidden() == false) {
+            states.add(WildcardStates.HIDDEN);
+        }
+        out.writeEnumSet(states);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         EnumSet<Option> options = in.readEnumSet(Option.class);
-        WildcardOptions wildcardOptions;
-        GeneralOptions generalOptions;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.GROUP_INDICES_OPTIONS)) {
-            wildcardOptions = WildcardOptions.read(in);
-            generalOptions = GeneralOptions.read(in);
-        } else {
-            EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
-            wildcardOptions = WildcardStates.toWildcardOptions(
-                states,
-                options.contains(Option.DEPRECATED__ALLOW_NO_INDICES),
-                options.contains(Option.DEPRECATED__IGNORE_ALIASES)
-            );
-            generalOptions = new GeneralOptions.Builder().allowClosedIndices(
-                options.contains(Option.DEPRECATED__FORBID_CLOSED_INDICES) == false
-            )
-                .allowAliasToMultipleIndices(options.contains(Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES) == false)
-                .removeThrottled(options.contains(Option.DEPRECATED__IGNORE_THROTTLED))
-                .build();
-            options = options.stream()
-                .filter(option -> option.name().startsWith("DEPRECATED_") == false)
-                .collect(Collectors.toCollection(() -> EnumSet.noneOf(Option.class)));
-        }
+        WildcardOptions wildcardOptions = WildcardStates.toWildcardOptions(
+            in.readEnumSet(WildcardStates.class),
+            options.contains(Option.DEPRECATED__ALLOW_NO_INDICES),
+            options.contains(Option.DEPRECATED__IGNORE_ALIASES)
+        );
+        GeneralOptions generalOptions = new GeneralOptions.Builder().allowClosedIndices(
+            options.contains(Option.DEPRECATED__FORBID_CLOSED_INDICES) == false
+        )
+            .allowAliasToMultipleIndices(options.contains(Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES) == false)
+            .removeThrottled(options.contains(Option.DEPRECATED__IGNORE_THROTTLED))
+            .build();
+        options = options.stream()
+            .filter(option -> option.name().startsWith("DEPRECATED_") == false)
+            .collect(Collectors.toCollection(() -> EnumSet.noneOf(Option.class)));
         return new IndicesOptions(options, wildcardOptions, generalOptions);
     }
 

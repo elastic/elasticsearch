@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -69,8 +71,10 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,6 +82,7 @@ import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
@@ -91,7 +96,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {
-        return verified.optimized() ? verified : execute(verified);
+        return verified.optimized() ? verify(verified) : verify(execute(verified));
     }
 
     @Override
@@ -1373,5 +1378,33 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             return plan;
         }
+    }
+
+    /**
+     * Verify that a {@link LogicalPlan} can be executed.
+     *
+     * @param plan The logical plan to be verified
+     * @return a collection of verification failures; empty if and only if the plan is valid
+     *
+     * The following verifications on an optimized logical plan are supported:
+     * 1. EVAL with AUTO_BUCKET expression, its from and to should be foldable
+     */
+    LogicalPlan verify(LogicalPlan plan) throws VerificationException {
+        Collection<Failure> failures = new LinkedHashSet<>();
+        plan.forEachUp(p -> {
+            if (p instanceof Eval) {
+                p.forEachExpression(e -> {
+                    if (e.getVerifyOptimizedPlan()) {
+                        Expression.TypeResolution resolution = e.verifyOptimizedPlan();
+                        if (resolution.unresolved()) failures.add(fail(e, resolution.message()));
+                    }
+                });
+            }
+        });
+        if (failures.isEmpty() == false) {
+            throw new VerificationException(failures);
+        }
+
+        return plan;
     }
 }

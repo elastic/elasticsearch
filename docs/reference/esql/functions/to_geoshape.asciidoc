@@ -13,11 +13,11 @@ TO_GEOPOINT(v)
 
 `v`::
 Input value. The input can be a single- or multi-valued column or an expression.
-The input type must be a string or a `geo_point`.
+The input type must be a string or a `geo_shape`.
 
 *Description*
 
-Converts an input value to a `geo_point` value.
+Converts an input value to a `geo_shape` value.
 
 A string will only be successfully converted if it respects the
 https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[WKT] format:

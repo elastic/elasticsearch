@@ -25,7 +25,7 @@ public class RenderSearchApplicationQueryAction extends ActionType<RenderSearchA
     public static final String NAME = "cluster:admin/xpack/application/search_application/render_query";
 
     public RenderSearchApplicationQueryAction() {
-        super(NAME, RenderSearchApplicationQueryAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject, NamedWriteable {

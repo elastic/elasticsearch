@@ -17,6 +17,6 @@ public class ForceMergeAction extends ActionType<BroadcastResponse> {
     public static final String NAME = "indices:admin/forcemerge";
 
     private ForceMergeAction() {
-        super(NAME, BroadcastResponse::new);
+        super(NAME);
     }
 }

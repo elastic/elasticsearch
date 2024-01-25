@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 
 public class XPackInfoAction extends ActionType<XPackInfoResponse> {
@@ -21,6 +20,6 @@ public class XPackInfoAction extends ActionType<XPackInfoResponse> {
     );
 
     public XPackInfoAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

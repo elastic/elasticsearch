@@ -565,9 +565,10 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.GROUP_WILDCARD_INDICES_OPTIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.GROUP_INDICES_OPTIONS)) {
             out.writeEnumSet(options);
             wildcardOptions.writeTo(out);
+            generalOptions.writeTo(out);
         } else {
             EnumSet<Option> backwardsCompatibleOptions = options.clone();
             if (allowNoIndices()) {
@@ -575,6 +576,15 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             }
             if (ignoreAliases()) {
                 backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_ALIASES);
+            }
+            if (allowAliasesToMultipleIndices() == false) {
+                backwardsCompatibleOptions.add(Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES);
+            }
+            if (forbidClosedIndices()) {
+                backwardsCompatibleOptions.add(Option.DEPRECATED__FORBID_CLOSED_INDICES);
+            }
+            if (ignoreThrottled()) {
+                backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_THROTTLED);
             }
             out.writeEnumSet(backwardsCompatibleOptions);
             out.writeEnumSet(WildcardStates.fromWildcardOptions(wildcardOptions));
@@ -585,7 +595,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         EnumSet<Option> options = in.readEnumSet(Option.class);
         WildcardOptions wildcardOptions;
         GeneralOptions generalOptions;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.GROUP_WILDCARD_INDICES_OPTIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.GROUP_INDICES_OPTIONS)) {
             wildcardOptions = WildcardOptions.read(in);
             generalOptions = GeneralOptions.read(in);
         } else {

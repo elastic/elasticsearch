@@ -76,7 +76,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             if (expandWildcards == null && allowNoIndices == null) {
                 return defaultOptions;
             }
-            WildcardOptions.Builder builder = new Builder(defaultOptions);
+            WildcardOptions.Builder builder = defaultOptions == null ? new Builder() : new Builder(defaultOptions);
             if (expandWildcards != null) {
                 builder.none();
                 builder.expandStates(nodeStringArrayValue(expandWildcards));

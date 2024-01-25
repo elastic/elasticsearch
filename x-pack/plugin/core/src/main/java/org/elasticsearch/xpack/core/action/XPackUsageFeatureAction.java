@@ -87,7 +87,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
 
     // public for testing
     public XPackUsageFeatureAction(String name) {
-        super(BASE_NAME + name, XPackUsageFeatureResponse::new);
+        super(BASE_NAME + name);
     }
 
     @Override

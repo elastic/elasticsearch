@@ -37,7 +37,7 @@ public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionR
     public static final String NAME = "cluster:admin/xpack/connector/update_name";
 
     public UpdateConnectorNameAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

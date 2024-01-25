@@ -116,7 +116,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class PainlessExecuteAction {
 
-    public static final ActionType<Response> INSTANCE = ActionType.localOnly("cluster:admin/scripts/painless/execute");
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/execute");
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
     private PainlessExecuteAction() {/* no instances */}

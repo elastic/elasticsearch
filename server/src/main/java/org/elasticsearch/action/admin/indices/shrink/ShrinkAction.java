@@ -17,7 +17,7 @@ public class ShrinkAction extends ActionType<CreateIndexResponse> {
     public static final String NAME = "indices:admin/shrink";
 
     private ShrinkAction() {
-        super(NAME, CreateIndexResponse::new);
+        super(NAME);
     }
 
 }

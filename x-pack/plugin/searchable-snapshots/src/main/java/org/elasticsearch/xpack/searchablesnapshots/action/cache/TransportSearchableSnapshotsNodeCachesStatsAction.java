@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -52,7 +51,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/stats";
 
-    public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME, Writeable.Reader.localOnly());
+    public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Supplier<SharedBlobCacheService<CacheKey>> frozenCacheService;
     private final XPackLicenseState licenseState;

@@ -179,8 +179,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (value == null) {
             return "null";
         }
-        if (type == CsvTestUtils.Type.GEO_POINT) {
-            // GeoPoint tests are failing in clustered integration tests because of tiny precision differences at very small scales
+        if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
+            // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
             if (value instanceof GeoPoint point) {
                 return normalizedGeoPoint(point.getX(), point.getY());
             }
@@ -188,12 +188,19 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 try {
                     Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
                     if (geometry instanceof Point point) {
-                        return normalizedGeoPoint(point.getX(), point.getY());
+                        return normalizedPoint(type, point.getX(), point.getY());
                     }
                 } catch (Throwable ignored) {}
             }
         }
         return value.toString();
+    }
+
+    private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
+        if (type == CsvTestUtils.Type.GEO_POINT) {
+            return normalizedGeoPoint(x, y);
+        }
+        return String.format(Locale.ROOT, "POINT (%f %f)", (float) x, (float) y);
     }
 
     private static String normalizedGeoPoint(double x, double y) {

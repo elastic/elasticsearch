@@ -22,7 +22,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -111,7 +110,25 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             );
         }
         long timestamp = timestampFields.get(0).numericValue().longValue();
-        String id = createId(tsid, timestamp);
+        byte[] suffix = new byte[8 + tsid.length];
+        String id = createId(context.getDynamicMappers().isEmpty(), routingBuilder, tsid, timestamp, suffix);
+        /*
+         * Make sure that _id from extracting the tsid matches that _id
+         * from extracting the _source. This should be true for all valid
+         * documents with valid mappings. *But* some invalid mappings
+         * will not parse the field but be rejected later by the dynamic
+         * mappings machinery. So if there are any dynamic mappings
+         * at all we just skip the assertion because we can't be sure
+         * it always must pass.
+         */
+        IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
+        assert context.getDynamicMappers().isEmpty() == false
+            || context.getDynamicRuntimeFields().isEmpty() == false
+            || id.equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
+        assert context.getDynamicMappers().isEmpty() == false
+            || context.getDynamicRuntimeFields().isEmpty() == false
+            || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+
         if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
             throw new IllegalArgumentException(
                 String.format(
@@ -129,11 +146,37 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
     }
 
-    public static String createId(BytesRef tsid, long timestamp) {
+    public static String createId(
+        boolean dynamicMappersExists,
+        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        BytesRef tsid,
+        long timestamp
+    ) {
         byte[] suffix = new byte[8 + tsid.length];
+        return createId(dynamicMappersExists, routingBuilder, tsid, timestamp, suffix);
+    }
+
+    public static String createId(
+        boolean dynamicMappersExists,
+        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        BytesRef tsid,
+        long timestamp,
+        byte[] suffix
+    ) {
         ByteUtils.writeLongBE(timestamp, suffix, 0);   // Big Ending shrinks the inverted index by ~37%
         System.arraycopy(tsid.bytes, tsid.offset, suffix, 8, tsid.length);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(suffix);
+
+        String id = routingBuilder.createId(suffix, () -> {
+            if (dynamicMappersExists == false) {
+                throw new IllegalStateException(
+                    "Didn't find any fields to include in the routing which would be fine if there are"
+                        + " dynamic mapping waiting but we couldn't find any of those either!"
+                );
+            }
+            return 0;
+        });
+        assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
+        return id;
     }
 
     @Override

@@ -147,13 +147,13 @@ final class PerThreadIDVersionAndSeqNoLookup {
             }
             return DocIdSetIterator.NO_MORE_DOCS;
         }
-        if (id.length < 8) {
+        if (id.length < 12) {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
 
         // There's no inverted index available, decode the id and perform a lookup using the timestamp and the tsid.
-        long timestamp = ByteUtils.readLongBE(id.bytes, 0);
-        BytesRef tsid = new BytesRef(id.bytes, 8, id.length - 8);
+        long timestamp = ByteUtils.readLongBE(id.bytes, 4);
+        BytesRef tsid = new BytesRef(id.bytes, 12, id.length - 12);
 
         IndexSearcher searcher = new IndexSearcher(context.reader());
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();

@@ -171,7 +171,7 @@ public final class VersionsAndSeqNoResolver {
     public static DocIdAndVersion timeSeriesLoadDocIdAndVersion(IndexReader reader, Term uid, String id, boolean loadSeqNo)
         throws IOException {
         byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
-        long timestamp = ByteUtils.readLongBE(idAsBytes, 0);
+        long timestamp = ByteUtils.readLongBE(idAsBytes, 4);
 
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, uid.field(), true);
         List<LeafReaderContext> leaves = reader.leaves();

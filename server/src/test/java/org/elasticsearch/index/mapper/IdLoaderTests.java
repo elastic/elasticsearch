@@ -249,7 +249,7 @@ public class IdLoaderTests extends ESTestCase {
                 timeSeriesIdBuilder.addString(dimension.field, dimension.value.toString());
             }
         }
-        return TsidExtractingIdFieldMapper.createId(timeSeriesIdBuilder.build().toBytesRef(), doc.timestamp);
+        return TsidExtractingIdFieldMapper.createId(false, routingBuilder, timeSeriesIdBuilder.build().toBytesRef(), doc.timestamp);
     }
 
     private static IndexRouting.ExtractFromSource createRouting(List<String> routingPaths) {

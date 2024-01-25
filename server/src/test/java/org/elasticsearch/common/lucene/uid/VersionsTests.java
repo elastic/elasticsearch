@@ -257,6 +257,6 @@ public class VersionsTests extends ESTestCase {
             indexMetadata
         )).builder();
         routingBuilder.addMatching("field", new BytesRef("value"));
-        return createId(new BytesRef("tsid"), timestamp);
+        return createId(false, routingBuilder, new BytesRef("tsid"), timestamp);
     }
 }

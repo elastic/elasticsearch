@@ -84,8 +84,9 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         ClusterState state,
         ActionListener<ExplainLifecycleResponse> listener
     ) {
-        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING
-            .get(state.metadata().settings());
+        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(
+            state.metadata().settings()
+        );
         Map<String, IndexLifecycleExplainResponse> indexResponses = new TreeMap<>();
         for (String index : concreteIndices) {
             final IndexLifecycleExplainResponse indexResponse;

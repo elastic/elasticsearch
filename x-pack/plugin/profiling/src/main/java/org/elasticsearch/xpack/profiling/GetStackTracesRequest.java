@@ -98,7 +98,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         TransportAction.localOnly();
     }
 
-    public Integer getSampleSize() {
+    public int getSampleSize() {
         return sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
     }
 

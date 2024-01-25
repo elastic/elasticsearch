@@ -1408,7 +1408,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             synchronized (SharedBlobCacheService.this) {
                 long now = relativeTimeInMillis();
                 for (int i = 0; i < maxFreq; i++) {
-                    for (LFUCacheEntry entry = freqs[i]; entry != null; entry = entry.next) {
+                    for (LFUCacheEntry entry = freqs[i], next = null; entry != null; entry = next) {
+                        next = entry.next; // captured before unlink
                         if (entry.freq > 0 && now - entry.lastAccessed >= 2 * minTimeDelta) {
                             unlink(entry);
                             entry.freq--;

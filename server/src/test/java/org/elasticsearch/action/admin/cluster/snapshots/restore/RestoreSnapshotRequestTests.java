@@ -80,7 +80,13 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
             instance.indicesOptions(
                 new IndicesOptions(
                     randomBoolean() ? IndicesOptions.Option.NONE : EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE),
-                    new IndicesOptions.WildcardOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+                    new IndicesOptions.WildcardOptions(
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        instance.indicesOptions().ignoreAliases() == false,
+                        randomBoolean()
+                    )
                 )
             );
         }

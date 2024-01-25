@@ -1377,11 +1377,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         private void maybePromote(long epoch, LFUCacheEntry entry) {
             synchronized (SharedBlobCacheService.this) {
-                // go 2 up per epoch, allowing us to decay 1 every epoch.
-                int newFreq = Math.min(entry.freq + 2, maxFreq);
-                if (epoch > entry.lastAccessedEpoch && newFreq < maxFreq && entry.chunk.isEvicted() == false) {
+                if (epoch > entry.lastAccessedEpoch && entry.freq < maxFreq - 1 && entry.chunk.isEvicted() == false) {
                     unlink(entry);
-                    entry.freq = newFreq;
+                    // go 2 up per epoch, allowing us to decay 1 every epoch.
+                    entry.freq = Math.min(entry.freq + 2, maxFreq - 1);
                     entry.lastAccessedEpoch = epoch;
                     pushEntryToBack(entry);
                 }
@@ -1412,6 +1411,43 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             entry.next = null;
             entry.prev = null;
             assert invariant(entry, false);
+        }
+
+        private void appendLevel1ToLevel0() {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            var front0 = freqs[0];
+            var front1 = freqs[1];
+            if (front0 == null) {
+                freqs[0] = front1;
+                decrementFreqList(front1);
+                freqs[1] = null;
+                assert front1 == null || invariant(front1, true);
+            } else if (front1 != null){
+                var back0 = front0.prev;
+                var back1 = front1.prev;
+                assert invariant(front0, true);
+                assert invariant(front1, true);
+                assert invariant(back0, true);
+                assert invariant(back1, true);
+                decrementFreqList(front1);
+
+                front0.prev = back1;
+                back0.next = front1;
+                front1.prev = back0;
+                assert back1.next == null;
+                freqs[1] = null;
+                assert invariant(front0, true);
+                assert invariant(front1, true);
+                assert invariant(back0, true);
+                assert invariant(back1, true);
+            }
+        }
+
+        private void decrementFreqList(LFUCacheEntry entry) {
+            while (entry != null) {
+                entry.freq--;
+                entry = entry.next;
+            }
         }
 
         /**
@@ -1510,14 +1546,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         private void computeDecay() {
             synchronized (SharedBlobCacheService.this) {
-                for (int i = 1; i < maxFreq; i++) {
-                    // todo: link over entire list
-                    for (LFUCacheEntry entry = freqs[i], next = null; entry != null; entry = next) {
-                        next = entry.next; // captured before unlink
-                        unlink(entry);
-                        entry.freq--;
-                        pushEntryToBack(entry);
-                    }
+                appendLevel1ToLevel0();
+                for (int i = 2; i < maxFreq; i++) {
+                    assert freqs[i - 1] == null;
+                    freqs[i - 1] = freqs[i];
+                    freqs[i] = null;
+                    decrementFreqList(freqs[i - 1]);
+                    assert freqs[i - 1] == null || invariant(freqs[i - 1], true);
                 }
             }
         }

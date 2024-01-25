@@ -1,5 +1,0 @@
-pr: 104765
-summary: Fix compute decay to iterate over all entries per freq
-area: Snapshot/Restore
-type: bug
-issues: []

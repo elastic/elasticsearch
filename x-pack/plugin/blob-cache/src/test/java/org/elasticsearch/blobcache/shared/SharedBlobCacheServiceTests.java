@@ -429,8 +429,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 threadPool,
                 ThreadPool.Names.GENERIC,
                 "bulk",
-                BlobCacheMetrics.NOOP,
-                threadPool::relativeTimeInMillis
+                BlobCacheMetrics.NOOP
             )
         ) {
             {
@@ -491,8 +490,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 threadPool,
                 ThreadPool.Names.GENERIC,
                 "bulk",
-                BlobCacheMetrics.NOOP,
-                threadPool::relativeTimeInMillis
+                BlobCacheMetrics.NOOP
             )
         ) {
 
@@ -742,8 +740,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
                 "bulk",
-                BlobCacheMetrics.NOOP,
-                relativeTimeInMillis::get
+                BlobCacheMetrics.NOOP
             )
         ) {
             final Set<Object> cacheKeys = new HashSet<>();
@@ -840,8 +837,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 threadPool,
                 ThreadPool.Names.GENERIC,
                 "bulk",
-                BlobCacheMetrics.NOOP,
-                relativeTimeInMillis::get
+                BlobCacheMetrics.NOOP
             )
         ) {
             {
@@ -956,8 +952,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
                 ThreadPool.Names.GENERIC,
-                BlobCacheMetrics.NOOP,
-                relativeTimeInMillis::get
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();

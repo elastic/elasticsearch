@@ -311,6 +311,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final BlobCacheMetrics blobCacheMetrics;
 
+    private final Runnable evictIncrementer;
+
     private final LongSupplier relativeTimeInMillisSupplier;
 
     public SharedBlobCacheService(
@@ -373,6 +375,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         this.blobCacheMetrics = blobCacheMetrics;
         this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
+        this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -1252,7 +1255,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 // need to evict something
                 SharedBytes.IO io;
                 synchronized (SharedBlobCacheService.this) {
-                    io = maybeEvictAndTake(blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment);
+                    io = maybeEvictAndTake(evictIncrementer);
                 }
                 if (io == null) {
                     io = freeRegions.poll();

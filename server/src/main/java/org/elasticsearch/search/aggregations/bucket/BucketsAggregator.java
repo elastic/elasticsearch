@@ -180,20 +180,29 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
         InternalAggregations[] result = new InternalAggregations[bucketOrdsToCollect.length];
         for (int ord = 0; ord < bucketOrdsToCollect.length; ord++) {
-            final int thisOrd = ord;
-            result[ord] = InternalAggregations.from(new AbstractList<>() {
-                @Override
-                public InternalAggregation get(int index) {
-                    return aggregations[index][thisOrd];
-                }
-
-                @Override
-                public int size() {
-                    return aggregations.length;
-                }
-            });
+            result[ord] = InternalAggregations.from(new InternalAggregationList(aggregations, ord));
         }
         return result;
+    }
+
+    private static class InternalAggregationList extends AbstractList<InternalAggregation> {
+        private final InternalAggregation[][] aggregations;
+        private final int ord;
+
+        private InternalAggregationList(InternalAggregation[][] aggregations, int ord) {
+            this.aggregations = aggregations;
+            this.ord = ord;
+        }
+
+        @Override
+        public InternalAggregation get(int index) {
+            return aggregations[index][ord];
+        }
+
+        @Override
+        public int size() {
+            return aggregations.length;
+        }
     }
 
     /**

@@ -80,6 +80,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
+    private final int failedShards;
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
@@ -116,6 +117,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_FAILED_SHARD_COUNT_TRACKING)) {
+            this.failedShards = in.readVInt();
+        } else {
+            this.failedShards = shardFailures.length; /// MP TODO: add this to the Writeable
+        }
     }
 
     public SearchResponse(
@@ -216,6 +222,48 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
+        this.failedShards = shardFailures.length;
+        assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
+        assert scrollId == null || pointInTimeId == null
+            : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
+    }
+
+    /// MP TODO: Newly added - use this from AbstractSearchAsyncAction?
+    public SearchResponse(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        int failedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
+        this.hits = hits;
+        hits.incRef();
+        this.aggregations = aggregations;
+        this.suggest = suggest;
+        this.profileResults = profileResults;
+        this.timedOut = timedOut;
+        this.terminatedEarly = terminatedEarly;
+        this.numReducePhases = numReducePhases;
+        this.scrollId = scrollId;
+        this.pointInTimeId = pointInTimeId;
+        this.clusters = clusters;
+        this.totalShards = totalShards;
+        this.successfulShards = successfulShards;
+        this.skippedShards = skippedShards;
+        this.tookInMillis = tookInMillis;
+        this.shardFailures = shardFailures;
+        this.failedShards = failedShards;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
@@ -568,6 +616,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
         out.writeOptionalString(pointInTimeId);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_FAILED_SHARD_COUNT_TRACKING)) {
+            out.writeVInt(failedShards);
+        }
     }
 
     @Override

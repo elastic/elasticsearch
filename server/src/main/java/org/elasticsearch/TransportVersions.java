@@ -191,6 +191,7 @@ public class TransportVersions {
     public static final TransportVersion NESTED_KNN_MORE_INNER_HITS = def(8_577_00_0);
     public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_578_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_EMBEDDINGS_ADDED = def(8_579_00_0);
+    public static final TransportVersion SEARCH_RESPONSE_FAILED_SHARD_COUNT_TRACKING = def(8_580_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

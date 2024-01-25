@@ -2292,7 +2292,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(
                 state,
-                new IndicesOptions(EnumSet.of(IndicesOptions.Option.IGNORE_THROTTLED), IndicesOptions.WildcardOptions.DEFAULT_OPEN),
+                new IndicesOptions(
+                    IndicesOptions.Option.NONE,
+                    IndicesOptions.WildcardOptions.DEFAULT_OPEN,
+                    new IndicesOptions.GeneralOptions.Builder().removeThrottled(true).build()
+                ),
                 "ind*",
                 "test-index"
             );

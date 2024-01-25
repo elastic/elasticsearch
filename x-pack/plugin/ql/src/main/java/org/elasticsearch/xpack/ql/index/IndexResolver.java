@@ -116,8 +116,9 @@ public class IndexResolver {
     public static final String SQL_VIEW = "VIEW";
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED),
-        new IndicesOptions.WildcardOptions.Builder().resolveAliases(false).build()
+        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        new IndicesOptions.WildcardOptions.Builder().resolveAliases(false).build(),
+        new IndicesOptions.GeneralOptions.Builder().removeThrottled(true).build()
     );
     private static final IndicesOptions FROZEN_INDICES_OPTIONS = new IndicesOptions(
         EnumSet.of(Option.IGNORE_UNAVAILABLE),
@@ -125,8 +126,9 @@ public class IndexResolver {
     );
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED),
-        IndicesOptions.WildcardOptions.DEFAULT_OPEN
+        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        IndicesOptions.WildcardOptions.DEFAULT_OPEN,
+        new IndicesOptions.GeneralOptions.Builder().removeThrottled(true).build()
     );
     public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = new IndicesOptions(
         EnumSet.of(Option.IGNORE_UNAVAILABLE),

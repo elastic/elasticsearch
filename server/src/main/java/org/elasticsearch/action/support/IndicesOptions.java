@@ -40,7 +40,13 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
  * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
  */
-public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOptions) implements ToXContentFragment {
+public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOptions, GeneralOptions generalOptions)
+    implements
+        ToXContentFragment {
+
+    public IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOptions) {
+        this(options, wildcardOptions, GeneralOptions.DEFAULT);
+    }
 
     /**
      * Controls the way the wildcard expressions will be resolved.
@@ -283,6 +289,89 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         }
     }
 
+    /**
+     * These options apply on all indices that have been selected by the other Options. It can either filter the response or
+     * define what type of indices or aliases are not allowed which will result in an error response.
+     * @param allowAliasToMultipleIndices, allow aliases to multiple indices, true by default.
+     * @param allowClosedIndices, allow closed indices, true by default.
+     * @param removeThrottled, filters out throttled (aka frozen indices), defaults to true.
+     */
+    public record GeneralOptions(boolean allowAliasToMultipleIndices, boolean allowClosedIndices, @Deprecated boolean removeThrottled)
+        implements
+            Writeable {
+
+        public static final GeneralOptions DEFAULT = new GeneralOptions.Builder().build();
+
+        public static GeneralOptions read(StreamInput in) throws IOException {
+            return new GeneralOptions(in.readBoolean(), in.readBoolean(), in.readBoolean());
+        }
+
+        public static GeneralOptions parseParameters(Object ignoreThrottled, GeneralOptions defaultOptions) {
+            if (ignoreThrottled == null) {
+                return defaultOptions;
+            }
+            return (defaultOptions == null ? new Builder() : new Builder(defaultOptions)).removeThrottled(
+                nodeBooleanValue(ignoreThrottled, "ignore_throttled")
+            ).build();
+        }
+
+        public static XContentBuilder toXContent(GeneralOptions options, XContentBuilder builder) throws IOException {
+            builder.field("ignore_throttled", options.removeThrottled());
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(allowAliasToMultipleIndices);
+            out.writeBoolean(allowClosedIndices);
+            out.writeBoolean(removeThrottled);
+        }
+
+        public static class Builder {
+            private boolean allowAliasToMultipleIndices = true;
+            private boolean allowClosedIndices = true;
+            private boolean removeThrottled = false;
+
+            public Builder() {}
+
+            public Builder(GeneralOptions options) {
+                allowAliasToMultipleIndices = options.allowAliasToMultipleIndices;
+                allowClosedIndices = options.allowClosedIndices;
+                removeThrottled = options.removeThrottled;
+            }
+
+            /**
+             * Aliases that resolve to multiple indices are accepted when true, otherwise the resolution will throw an error.
+             * Defaults to true.
+             */
+            public Builder allowAliasToMultipleIndices(boolean allowAliasToMultipleIndices) {
+                this.allowAliasToMultipleIndices = allowAliasToMultipleIndices;
+                return this;
+            }
+
+            /**
+             * Closed indices are accepted when true, otherwise the resolution will throw an error.
+             * Defaults to true.
+             */
+            public Builder allowClosedIndices(boolean allowClosedIndices) {
+                this.allowClosedIndices = allowClosedIndices;
+                return this;
+            }
+
+            /**
+             * Throttled indices will not be included in the result. Defaults to false.
+             */
+            public Builder removeThrottled(boolean removeThrottled) {
+                this.removeThrottled = removeThrottled;
+                return this;
+            }
+
+            public GeneralOptions build() {
+                return new GeneralOptions(allowAliasToMultipleIndices, allowClosedIndices, removeThrottled);
+            }
+        }
+    }
+
     public enum Option {
         IGNORE_UNAVAILABLE,
         /**
@@ -295,9 +384,21 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
          */
         @Deprecated
         DEPRECATED__ALLOW_NO_INDICES,
-        FORBID_ALIASES_TO_MULTIPLE_INDICES,
-        FORBID_CLOSED_INDICES,
-        IGNORE_THROTTLED;
+        /**
+         * Please use {@link GeneralOptions#allowAliasToMultipleIndices}
+         */
+        @Deprecated
+        DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES,
+        /**
+         * Please use {@link GeneralOptions#allowClosedIndices}
+         */
+        @Deprecated
+        DEPRECATED__FORBID_CLOSED_INDICES,
+        /**
+         * Please use {@link GeneralOptions#ignoreThrottled}
+         */
+        @Deprecated
+        DEPRECATED__IGNORE_THROTTLED;
 
         public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
 
@@ -342,24 +443,29 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.FORBID_CLOSED_INDICES),
-        WildcardOptions.DEFAULT_OPEN
+        EnumSet.noneOf(Option.class),
+        WildcardOptions.DEFAULT_OPEN,
+        new GeneralOptions.Builder().allowClosedIndices(false).build()
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.FORBID_CLOSED_INDICES),
-        WildcardOptions.DEFAULT_OPEN_HIDDEN
+        EnumSet.noneOf(Option.class),
+        WildcardOptions.DEFAULT_OPEN_HIDDEN,
+        new GeneralOptions.Builder().allowClosedIndices(false).build()
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = new IndicesOptions(
-        EnumSet.of(Option.FORBID_CLOSED_INDICES, Option.IGNORE_THROTTLED),
-        WildcardOptions.DEFAULT_OPEN
+        EnumSet.noneOf(Option.class),
+        WildcardOptions.DEFAULT_OPEN,
+        new GeneralOptions.Builder().removeThrottled(true).allowClosedIndices(false).build()
     );
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES, Option.FORBID_CLOSED_INDICES),
-        WildcardOptions.DEFAULT_NONE
+        EnumSet.noneOf(Option.class),
+        WildcardOptions.DEFAULT_NONE,
+        new GeneralOptions.Builder().allowAliasToMultipleIndices(false).allowClosedIndices(false).build()
     );
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.FORBID_CLOSED_INDICES),
-        WildcardOptions.DEFAULT_NONE
+        EnumSet.noneOf(Option.class),
+        WildcardOptions.DEFAULT_NONE,
+        new GeneralOptions.Builder().allowClosedIndices(false).build()
     );
 
     /**
@@ -413,16 +519,14 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
      * @return Whether execution on closed indices is allowed.
      */
     public boolean forbidClosedIndices() {
-        return options.contains(Option.FORBID_CLOSED_INDICES);
+        return generalOptions.allowClosedIndices() == false;
     }
 
     /**
      * @return whether aliases pointing to multiple indices are allowed
      */
     public boolean allowAliasesToMultipleIndices() {
-        // true is default here, for bw comp we keep the first 16 values
-        // in the array same as before + the default value for the new flag
-        return options.contains(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES) == false;
+        return generalOptions().allowAliasToMultipleIndices();
     }
 
     /**
@@ -436,14 +540,21 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
      * @return whether indices that are marked as throttled should be ignored
      */
     public boolean ignoreThrottled() {
-        return options.contains(Option.IGNORE_THROTTLED);
+        return generalOptions().removeThrottled();
     }
 
     /**
-     * @return a copy of the {@link WildcardOptions} that these indices options will expand to
+     * @return the {@link WildcardOptions} that these indices options will expand to
      */
     public WildcardOptions wildcardOptions() {
         return wildcardOptions;
+    }
+
+    /**
+     * @return the {@link GeneralOptions} that these indices options will expand to
+     */
+    public GeneralOptions generalOptions() {
+        return generalOptions;
     }
 
     /**
@@ -473,8 +584,10 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         EnumSet<Option> options = in.readEnumSet(Option.class);
         WildcardOptions wildcardOptions;
+        GeneralOptions generalOptions;
         if (in.getTransportVersion().onOrAfter(TransportVersions.GROUP_WILDCARD_INDICES_OPTIONS)) {
             wildcardOptions = WildcardOptions.read(in);
+            generalOptions = GeneralOptions.read(in);
         } else {
             EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
             wildcardOptions = WildcardStates.toWildcardOptions(
@@ -482,9 +595,17 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
                 options.contains(Option.DEPRECATED__ALLOW_NO_INDICES),
                 options.contains(Option.DEPRECATED__IGNORE_ALIASES)
             );
-            options.removeAll(List.of(Option.DEPRECATED__IGNORE_ALIASES, Option.DEPRECATED__ALLOW_NO_INDICES));
+            generalOptions = new GeneralOptions.Builder().allowClosedIndices(
+                options.contains(Option.DEPRECATED__FORBID_CLOSED_INDICES) == false
+            )
+                .allowAliasToMultipleIndices(options.contains(Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES) == false)
+                .removeThrottled(options.contains(Option.DEPRECATED__IGNORE_THROTTLED))
+                .build();
+            options = options.stream()
+                .filter(option -> option.name().startsWith("DEPRECATED_") == false)
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(Option.class)));
         }
-        return new IndicesOptions(options, wildcardOptions);
+        return new IndicesOptions(options, wildcardOptions, generalOptions);
     }
 
     public static IndicesOptions fromOptions(
@@ -577,21 +698,15 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             .resolveAliases(ignoreAliases == false)
             .allowEmptyExpressions(allowNoIndices)
             .build();
+        final GeneralOptions generalOptions = new GeneralOptions.Builder().allowAliasToMultipleIndices(allowAliasesToMultipleIndices)
+            .allowClosedIndices(forbidClosedIndices == false)
+            .removeThrottled(ignoreThrottled)
+            .build();
 
         if (ignoreUnavailable) {
             opts.add(Option.IGNORE_UNAVAILABLE);
         }
-
-        if (allowAliasesToMultipleIndices == false) {
-            opts.add(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
-        }
-        if (forbidClosedIndices) {
-            opts.add(Option.FORBID_CLOSED_INDICES);
-        }
-        if (ignoreThrottled) {
-            opts.add(Option.IGNORE_THROTTLED);
-        }
-        return new IndicesOptions(opts, wildcards);
+        return new IndicesOptions(opts, wildcards, generalOptions);
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
@@ -645,6 +760,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         }
 
         WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
+        GeneralOptions generalOptions = GeneralOptions.parseParameters(ignoreThrottled, defaultSettings.generalOptions);
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
@@ -653,10 +769,10 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             wildcards.includeOpen(),
             wildcards.includeClosed(),
             wildcards.removeHidden() == false,
-            defaultSettings.allowAliasesToMultipleIndices(),
-            defaultSettings.forbidClosedIndices(),
-            defaultSettings.ignoreAliases(),
-            nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled())
+            generalOptions.allowAliasToMultipleIndices(),
+            generalOptions.allowClosedIndices() == false,
+            wildcards.resolveAliases() == false,
+            generalOptions.removeThrottled()
         );
     }
 
@@ -664,7 +780,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         WildcardOptions.toXContent(wildcardOptions, builder);
         builder.field("ignore_unavailable", ignoreUnavailable());
-        builder.field("ignore_throttled", ignoreThrottled());
+        GeneralOptions.toXContent(generalOptions, builder);
         return builder;
     }
 
@@ -680,9 +796,11 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
     public static IndicesOptions fromXContent(XContentParser parser, @Nullable IndicesOptions defaults) throws IOException {
         boolean parsedWildcardStates = false;
         WildcardOptions.Builder wildcardsBuilder = defaults == null ? null : new WildcardOptions.Builder(defaults.wildcardOptions());
+        GeneralOptions.Builder generalBuilder = new GeneralOptions.Builder().removeThrottled(
+            defaults != null && defaults.generalOptions().removeThrottled()
+        );
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
-        boolean ignoreThrottled = defaults == null ? false : defaults.ignoreThrottled();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
         String currentFieldName = null;
         if (token != Token.START_OBJECT) {
@@ -729,7 +847,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
                 } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     allowNoIndices = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    ignoreThrottled = parser.booleanValue();
+                    generalBuilder.removeThrottled(parser.booleanValue());
                 } else {
                     throw new ElasticsearchParseException(
                         "could not read indices options. unexpected index option [" + currentFieldName + "]"
@@ -758,16 +876,17 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         }
 
         WildcardOptions wildcardOptions = wildcardsBuilder.build();
+        GeneralOptions generalOptions = generalBuilder.build();
         return IndicesOptions.fromOptions(
             ignoreUnavailable,
             wildcardOptions.allowEmptyExpressions(),
             wildcardOptions.includeOpen(),
             wildcardOptions.includeClosed(),
             wildcardOptions.removeHidden() == false,
-            true,
-            false,
+            generalOptions.allowAliasToMultipleIndices(),
+            generalOptions.allowClosedIndices() == false,
             wildcardOptions.resolveAliases() == false,
-            ignoreThrottled
+            generalOptions.removeThrottled()
         );
     }
 

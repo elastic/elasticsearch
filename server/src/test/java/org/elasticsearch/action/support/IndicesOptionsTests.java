@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.action.support.IndicesOptions.GeneralOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -343,6 +344,7 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
+        GeneralOptions generalOptions = new GeneralOptions(randomBoolean(), randomBoolean(), randomBoolean());
         Collection<IndicesOptions.Option> options = randomSubsetOf(Option.VALUES_IN_USE);
 
         IndicesOptions indicesOptions = new IndicesOptions(options.isEmpty() ? Option.NONE : EnumSet.copyOf(options), wildcardOptions);
@@ -359,7 +361,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), not(equalTo(wildcardOptions.removeHidden())));
         assertThat(map.get("ignore_unavailable"), equalTo(options.contains(Option.IGNORE_UNAVAILABLE)));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
-        assertThat(map.get("ignore_throttled"), equalTo(options.contains(Option.IGNORE_THROTTLED)));
+        assertThat(map.get("ignore_throttled"), equalTo(generalOptions.removeThrottled()));
     }
 
     public void testFromXContent() throws IOException {
@@ -500,10 +502,10 @@ public class IndicesOptionsTests extends ESTestCase {
             values,
             equalTo(
                 EnumSet.of(
-                    Option.IGNORE_THROTTLED,
-                    Option.FORBID_CLOSED_INDICES,
+                    Option.DEPRECATED__IGNORE_THROTTLED,
+                    Option.DEPRECATED__FORBID_CLOSED_INDICES,
                     Option.IGNORE_UNAVAILABLE,
-                    Option.FORBID_ALIASES_TO_MULTIPLE_INDICES
+                    Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES
                 )
             )
         );

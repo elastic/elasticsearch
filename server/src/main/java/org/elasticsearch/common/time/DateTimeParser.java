@@ -8,67 +8,80 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.core.Nullable;
-
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAccessor;
 
 class DateTimeParser {
 
-    @Nullable
-    public static TemporalAccessor tryParse(CharSequence str) {
+    record Result(TemporalAccessor result, int errorIndex) {
+        Result(TemporalAccessor result) {
+            this(result, -1);
+        }
+
+        static Result error(int errorIndex) {
+            return new Result(null, errorIndex);
+        }
+    }
+
+    public static Result tryParse(CharSequence str) {
         int len = str.length();
 
         Integer years = parseInt(str, 0, 4);
-        if (years == null || len == 4 || str.charAt(4) != '-') return null;
+        if (years == null) return Result.error(0);
+        if (len == 4 || str.charAt(4) != '-') return Result.error(4);
 
         Integer months = parseInt(str, 5, 7);
-        if (months == null || len == 7 || str.charAt(7) != '-') return null;
+        if (months == null) return Result.error(5);
+        if (len == 7 || str.charAt(7) != '-') return Result.error(7);
 
         Integer days = parseInt(str, 8, 10);
-        if (days == null) return null;
+        if (days == null) return Result.error(8);
 
-        if (len == 10) return new DateTime(years, months, days, null, null, null, null, null);
+        if (len == 10) return new Result(new DateTime(years, months, days, null, null, null, null, null));
 
-        if (str.charAt(10) != 'T') return null;
-        if (len == 11) return new DateTime(years, months, days, null, null, null, null, null);
+        if (str.charAt(10) != 'T') return Result.error(10);
+        if (len == 11) return new Result(new DateTime(years, months, days, null, null, null, null, null));
 
         Integer hours = parseInt(str, 11, 13);
-        if (hours == null) return null;
+        if (hours == null) return Result.error(11);
         if (len == 13) {
-            return new DateTime(years, months, days, hours, null, null, null, null);
+            return new Result(new DateTime(years, months, days, hours, null, null, null, null));
         }
         if (isTimezone(str, 13)) {
             ZoneOffset timezone = parseTimezone(str, 13);
-            return timezone != null ? new DateTime(years, months, days, hours, null, null, null, timezone) : null;
+            return timezone == null ? Result.error(13) : new Result(new DateTime(years, months, days, hours, null, null, null, timezone));
         }
 
-        if (str.charAt(13) != ':') return null;
+        if (str.charAt(13) != ':') return Result.error(13);
 
         Integer minutes = parseInt(str, 14, 16);
-        if (minutes == null) return null;
+        if (minutes == null) return Result.error(14);
         if (len == 16) {
-            return new DateTime(years, months, days, hours, minutes, null, null, null);
+            return new Result(new DateTime(years, months, days, hours, minutes, null, null, null));
         }
         if (isTimezone(str, 16)) {
             ZoneOffset timezone = parseTimezone(str, 16);
-            return timezone != null ? new DateTime(years, months, days, hours, minutes, null, null, timezone) : null;
+            return timezone == null
+                ? Result.error(16)
+                : new Result(new DateTime(years, months, days, hours, minutes, null, null, timezone));
         }
 
-        if (str.charAt(16) != ':') return null;
+        if (str.charAt(16) != ':') return Result.error(16);
 
         Integer seconds = parseInt(str, 17, 19);
-        if (seconds == null) return null;
+        if (seconds == null) return Result.error(17);
         if (len == 19) {
-            return new DateTime(years, months, days, hours, minutes, seconds, null, null);
+            return new Result(new DateTime(years, months, days, hours, minutes, seconds, null, null));
         }
         if (isTimezone(str, 19)) {
             ZoneOffset timezone = parseTimezone(str, 19);
-            return timezone != null ? new DateTime(years, months, days, hours, minutes, seconds, null, timezone) : null;
+            return timezone == null
+                ? Result.error(19)
+                : new Result(new DateTime(years, months, days, hours, minutes, seconds, null, timezone));
         }
 
         char decSeparator = str.charAt(19);
-        if (decSeparator != '.' && decSeparator != ',') return null;
+        if (decSeparator != '.' && decSeparator != ',') return Result.error(19);
 
         // the last number could be millis or nanos, or any combination in the middle
         // so we keep parsing numbers until we get to not a number
@@ -82,7 +95,7 @@ class DateTimeParser {
         }
         nanos = -nanos;
 
-        if (pos == 20) return null;   // didn't find a number at all
+        if (pos == 20) return Result.error(20);   // didn't find a number at all
 
         // multiply it by the remainder of the nano digits missed off the end
         for (int pow10 = 29 - pos; pow10 > 0; pow10--) {
@@ -90,15 +103,17 @@ class DateTimeParser {
         }
 
         if (len == pos) {
-            return new DateTime(years, months, days, hours, minutes, seconds, nanos, null);
+            return new Result(new DateTime(years, months, days, hours, minutes, seconds, nanos, null));
         }
         if (isTimezone(str, pos)) {
             ZoneOffset timezone = parseTimezone(str, pos);
-            return timezone != null ? new DateTime(years, months, days, hours, minutes, seconds, nanos, timezone) : null;
+            return timezone == null
+                ? Result.error(pos)
+                : new Result(new DateTime(years, months, days, hours, minutes, seconds, nanos, timezone));
         }
 
         // still chars left at the end - string is not valid
-        return null;
+        return Result.error(pos);
     }
 
     private static boolean isTimezone(CharSequence str, int pos) {

@@ -64,12 +64,16 @@ class ITUDateTimeFormatter implements DateTimeFormatter {
 
     @Override
     public TemporalAccessor parse(CharSequence str) throws DateTimeParseException {
-        return tryParse(str).orElseThrow(() -> new DateTimeParseException("Could not parse " + str, str, 0));
+        var result = DateTimeParser.tryParse(str);
+        if (result.result() == null) {
+            throw new DateTimeParseException("Could not parse " + str, str, result.errorIndex());
+        }
+        return result.result();
     }
 
     @Override
     public Optional<TemporalAccessor> tryParse(CharSequence str) {
-        return Optional.ofNullable(DateTimeParser.tryParse(str));
+        return Optional.ofNullable(DateTimeParser.tryParse(str).result());
     }
 
     @Override

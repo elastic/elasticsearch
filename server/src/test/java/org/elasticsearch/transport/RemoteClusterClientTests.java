@@ -101,7 +101,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 );
                 ClusterStateResponse clusterStateResponse = PlainActionFuture.get(
                     future -> client.execute(
-                        ClusterStateAction.INSTANCE,
+                        ClusterStateAction.REMOTE_TYPE,
                         new ClusterStateRequest(),
                         ActionListener.runBefore(
                             future,
@@ -117,7 +117,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 ActionNotFoundTransportException ex = expectThrows(
                     ActionNotFoundTransportException.class,
                     () -> PlainActionFuture.<SearchResponse, RuntimeException>get(
-                        future -> client.execute(TransportSearchScrollAction.TYPE, new SearchScrollRequest(""), future)
+                        future -> client.execute(TransportSearchScrollAction.REMOTE_TYPE, new SearchScrollRequest(""), future)
                     )
                 );
                 assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
@@ -173,7 +173,7 @@ public class RemoteClusterClientTests extends ESTestCase {
 
                     var client = remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE, true);
                     ClusterStateResponse clusterStateResponse = PlainActionFuture.get(
-                        f -> client.execute(ClusterStateAction.INSTANCE, new ClusterStateRequest(), f)
+                        f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
                     );
                     assertNotNull(clusterStateResponse);
                     assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
@@ -251,7 +251,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                     expectThrows(
                         NoSuchRemoteClusterException.class,
                         () -> PlainActionFuture.<ClusterStateResponse, RuntimeException>get(
-                            f -> client.execute(ClusterStateAction.INSTANCE, new ClusterStateRequest(), f)
+                            f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
                         )
                     );
                 } finally {
@@ -262,7 +262,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 assertBusy(() -> {
                     try {
                         PlainActionFuture.<ClusterStateResponse, RuntimeException>get(
-                            f -> client.execute(ClusterStateAction.INSTANCE, new ClusterStateRequest(), f)
+                            f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
                         );
                     } catch (NoSuchRemoteClusterException e) {
                         // keep retrying on this exception, the goal is to check that we eventually reconnect

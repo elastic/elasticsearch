@@ -44,7 +44,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction extends ActionType<Conne
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/update_stats";
 
     public UpdateConnectorSyncJobIngestionStatsAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

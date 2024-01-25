@@ -423,6 +423,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             }
 
             @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 return mockContext().lookup();
             }

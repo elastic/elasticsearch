@@ -1,0 +1,5 @@
+pr: 104761
+summary: "[8.12.1] Upgrade to Lucene 9.9.2"
+area: Search
+type: upgrade
+issues: []

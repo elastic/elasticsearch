@@ -50,7 +50,7 @@ public class DateUtilsTests extends ESTestCase {
 
     // A temporary list of zones and JDKs, where Joda and the JDK timezone data are out of sync, until either Joda or the JDK
     // are updated, see https://github.com/elastic/elasticsearch/issues/82356
-    private static final Set<String> IGNORE_IDS = new HashSet<>(Arrays.asList("Pacific/Niue", "America/Pangnirtung"));
+    private static final Set<String> IGNORE_IDS = new HashSet<>(Arrays.asList("Pacific/Niue", "America/Pangnirtung", "Antarctica/Vostok"));
 
     private static boolean maybeIgnore(String jodaId) {
         if (IGNORE_IDS.contains(jodaId)) {
@@ -59,7 +59,6 @@ public class DateUtilsTests extends ESTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104544")
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
         assertNull(DateUtils.zoneIdToDateTimeZone(null));

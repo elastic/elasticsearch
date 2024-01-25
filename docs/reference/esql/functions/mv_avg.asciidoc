@@ -6,18 +6,18 @@
 
 [source,esql]
 ----
-MV_AVG(field)
+MV_AVG(expression)
 ----
 
 *Parameters*
 
-`field`::
-Column to convert from multiple values to single value.
+`expression`::
+Multivalue expression.
 
 *Description*
 
-Converts a multivalued column into a single valued column containing the average
-of all of the values.
+Converts a multivalued expression into a single valued column containing the
+average of all of the values.
 
 *Supported types*
 

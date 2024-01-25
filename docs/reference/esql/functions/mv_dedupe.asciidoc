@@ -10,11 +10,11 @@ image::esql/functions/signature/mv_dedupe.svg[Embedded,opts=inline]
 *Parameters*
 
 `v`::
-Column to deduplicate.
+Multivalue expression.
 
 *Description*
 
-Removes duplicates from a multivalued column.
+Removes duplicates from a multivalue expression.
 
 NOTE: `MV_DEDUPE` may, but won't always, sort the values in the column.
 

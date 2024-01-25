@@ -10,15 +10,15 @@ image::esql/functions/signature/mv_concat.svg[Embedded,opts=inline]
 *Parameters*
 
 `v`::
-Column to convert from multiple values to single value.
+Multivalue expression.
 
 `delim`::
 Delimiter.
 
 *Description*
 
-Converts a multivalued string column into a single valued column containing the
-concatenation of all values separated by a delimiter.
+Converts a multivalued string expression into a single valued column containing
+the concatenation of all values separated by a delimiter.
 
 *Supported types*
 

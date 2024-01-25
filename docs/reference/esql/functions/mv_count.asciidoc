@@ -10,12 +10,12 @@ image::esql/functions/signature/mv_count.svg[Embedded,opts=inline]
 *Parameters*
 
 `v`::
-Column to convert from multiple values to single value.
+Multivalue expression.
 
 *Description*
 
-Converts a multivalued column into a single valued column containing a count of
-the number of values.
+Converts a multivalued expression into a single valued column containing a count
+of the number of values.
 
 *Supported types*
 

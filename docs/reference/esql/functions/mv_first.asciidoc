@@ -10,18 +10,20 @@ image::esql/functions/signature/mv_first.svg[Embedded,opts=inline]
 *Parameters*
 
 `v`::
-Multivalue from which to return the first value.
+Multivalue expression.
 
 *Description*
 
-Converts a multivalued field into a single valued field containing the first value. This is most
-useful when reading from a function that emits multivalued fields in a known order like <<esql-split>>:
+Converts a multivalued expression into a single valued column containing the
+first value. This is most useful when reading from a function that emits
+multivalued columns in a known order like <<esql-split>>:
 
-The order that <<esql-multivalued-fields, multivalued fields>> are read from underlying storage is not
-guaranteed. It is *frequently* ascending, but don't rely on that. If you need the minimum field value
-use <<esql-mv_min>> instead of `MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn't
-a performance benefit to `MV_FIRST`. `MV_FIRST` is mostly useful with functions that create multivalued
-fields like `SPLIT`.
+The order that <<esql-multivalued-fields, multivalued fields>> are read from
+underlying storage is not guaranteed. It is *frequently* ascending, but don't
+rely on that. If you need the minimum value use <<esql-mv_min>> instead of
+`MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn't a
+performance benefit to `MV_FIRST`. `MV_FIRST` is mostly useful with functions
+that create multivalued columns like `SPLIT`.
 
 *Supported types*
 

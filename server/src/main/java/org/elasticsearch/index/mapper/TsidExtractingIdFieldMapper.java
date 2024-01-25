@@ -15,9 +15,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
+
+
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -146,6 +146,16 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
+    }
+
+    public static String createId(
+        boolean dynamicMappersExists,
+        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        BytesRef tsid,
+        long timestamp
+    ) {
+        byte[] suffix = new byte[8 + tsid.length];
+        return createId(dynamicMappersExists, routingBuilder, tsid, timestamp, suffix);
     }
 
     public static String createId(

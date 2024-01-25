@@ -127,6 +127,11 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         if (bindRequestEquals(newRequest, oldRequest) == false) {
             if (bindRequest.compareAndSet(oldRequest, newRequest)) {
                 if (connectionPool != null) {
+                    // When a connection is open and already bound, changing the bind password does not affect
+                    // the existing pooled connections. LDAP connections are stateful, and once a connection is
+                    // established and bound, it remains open until explicitly closed or until a connection
+                    // timeout occurs. Changing the bind password on the LDAP server does not automatically
+                    // invalidate existing connections. Hence, simply setting the new bind request is sufficient.
                     connectionPool.setBindRequest(bindRequest.get());
                 }
             }

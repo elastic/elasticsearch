@@ -68,17 +68,17 @@ interface CheckpointClient {
         return new CheckpointClient() {
             @Override
             public void getIndex(GetIndexRequest request, ActionListener<GetIndexResponse> listener) {
-                client.execute(GetIndexAction.INSTANCE, request, listener);
+                client.execute(GetIndexAction.REMOTE_TYPE, request, listener);
             }
 
             @Override
             public void getIndicesStats(IndicesStatsRequest request, ActionListener<IndicesStatsResponse> listener) {
-                client.execute(IndicesStatsAction.INSTANCE, request, listener);
+                client.execute(IndicesStatsAction.REMOTE_TYPE, request, listener);
             }
 
             @Override
             public void getCheckpoint(GetCheckpointAction.Request request, ActionListener<GetCheckpointAction.Response> listener) {
-                client.execute(GetCheckpointAction.INSTANCE, request, listener);
+                client.execute(GetCheckpointAction.REMOTE_TYPE, request, listener);
             }
         };
     }

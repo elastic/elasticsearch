@@ -42,10 +42,7 @@ import static java.util.Collections.singletonList;
 public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "reindex";
 
-    public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>(
-        "cluster:admin/reindex/rethrottle",
-        ListTasksResponse::new
-    );
+    public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

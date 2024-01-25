@@ -140,7 +140,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
     public static final String NAME = "cluster:monitor/update/health/info";
 
     private UpdateHealthInfoCacheAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class TransportAction extends TransportHealthNodeAction<Request, AcknowledgedResponse> {

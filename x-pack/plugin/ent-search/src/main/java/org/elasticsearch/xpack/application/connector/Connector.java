@@ -199,7 +199,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     static final ParseField FEATURES_FIELD = new ParseField("features");
     public static final ParseField FILTERING_FIELD = new ParseField("filtering");
     public static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
-    static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
+    public static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
     public static final ParseField LANGUAGE_FIELD = new ParseField("language");
     public static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -273,7 +273,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), LANGUAGE_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, Connector.LAST_SEEN_FIELD.getPreferredName()),
             Connector.LAST_SEEN_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -281,7 +281,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_ERROR);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(
+                p,
+                ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()
+            ),
             ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -294,7 +297,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -302,7 +305,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
@@ -314,7 +317,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_SYNCED_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_SYNCED_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );

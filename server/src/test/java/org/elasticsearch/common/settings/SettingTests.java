@@ -268,6 +268,18 @@ public class SettingTests extends ESTestCase {
         assertTrue(FooBarValidator.invokedWithDependencies);
     }
 
+    public void testDuplicateSettingsPrefersPrimary() {
+        Setting<String> fooBar = new Setting<>("foo.bar", new Setting<>("baz.qux", "", Function.identity()), Function.identity());
+        assertThat(
+            fooBar.get(Settings.builder().put("foo.bar", "primaryUsed").put("baz.qux", "fallbackUsed").build()),
+            equalTo("primaryUsed")
+        );
+        assertThat(
+            fooBar.get(Settings.builder().put("baz.qux", "fallbackUsed").put("foo.bar", "primaryUsed").build()),
+            equalTo("primaryUsed")
+        );
+    }
+
     public void testValidatorForFilteredStringSetting() {
         final Setting<String> filteredStringSetting = new Setting<>("foo.bar", "foobar", Function.identity(), value -> {
             throw new SettingsException("validate always fails");
@@ -802,6 +814,30 @@ public class SettingTests extends ESTestCase {
         }
     }
 
+    public void testPrefixKeySettingFallbackAsMap() {
+        Setting.AffixSetting<Boolean> setting = Setting.prefixKeySetting(
+            "foo.",
+            "bar.",
+            (ns, key) -> Setting.boolSetting(key, false, Property.NodeScope)
+        );
+
+        assertTrue(setting.match("foo.bar"));
+        assertTrue(setting.match("bar.bar"));
+
+        Map<String, Boolean> map = setting.getAsMap(Settings.builder().put("foo.bar", "true").build());
+        assertEquals(1, map.size());
+        assertTrue(map.get("bar"));
+
+        map = setting.getAsMap(Settings.builder().put("bar.bar", "true").build());
+        assertEquals(1, map.size());
+        assertTrue(map.get("bar"));
+
+        // Prefer primary
+        map = setting.getAsMap(Settings.builder().put("foo.bar", "false").put("bar.bar", "true").build());
+        assertEquals(1, map.size());
+        assertFalse(map.get("bar"));
+    }
+
     public void testAffixKeySetting() {
         Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
         assertTrue(setting.hasComplexMatcher());
@@ -821,6 +857,12 @@ public class SettingTests extends ESTestCase {
         exc = expectThrows(
             IllegalArgumentException.class,
             () -> Setting.affixKeySetting("foo", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope))
+        );
+        assertEquals("prefix must end with a '.'", exc.getMessage());
+
+        exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.prefixKeySetting("foo.", "bar", (ns, key) -> Setting.boolSetting(key, false, Property.NodeScope))
         );
         assertEquals("prefix must end with a '.'", exc.getMessage());
 

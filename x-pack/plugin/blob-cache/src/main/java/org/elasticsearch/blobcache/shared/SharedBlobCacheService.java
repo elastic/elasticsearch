@@ -665,6 +665,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
+    /**
+     * While this class has incRef and tryIncRef methods, incRefEnsureOpen and tryIncrefEnsureOpen should
+     * always be used, ensuring the right ordering between incRef/tryIncRef and ensureOpen
+     * (see {@link LFUCache#maybeEvictAndTakeForFrequency(Runnable, int)})
+     */
     class CacheFileRegion extends EvictableRefCounted {
 
         final RegionKey<KeyType> regionKey;
@@ -681,6 +686,27 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         public long physicalStartOffset() {
             var ioRef = io;
             return ioRef == null ? -1L : (long) regionKey.region * regionSize;
+        }
+
+        public boolean tryIncRefEnsureOpen() {
+            if (tryIncRef()) {
+                ensureOpenOrDecRef();
+                return true;
+            }
+
+            return false;
+        }
+
+        public void incRefEnsureOpen() {
+            incRef();
+            ensureOpenOrDecRef();
+        }
+
+        private void ensureOpenOrDecRef() {
+            if (isEvicted()) {
+                decRef();
+                throwAlreadyEvicted();
+            }
         }
 
         // tries to evict this chunk if noone is holding onto its resources anymore
@@ -729,12 +755,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             logger.trace("closed {} with channel offset {}", regionKey, physicalStartOffset());
         }
 
-        private void ensureOpen() {
-            if (isEvicted()) {
-                throwAlreadyEvicted();
-            }
-        }
-
         private static void throwAlreadyEvicted() {
             throwAlreadyClosed("File chunk is evicted");
         }
@@ -777,9 +797,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ) {
             Releasable resource = null;
             try {
-                incRef();
+                incRefEnsureOpen();
                 resource = Releasables.releaseOnce(this::decRef);
-                ensureOpen();
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToWrite,
@@ -812,9 +831,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ) {
             Releasable resource = null;
             try {
-                incRef();
+                incRefEnsureOpen();
                 resource = Releasables.releaseOnce(this::decRef);
-                ensureOpen();
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToRead,
@@ -851,8 +869,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
-                    ensureOpen();
-                    if (cacheFileRegion.tryIncRef() == false) {
+                    if (cacheFileRegion.tryIncRefEnsureOpen() == false) {
                         throw new AlreadyClosedException("File chunk [" + cacheFileRegion.regionKey + "] has been released");
                     }
                     try {

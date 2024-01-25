@@ -543,7 +543,7 @@ public class ObjectMapper extends Mapper {
             MergeReason reason,
             MapperMergeContext objectMergeContext
         ) {
-            Iterator<Mapper> iterator = mergeWith.iterator();
+            Iterator<Mapper> iterator = mergeWithObject.iterator();
             if (iterator.hasNext() == false) {
                 return Map.copyOf(existing.mappers);
             }

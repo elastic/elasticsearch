@@ -14,7 +14,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class DeleteByQueryRequestBuilder extends AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
 
-    Boolean abortOnVersionConflict;
+    private Boolean abortOnVersionConflict;
 
     public DeleteByQueryRequestBuilder(ElasticsearchClient client) {
         this(client, new SearchRequestBuilder(client));

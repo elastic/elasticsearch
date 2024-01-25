@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -27,6 +28,8 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     private VersionType versionType;
     private Long seqNo;
     private Long term;
+    private WriteRequest.RefreshPolicy refreshPolicy;
+    private String refreshPolicyString;
 
     public DeleteRequestBuilder(ElasticsearchClient client, @Nullable String index) {
         super(client, TransportDeleteAction.TYPE);
@@ -92,6 +95,18 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     }
 
     @Override
+    public DeleteRequestBuilder setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
+        return this;
+    }
+
+    @Override
+    public DeleteRequestBuilder setRefreshPolicy(String refreshPolicy) {
+        this.refreshPolicyString = refreshPolicy;
+        return this;
+    }
+
+    @Override
     public void apply(DeleteRequest request) {
         super.apply(request);
         if (id != null) {
@@ -111,6 +126,12 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
         }
         if (term != null) {
             request.setIfPrimaryTerm(term);
+        }
+        if (refreshPolicy != null) {
+            request.setRefreshPolicy(refreshPolicy);
+        }
+        if (refreshPolicyString != null) {
+            request.setRefreshPolicy(refreshPolicyString);
         }
     }
 

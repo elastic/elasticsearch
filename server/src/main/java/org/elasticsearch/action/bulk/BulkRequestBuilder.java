@@ -48,6 +48,7 @@ public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequ
     private String globalPipeline;
     private String globalRouting;
     private WriteRequest.RefreshPolicy refreshPolicy;
+    private String refreshPolicyString;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
         super(client, BulkAction.INSTANCE);
@@ -182,8 +183,15 @@ public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequ
         return this;
     }
 
+    @Override
     public BulkRequestBuilder setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
+        return this;
+    }
+
+    @Override
+    public BulkRequestBuilder setRefreshPolicy(String refreshPolicy) {
+        this.refreshPolicyString = refreshPolicy;
         return this;
     }
 
@@ -228,6 +236,9 @@ public class BulkRequestBuilder extends ManagedActionRequestLazyBuilder<BulkRequ
         }
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);
+        }
+        if (refreshPolicyString != null) {
+            request.setRefreshPolicy(refreshPolicyString);
         }
     }
 

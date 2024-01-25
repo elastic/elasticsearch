@@ -64,6 +64,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     private Boolean scriptedUpsert;
     private Boolean requireAlias;
     private WriteRequest.RefreshPolicy refreshPolicy;
+    private String refreshPolicyString;
 
     public UpdateRequestBuilder(ElasticsearchClient client) {
         this(client, null, null);
@@ -413,8 +414,15 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
+    @Override
     public UpdateRequestBuilder setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
+        return this;
+    }
+
+    @Override
+    public UpdateRequestBuilder setRefreshPolicy(String refreshPolicy) {
+        this.refreshPolicyString = refreshPolicy;
         return this;
     }
 
@@ -527,6 +535,9 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         }
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);
+        }
+        if (refreshPolicyString != null) {
+            request.setRefreshPolicy(refreshPolicyString);
         }
     }
 

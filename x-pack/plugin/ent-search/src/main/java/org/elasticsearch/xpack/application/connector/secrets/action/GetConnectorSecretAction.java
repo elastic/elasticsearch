@@ -16,6 +16,6 @@ public class GetConnectorSecretAction extends ActionType<GetConnectorSecretRespo
     public static final GetConnectorSecretAction INSTANCE = new GetConnectorSecretAction();
 
     private GetConnectorSecretAction() {
-        super(NAME, GetConnectorSecretResponse::new);
+        super(NAME);
     }
 }

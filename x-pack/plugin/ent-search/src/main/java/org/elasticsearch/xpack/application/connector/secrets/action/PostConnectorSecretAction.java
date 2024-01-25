@@ -16,6 +16,6 @@ public class PostConnectorSecretAction extends ActionType<PostConnectorSecretRes
     public static final PostConnectorSecretAction INSTANCE = new PostConnectorSecretAction();
 
     private PostConnectorSecretAction() {
-        super(NAME, PostConnectorSecretResponse::new);
+        super(NAME);
     }
 }

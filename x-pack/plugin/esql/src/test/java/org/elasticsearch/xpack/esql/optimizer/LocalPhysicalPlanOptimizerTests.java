@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -393,6 +395,30 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var query = as(exchange.child(), EsQueryExec.class);
         assertThat(query.limit().fold(), is(500));
         var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expected
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[COUNT(gender{f}#7) AS count(gender)],FINAL,null]
+     *   \_ExchangeExec[[count{r}#15, seen{r}#16],true]
+     *     \_AggregateExec[[],[COUNT(gender{f}#7) AS count(gender)],PARTIAL,8]
+     *       \_FieldExtractExec[gender{f}#7]
+     *         \_EsQueryExec[test], query[{"exists":{"field":"gender","boost":1.0}}][_doc{f}#17], limit[], sort[] estimatedRowSize[54]
+     */
+    public void testIsNotNull_TextField_Pushdown() {
+        String textField = randomFrom("gender", "job");
+        var plan = plan(String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField));
+
+        var limit = as(plan, LimitExec.class);
+        var finalAgg = as(limit.child(), AggregateExec.class);
+        var exchange = as(finalAgg.child(), ExchangeExec.class);
+        var partialAgg = as(exchange.child(), AggregateExec.class);
+        var fieldExtract = as(partialAgg.child(), FieldExtractExec.class);
+        var query = as(fieldExtract.child(), EsQueryExec.class);
+        var expected = QueryBuilders.existsQuery(textField);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 

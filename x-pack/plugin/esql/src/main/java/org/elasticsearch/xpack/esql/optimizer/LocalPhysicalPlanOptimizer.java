@@ -244,6 +244,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 return canPushToSource(not.field(), hasIdenticalDelegate);
             } else if (exp instanceof UnaryScalarFunction usf) {
                 if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
+                    if (usf instanceof IsNotNull) {
+                        if (usf.field() instanceof FieldAttribute fa && fa.dataType() == DataTypes.TEXT) {
+                            return true;
+                        }
+                    }
                     return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
                 }
             }

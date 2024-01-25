@@ -22,6 +22,7 @@ public class DeleteByQueryRequestBuilder extends AbstractBulkByScrollRequestBuil
 
     private DeleteByQueryRequestBuilder(ElasticsearchClient client, SearchRequestBuilder search) {
         super(client, DeleteByQueryAction.INSTANCE, search);
+        source().setFetchSource(false);
     }
 
     @Override
@@ -39,7 +40,7 @@ public class DeleteByQueryRequestBuilder extends AbstractBulkByScrollRequestBuil
     public DeleteByQueryRequest request() {
         SearchRequest search = source().request();
         try {
-            DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(search);
+            DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(search, false);
             try {
                 apply(deleteByQueryRequest);
                 return deleteByQueryRequest;

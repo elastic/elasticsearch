@@ -47,7 +47,7 @@ public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollReques
     public UpdateByQueryRequest request() {
         SearchRequest search = source().request();
         try {
-            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(search);
+            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(search, false);
             try {
                 apply(updateByQueryRequest);
                 return updateByQueryRequest;

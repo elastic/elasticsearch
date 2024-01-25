@@ -13,10 +13,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
 
 public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
     private final IndexRequestBuilder destinationBuilder;
@@ -29,18 +25,6 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
     private ReindexRequestBuilder(ElasticsearchClient client, SearchRequestBuilder search, IndexRequestBuilder destination) {
         super(client, ReindexAction.INSTANCE, search);
         this.destinationBuilder = destination;
-        initSourceSearchRequest();
-    }
-
-    /*
-     * The following is normally done within the ReindexRequest constructor. But that constructor is not called until the request()
-     * method is called once this builder is complete. Doing it there blows away changes made to the source request.
-     */
-    private void initSourceSearchRequest() {
-        source().request().source(new SearchSourceBuilder());
-        source().request().scroll(DEFAULT_SCROLL_TIMEOUT);
-        source().request().source(new SearchSourceBuilder());
-        source().request().source().size(DEFAULT_SCROLL_SIZE);
     }
 
     @Override

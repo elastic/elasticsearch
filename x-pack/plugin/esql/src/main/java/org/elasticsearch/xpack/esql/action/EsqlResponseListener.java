@@ -141,11 +141,14 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     )
                 );
             } else if (mediaType == ArrowFormat.INSTANCE) {
-                restResponse = RestResponse.chunked(RestStatus.OK, new ArrowResponse(
-                    esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.type(), c.name())).toList(),
-                    esqlResponse.pages(),
-                    esqlResponse::close
-                ).chunkedResponse());
+                restResponse = RestResponse.chunked(
+                    RestStatus.OK,
+                    new ArrowResponse(
+                        esqlResponse.columns().stream().map(c -> new ArrowResponse.Column(c.type(), c.name())).toList(),
+                        esqlResponse.pages(),
+                        esqlResponse::close
+                    ).chunkedResponse()
+                );
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,

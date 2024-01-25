@@ -10,14 +10,17 @@ package org.elasticsearch.xpack.esql.arrow;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.Float8Vector;
+import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
-import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -26,6 +29,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -41,42 +46,96 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.IntFunction;
 import java.util.function.IntToDoubleFunction;
 import java.util.function.IntToLongFunction;
 import java.util.function.IntUnaryOperator;
-import java.util.function.LongSupplier;
-import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
+@Seed("72404B36EFE39D13")
 public class ArrowResponseTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<ArrowResponse.Column> justInt = List.of(new ArrowResponse.Column("int", "a"));
         List<ArrowResponse.Column> justLong = List.of(new ArrowResponse.Column("long", "a"));
         List<ArrowResponse.Column> justDouble = List.of(new ArrowResponse.Column("double", "a"));
+        List<ArrowResponse.Column> justKeyword = List.of(new ArrowResponse.Column("keyword", "a"));
 
         List<TestCase> cases = new ArrayList<>();
 
         cases.add(new TestCase("int no pages", justInt, () -> List.of()));
         TestCase.cases(cases, "int all zeros", justInt, () -> new Page(intVector(10, i -> 0).asBlock()));
         TestCase.cases(cases, "int increment", justInt, () -> new Page(intVector(10, i -> i).asBlock()));
-        TestCase.cases(cases, "int random", justInt, () -> new Page(intVector(10, i -> randomInt()).asBlock()));
+        TestCase.cases(cases, "int random", justInt, () -> new Page(intVector(between(1, 10_000), i -> randomInt()).asBlock()));
 
         cases.add(new TestCase("long no pages", justLong, () -> List.of()));
         TestCase.cases(cases, "long all zeros", justLong, () -> new Page(longVector(10, i -> 0L).asBlock()));
         TestCase.cases(cases, "long increment", justLong, () -> new Page(longVector(10, i -> i).asBlock()));
-        TestCase.cases(cases, "long random", justLong, () -> new Page(longVector(10, i -> randomLong()).asBlock()));
+        TestCase.cases(cases, "long random", justLong, () -> new Page(longVector(between(1, 10_000), i -> randomLong()).asBlock()));
 
         cases.add(new TestCase("double no pages", justDouble, () -> List.of()));
         TestCase.cases(cases, "double all zeros", justDouble, () -> new Page(doubleVector(10, i -> 0L).asBlock()));
         TestCase.cases(cases, "double increment", justDouble, () -> new Page(doubleVector(10, i -> i).asBlock()));
-        TestCase.cases(cases, "double random", justDouble, () -> new Page(doubleVector(10, i -> randomLong()).asBlock()));
+        TestCase.cases(cases, "double random", justDouble, () -> new Page(doubleVector(between(1, 10_000), i -> randomDouble()).asBlock()));
+
+        cases.add(new TestCase("keyword no pages", justKeyword, () -> List.of()));
+        TestCase.cases(
+            cases,
+            "keyword empty",
+            justKeyword,
+            () -> new Page(bytesRefVector(10, i -> new BytesRef(BytesRef.EMPTY_BYTES, 0, 0)).asBlock())
+        );
+        TestCase.cases(cases, "keyword \"a\"", justKeyword, () -> new Page(bytesRefVector(10, i -> new BytesRef("a")).asBlock()));
+        TestCase.cases(cases, "keyword \"foo\"", justKeyword, () -> new Page(bytesRefVector(10, i -> new BytesRef("foo")).asBlock()));
+        TestCase.cases(
+            cases,
+            "keyword \"foo\"|\"bar\"",
+            justKeyword,
+            () -> new Page(bytesRefVector(10, i -> i % 2 == 0 ? new BytesRef("foo") : new BytesRef("bar")).asBlock())
+        );
+        TestCase.cases(cases, "keyword random", justKeyword, () -> new Page(fullyRandomKeywordVector(between(1, 10_000))));
+
+        TestCase.cases(
+            cases,
+            "keyword|int|double",
+            List.of(
+                new ArrowResponse.Column("keyword", "a"),
+                new ArrowResponse.Column("int", "b"),
+                new ArrowResponse.Column("double", "c")
+            ),
+            () -> {
+                int positions = between(1, 10_000);
+                return new Page(
+                    bytesRefVector(positions, i -> new BytesRef(randomAlphaOfLengthBetween(0, 100))).asBlock(),
+                    intVector(positions, i -> randomInt()).asBlock(),
+                    doubleVector(positions, i -> randomDouble()).asBlock()
+                );
+            }
+        );
+        for (Map.Entry<String, IntFunction<Block>> first : RANDOM.entrySet()) {
+            for (Map.Entry<String, IntFunction<Block>> second : RANDOM.entrySet()) {
+                TestCase.cases(
+                    cases,
+                    first.getKey() + "|" + second.getKey() + "random",
+                    List.of(new ArrowResponse.Column(first.getKey(), "a"), new ArrowResponse.Column(second.getKey(), "b")),
+                    () -> {
+                        int positions = between(1, 10_000);
+                        return new Page(first.getValue().apply(positions), second.getValue().apply(positions));
+                    }
+                );
+            }
+        }
 
         return () -> Iterators.map(cases.iterator(), c -> new Object[] { c });
     }
+
+    private static final Map<String, IntFunction<Block>> RANDOM = Map.ofEntries(
+        Map.entry("double", ArrowResponseTests::fullyRandomDoubleVector),
+        Map.entry("int", ArrowResponseTests::fullyRandomIntVector),
+        Map.entry("long", ArrowResponseTests::fullyRandomLongVector),
+        Map.entry("keyword", ArrowResponseTests::fullyRandomKeywordVector)
+    );
 
     private final TestCase testCase;
 
@@ -151,7 +210,23 @@ public class ArrowResponseTests extends ESTestCase {
                 for (Page page : testCase.response.pages()) {
                     schemaRoot.clear();
                     for (int c = 0; c < testCase.response.columns().size(); c++) {
-                        switch (testCase.response.columns().get(c).esqlType()) {
+                        ArrowResponse.Column column = testCase.response.columns().get(c);
+                        switch (column.esqlType()) {
+                            case "keyword" -> {
+                                BytesRef scratch = new BytesRef();
+                                BytesRefBlock b = page.getBlock(c);
+                                BytesRefVector v = b.asVector();
+                                if (v == null) {
+                                    throw new IllegalArgumentException();
+                                }
+                                VarCharVector arrow = (VarCharVector) schemaRoot.getVector(c);
+                                arrow.allocateNew(v.getPositionCount());
+                                for (int p = 0; p < v.getPositionCount(); p++) {
+                                    BytesRef bytes = v.getBytesRef(p, scratch);
+                                    arrow.setSafe(p, bytes.bytes, bytes.offset, bytes.length);
+                                }
+                                arrow.setValueCount(v.getPositionCount());
+                            }
                             case "double" -> {
                                 DoubleBlock b = page.getBlock(c);
                                 DoubleVector v = b.asVector();
@@ -191,28 +266,15 @@ public class ArrowResponseTests extends ESTestCase {
                                 }
                                 arrow.setValueCount(v.getPositionCount());
                             }
-                            default -> throw new IllegalArgumentException();
+                            default -> throw new IllegalArgumentException("NOCOMMIT: " + column.esqlType());
                         }
                     }
                     schemaRoot.setRowCount(page.getPositionCount());
-                    writer.start();
                     writer.writeBatch();
                 }
             }
             return out.bytes();
         }
-    }
-
-    private static Page randomPage(List<ArrowResponse.Column> schema) {
-        int positions = 10; // between(10, 65535); NOCOMMIT randomize
-        Block[] blocks = new Block[schema.size()];
-        for (int b = 0; b < blocks.length; b++) {
-            blocks[b] = switch (schema.get(b).esqlType()) {
-                case "long" -> longVector(positions, i -> randomLong()).asBlock(); // NOCOMMIT randomize
-                default -> throw new IllegalArgumentException();
-            };
-        }
-        return new Page(blocks);
     }
 
     private static IntVector intVector(int positions, IntUnaryOperator v) {
@@ -223,6 +285,10 @@ public class ArrowResponseTests extends ESTestCase {
         return builder.build();
     }
 
+    private static Block fullyRandomIntVector(int positions) {
+        return intVector(positions, i -> randomInt()).asBlock();
+    }
+
     private static LongVector longVector(int positions, IntToLongFunction v) {
         LongVector.FixedBuilder builder = BLOCK_FACTORY.newLongVectorFixedBuilder(positions);
         for (int i = 0; i < positions; i++) {
@@ -231,12 +297,32 @@ public class ArrowResponseTests extends ESTestCase {
         return builder.build();
     }
 
+    private static Block fullyRandomLongVector(int positions) {
+        return longVector(positions, i -> randomLong()).asBlock();
+    }
+
     private static DoubleVector doubleVector(int positions, IntToDoubleFunction v) {
         DoubleVector.FixedBuilder builder = BLOCK_FACTORY.newDoubleVectorFixedBuilder(positions);
         for (int i = 0; i < positions; i++) {
             builder.appendDouble(v.applyAsDouble(i));
         }
         return builder.build();
+    }
+
+    private static Block fullyRandomDoubleVector(int positions) {
+        return doubleVector(positions, i -> randomDouble()).asBlock();
+    }
+
+    private static BytesRefVector bytesRefVector(int positions, IntFunction<BytesRef> v) {
+        BytesRefVector.Builder builder = BLOCK_FACTORY.newBytesRefVectorBuilder(positions);
+        for (int i = 0; i < positions; i++) {
+            builder.appendBytesRef(v.apply(i));
+        }
+        return builder.build();
+    }
+
+    private static Block fullyRandomKeywordVector(int positions) {
+        return bytesRefVector(positions, i -> new BytesRef(randomAlphaOfLengthBetween(0, 100))).asBlock();
     }
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
@@ -261,7 +347,7 @@ public class ArrowResponseTests extends ESTestCase {
         }
 
         static TestCase twoPages(String description, List<ArrowResponse.Column> columns, Supplier<Page> page) {
-            return new TestCase(description + " one page", columns, () -> List.of(page.get(), page.get()));
+            return new TestCase(description + " two pages", columns, () -> List.of(page.get(), page.get()));
         }
 
         static TestCase randomPages(String description, List<ArrowResponse.Column> columns, Supplier<Page> page) {

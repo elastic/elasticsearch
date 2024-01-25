@@ -8,23 +8,12 @@
 package org.elasticsearch.xpack.esql.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.vector.ipc.ArrowStreamWriter;
-import org.apache.arrow.vector.ipc.ArrowWriter;
-import org.apache.arrow.vector.ipc.message.IpcOption;
-import org.apache.arrow.vector.types.FloatingPointPrecision;
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.xpack.esql.arrow.shim.Shim;
 import org.apache.arrow.vector.compression.NoCompressionCodec;
+import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.ipc.WriteChannel;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
+import org.apache.arrow.vector.ipc.message.IpcOption;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;
 import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -36,10 +25,20 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.xpack.esql.arrow.shim.Shim;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -279,7 +278,7 @@ public class ArrowResponse implements Releasable {
                     DoubleVector v = b.asVector();
                     if (v != null) {
                         accumulateVectorValidity(out, bufs, writeBufs, v);
-                        bufs.add(dummy().writerIndex(Double.BYTES * block.getPositionCount()));
+                        bufs.add(dummy().writerIndex(vectorLength(v)));
                         writeBufs.add(() -> writeVector(out, v));
                         return;
                     }
@@ -290,7 +289,7 @@ public class ArrowResponse implements Releasable {
                     IntVector v = b.asVector();
                     if (v != null) {
                         accumulateVectorValidity(out, bufs, writeBufs, v);
-                        bufs.add(dummy().writerIndex(Integer.BYTES * block.getPositionCount()));
+                        bufs.add(dummy().writerIndex(vectorLength(v)));
                         writeBufs.add(() -> writeVector(out, v));
                         return;
                     }
@@ -301,7 +300,20 @@ public class ArrowResponse implements Releasable {
                     LongVector v = b.asVector();
                     if (v != null) {
                         accumulateVectorValidity(out, bufs, writeBufs, v);
-                        bufs.add(dummy().writerIndex(Long.BYTES * block.getPositionCount()));
+                        bufs.add(dummy().writerIndex(vectorLength(v)));
+                        writeBufs.add(() -> writeVector(out, v));
+                        return;
+                    }
+                    throw new UnsupportedOperationException();
+                }
+                case BYTES_REF -> {
+                    BytesRefBlock b = (BytesRefBlock) block;
+                    BytesRefVector v = b.asVector();
+                    if (v != null) {
+                        accumulateVectorValidity(out, bufs, writeBufs, v);
+                        bufs.add(dummy().writerIndex(vectorOffsetLength(v)));
+                        writeBufs.add(() -> writeVectorOffset(out, v));
+                        bufs.add(dummy().writerIndex(vectorLength(v)));
                         writeBufs.add(() -> writeVector(out, v));
                         return;
                     }
@@ -329,12 +341,20 @@ public class ArrowResponse implements Releasable {
             return allOnesCount + 1;
         }
 
+        private long vectorLength(IntVector vector) {
+            return Integer.BYTES * vector.getPositionCount();
+        }
+
         private long writeVector(RecyclerBytesStreamOutput out, IntVector vector) throws IOException {
             // TODO could we "just" get the memory of the array and dump it?
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 out.writeIntLE(vector.getInt(i));
             }
-            return vector.getPositionCount() * Integer.BYTES;
+            return vectorLength(vector);
+        }
+
+        private long vectorLength(LongVector vector) {
+            return Long.BYTES * vector.getPositionCount();
         }
 
         private long writeVector(RecyclerBytesStreamOutput out, LongVector vector) throws IOException {
@@ -342,7 +362,11 @@ public class ArrowResponse implements Releasable {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 out.writeLongLE(vector.getLong(i));
             }
-            return vector.getPositionCount() * Long.BYTES;
+            return vectorLength(vector);
+        }
+
+        private long vectorLength(DoubleVector vector) {
+            return Double.BYTES * vector.getPositionCount();
         }
 
         private long writeVector(RecyclerBytesStreamOutput out, DoubleVector vector) throws IOException {
@@ -350,7 +374,45 @@ public class ArrowResponse implements Releasable {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 out.writeDoubleLE(vector.getDouble(i));
             }
-            return vector.getPositionCount() * Double.BYTES;
+            return vectorLength(vector);
+        }
+
+        private long vectorOffsetLength(BytesRefVector vector) {
+            return Integer.BYTES * (vector.getPositionCount() + 1);
+        }
+
+        private long writeVectorOffset(RecyclerBytesStreamOutput out, BytesRefVector vector) throws IOException {
+            // TODO could we "just" get the memory of the array and dump it?
+            BytesRef scratch = new BytesRef();
+            int offset = 0;
+            for (int i = 0; i < vector.getPositionCount(); i++) {
+                out.writeIntLE(offset);
+                offset += vector.getBytesRef(i, scratch).length;
+            }
+            out.writeIntLE(offset);
+            return vectorOffsetLength(vector);
+        }
+
+        private long vectorLength(BytesRefVector vector) {
+            // TODO we can probably get the length from the vector without all this sum - it's in an array
+            long length = 0;
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < vector.getPositionCount(); i++) {
+                length += vector.getBytesRef(i, scratch).length;
+            }
+            return length;
+        }
+
+        private long writeVector(RecyclerBytesStreamOutput out, BytesRefVector vector) throws IOException {
+            // TODO could we "just" get the memory of the array and dump it?
+            BytesRef scratch = new BytesRef();
+            long length = 0;
+            for (int i = 0; i < vector.getPositionCount(); i++) {
+                BytesRef v = vector.getBytesRef(i, scratch);
+                out.write(v.bytes, v.offset, v.length);
+                length += v.length;
+            }
+            return length;
         }
 
         private ArrowBuf dummy() {
@@ -387,6 +449,7 @@ public class ArrowResponse implements Releasable {
             case "double" -> FieldType.nullable(Types.MinorType.FLOAT8.getType());
             case "int" -> FieldType.nullable(Types.MinorType.INT.getType());
             case "long" -> FieldType.nullable(Types.MinorType.BIGINT.getType());
+            case "keyword", "text" -> FieldType.nullable(Types.MinorType.VARCHAR.getType());
             default -> throw new UnsupportedOperationException("NOCOMMIT");
         };
     }

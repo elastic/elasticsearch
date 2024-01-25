@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.arrow;
 
-import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.xcontent.MediaType;
 
 import java.util.Map;
@@ -29,10 +28,7 @@ public class ArrowFormat implements MediaType {
     public Set<HeaderValue> headerValues() {
         return Set.of(
             new HeaderValue(CONTENT_TYPE, Map.of("header", "present|absent")),
-            new HeaderValue(
-                VENDOR_CONTENT_TYPE,
-                Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)
-            )
+            new HeaderValue(VENDOR_CONTENT_TYPE, Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN))
         );
     }
 }

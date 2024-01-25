@@ -39,7 +39,7 @@ public class UpdateConnectorSyncJobErrorAction extends ActionType<ConnectorUpdat
     public static final String ERROR_EMPTY_MESSAGE = "[error] of the connector sync job cannot be null or empty";
 
     private UpdateConnectorSyncJobErrorAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

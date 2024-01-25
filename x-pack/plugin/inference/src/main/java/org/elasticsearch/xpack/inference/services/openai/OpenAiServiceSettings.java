@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
@@ -50,17 +50,6 @@ public class OpenAiServiceSettings implements ServiceSettings {
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-
-        // Throw if any of the settings were empty strings or invalid
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        // the url is optional and only for testing
-        if (url == null) {
-            return new OpenAiServiceSettings((URI) null, organizationId, similarity, dims, maxInputTokens);
-        }
-
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -98,14 +87,6 @@ public class OpenAiServiceSettings implements ServiceSettings {
         @Nullable Integer maxInputTokens
     ) {
         this(createOptionalUri(uri), organizationId, similarity, dimensions, maxInputTokens);
-    }
-
-    private static URI createOptionalUri(String url) {
-        if (url == null) {
-            return null;
-        }
-
-        return createUri(url);
     }
 
     public OpenAiServiceSettings(StreamInput in) throws IOException {

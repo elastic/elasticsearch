@@ -36,7 +36,7 @@ public class UpdateConnectorNativeAction extends ActionType<ConnectorUpdateActio
     public static final String NAME = "cluster:admin/xpack/connector/update_native";
 
     public UpdateConnectorNativeAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

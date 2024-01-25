@@ -326,6 +326,18 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
+autoBucketYearInAggRefs
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket_start =  "1999-01-01T00:00:00Z"
+| EVAL bucket_end = NOW()
+| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| STATS COUNT(*) by bucket
+| sort bucket;
+
+COUNT(*):long            | bucket:date
+1                        | 1999-01-01T00:00:00.000Z
+;
 
 autoBucketMonthInAgg
 // tag::auto_bucket_in_agg[]

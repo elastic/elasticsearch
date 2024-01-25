@@ -9,7 +9,8 @@
 package org.elasticsearch.search.scriptrank;
 
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.xcontent.ToXContent;
 
-public interface RankHitData extends VersionedNamedWriteable {
+public interface RankHitData extends VersionedNamedWriteable, ToXContent {
 
 }

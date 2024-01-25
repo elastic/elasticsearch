@@ -803,6 +803,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
         static final String _RANK = "_rank";
+        static final String _RANK_HIT_DATA = "_rank_hit_data";
         static final String FIELDS = "fields";
         static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
@@ -869,6 +870,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
         if (rank != NO_RANK) {
             builder.field(Fields._RANK, rank);
+        }
+
+        if (rankHitData != null) {
+            builder.field(Fields._RANK_HIT_DATA, rankHitData);
         }
 
         for (DocumentField field : metaFields.values()) {
@@ -1095,7 +1100,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             -1,
             get(Fields._SCORE, values, DEFAULT_SCORE),
             get(Fields._RANK, values, NO_RANK),
-            null,
+            get(Fields._RANK_HIT_DATA, values, null),
             id == null ? null : new Text(id),
             get(NestedIdentity._NESTED, values, null),
             get(Fields._VERSION, values, -1L),

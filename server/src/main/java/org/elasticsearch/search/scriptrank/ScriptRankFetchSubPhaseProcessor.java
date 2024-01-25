@@ -34,7 +34,7 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
     private final List<Query> queries;
 
     private final SourceFilter sourceFilter;
-    private LeafReaderContext leafReaderContext;
+    //private LeafReaderContext leafReaderContext;
 
     public ScriptRankFetchSubPhaseProcessor(
         FetchContext fetchContext,
@@ -61,7 +61,7 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
 
     @Override
     public void setNextReader(LeafReaderContext readerContext) throws IOException {
-        this.leafReaderContext = readerContext;
+        //this.leafReaderContext = readerContext;
     }
 
     @Override
@@ -73,24 +73,20 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
             );
         }
 
+        Map<String, Object> filteredSource = new HashMap<>();
+        if (fields.isEmpty() == false) {
+            filteredSource = hitContext.source().filter(sourceFilter).source();
+        }
+
         float[] queryScores = null;
         if (queries != null && queries.isEmpty() == false) {
             queryScores = new float[queries.size()];
             for (int i = 0; i < queries.size(); ++i) {
                 var weight = queries.get(i).createWeight(fetchContext.searcher(), COMPLETE, 1f); // TODO boost is 1?
-                var scorer = weight.scorer(leafReaderContext);
-                var x = scorer.iterator().advance(hitContext.docId());
-                if (x == DocIdSetIterator.NO_MORE_DOCS) {
-                    queryScores[i] = 0f;
-                } else {
-                    queryScores[i] = scorer.score();
-                }
+                var scorer = weight.scorer(hitContext.readerContext());
+                var docId = scorer.iterator().advance(hitContext.docId());
+                queryScores[i] = docId == hitContext.docId() ? scorer.score() : 0f;
             }
-        }
-
-        Map<String, Object> filteredSource = new HashMap<>();
-        if (fields.isEmpty() == false) {
-            filteredSource = hitContext.source().filter(sourceFilter).source();
         }
 
         hitContext.hit().setRankHitData(new ScriptRankHitData(filteredSource, queryScores));

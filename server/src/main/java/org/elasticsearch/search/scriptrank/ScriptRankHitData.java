@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -52,5 +53,19 @@ public class ScriptRankHitData implements RankHitData {
 
     public float[] getQueryScores() {
         return queryScores;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("field_data", fieldData);
+        builder.array("query_scores", queryScores);
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public boolean isFragment() {
+        return false;
     }
 }

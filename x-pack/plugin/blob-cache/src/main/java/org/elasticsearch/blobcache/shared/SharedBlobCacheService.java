@@ -261,9 +261,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     // used in tests
-    void tryNewEpoch() {
+    void maybeScheduleDecayAndNewEpoch() {
         if (cache instanceof LFUCache lfuCache) {
-            lfuCache.tryNewEpoch(lfuCache.epoch.get());
+            lfuCache.maybeScheduleDecayAndNewEpoch(lfuCache.epoch.get());
         }
     }
 
@@ -1179,7 +1179,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private final ConcurrentHashMap<RegionKey<KeyType>, LFUCacheEntry> keyMapping = new ConcurrentHashMap<>();
         private final LFUCacheEntry[] freqs;
         private final int maxFreq;
-        private final NewEpochAndDecayTask newEpochAndDecayTask;
+        private final DecayAndNewEpochTask decayAndNewEpochTask;
 
         private final AtomicLong epoch = new AtomicLong();
 
@@ -1187,12 +1187,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         LFUCache(Settings settings) {
             this.maxFreq = SHARED_CACHE_MAX_FREQ_SETTING.get(settings);
             freqs = (LFUCacheEntry[]) Array.newInstance(LFUCacheEntry.class, maxFreq);
-            newEpochAndDecayTask = new NewEpochAndDecayTask(threadPool.generic());
+            decayAndNewEpochTask = new DecayAndNewEpochTask(threadPool.generic());
         }
 
         @Override
         public void close() {
-            newEpochAndDecayTask.close();
+            decayAndNewEpochTask.close();
         }
 
         int getFreq(CacheFileRegion cacheFileRegion) {
@@ -1428,7 +1428,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             SharedBytes.IO freq0 = maybeEvictAndTakeForFrequency(evictedNotification, 0);
             if (freqs[0] == null) {
                 // no frequency 0 entries, let us switch epoch and decay so we get some for next time.
-                tryNewEpoch(currentEpoch);
+                maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
             if (freq0 != null) {
                 return freq0;
@@ -1484,8 +1484,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          * before the determination that a new epoch is needed is done.
          * @param currentEpoch the epoch to check against if a new epoch is needed
          */
-        private void tryNewEpoch(long currentEpoch) {
-            newEpochAndDecayTask.spawnIfNotRunning(currentEpoch);
+        private void maybeScheduleDecayAndNewEpoch(long currentEpoch) {
+            decayAndNewEpochTask.spawnIfNotRunning(currentEpoch);
         }
 
         /**
@@ -1522,13 +1522,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        class NewEpochAndDecayTask extends AbstractRunnable {
+        class DecayAndNewEpochTask extends AbstractRunnable {
 
             private final Executor executor;
             private final AtomicLong pendingEpoch = new AtomicLong();
             private volatile boolean isClosed;
 
-            NewEpochAndDecayTask(Executor executor) {
+            DecayAndNewEpochTask(Executor executor) {
                 this.executor = executor;
             }
 

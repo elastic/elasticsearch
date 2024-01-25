@@ -809,11 +809,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
             assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
 
-            cacheService.tryNewEpoch();
+            cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
 
             cacheEntries.keySet().forEach(key -> cacheService.get(key, regionSize, 0));
-            cacheService.tryNewEpoch();
+            cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
 
             // touch some random cache entries
@@ -827,7 +827,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
             assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
 
-            cacheService.tryNewEpoch();
+            cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));

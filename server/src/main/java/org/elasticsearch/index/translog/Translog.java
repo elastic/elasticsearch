@@ -1614,7 +1614,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private static void writeOperationNoSize(BufferedChecksumStreamOutput out, Translog.Operation op) throws IOException {
+    static void writeOperationNoSize(BufferedChecksumStreamOutput out, Writeable op) throws IOException {
         // This BufferedChecksumStreamOutput remains unclosed on purpose,
         // because closing it closes the underlying stream, which we don't
         // want to do here.

@@ -256,7 +256,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
 
-            var dataLength = data.getSizeInBytes(TransportVersion::current) + 2 * Integer.BYTES; // payload + size + checksum
+            final int operationSize = data.getSizeInBytes(TransportVersion::current) + Integer.BYTES; // payload + checksum
+            final int dataLength = operationSize + Integer.BYTES; // payload + size + checksum
             buffer.add(data);
 
             final long offset = totalOffset;
@@ -275,7 +276,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert assertNoSeqNumberConflict(seqNo, data);
 
             location = new Translog.Location(generation, offset, dataLength);
-            // operationListener.operationAdded(data, seqNo, location);
+            operationListener.operationAdded((out) -> {
+                out.writeInt(operationSize);
+                Translog.writeOperationNoSize(new BufferedChecksumStreamOutput(out), data);
+            }, seqNo, location);
             bufferedBytes += dataLength;
         }
 

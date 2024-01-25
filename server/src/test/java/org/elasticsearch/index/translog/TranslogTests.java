@@ -1626,7 +1626,6 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/104680")
     public void testTranslogOperationListener() throws IOException {
         Path tempDir = createTempDir();
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();

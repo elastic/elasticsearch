@@ -208,7 +208,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                     InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
                         keys[i],
                         docCount,
-                        bucketSubAggs.apply(builtBucketIndex)
+                        bucketSubAggs.apply(builtBucketIndex++)
                     );
                     buckets.add(bucket);
                 }
@@ -224,7 +224,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                         InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
                             intersectKey,
                             docCount,
-                            bucketSubAggs.apply(builtBucketIndex)
+                            bucketSubAggs.apply(builtBucketIndex++)
                         );
                         buckets.add(bucket);
                     }

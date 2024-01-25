@@ -181,7 +181,7 @@ phase completes.
             }
           }
         },
-        "version": 3, <4>
+        "version": 3, <3>
         "modified_date": "2018-10-15T13:21:41.576Z", <4>
         "modified_date_in_millis": 1539609701576 <5>
       }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.nativeaccess.ffi;
 
-import org.elasticsearch.nativeaccess.lib.CLibrary;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -25,7 +25,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
-public class JdkCLibrary implements CLibrary {
+public class JdkPosixCLibrary implements PosixCLibrary {
 
     private static final Linker LINKER = Linker.nativeLinker();
     private static final SymbolLookup SYMBOL_LOOKUP = LINKER.defaultLookup();

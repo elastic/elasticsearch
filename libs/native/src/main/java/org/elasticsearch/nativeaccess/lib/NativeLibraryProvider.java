@@ -20,7 +20,7 @@ public abstract class NativeLibraryProvider {
         return Holder.INSTANCE;
     }
 
-    public abstract CLibrary getCLibrary();
+    public abstract PosixCLibrary getCLibrary();
 
     private static NativeLibraryProvider loadProvider() {
         final int runtimeVersion = Runtime.version().feature();

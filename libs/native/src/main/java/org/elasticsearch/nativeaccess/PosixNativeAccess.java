@@ -8,8 +8,8 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.lib.CLibrary;
-import org.elasticsearch.nativeaccess.lib.CLibrary.RLimit;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
 abstract class PosixNativeAccess extends NativeAccess {
 
@@ -22,13 +22,13 @@ abstract class PosixNativeAccess extends NativeAccess {
     protected final int RLIMIT_AS;
     protected final int RLIMIT_FSIZE = 1; // same on mac and linux
 
-    protected final CLibrary libc;
+    protected final PosixCLibrary libc;
 
     private boolean mlockallSucceeded = false;
     private long maxVirtualMemorySize = Long.MIN_VALUE;
     private long maxFileSize = Long.MIN_VALUE;
 
-    PosixNativeAccess(CLibrary libc, int RLIMIT_MEMLOCK, long RLIMIT_INFINITY, int RLIMIT_AS) {
+    PosixNativeAccess(PosixCLibrary libc, int RLIMIT_MEMLOCK, long RLIMIT_INFINITY, int RLIMIT_AS) {
         this.libc = libc;
         this.RLIMIT_MEMLOCK = RLIMIT_MEMLOCK;
         this.RLIMIT_INFINITY = RLIMIT_INFINITY;

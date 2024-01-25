@@ -8,10 +8,10 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.lib.CLibrary;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 class MacNativeAccess extends PosixNativeAccess {
-    MacNativeAccess(CLibrary libc) {
+    MacNativeAccess(PosixCLibrary libc) {
         super(libc, 6, 9223372036854775807L, 5);
     }
 

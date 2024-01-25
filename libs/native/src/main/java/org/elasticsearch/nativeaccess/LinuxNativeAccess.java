@@ -8,8 +8,8 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.lib.CLibrary;
-import org.elasticsearch.nativeaccess.lib.CLibrary.RLimit;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
 class LinuxNativeAccess extends PosixNativeAccess {
 
@@ -17,7 +17,7 @@ class LinuxNativeAccess extends PosixNativeAccess {
     // the user ID that owns the running Elasticsearch process
     private long maxNumberOfThreads = -1;
 
-    LinuxNativeAccess(CLibrary libc) {
+    LinuxNativeAccess(PosixCLibrary libc) {
         super(libc, 8, -1L, 9);
     }
 

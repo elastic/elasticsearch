@@ -10,24 +10,24 @@ package org.elasticsearch.nativeaccess.jna;
 
 import com.sun.jna.Native;
 
-import org.elasticsearch.nativeaccess.jna.JnaStaticCLibrary.JnaRLimit;
-import org.elasticsearch.nativeaccess.lib.CLibrary;
+import org.elasticsearch.nativeaccess.jna.JnaStaticPosixCLibrary.JnaRLimit;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
-public class JnaCLibrary implements CLibrary {
+public class JnaPosixCLibrary implements PosixCLibrary {
     @Override
     public int mlockall(int flags) {
-        return JnaStaticCLibrary.mlockall(flags);
+        return JnaStaticPosixCLibrary.mlockall(flags);
     }
 
     @Override
     public int geteuid() {
-        return JnaStaticCLibrary.geteuid();
+        return JnaStaticPosixCLibrary.geteuid();
     }
 
     @Override
     public int getrlimit(int resource, RLimit rlimit) {
         JnaRLimit jnaRlimit = new JnaRLimit();
-        int ret = JnaStaticCLibrary.getrlimit(resource, jnaRlimit);
+        int ret = JnaStaticPosixCLibrary.getrlimit(resource, jnaRlimit);
         rlimit.rlim_cur = jnaRlimit.rlim_cur.longValue();
         rlimit.rlim_max = jnaRlimit.rlim_max.longValue();
         return ret;
@@ -38,12 +38,12 @@ public class JnaCLibrary implements CLibrary {
         JnaRLimit jnaRlimit = new JnaRLimit();
         jnaRlimit.rlim_cur.setValue(rlimit.rlim_cur);
         jnaRlimit.rlim_max.setValue(rlimit.rlim_max);
-        return JnaStaticCLibrary.setrlimit(resource, jnaRlimit);
+        return JnaStaticPosixCLibrary.setrlimit(resource, jnaRlimit);
     }
 
     @Override
     public String strerror(int errno) {
-        return JnaStaticCLibrary.strerror(errno);
+        return JnaStaticPosixCLibrary.strerror(errno);
     }
 
     @Override

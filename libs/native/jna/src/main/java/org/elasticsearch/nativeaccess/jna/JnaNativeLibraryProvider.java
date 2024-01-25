@@ -10,8 +10,7 @@ package org.elasticsearch.nativeaccess.jna;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.lib.CLibrary;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 public class JnaNativeLibraryProvider extends NativeLibraryProvider {
@@ -36,9 +35,9 @@ public class JnaNativeLibraryProvider extends NativeLibraryProvider {
     }
 
     @Override
-    public CLibrary getCLibrary() {
-        if (JNA_AVAILABLE && JnaStaticCLibrary.loaded) {
-            return new JnaCLibrary();
+    public PosixCLibrary getCLibrary() {
+        if (JNA_AVAILABLE && JnaStaticPosixCLibrary.loaded) {
+            return new JnaPosixCLibrary();
         }
         return null;
     }

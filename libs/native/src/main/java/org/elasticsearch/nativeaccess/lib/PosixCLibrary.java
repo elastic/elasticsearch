@@ -8,9 +8,7 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-public interface CLibrary {
-
-
+public interface PosixCLibrary {
 
     int mlockall(int flags);
 

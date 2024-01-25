@@ -16,7 +16,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
@@ -116,22 +115,22 @@ public class IndexResolver {
     public static final String SQL_VIEW = "VIEW";
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
         new IndicesOptions.WildcardOptions.Builder().resolveAliases(false).build(),
         new IndicesOptions.GeneralOptions.Builder().removeThrottled(true).build()
     );
     private static final IndicesOptions FROZEN_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
         new IndicesOptions.WildcardOptions.Builder().resolveAliases(false).build()
     );
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
         IndicesOptions.WildcardOptions.DEFAULT_OPEN,
         new IndicesOptions.GeneralOptions.Builder().removeThrottled(true).build()
     );
     public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
         IndicesOptions.WildcardOptions.DEFAULT_OPEN
     );
 

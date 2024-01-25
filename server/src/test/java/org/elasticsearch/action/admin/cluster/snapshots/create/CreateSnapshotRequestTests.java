@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -23,7 +22,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +77,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             boolean defaultResolveAliasForThisRequest = original.indicesOptions().ignoreAliases() == false;
             original.indicesOptions(
                 new IndicesOptions(
-                    randomBoolean() ? Option.NONE : EnumSet.of(Option.IGNORE_UNAVAILABLE),
+                    new IndicesOptions.ConcreteTargetOptions(randomBoolean()),
                     new IndicesOptions.WildcardOptions(
                         randomBoolean(),
                         randomBoolean(),

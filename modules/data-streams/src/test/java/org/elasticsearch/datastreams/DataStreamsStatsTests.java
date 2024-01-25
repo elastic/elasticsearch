@@ -269,7 +269,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         if (includeHidden) {
             request.indicesOptions(
                 new IndicesOptions(
-                    request.indicesOptions().options(),
+                    request.indicesOptions().concreteTargetOptions(),
                     new IndicesOptions.WildcardOptions.Builder(request.indicesOptions().wildcardOptions()).removeHidden(false).build()
                 )
             );

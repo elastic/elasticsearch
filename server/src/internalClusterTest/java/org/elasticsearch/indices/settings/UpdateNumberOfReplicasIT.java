@@ -439,7 +439,10 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
     public void testUpdateNumberOfReplicasAllowNoIndices() {
         createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
-        final IndicesOptions options = new IndicesOptions(IndicesOptions.Option.NONE, IndicesOptions.WildcardOptions.DEFAULT_OPEN);
+        final IndicesOptions options = new IndicesOptions(
+            IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
+            IndicesOptions.WildcardOptions.DEFAULT_OPEN
+        );
         assertAcked(
             indicesAdmin().prepareUpdateSettings("non-existent-*")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1))

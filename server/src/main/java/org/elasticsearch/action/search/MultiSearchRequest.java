@@ -364,7 +364,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
-            IndicesOptions.WildcardOptions.toXContent(request.indicesOptions().wildcardOptions(), xContentBuilder, true);
+            request.indicesOptions().wildcardOptions().toXContent(xContentBuilder, true);
             xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
         }
         if (request.searchType() != null) {

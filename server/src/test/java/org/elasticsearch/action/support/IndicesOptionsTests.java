@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
 import org.elasticsearch.action.support.IndicesOptions.GeneralOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -345,9 +344,9 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         GeneralOptions generalOptions = new GeneralOptions(randomBoolean(), randomBoolean(), randomBoolean());
-        Collection<IndicesOptions.Option> options = randomSubsetOf(Option.VALUES_IN_USE);
+        ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean());
 
-        IndicesOptions indicesOptions = new IndicesOptions(options.isEmpty() ? Option.NONE : EnumSet.copyOf(options), wildcardOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -359,7 +358,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(((List<?>) map.get("expand_wildcards")).contains("open"), equalTo(wildcardOptions.includeOpen()));
         assertThat(((List<?>) map.get("expand_wildcards")).contains("closed"), equalTo(wildcardOptions.includeClosed()));
         assertThat(((List<?>) map.get("expand_wildcards")).contains("hidden"), not(equalTo(wildcardOptions.removeHidden())));
-        assertThat(map.get("ignore_unavailable"), equalTo(options.contains(Option.IGNORE_UNAVAILABLE)));
+        assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(generalOptions.removeThrottled()));
     }
@@ -372,9 +371,9 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        Collection<IndicesOptions.Option> options = randomSubsetOf(Option.VALUES_IN_USE);
+        ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean());
 
-        IndicesOptions indicesOptions = new IndicesOptions(options.isEmpty() ? Option.NONE : EnumSet.copyOf(options), wildcardOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -494,11 +493,6 @@ public class IndicesOptionsTests extends ESTestCase {
         }
         assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
         assertEquals(expectedWildcardStates, fromXContentOptions.wildcardOptions());
-    }
-
-    public void testOptionsStillInUse() {
-        EnumSet<Option> values = Option.VALUES_IN_USE;
-        assertThat(values, equalTo(EnumSet.of(Option.IGNORE_UNAVAILABLE)));
     }
 
     private BytesReference toXContentBytes(IndicesOptions indicesOptions, XContentType type) throws IOException {

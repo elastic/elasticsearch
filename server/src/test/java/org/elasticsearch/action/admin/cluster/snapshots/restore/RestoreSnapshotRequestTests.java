@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +78,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             instance.indicesOptions(
                 new IndicesOptions(
-                    randomBoolean() ? IndicesOptions.Option.NONE : EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE),
+                    new IndicesOptions.ConcreteTargetOptions(randomBoolean()),
                     new IndicesOptions.WildcardOptions(
                         randomBoolean(),
                         randomBoolean(),

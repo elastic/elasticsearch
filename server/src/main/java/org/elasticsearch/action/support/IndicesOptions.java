@@ -26,11 +26,9 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -39,12 +37,35 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
  * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
  */
-public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOptions, GeneralOptions generalOptions)
+public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, WildcardOptions wildcardOptions, GeneralOptions generalOptions)
     implements
         ToXContentFragment {
 
-    public IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOptions) {
-        this(options, wildcardOptions, GeneralOptions.DEFAULT);
+    public IndicesOptions(ConcreteTargetOptions concreteTargetOptions, WildcardOptions wildcardOptions) {
+        this(concreteTargetOptions, wildcardOptions, GeneralOptions.DEFAULT);
+    }
+
+    /**
+     * Controls the way the target indices will be handled.
+     * @param allowUnavailableTargets, if false when any of the concrete targets requested does not exist, throw an error
+     */
+    public record ConcreteTargetOptions(boolean allowUnavailableTargets) implements ToXContentFragment {
+        public static final ConcreteTargetOptions ALLOW_UNAVAILABLE_TARGETS = new ConcreteTargetOptions(true);
+        public static final ConcreteTargetOptions ERROR_WHEN_UNAVAILABLE_TARGETS = new ConcreteTargetOptions(false);
+
+        public static ConcreteTargetOptions fromParameter(Object ignoreUnavailableString, ConcreteTargetOptions defaultOption) {
+            if (ignoreUnavailableString == null && defaultOption != null) {
+                return defaultOption;
+            }
+            return nodeBooleanValue(ignoreUnavailableString, "ignore_unavailable")
+                ? ALLOW_UNAVAILABLE_TARGETS
+                : ERROR_WHEN_UNAVAILABLE_TARGETS;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field("ignore_unavailable", allowUnavailableTargets);
+        }
     }
 
     /**
@@ -63,7 +84,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         boolean removeHidden,
         boolean resolveAliases,
         boolean allowEmptyExpressions
-    ) implements Writeable {
+    ) implements Writeable, ToXContentFragment {
 
         public static final WildcardOptions DEFAULT_OPEN = new WildcardOptions.Builder().build();
         public static final WildcardOptions DEFAULT_OPEN_HIDDEN = new WildcardOptions.Builder().removeHidden(false).build();
@@ -93,8 +114,9 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             return builder.build();
         }
 
-        public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder) throws IOException {
-            return toXContent(options, builder, false);
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return toXContent(builder, false);
         }
 
         /**
@@ -104,16 +126,15 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
          *                                   to be a comma separated string that matches the allowed user input, this includes
          *                                   all the states along with the values 'all' and 'none'.
          */
-        public static XContentBuilder toXContent(WildcardOptions options, XContentBuilder builder, boolean wildcardStatesAsUserInput)
-            throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, boolean wildcardStatesAsUserInput) throws IOException {
             List<String> legacyStates = new ArrayList<>(3);
-            if (options.includeOpen()) {
+            if (includeOpen()) {
                 legacyStates.add("open");
             }
-            if (options.includeClosed()) {
+            if (includeClosed()) {
                 legacyStates.add("closed");
             }
-            if (options.removeHidden() == false) {
+            if (removeHidden() == false) {
                 legacyStates.add("hidden");
             }
             if (wildcardStatesAsUserInput) {
@@ -131,7 +152,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
                 }
                 builder.endArray();
             }
-            builder.field("allow_no_indices", options.allowEmptyExpressions());
+            builder.field("allow_no_indices", allowEmptyExpressions());
             return builder;
         }
 
@@ -256,25 +277,6 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
     }
 
     /**
-     * This class is maintained for backwards compatibility purposes. We use it for serialisation before {@link WildcardOptions}
-     * was introduced.
-     */
-    private enum WildcardStates {
-        OPEN,
-        CLOSED,
-        HIDDEN;
-
-        static WildcardOptions toWildcardOptions(EnumSet<WildcardStates> states, boolean allowNoIndices, boolean ignoreAlias) {
-            return new WildcardOptions.Builder().includeOpen(states.contains(OPEN))
-                .includeClosed(states.contains(CLOSED))
-                .removeHidden(states.contains(HIDDEN) == false)
-                .allowEmptyExpressions(allowNoIndices)
-                .resolveAliases(ignoreAlias == false)
-                .build();
-        }
-    }
-
-    /**
      * These options apply on all indices that have been selected by the other Options. It can either filter the response or
      * define what type of indices or aliases are not allowed which will result in an error response.
      * @param allowAliasToMultipleIndices, allow aliases to multiple indices, true by default.
@@ -283,7 +285,8 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
      */
     public record GeneralOptions(boolean allowAliasToMultipleIndices, boolean allowClosedIndices, @Deprecated boolean removeThrottled)
         implements
-            Writeable {
+            Writeable,
+            ToXContentFragment {
 
         public static final GeneralOptions DEFAULT = new GeneralOptions.Builder().build();
 
@@ -291,8 +294,8 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             return new GeneralOptions(in.readBoolean(), in.readBoolean(), in.readBoolean());
         }
 
-        public static GeneralOptions parseParameters(Object ignoreThrottled, GeneralOptions defaultOptions) {
-            if (ignoreThrottled == null) {
+        public static GeneralOptions parseParameter(Object ignoreThrottled, GeneralOptions defaultOptions) {
+            if (ignoreThrottled == null && defaultOptions != null) {
                 return defaultOptions;
             }
             return (defaultOptions == null ? new Builder() : new Builder(defaultOptions)).removeThrottled(
@@ -300,9 +303,9 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             ).build();
         }
 
-        public static XContentBuilder toXContent(GeneralOptions options, XContentBuilder builder) throws IOException {
-            builder.field("ignore_throttled", options.removeThrottled());
-            return builder;
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field("ignore_throttled", removeThrottled());
         }
 
         @Override
@@ -357,45 +360,36 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         }
     }
 
-    public enum Option {
-        IGNORE_UNAVAILABLE,
-        /**
-         * Please use {@link WildcardOptions#resolveAliases}
-         */
-        @Deprecated
-        DEPRECATED__IGNORE_ALIASES,
-        /**
-         * Please use {@link WildcardOptions#allowEmptyExpressions}
-         */
-        @Deprecated
-        DEPRECATED__ALLOW_NO_INDICES,
-        /**
-         * Please use {@link GeneralOptions#allowAliasToMultipleIndices}
-         */
-        @Deprecated
-        DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES,
-        /**
-         * Please use {@link GeneralOptions#allowClosedIndices}
-         */
-        @Deprecated
-        DEPRECATED__FORBID_CLOSED_INDICES,
-        /**
-         * Please use {@link GeneralOptions#ignoreThrottled}
-         */
-        @Deprecated
-        DEPRECATED__IGNORE_THROTTLED;
+    /**
+     * This class is maintained for backwards compatibility and performance purposes. We use it for serialisation along with {@link Option}.
+     */
+    private enum WildcardStates {
+        OPEN,
+        CLOSED,
+        HIDDEN;
 
-        public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
+        static WildcardOptions toWildcardOptions(EnumSet<WildcardStates> states, boolean allowNoIndices, boolean ignoreAlias) {
+            return new WildcardOptions.Builder().includeOpen(states.contains(OPEN))
+                .includeClosed(states.contains(CLOSED))
+                .removeHidden(states.contains(HIDDEN) == false)
+                .allowEmptyExpressions(allowNoIndices)
+                .resolveAliases(ignoreAlias == false)
+                .build();
+        }
+    }
 
-        /**
-         * These are the values that can still be used from this enum. There are replacement for the ones
-         */
-        public static final EnumSet<Option> VALUES_IN_USE = Arrays.stream(Option.values())
-            .filter(option -> option.name().startsWith("DEPRECATED_") == false)
-            .collect(Collectors.toCollection(() -> EnumSet.noneOf(Option.class)));
+    /**
+     * This class is maintained for backwards compatibility and performance purposes. We use it for serialisation along with
+     * {@link WildcardStates}.
+     */
+    private enum Option {
+        ALLOW_UNAVAILABLE_CONCRETE_TARGETS,
+        EXCLUDE_ALIASES,
+        ALLOW_EMPTY_WILDCARD_EXPRESSIONS,
+        ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES,
 
-        // ./gradlew ':server:test' --tests "org.elasticsearch.action.support.IndicesOptionsTests.testOptionsStillInUse"
-        // -Dtests.seed=CAF046A25FF1DC03
+        ERROR_WHEN_CLOSED_INDICES,
+        EXCLUDE_THROTTLED;
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
@@ -405,53 +399,56 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
     private static final String WILDCARD_NONE_DEPRECATION_MESSAGE = "Combining the value 'none' with other options is deprecated "
         + "because it is order sensitive. Please revise the expression to work without the 'none' option or only use 'none'.";
 
-    public static final IndicesOptions STRICT_EXPAND_OPEN = new IndicesOptions(EnumSet.noneOf(Option.class), WildcardOptions.DEFAULT_OPEN);
+    public static final IndicesOptions STRICT_EXPAND_OPEN = new IndicesOptions(
+        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
+        WildcardOptions.DEFAULT_OPEN
+    );
     public static final IndicesOptions LENIENT_EXPAND_OPEN = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_OPEN
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_OPEN_HIDDEN
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_OPEN_CLOSED
     );
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = new IndicesOptions(
-        EnumSet.of(Option.IGNORE_UNAVAILABLE),
+        ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = new IndicesOptions(
-        EnumSet.noneOf(Option.class),
+        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_OPEN_CLOSED
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = new IndicesOptions(
-        EnumSet.noneOf(Option.class),
+        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.noneOf(Option.class),
+        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_OPEN,
         new GeneralOptions.Builder().allowClosedIndices(false).build()
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.noneOf(Option.class),
+        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_OPEN_HIDDEN,
         new GeneralOptions.Builder().allowClosedIndices(false).build()
     );
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = new IndicesOptions(
-        EnumSet.noneOf(Option.class),
+        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_OPEN,
         new GeneralOptions.Builder().removeThrottled(true).allowClosedIndices(false).build()
     );
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.noneOf(Option.class),
+        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_NONE,
         new GeneralOptions.Builder().allowAliasToMultipleIndices(false).allowClosedIndices(false).build()
     );
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
-        EnumSet.noneOf(Option.class),
+        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT_NONE,
         new GeneralOptions.Builder().allowClosedIndices(false).build()
     );
@@ -460,7 +457,7 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */
     public boolean ignoreUnavailable() {
-        return options.contains(Option.IGNORE_UNAVAILABLE);
+        return concreteTargetOptions.allowUnavailableTargets();
     }
 
     /**
@@ -531,45 +528,28 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         return generalOptions().removeThrottled();
     }
 
-    /**
-     * @return the {@link WildcardOptions} that these indices options will expand to
-     */
-    public WildcardOptions wildcardOptions() {
-        return wildcardOptions;
-    }
-
-    /**
-     * @return the {@link GeneralOptions} that these indices options will expand to
-     */
-    public GeneralOptions generalOptions() {
-        return generalOptions;
-    }
-
-    /**
-     * @return a copy of the {@link Option}s that these indices options will use
-     */
-    public EnumSet<Option> options() {
-        return EnumSet.copyOf(options);
-    }
-
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        EnumSet<Option> backwardsCompatibleOptions = options.clone();
+        EnumSet<Option> backwardsCompatibleOptions = EnumSet.noneOf(Option.class);
         if (allowNoIndices()) {
-            backwardsCompatibleOptions.add(Option.DEPRECATED__ALLOW_NO_INDICES);
+            backwardsCompatibleOptions.add(Option.ALLOW_EMPTY_WILDCARD_EXPRESSIONS);
         }
         if (ignoreAliases()) {
-            backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_ALIASES);
+            backwardsCompatibleOptions.add(Option.EXCLUDE_ALIASES);
         }
         if (allowAliasesToMultipleIndices() == false) {
-            backwardsCompatibleOptions.add(Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES);
+            backwardsCompatibleOptions.add(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES);
         }
         if (forbidClosedIndices()) {
-            backwardsCompatibleOptions.add(Option.DEPRECATED__FORBID_CLOSED_INDICES);
+            backwardsCompatibleOptions.add(Option.ERROR_WHEN_CLOSED_INDICES);
         }
         if (ignoreThrottled()) {
-            backwardsCompatibleOptions.add(Option.DEPRECATED__IGNORE_THROTTLED);
+            backwardsCompatibleOptions.add(Option.EXCLUDE_THROTTLED);
+        }
+        if (ignoreUnavailable()) {
+            backwardsCompatibleOptions.add(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS);
         }
         out.writeEnumSet(backwardsCompatibleOptions);
+
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
         if (wildcardOptions.includeOpen()) {
             states.add(WildcardStates.OPEN);
@@ -587,19 +567,22 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         EnumSet<Option> options = in.readEnumSet(Option.class);
         WildcardOptions wildcardOptions = WildcardStates.toWildcardOptions(
             in.readEnumSet(WildcardStates.class),
-            options.contains(Option.DEPRECATED__ALLOW_NO_INDICES),
-            options.contains(Option.DEPRECATED__IGNORE_ALIASES)
+            options.contains(Option.ALLOW_EMPTY_WILDCARD_EXPRESSIONS),
+            options.contains(Option.EXCLUDE_ALIASES)
         );
         GeneralOptions generalOptions = new GeneralOptions.Builder().allowClosedIndices(
-            options.contains(Option.DEPRECATED__FORBID_CLOSED_INDICES) == false
+            options.contains(Option.ERROR_WHEN_CLOSED_INDICES) == false
         )
-            .allowAliasToMultipleIndices(options.contains(Option.DEPRECATED__FORBID_ALIASES_TO_MULTIPLE_INDICES) == false)
-            .removeThrottled(options.contains(Option.DEPRECATED__IGNORE_THROTTLED))
+            .allowAliasToMultipleIndices(options.contains(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES) == false)
+            .removeThrottled(options.contains(Option.EXCLUDE_THROTTLED))
             .build();
-        options = options.stream()
-            .filter(option -> option.name().startsWith("DEPRECATED_") == false)
-            .collect(Collectors.toCollection(() -> EnumSet.noneOf(Option.class)));
-        return new IndicesOptions(options, wildcardOptions, generalOptions);
+        return new IndicesOptions(
+            options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
+                ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS
+                : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
+            wildcardOptions,
+            generalOptions
+        );
     }
 
     public static IndicesOptions fromOptions(
@@ -685,7 +668,6 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         boolean ignoreAliases,
         boolean ignoreThrottled
     ) {
-        final EnumSet<Option> opts = EnumSet.noneOf(Option.class);
         final WildcardOptions wildcards = new WildcardOptions.Builder().includeOpen(expandToOpenIndices)
             .includeClosed(expandToClosedIndices)
             .removeHidden(expandToHiddenIndices == false)
@@ -696,11 +678,11 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
             .allowClosedIndices(forbidClosedIndices == false)
             .removeThrottled(ignoreThrottled)
             .build();
-
-        if (ignoreUnavailable) {
-            opts.add(Option.IGNORE_UNAVAILABLE);
-        }
-        return new IndicesOptions(opts, wildcards, generalOptions);
+        return new IndicesOptions(
+            ignoreUnavailable ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
+            wildcards,
+            generalOptions
+        );
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
@@ -754,11 +736,11 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
         }
 
         WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
-        GeneralOptions generalOptions = GeneralOptions.parseParameters(ignoreThrottled, defaultSettings.generalOptions);
+        GeneralOptions generalOptions = GeneralOptions.parseParameter(ignoreThrottled, defaultSettings.generalOptions);
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
-            nodeBooleanValue(ignoreUnavailableString, "ignore_unavailable", defaultSettings.ignoreUnavailable()),
+            ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions).allowUnavailableTargets(),
             wildcards.allowEmptyExpressions(),
             wildcards.includeOpen(),
             wildcards.includeClosed(),
@@ -772,9 +754,9 @@ public record IndicesOptions(EnumSet<Option> options, WildcardOptions wildcardOp
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        WildcardOptions.toXContent(wildcardOptions, builder);
-        builder.field("ignore_unavailable", ignoreUnavailable());
-        GeneralOptions.toXContent(generalOptions, builder);
+        concreteTargetOptions.toXContent(builder, params);
+        wildcardOptions.toXContent(builder, params);
+        generalOptions.toXContent(builder, params);
         return builder;
     }
 

@@ -25,7 +25,6 @@ not be included yet.
 * <<enrich-apis,Enrich APIs>>
 * <<eql-apis,EQL search APIs>>
 * <<esql-apis,{esql} query APIs>>
-* <<find-structure,Find structure API>>
 * <<fleet-apis,Fleet APIs>>
 * <<graph-explore-api,Graph explore API>>
 * <<indices, Index APIs>>
@@ -54,6 +53,7 @@ not be included yet.
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
 * <<sql-apis,SQL APIs>>
 * <<synonyms-apis,Synonyms APIs>>
+* <<text-structure-apis,Text structure APIs>>
 * <<transform-apis,{transform-cap} APIs>>
 * <<usage-api,Usage API>>
 * <<watcher-api,Watcher APIs>>
@@ -75,7 +75,6 @@ include::{es-repo-dir}/eql/eql-apis.asciidoc[]
 include::{es-repo-dir}/esql/esql-apis.asciidoc[]
 include::{es-repo-dir}/features/apis/features-apis.asciidoc[]
 include::{es-repo-dir}/fleet/index.asciidoc[]
-include::{es-repo-dir}/text-structure/apis/find-structure.asciidoc[leveloffset=+1]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
@@ -103,6 +102,7 @@ include::{es-repo-dir}/snapshot-restore/apis/snapshot-restore-apis.asciidoc[]
 include::{es-repo-dir}/slm/apis/slm-api.asciidoc[]
 include::{es-repo-dir}/sql/apis/sql-apis.asciidoc[]
 include::{es-repo-dir}/synonyms/apis/synonyms-apis.asciidoc[]
+include::{es-repo-dir}/text-structure/apis/index.asciidoc[]
 include::{es-repo-dir}/transform/apis/index.asciidoc[]
 include::usage.asciidoc[]
 include::{es-repo-dir}/rest-api/watcher.asciidoc[]

@@ -16,7 +16,7 @@ public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
     public static final String NAME = "indices:data/read/xpack/application/search_application/search";
 
     public QuerySearchApplicationAction() {
-        super(NAME, SearchResponse::new);
+        super(NAME);
     }
 
 }

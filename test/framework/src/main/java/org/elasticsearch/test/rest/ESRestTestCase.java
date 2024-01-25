@@ -274,6 +274,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         return testFeatureService.clusterHasFeature(feature.id());
     }
 
+    protected static boolean testFeatureServiceInitialized() {
+        return testFeatureService != ALL_FEATURES;
+    }
+
     @Before
     public void initClient() throws IOException {
         if (client == null) {
@@ -281,7 +285,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert availableFeatures == null;
             assert nodesVersions == null;
-            assert testFeatureService == ALL_FEATURES;
+            assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
@@ -343,7 +347,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }
 
-        assert testFeatureService != ALL_FEATURES;
+        assert testFeatureServiceInitialized();
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;

@@ -559,11 +559,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+        return mergeMappings(currentMapper, incomingMapping, reason, Long.MAX_VALUE);
+    }
+
+    static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
         Mapping newMapping;
         if (currentMapper == null) {
-            newMapping = incomingMapping;
+            newMapping = incomingMapping.withFieldsBudget(newFieldsBudget);
         } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason, newFieldsBudget);
         }
         return newMapping;
     }

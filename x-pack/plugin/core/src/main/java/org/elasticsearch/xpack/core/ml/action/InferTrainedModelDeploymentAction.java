@@ -56,7 +56,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
     public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployment/infer";
 
     public InferTrainedModelDeploymentAction() {
-        super(NAME, InferTrainedModelDeploymentAction.Response::new);
+        super(NAME);
     }
 
     /**

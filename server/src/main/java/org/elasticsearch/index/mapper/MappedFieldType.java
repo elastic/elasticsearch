@@ -640,6 +640,17 @@ public abstract class MappedFieldType {
         return null;
     }
 
+    public enum FieldExtractPreference {
+        /**
+         * Load the field from doc-values into a BlockLoader supporting doc-values.
+         */
+        DOC_VALUES,
+        /**
+         * No preference. Leave the choice of where to load the field from up to the FieldType.
+         */
+        NONE
+    }
+
     /**
      * Arguments for {@link #blockLoader}.
      */
@@ -648,6 +659,13 @@ public abstract class MappedFieldType {
          * The name of the index.
          */
         String indexName();
+
+        /**
+         * How the field should be extracted into the BlockLoader. The default is {@link FieldExtractPreference#NONE}, which means
+         * that the field type can choose where to load the field from. However, in some cases, the caller may have a preference.
+         * For example, when loading a spatial field for usage in STATS, it is preferable to load from doc-values.
+         */
+        FieldExtractPreference fieldExtractPreference();
 
         /**
          * {@link SearchLookup} used for building scripts.

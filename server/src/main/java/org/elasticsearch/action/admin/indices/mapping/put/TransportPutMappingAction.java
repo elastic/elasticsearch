@@ -45,7 +45,7 @@ import java.util.Optional;
  */
 public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("indices:admin/mapping/put");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/mapping/put");
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;

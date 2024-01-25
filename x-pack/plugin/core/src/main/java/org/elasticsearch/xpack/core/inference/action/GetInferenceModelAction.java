@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -30,7 +29,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
     public static final String NAME = "cluster:admin/xpack/inference/get";
 
     public GetInferenceModelAction() {
-        super(NAME, GetInferenceModelAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<GetInferenceModelAction.Request> {
@@ -47,11 +46,6 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             super(in);
             this.modelId = in.readString();
             this.taskType = TaskType.fromStream(in);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         public String getModelId() {

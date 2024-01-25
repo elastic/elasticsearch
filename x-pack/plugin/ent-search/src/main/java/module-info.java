@@ -39,6 +39,4 @@ module org.elasticsearch.application {
     exports org.elasticsearch.xpack.application.connector.syncjob.action;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
-
-    exports org.elasticsearch.xpack.application.connector.secrets.action to org.elasticsearch.server;
 }

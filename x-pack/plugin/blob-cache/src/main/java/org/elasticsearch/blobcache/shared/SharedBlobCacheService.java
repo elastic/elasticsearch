@@ -1415,6 +1415,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             if (ioRef != null) {
                                 try {
                                     if (entry.chunk.refCount() == 1) {
+                                        // we own that one refcount (since we CAS'ed evicted to 1)
                                         // grab io, rely on incref'ers also checking evicted field.
                                         entry.chunk.io = null;
                                         assert regionOwners.remove(ioRef) == entry.chunk;

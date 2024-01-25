@@ -17,10 +17,9 @@ Numeric expression. If `null`, the function returns `null`.
 
 *Description*
 
-Returns the value of a base (first argument) raised to the power of an exponent
-(second argument). Both arguments must be numeric. The output is always a
-double.  Note that it is still possible to overflow a double result here; in
-that case, null will be returned.
+Returns the value of `base` raised to the power of `exponent`. Both arguments
+must be numeric. The output is always a double.  Note that it is still possible
+to overflow a double result here; in that case, null will be returned.
 
 *Supported types*
 

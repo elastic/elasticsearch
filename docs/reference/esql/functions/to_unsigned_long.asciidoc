@@ -27,8 +27,8 @@ Converts an input value to an unsigned long value.
 The input type must be of a boolean, date, string or numeric type.
 
 If the input parameter is of a date type, its value will be interpreted as
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
-converted to unsigned long.
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned
+long.
 
 Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
 

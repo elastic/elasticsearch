@@ -22,8 +22,7 @@ The order that <<esql-multivalued-fields, multivalued fields>> are read from
 underlying storage is not guaranteed. It is *frequently* ascending, but don't
 rely on that. If you need the minimum value use <<esql-mv_min>> instead of
 `MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn't a
-performance benefit to `MV_FIRST`. `MV_FIRST` is mostly useful with functions
-that create multivalued columns like `SPLIT`.
+performance benefit to `MV_FIRST`.
 
 *Supported types*
 

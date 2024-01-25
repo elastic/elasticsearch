@@ -16,7 +16,7 @@ Input value. The input can be a single- or multi-valued column or an expression.
 
 *Description*
 
-Converts a field into a string.
+Converts an input value into a string.
 
 *Supported types*
 

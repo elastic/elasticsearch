@@ -14,7 +14,7 @@ Numeric expression. If `null`, the function returns `null`.
 
 *Description*
 
-https://en.wikipedia.org/wiki/Hyperbolic_functions[Sine] hyperbolic function.
+{wikipedia}/Hyperbolic_functions[Sine] hyperbolic function.
 
 *Supported types*
 

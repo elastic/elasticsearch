@@ -23,7 +23,7 @@ than standard deviation.
 
 It is calculated as the median of each data point's deviation from the median of
 the entire sample. That is, for a random variable `X`, the median absolute
-deviation is `median(|median(X) - Xi|)`.
+deviation is `median(|median(X) - X|)`.
 
 NOTE: Like <<esql-agg-percentile>>, `MEDIAN_ABSOLUTE_DEVIATION` is
       <<esql-agg-percentile-approximate,usually approximate>>.

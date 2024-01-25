@@ -16,8 +16,8 @@ Input value. The input can be a single- or multi-valued column or an expression.
 
 *Description*
 
-Converts a number in https://en.wikipedia.org/wiki/Radian[radians] to
-https://en.wikipedia.org/wiki/Degree_(angle)[degrees].
+Converts a number in {wikipedia}/Radian[radians] to
+{wikipedia}/Degree_(angle)[degrees].
 
 *Supported types*
 

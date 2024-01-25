@@ -14,8 +14,8 @@ Multivalue expression.
 
 *Description*
 
-Converts a multivalued column into a single valued column containing the maximum
-value.
+Converts a multivalued expression into a single valued column containing the
+maximum value.
 
 *Supported types*
 
@@ -33,7 +33,7 @@ include::{esql-specs}/math.csv-spec[tag=mv_max-result]
 |===
 
 It can be used by any column type, including `keyword` columns. In that case
-picks the last string, comparing their utf-8 representation byte by byte:
+it picks the last string, comparing their utf-8 representation byte by byte:
 
 [source.merge.styled,esql]
 ----

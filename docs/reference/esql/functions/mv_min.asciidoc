@@ -33,7 +33,7 @@ include::{esql-specs}/math.csv-spec[tag=mv_min-result]
 |===
 
 It can be used by any column type, including `keyword` columns. In that case,
-picks the first string, comparing their utf-8 representation byte by byte:
+it picks the first string, comparing their utf-8 representation byte by byte:
 
 [source.merge.styled,esql]
 ----

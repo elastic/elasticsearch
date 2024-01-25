@@ -15,7 +15,7 @@ PERCENTILE(column, percentile)
 Column to convert from multiple values to single value.
 
 `percentile`::
-A numeric expression.
+A constant numeric expression.
 
 *Description*
 

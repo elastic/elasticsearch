@@ -19,8 +19,7 @@ Input value. The input can be a single- or multi-valued column or an expression.
 Converts an input value to a `point` value.
 
 A string will only be successfully converted if it respects the
-https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[WKT
-Point] format.
+{wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
 
 *Supported types*
 

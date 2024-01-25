@@ -20,8 +20,8 @@ Replacement string.
 
 *Description*
 
-The function substitutes in the string (1st argument) any match of the regular
-expression (2nd argument) with the replacement string (3rd argument).
+The function substitutes in the string `str` any match of the regular expression
+`regex` with the replacement string `newStr`.
 
 If any of the arguments is `null`, the result is `null`.
 

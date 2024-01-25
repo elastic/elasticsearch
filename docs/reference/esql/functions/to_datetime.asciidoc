@@ -54,8 +54,7 @@ A following header will contain the failure reason and the offending value:
 `"java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"`
 
 If the input parameter is of a numeric type, its value will be interpreted as
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
-For example:
+milliseconds since the {wikipedia}/Unix_time[Unix epoch]. For example:
 
 [source.merge.styled,esql]
 ----

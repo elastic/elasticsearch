@@ -14,8 +14,8 @@ Numeric expression. If `null`, the function returns `null`.
 
 *Description*
 
-https://en.wikipedia.org/wiki/Sine_and_cosine[Sine] trigonometric function.
-Input expected in radians.
+{wikipedia}/Sine_and_cosine[Sine] trigonometric function. Input expected in
+radians.
 
 *Supported types*
 

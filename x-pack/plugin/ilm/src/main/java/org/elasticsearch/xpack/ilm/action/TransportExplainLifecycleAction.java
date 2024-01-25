@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
-import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;

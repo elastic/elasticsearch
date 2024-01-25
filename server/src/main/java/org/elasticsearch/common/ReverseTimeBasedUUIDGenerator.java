@@ -18,7 +18,7 @@ package org.elasticsearch.common;
 public class ReverseTimeBasedUUIDGenerator extends TimeBasedUUIDGenerator {
     @Override
     public String getBase64UUID() {
-        final int sequenceId = sequenceNumber.incrementAndGet() & 0xffffff;
+        final int sequenceId = sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
 
         long timestamp = this.lastTimestamp.accumulateAndGet(
             currentTimeMillis(),
@@ -33,8 +33,8 @@ public class ReverseTimeBasedUUIDGenerator extends TimeBasedUUIDGenerator {
         uuidBytes[i++] = (byte) (timestamp >>> 24); // changes every ~4.5h
         uuidBytes[i++] = (byte) (timestamp >>> 16); // changes every ~65 secs
 
-        // MAC address of the coordinator might change if there are many and the indexing api
-        // does not always target the same coordinator.
+        // MAC address of the coordinator might change if there are many coordinators in the cluster
+        // and the indexing api does not necessarily target the same coordinator.
         byte[] macAddress = macAddress();
         assert macAddress.length == 6;
         System.arraycopy(macAddress, 0, uuidBytes, i, macAddress.length);

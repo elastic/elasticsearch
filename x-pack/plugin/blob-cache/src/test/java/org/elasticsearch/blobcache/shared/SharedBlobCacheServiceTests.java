@@ -251,9 +251,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testDecay() throws IOException {
+        // we have 8 regions
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(400)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
@@ -268,58 +269,85 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 BlobCacheMetrics.NOOP
             )
         ) {
+            assertEquals(4, cacheService.freeRegionCount());
+
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
             final var cacheKey3 = generateCacheKey();
-            assertEquals(5, cacheService.freeRegionCount());
-            final var region0 = cacheService.get(cacheKey1, size(250), 0);
-            assertEquals(4, cacheService.freeRegionCount());
-            final var region1 = cacheService.get(cacheKey2, size(250), 1);
+            // add a region that we can evict when provoking first decay
+            cacheService.get("evictkey", size(250), 0);
             assertEquals(3, cacheService.freeRegionCount());
-            final var region2 = cacheService.get(cacheKey3, size(250), 1);
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
             assertEquals(2, cacheService.freeRegionCount());
+            final var region1 = cacheService.get(cacheKey2, size(250), 1);
+            assertEquals(1, cacheService.freeRegionCount());
+            final var region2 = cacheService.get(cacheKey3, size(250), 1);
+            assertEquals(0, cacheService.freeRegionCount());
 
             assertEquals(1, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
             assertEquals(1, cacheService.getFreq(region2));
+            AtomicLong expectedEpoch = new AtomicLong();
+            Runnable triggerDecay = () -> {
+                assertThat(taskQueue.hasRunnableTasks(), is(false));
+                cacheService.get(expectedEpoch.toString(), size(250), 0);
+                assertThat(taskQueue.hasRunnableTasks(), is(true));
+                taskQueue.runAllRunnableTasks();
+                assertThat(cacheService.epoch(), equalTo(expectedEpoch.incrementAndGet()));
+            };
 
-            taskQueue.advanceTime();
-            taskQueue.runAllRunnableTasks();
+            triggerDecay.run();
+
+            cacheService.get(cacheKey1, size(250), 0);
+            cacheService.get(cacheKey2, size(250), 1);
+            cacheService.get(cacheKey3, size(250), 1);
+
+            triggerDecay.run();
 
             final var region0Again = cacheService.get(cacheKey1, size(250), 0);
             assertSame(region0Again, region0);
-            assertEquals(2, cacheService.getFreq(region0));
+            assertEquals(3, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
             assertEquals(1, cacheService.getFreq(region2));
 
-            taskQueue.advanceTime();
-            taskQueue.runAllRunnableTasks();
+            triggerDecay.run();
+
             cacheService.get(cacheKey1, size(250), 0);
-            assertEquals(3, cacheService.getFreq(region0));
+            assertEquals(4, cacheService.getFreq(region0));
             cacheService.get(cacheKey1, size(250), 0);
-            assertEquals(3, cacheService.getFreq(region0));
+            assertEquals(4, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
             assertEquals(0, cacheService.getFreq(region2));
 
-            // advance 2 ticks (decay only starts after 2 ticks)
-            taskQueue.advanceTime();
-            taskQueue.runAllRunnableTasks();
-            taskQueue.advanceTime();
-            taskQueue.runAllRunnableTasks();
+            // ensure no freq=0 entries
+            cacheService.get(cacheKey2, size(250), 1);
+            cacheService.get(cacheKey3, size(250), 1);
+            assertEquals(2, cacheService.getFreq(region1));
+            assertEquals(2, cacheService.getFreq(region2));
+
+            triggerDecay.run();
+
+            assertEquals(3, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
+
+            triggerDecay.run();
             assertEquals(2, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
             assertEquals(0, cacheService.getFreq(region2));
 
-            // advance another tick
-            taskQueue.advanceTime();
-            taskQueue.runAllRunnableTasks();
-            assertEquals(1, cacheService.getFreq(region0));
-            assertEquals(0, cacheService.getFreq(region1));
-            assertEquals(0, cacheService.getFreq(region2));
+            // ensure no freq=0 entries
+            cacheService.get(cacheKey2, size(250), 1);
+            cacheService.get(cacheKey3, size(250), 1);
+            assertEquals(2, cacheService.getFreq(region1));
+            assertEquals(2, cacheService.getFreq(region2));
 
-            // advance another tick
-            taskQueue.advanceTime();
-            taskQueue.runAllRunnableTasks();
+            triggerDecay.run();
+            assertEquals(1, cacheService.getFreq(region0));
+            assertEquals(1, cacheService.getFreq(region1));
+            assertEquals(1, cacheService.getFreq(region2));
+
+            triggerDecay.run();
             assertEquals(0, cacheService.getFreq(region0));
             assertEquals(0, cacheService.getFreq(region1));
             assertEquals(0, cacheService.getFreq(region2));
@@ -732,7 +760,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testMaybeEvictLeastUsed() throws Exception {
-        final int numRegions = 10;randomIntBetween(1, 500);
+        final int numRegions = 10;
         final long regionSize = size(1L);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -781,24 +809,26 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
             assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
 
-            // simulate elapsed time
-            var minInternalMillis = SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING.getDefault(Settings.EMPTY).millis();
-            relativeTimeInMillis.addAndGet(minInternalMillis);
+            cacheService.tryNewEpoch();
+            taskQueue.runAllRunnableTasks();
+
+            cacheEntries.keySet().forEach(key -> cacheService.get(key, regionSize, 0));
+            cacheService.tryNewEpoch();
+            taskQueue.runAllRunnableTasks();
 
             // touch some random cache entries
             var useedCacheKeys = Set.copyOf(randomSubsetOf(cacheEntries.keySet()));
             useedCacheKeys.forEach(key -> cacheService.get(key, regionSize, 0));
 
             cacheEntries.forEach(
-                (key, entry) -> assertThat(cacheService.getFreq(entry), useedCacheKeys.contains(key) ? equalTo(2) : equalTo(1))
+                (key, entry) -> assertThat(cacheService.getFreq(entry), useedCacheKeys.contains(key) ? equalTo(3) : equalTo(1))
             );
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
             assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
 
-            // need to advance time and compute decay to decrease frequencies in cache
-            relativeTimeInMillis.addAndGet(minInternalMillis);
-            cacheService.computeDecay();
+            cacheService.tryNewEpoch();
+            taskQueue.runAllRunnableTasks();
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
             cacheEntries.forEach(

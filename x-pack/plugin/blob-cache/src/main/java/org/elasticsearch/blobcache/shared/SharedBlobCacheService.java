@@ -59,7 +59,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
-import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -259,6 +258,18 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         if (cache instanceof LFUCache lfuCache) {
             lfuCache.computeDecay();
         }
+    }
+
+    // used in tests
+    void tryNewEpoch() {
+        if (cache instanceof LFUCache lfuCache) {
+            lfuCache.tryNewEpoch(lfuCache.epoch.get());
+        }
+    }
+
+    // used in tests
+    long epoch() {
+        return ((LFUCache) cache).epoch.get();
     }
 
     private interface Cache<K, T> extends Releasable {
@@ -1151,6 +1162,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             LFUCacheEntry(CacheFileRegion chunk, long lastAccessed) {
                 super(chunk);
                 this.lastAccessedEpoch = lastAccessed;
+                // todo: consider whether freq=1 is still right for new entries.
+                // it could risk decaying to level 0 right after and thus potentially be evicted
+                // if the freq 1 LRU chain was short.
                 this.freq = 1;
             }
 
@@ -1412,11 +1426,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             assert Thread.holdsLock(SharedBlobCacheService.this);
             long currentEpoch = epoch.get();
             SharedBytes.IO freq0 = maybeEvictAndTakeForFrequency(evictedNotification, 0);
+            if (freqs[0] == null) {
+                // no frequency 0 entries, let us switch epoch and decay so we get some for next time.
+                tryNewEpoch(currentEpoch);
+            }
             if (freq0 != null) {
                 return freq0;
             }
-            // no frequency 0 entries, let us switch epoch and decay so we get some for next time.
-            tryNewEpoch(currentEpoch);
             for (int currentFreq = 1; currentFreq < maxFreq; currentFreq++) {
                 // recheck this per freq in case we raced an eviction with an incref'er.
                 SharedBytes.IO freeRegion = freeRegions.poll();

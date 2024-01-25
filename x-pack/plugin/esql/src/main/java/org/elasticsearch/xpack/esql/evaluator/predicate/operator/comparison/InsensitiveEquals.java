@@ -50,7 +50,8 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
     protected TypeResolution resolveType() {
         return TypeResolutions.isString(left(), sourceText(), TypeResolutions.ParamOrdinal.FIRST)
-            .and(TypeResolutions.isString(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
+            .and(TypeResolutions.isString(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND))
+            .and(TypeResolutions.isFoldable(right(), sourceText(), TypeResolutions.ParamOrdinal.SECOND));
     }
 
     public static Automaton automaton(BytesRef val) {

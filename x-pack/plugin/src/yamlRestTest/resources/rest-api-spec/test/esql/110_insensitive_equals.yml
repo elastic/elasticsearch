@@ -1,8 +1,9 @@
 ---
 setup:
   - skip:
-      version: " - 8.12.99"
-      reason: "Insensitive equals implemented in v 8.13"
+      version: "all"
+      reason: "waiting for final decisions on supporting generic expressions on the right https://github.com/elastic/elasticsearch/issues/103599"
+
       features: allowed_warnings_regex
   - do:
       indices.create:

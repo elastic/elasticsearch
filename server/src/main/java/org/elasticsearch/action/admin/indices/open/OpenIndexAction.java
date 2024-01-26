@@ -16,7 +16,7 @@ public class OpenIndexAction extends ActionType<OpenIndexResponse> {
     public static final String NAME = "indices:admin/open";
 
     private OpenIndexAction() {
-        super(NAME, OpenIndexResponse::new);
+        super(NAME);
     }
 
 }

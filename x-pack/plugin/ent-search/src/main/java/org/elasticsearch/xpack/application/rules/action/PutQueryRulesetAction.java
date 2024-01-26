@@ -39,7 +39,7 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
     public static final String NAME = "cluster:admin/xpack/query_rules/put";
 
     public PutQueryRulesetAction() {
-        super(NAME, PutQueryRulesetAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

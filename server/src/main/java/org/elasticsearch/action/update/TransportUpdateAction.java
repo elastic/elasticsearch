@@ -60,7 +60,7 @@ import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.t
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
     public static final String NAME = "indices:data/write/update";
-    public static final ActionType<UpdateResponse> TYPE = new ActionType<>(NAME, UpdateResponse::new);
+    public static final ActionType<UpdateResponse> TYPE = new ActionType<>(NAME);
     private final AutoCreateIndex autoCreateIndex;
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;

@@ -522,9 +522,6 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             public String getResponseContentTypeString() {
                 return "application/octet-stream";
             }
-
-            @Override
-            public void close() {}
         };
     }
 

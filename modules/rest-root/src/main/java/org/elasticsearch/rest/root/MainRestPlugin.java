@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 
 public class MainRestPlugin extends Plugin implements ActionPlugin {
 
-    public static final ActionType<MainResponse> MAIN_ACTION = ActionType.localOnly("cluster:monitor/main");
+    public static final ActionType<MainResponse> MAIN_ACTION = new ActionType<>("cluster:monitor/main");
 
     @Override
     public List<RestHandler> getRestHandlers(

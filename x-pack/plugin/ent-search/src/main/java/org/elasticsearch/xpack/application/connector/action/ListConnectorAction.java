@@ -34,7 +34,7 @@ public class ListConnectorAction extends ActionType<ListConnectorAction.Response
     public static final String NAME = "cluster:admin/xpack/connector/list";
 
     public ListConnectorAction() {
-        super(NAME, ListConnectorAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

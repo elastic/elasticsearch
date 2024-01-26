@@ -40,9 +40,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     NodesReloadSecureSettingsRequest.NodeRequest,
     NodesReloadSecureSettingsResponse.NodeResponse> {
 
-    public static final ActionType<NodesReloadSecureSettingsResponse> TYPE = ActionType.localOnly(
-        "cluster:admin/nodes/reload_secure_settings"
-    );
+    public static final ActionType<NodesReloadSecureSettingsResponse> TYPE = new ActionType<>("cluster:admin/nodes/reload_secure_settings");
 
     private static final Logger logger = LogManager.getLogger(TransportNodesReloadSecureSettingsAction.class);
 

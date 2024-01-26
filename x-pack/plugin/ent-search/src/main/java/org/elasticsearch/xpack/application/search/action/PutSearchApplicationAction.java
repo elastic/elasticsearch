@@ -36,7 +36,7 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
     public static final String NAME = "cluster:admin/xpack/application/search_application/put";
 
     public PutSearchApplicationAction() {
-        super(NAME, PutSearchApplicationAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

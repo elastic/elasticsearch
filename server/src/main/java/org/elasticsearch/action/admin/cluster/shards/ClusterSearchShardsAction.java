@@ -16,6 +16,6 @@ public class ClusterSearchShardsAction extends ActionType<ClusterSearchShardsRes
     public static final String NAME = "indices:admin/shards/search_shards";
 
     private ClusterSearchShardsAction() {
-        super(NAME, ClusterSearchShardsResponse::new);
+        super(NAME);
     }
 }

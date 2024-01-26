@@ -34,7 +34,7 @@ public class ListQueryRulesetsAction extends ActionType<ListQueryRulesetsAction.
     public static final String NAME = "cluster:admin/xpack/query_rules/list";
 
     public ListQueryRulesetsAction() {
-        super(NAME, ListQueryRulesetsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

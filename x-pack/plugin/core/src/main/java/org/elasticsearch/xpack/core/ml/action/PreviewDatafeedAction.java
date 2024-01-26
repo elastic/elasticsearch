@@ -47,7 +47,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/preview";
 
     private PreviewDatafeedAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

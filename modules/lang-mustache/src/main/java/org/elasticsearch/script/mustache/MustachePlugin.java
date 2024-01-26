@@ -34,13 +34,9 @@ import java.util.function.Supplier;
 
 public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
 
-    public static final ActionType<SearchTemplateResponse> SEARCH_TEMPLATE_ACTION = new ActionType<>(
-        "indices:data/read/search/template",
-        SearchTemplateResponse::new
-    );
+    public static final ActionType<SearchTemplateResponse> SEARCH_TEMPLATE_ACTION = new ActionType<>("indices:data/read/search/template");
     public static final ActionType<MultiSearchTemplateResponse> MULTI_SEARCH_TEMPLATE_ACTION = new ActionType<>(
-        "indices:data/read/msearch/template",
-        MultiSearchTemplateResponse::new
+        "indices:data/read/msearch/template"
     );
 
     @Override

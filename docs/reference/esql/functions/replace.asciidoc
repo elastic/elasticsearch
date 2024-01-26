@@ -1,11 +1,38 @@
 [discrete]
 [[esql-replace]]
 === `REPLACE`
-The function substitutes in the string (1st argument) any match of the regular expression (2nd argument) with the replacement string (3rd argument).
 
-If any of the arguments are `NULL`, the result is `NULL`.
+*Syntax*
 
-. This example replaces an occurrence of the word "World" with the word "Universe":
+[.text-center]
+image::esql/functions/signature/replace.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`str`::
+String expression.
+
+`regex`::
+Regular expression.
+
+`newStr`::
+Replacement string.
+
+*Description*
+
+The function substitutes in the string `str` any match of the regular expression
+`regex` with the replacement string `newStr`.
+
+If any of the arguments is `null`, the result is `null`.
+
+*Supported types*
+
+include::types/replace.asciidoc[]
+
+*Example*
+
+This example replaces any occurrence of the word "World" with the word
+"Universe":
 
 [source.merge.styled,esql]
 ----

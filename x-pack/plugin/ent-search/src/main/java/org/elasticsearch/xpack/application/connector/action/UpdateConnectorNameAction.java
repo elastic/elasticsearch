@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionResponse> {
@@ -38,7 +37,7 @@ public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionR
     public static final String NAME = "cluster:admin/xpack/connector/update_name";
 
     public UpdateConnectorNameAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -84,8 +83,11 @@ public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionR
             if (Strings.isNullOrEmpty(connectorId)) {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
-            if (Strings.isNullOrEmpty(name)) {
-                validationException = addValidationError("[name] cannot be [null] or [\"\"].", validationException);
+            if (name == null && description == null) {
+                validationException = addValidationError(
+                    "[name] and [description] cannot both be [null]. Please provide a value for at least one of them.",
+                    validationException
+                );
             }
 
             return validationException;
@@ -98,7 +100,7 @@ public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionR
         );
 
         static {
-            PARSER.declareStringOrNull(constructorArg(), Connector.NAME_FIELD);
+            PARSER.declareStringOrNull(optionalConstructorArg(), Connector.NAME_FIELD);
             PARSER.declareStringOrNull(optionalConstructorArg(), Connector.DESCRIPTION_FIELD);
         }
 
@@ -122,7 +124,9 @@ public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionR
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(Connector.NAME_FIELD.getPreferredName(), name);
+                if (name != null) {
+                    builder.field(Connector.NAME_FIELD.getPreferredName(), name);
+                }
                 if (description != null) {
                     builder.field(Connector.DESCRIPTION_FIELD.getPreferredName(), description);
                 }

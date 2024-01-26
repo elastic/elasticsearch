@@ -81,6 +81,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         assertThat(hits.length, equalTo(docs.length));
         for (int i = 0; i < hits.length; i++) {
             assertThat(hits[i].docId(), equalTo(docs[i]));
+            hits[i].decRef();
         }
 
         reader.close();

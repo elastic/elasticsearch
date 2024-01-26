@@ -38,7 +38,7 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
     public static final String NAME = "cluster:admin/xpack/application/search_application/list";
 
     public ListSearchApplicationAction() {
-        super(NAME, ListSearchApplicationAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

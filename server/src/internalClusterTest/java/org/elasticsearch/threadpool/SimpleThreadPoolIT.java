@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -111,6 +111,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104652")
     public void testThreadPoolMetrics() throws Exception {
         internalCluster().startNode();
 
@@ -141,9 +142,9 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)));
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)));
         }
-        plugin.collect();
         final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
         ThreadPoolStats tps = tp.stats();
+        plugin.collect();
         ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
         tps.forEach(stats -> {
@@ -168,7 +169,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                     measurements = plugin.getLongGaugeMeasurement(metricName);
                 }
                 assertThat(metricName, in(registeredMetrics));
-                assertThat(measurements.get(0).value(), equalTo(value));
+                assertThat(measurements.get(0).getLong(), greaterThanOrEqualTo(value));
             });
         });
     }

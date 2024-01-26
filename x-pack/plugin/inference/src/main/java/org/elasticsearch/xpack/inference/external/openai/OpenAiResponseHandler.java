@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorRes
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
+import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
     /**
@@ -35,6 +35,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+    static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
@@ -62,7 +63,11 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
 
         // handle error codes
-        if (statusCode >= 500) {
+        if (statusCode == 500) {
+            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+        } else if (statusCode == 503) {
+            throw new RetryException(true, buildError(OPENAI_SERVER_BUSY, request, result));
+        } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
             throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
@@ -109,13 +114,5 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         );
 
         return RATE_LIMIT + ". " + usageMessage;
-    }
-
-    private static String getFirstHeaderOrUnknown(HttpResponse response, String name) {
-        var header = response.getFirstHeader(name);
-        if (header != null && header.getElements().length > 0) {
-            return header.getElements()[0].getName();
-        }
-        return "unknown";
     }
 }

@@ -316,7 +316,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 this.hit = hit == null ? null : hit.asUnpooled();
             }
 
-            private static ToXContent serializeHit(SearchHit hit, XContentBuilder builder, Params params) throws IOException {
+            private static void serializeHit(SearchHit hit, XContentBuilder builder, Params params) throws IOException {
                 Iterator<? extends ToXContent> serialization = hit.toInnerXContentChunked(params);
                 while (serialization.hasNext()) {
                     serialization.next().toXContent(builder, params);

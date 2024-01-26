@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
@@ -368,12 +367,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return Collections.emptyList();
         }
 
-        FeatureService featureService = new FeatureService(List.of(new EnterpriseSearchFeatures()));
-
         // Behavioral analytics components
         final AnalyticsTemplateRegistry analyticsTemplateRegistry = new AnalyticsTemplateRegistry(
             services.clusterService(),
-            featureService,
+            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()
@@ -383,7 +380,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Connector components
         final ConnectorTemplateRegistry connectorTemplateRegistry = new ConnectorTemplateRegistry(
             services.clusterService(),
-            featureService,
+            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()

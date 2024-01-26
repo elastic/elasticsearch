@@ -543,12 +543,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                 public String getResponseContentTypeString() {
                     return RestResponse.TEXT_CONTENT_TYPE;
                 }
-
-                @Override
-                public void close() {
-                    assertTrue(isClosed.compareAndSet(false, true));
-                }
-            }));
+            }, () -> assertTrue(isClosed.compareAndSet(false, true))));
             @SuppressWarnings("unchecked")
             Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class<?>) ActionListener.class;
             ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
@@ -750,12 +745,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                     public String getResponseContentTypeString() {
                         return RestResponse.TEXT_CONTENT_TYPE;
                     }
-
-                    @Override
-                    public void close() {
-                        assertTrue(isClosed.compareAndSet(false, true));
-                    }
-                }))
+                }, () -> assertTrue(isClosed.compareAndSet(false, true))))
             )
         );
 

@@ -305,7 +305,7 @@ public class ModelRegistryTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> actionListener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-            actionListener.onResponse(searchResponse);
+            ActionListener.respondAndRelease(actionListener, searchResponse);
             return Void.TYPE;
         }).when(client).execute(any(), any(), any());
     }
@@ -320,10 +320,13 @@ public class ModelRegistryTests extends ESTestCase {
     }
 
     private static SearchResponse mockSearchResponse(SearchHit[] hits) {
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1);
-
         var searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1);
+        try {
+            when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+        } finally {
+            searchHits.decRef();
+        }
 
         return searchResponse;
     }

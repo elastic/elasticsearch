@@ -26,9 +26,9 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -431,12 +431,12 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         InputStream inputStream1 = mock(InputStream.class);
 
-        DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(100_000L, 200_000L), inputStream1);
-        when(dataExtractorFactory.newExtractor(100000L, 200000L)).thenReturn(subExtactor1);
+        DataExtractor subExtractor1 = new StubSubExtractor(new SearchInterval(100_000L, 200_000L), inputStream1);
+        when(dataExtractorFactory.newExtractor(100000L, 200000L)).thenReturn(subExtractor1);
 
         // This one is empty
-        DataExtractor subExtactor2 = new StubSubExtractor(new SearchInterval(200_000L, 300_000L));
-        when(dataExtractorFactory.newExtractor(200000, 300000L)).thenReturn(subExtactor2);
+        DataExtractor subExtractor2 = new StubSubExtractor(new SearchInterval(200_000L, 300_000L));
+        when(dataExtractorFactory.newExtractor(200000, 300000L)).thenReturn(subExtractor2);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -447,8 +447,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         // This is the last one
         InputStream inputStream2 = mock(InputStream.class);
-        DataExtractor subExtactor3 = new StubSubExtractor(new SearchInterval(200_000L, 400_000L), inputStream2);
-        when(dataExtractorFactory.newExtractor(200000, 400000)).thenReturn(subExtactor3);
+        DataExtractor subExtractor3 = new StubSubExtractor(new SearchInterval(200_000L, 400_000L), inputStream2);
+        when(dataExtractorFactory.newExtractor(200000, 400000)).thenReturn(subExtractor3);
 
         assertEquals(inputStream2, extractor.next().data().get());
         assertThat(extractor.next().data().isPresent(), is(false));
@@ -464,7 +464,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"gte\":100000,\"lt\":400000"));
         searchRequest = capturedSearchRequests.get(1).toString().replaceAll("\\s", "");
-        assertThat(searchRequest, containsString("\"gte\":200000,\"lt\":400000"));
+        assertThat(searchRequest, containsString("\"gte\":300000,\"lt\":400000"));
     }
 
     public void testCancelGivenNextWasNeverCalled() {

@@ -27,6 +27,32 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
     public static final String TASK_SETTINGS = "task_settings";
     private static final String NAME = "inference_model";
 
+    public static ModelConfigurations of(Model model, TaskSettings taskSettings) {
+        Objects.requireNonNull(model);
+        Objects.requireNonNull(taskSettings);
+
+        return new ModelConfigurations(
+            model.getConfigurations().getModelId(),
+            model.getConfigurations().getTaskType(),
+            model.getConfigurations().getService(),
+            model.getServiceSettings(),
+            taskSettings
+        );
+    }
+
+    public static ModelConfigurations of(Model model, ServiceSettings serviceSettings) {
+        Objects.requireNonNull(model);
+        Objects.requireNonNull(serviceSettings);
+
+        return new ModelConfigurations(
+            model.getConfigurations().getModelId(),
+            model.getConfigurations().getTaskType(),
+            model.getConfigurations().getService(),
+            serviceSettings,
+            model.getTaskSettings()
+        );
+    }
+
     private final String inferenceEntityId;
     private final TaskType taskType;
     private final String service;

@@ -24,6 +24,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorUtils;
 import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 
@@ -42,7 +44,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction extends ActionType<Conne
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/update_stats";
 
     public UpdateConnectorSyncJobIngestionStatsAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -166,7 +168,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction extends ActionType<Conne
             PARSER.declareLong(optionalConstructorArg(), ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD);
             PARSER.declareField(
                 optionalConstructorArg(),
-                (p, c) -> Instant.parse(p.text()),
+                (p, c) -> ConnectorUtils.parseInstant(p, Connector.LAST_SEEN_FIELD.getPreferredName()),
                 ConnectorSyncJob.LAST_SEEN_FIELD,
                 ObjectParser.ValueType.OBJECT_OR_STRING
             );

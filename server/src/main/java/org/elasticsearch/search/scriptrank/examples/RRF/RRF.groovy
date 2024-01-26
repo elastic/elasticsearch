@@ -11,7 +11,7 @@ import org.elasticsearch.search.scriptrank.RankKey
 import org.elasticsearch.search.scriptrank.ScriptRankDoc
 
 def results = [:];
-for (def retrieverResult : docs) {
+for (def retrieverResult : inputs) {
     int index = retrieverResult.size();
     for (ScriptRankDoc scriptRankDoc : retrieverResult) {
         ScoreDoc scoreDoc = scriptRankDoc.scoreDoc();

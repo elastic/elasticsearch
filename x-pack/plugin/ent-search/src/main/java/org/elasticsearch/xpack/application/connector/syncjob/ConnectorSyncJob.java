@@ -25,15 +25,14 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
-import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -343,21 +342,23 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             String syncJobConnectorId = Strings.isNullOrEmpty(connectorId) ? parsedConnectorId : connectorId;
 
             return new Connector.Builder().setConnectorId(syncJobConnectorId)
-                .setFiltering((List<ConnectorFiltering>) args[i++])
+                .setFiltering(null)
+                .setSyncJobFiltering((FilteringRules) args[i++])
                 .setIndexName((String) args[i++])
                 .setLanguage((String) args[i++])
                 .setPipeline((ConnectorIngestPipeline) args[i++])
                 .setServiceType((String) args[i++])
-                .setConfiguration((Map<String, ConnectorConfiguration>) args[i++])
+                .setConfiguration((Map<String, ConnectorConfiguration>) args[i])
                 .build();
         }
     );
 
     static {
         SYNC_JOB_CONNECTOR_PARSER.declareString(optionalConstructorArg(), Connector.ID_FIELD);
-        SYNC_JOB_CONNECTOR_PARSER.declareObjectArray(
+        SYNC_JOB_CONNECTOR_PARSER.declareObjectOrNull(
             optionalConstructorArg(),
-            (p, c) -> ConnectorFiltering.fromXContent(p),
+            (p, c) -> FilteringRules.fromXContent(p),
+            null,
             Connector.FILTERING_FIELD
         );
         SYNC_JOB_CONNECTOR_PARSER.declareStringOrNull(optionalConstructorArg(), Connector.INDEX_NAME_FIELD);
@@ -491,8 +492,8 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
                 if (connector.getConnectorId() != null) {
                     builder.field(Connector.ID_FIELD.getPreferredName(), connector.getConnectorId());
                 }
-                if (connector.getFiltering() != null) {
-                    builder.field(Connector.FILTERING_FIELD.getPreferredName(), connector.getFiltering());
+                if (connector.getSyncJobFiltering() != null) {
+                    builder.field(Connector.FILTERING_FIELD.getPreferredName(), connector.getSyncJobFiltering());
                 }
                 if (connector.getIndexName() != null) {
                     builder.field(Connector.INDEX_NAME_FIELD.getPreferredName(), connector.getIndexName());

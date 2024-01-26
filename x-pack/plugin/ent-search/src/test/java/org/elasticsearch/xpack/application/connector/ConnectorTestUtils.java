@@ -187,8 +187,10 @@ public final class ConnectorTestUtils {
     }
 
     public static Connector getRandomSyncJobConnectorInfo() {
+        ConnectorFiltering randomFiltering = getRandomConnectorFiltering();
         return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
-            .setFiltering(List.of(getRandomConnectorFiltering()))
+            .setSyncJobFiltering(randomFiltering.getActive())
+            .setFiltering(List.of(randomFiltering))
             .setIndexName(randomAlphaOfLength(10))
             .setLanguage(randomAlphaOfLength(10))
             .setServiceType(randomAlphaOfLength(10))

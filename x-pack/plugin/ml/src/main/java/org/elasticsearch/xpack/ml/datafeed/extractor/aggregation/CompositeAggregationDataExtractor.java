@@ -76,6 +76,11 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     @Override
+    public DataSummary getSummary() {
+        return null;
+    }
+
+    @Override
     public boolean hasNext() {
         return hasNext;
     }

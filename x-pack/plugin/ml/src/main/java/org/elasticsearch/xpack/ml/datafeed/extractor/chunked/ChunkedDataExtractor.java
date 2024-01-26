@@ -50,16 +50,6 @@ import java.util.Optional;
  */
 public class ChunkedDataExtractor implements DataExtractor {
 
-    interface DataSummary {
-        long estimateChunk();
-
-        boolean hasData();
-
-        long earliestTime();
-
-        long getDataTimeSpread();
-    }
-
     private static final Logger LOGGER = LogManager.getLogger(ChunkedDataExtractor.class);
 
     private static final String EARLIEST_TIME = "earliest_time";
@@ -93,6 +83,11 @@ public class ChunkedDataExtractor implements DataExtractor {
         this.currentEnd = context.start;
         this.isCancelled = false;
         this.dataSummaryFactory = new DataSummaryFactory();
+    }
+
+    @Override
+    public DataSummary getSummary() {
+        return null;
     }
 
     @Override

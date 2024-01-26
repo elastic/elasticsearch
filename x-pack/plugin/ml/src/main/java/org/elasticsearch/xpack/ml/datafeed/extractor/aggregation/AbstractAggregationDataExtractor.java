@@ -62,6 +62,11 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     }
 
     @Override
+    public DataSummary getSummary() {
+        return null;
+    }
+
+    @Override
     public boolean hasNext() {
         return hasNext;
     }

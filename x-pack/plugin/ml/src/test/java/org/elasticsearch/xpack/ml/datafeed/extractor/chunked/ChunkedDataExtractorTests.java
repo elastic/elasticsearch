@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor.DataSummary;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -547,7 +548,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     public void testNoDataSummaryHasNoData() {
-        ChunkedDataExtractor.DataSummary summary = ChunkedDataExtractor.AggregatedDataSummary.noDataSummary(randomNonNegativeLong());
+        DataSummary summary = ChunkedDataExtractor.AggregatedDataSummary.noDataSummary(randomNonNegativeLong());
         assertFalse(summary.hasData());
     }
 
@@ -624,6 +625,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         StubSubExtractor(SearchInterval searchInterval, InputStream... streams) {
             this.searchInterval = searchInterval;
             Collections.addAll(this.streams, streams);
+        }
+
+        @Override
+        public DataSummary getSummary() {
+            return null;
         }
 
         @Override

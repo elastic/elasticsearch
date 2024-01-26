@@ -18,6 +18,18 @@ public interface DataExtractor {
 
     record Result(SearchInterval searchInterval, Optional<InputStream> data) {}
 
+    interface DataSummary {
+        long estimateChunk();
+
+        boolean hasData();
+
+        long earliestTime();
+
+        long getDataTimeSpread();
+    }
+
+    DataSummary getSummary();
+
     /**
      * @return {@code true} if the search has not finished yet, or {@code false} otherwise
      */

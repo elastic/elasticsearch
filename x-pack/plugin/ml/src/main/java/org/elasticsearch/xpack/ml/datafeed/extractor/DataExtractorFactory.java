@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor.DataSummary;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregatedSearchRequestBuilder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.CompositeAggregationDataExtractorFactory;
@@ -28,6 +29,11 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtracto
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 
 public interface DataExtractorFactory {
+
+    default DataSummary getDataSummary(long start, long end) {
+        return newExtractor(start, end).getSummary();
+    }
+
     DataExtractor newExtractor(long start, long end);
 
     /**

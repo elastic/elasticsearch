@@ -1486,6 +1486,35 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
     }
 
+    public void testInsensitiveEqualsWrongType() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where first_name =~ 12
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("second argument of [first_name =~ 12] must be [string], found value [12] type [integer]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where first_name =~ languages
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("second argument of [first_name =~ languages] must be [string], found value [languages] type [integer]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | where languages =~ "foo"
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [languages =~ \"foo\"] must be [string], found value [languages] type [integer]")
+        );
+    }
+
     public void testUnresolvedMvExpand() {
         var e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | mv_expand bar"));
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));

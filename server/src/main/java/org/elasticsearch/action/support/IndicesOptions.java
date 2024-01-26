@@ -12,7 +12,6 @@ import joptsimple.internal.Strings;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -95,13 +94,9 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         boolean removeHidden,
         boolean resolveAliases,
         boolean allowEmptyExpressions
-    ) implements Writeable, ToXContentFragment {
+    ) implements ToXContentFragment {
 
         public static final WildcardOptions DEFAULT = WildcardOptions.newBuilder().build();
-
-        public static WildcardOptions read(StreamInput in) throws IOException {
-            return new WildcardOptions(in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readBoolean());
-        }
 
         public static WildcardOptions parseParameters(Object expandWildcards, Object allowNoIndices, WildcardOptions defaultOptions) {
             if (expandWildcards == null && allowNoIndices == null) {
@@ -159,15 +154,6 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             }
             builder.field("allow_no_indices", allowEmptyExpressions());
             return builder;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(includeOpen);
-            out.writeBoolean(includeClosed);
-            out.writeBoolean(removeHidden);
-            out.writeBoolean(resolveAliases);
-            out.writeBoolean(allowEmptyExpressions);
         }
 
         public static class Builder {
@@ -298,14 +284,9 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
      */
     public record GeneralOptions(boolean allowAliasToMultipleIndices, boolean allowClosedIndices, @Deprecated boolean removeThrottled)
         implements
-            Writeable,
             ToXContentFragment {
 
         public static final GeneralOptions DEFAULT = GeneralOptions.newBuilder().build();
-
-        public static GeneralOptions read(StreamInput in) throws IOException {
-            return new GeneralOptions(in.readBoolean(), in.readBoolean(), in.readBoolean());
-        }
 
         public static GeneralOptions parseParameter(Object ignoreThrottled, GeneralOptions defaultOptions) {
             if (ignoreThrottled == null && defaultOptions != null) {
@@ -319,13 +300,6 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field("ignore_throttled", removeThrottled());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(allowAliasToMultipleIndices);
-            out.writeBoolean(allowClosedIndices);
-            out.writeBoolean(removeThrottled);
         }
 
         public static class Builder {
@@ -411,7 +385,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES,
 
         ERROR_WHEN_CLOSED_INDICES,
-        EXCLUDE_THROTTLED;
+        EXCLUDE_THROTTLED
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);

@@ -118,7 +118,7 @@ class JdkKernel32Library implements Kernel32Library {
     private final MemorySegment lastErrorState;
 
     JdkKernel32Library() {
-        Arena arena = Arena.ofShared();
+        Arena arena = Arena.ofAuto();
         lastErrorState = arena.allocate(CAPTURE_GETLASTERROR_LAYOUT);
     }
 

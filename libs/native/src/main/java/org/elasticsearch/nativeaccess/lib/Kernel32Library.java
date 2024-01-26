@@ -73,4 +73,15 @@ public interface Kernel32Library {
      * @return true if the function succeeds.
      */
     boolean SetProcessWorkingSetSize(long processHandle, long minSize, long maxSize);
+
+    /**
+     * Retrieves the actual number of bytes of disk storage used to store a specified file.
+     *
+     * https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getcompressedfilesizew
+     *
+     * @param lpFileName the path string
+     * @param lpFileSizeHigh pointer to high-order DWORD for compressed file size (or null if not needed)
+     * @return the low-order DWORD for compressed file siz
+     */
+    int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
 }

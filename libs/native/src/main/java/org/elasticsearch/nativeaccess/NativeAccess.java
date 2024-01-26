@@ -8,6 +8,9 @@
 
 package org.elasticsearch.nativeaccess;
 
+import java.nio.file.Path;
+import java.util.OptionalLong;
+
 public interface NativeAccess {
     static NativeAccess instance() {
         return NativeAccessHolder.INSTANCE;
@@ -21,17 +24,25 @@ public interface NativeAccess {
     /*public abstract void tryInstallSystemCallFilter(Path tmpFile);
     public abstract boolean isSystemCallFilterInstalled();*/
 
-    void trySetMaxNumberOfThreads();
+    void tryInitMaxNumberOfThreads();
 
     long getMaxNumberOfThreads();
 
-    void trySetMaxVirtualMemorySize();
+    void tryInitMaxVirtualMemorySize();
 
     long getMaxVirtualMemorySize();
 
-    void trySetMaxFileSize();
+    void tryInitMaxFileSize();
 
     long getMaxFileSize();
+
+    /**
+     * Retrieves the actual number of bytes of disk storage used to store a specified file.
+     *
+     * @param path the path to the file
+     * @return an {@link OptionalLong} that contains the number of allocated bytes on disk for the file, or empty if the size is invalid
+     */
+    OptionalLong allocatedSizeInBytes(Path path);
     /*
 
 

@@ -10,6 +10,9 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
+import java.nio.file.Path;
+import java.util.OptionalLong;
+
 class MacNativeAccess extends PosixNativeAccess {
     MacNativeAccess(NativeLibraryProvider libraryProvider) {
         super(libraryProvider, 6, 9223372036854775807L, 5);
@@ -21,8 +24,14 @@ class MacNativeAccess extends PosixNativeAccess {
     }
 
     @Override
-    public void trySetMaxNumberOfThreads() {
+    public void tryInitMaxNumberOfThreads() {
         // On mac the rlimit for NPROC is processes, unlike in linux where it is threads.
         // So on mac NPROC is used in conjunction with syscall filtering.
+    }
+
+    @Override
+    public OptionalLong allocatedSizeInBytes(Path path) {
+        // nothing like xstat for macos?
+        return OptionalLong.empty();
     }
 }

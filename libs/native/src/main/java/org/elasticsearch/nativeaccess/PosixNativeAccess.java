@@ -82,7 +82,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected abstract void logMemoryLimitInstructions();
 
     @Override
-    public void trySetMaxVirtualMemorySize() {
+    public void tryInitMaxVirtualMemorySize() {
         var rlimit = libc.newRLimit();
         if (libc.getrlimit(RLIMIT_AS, rlimit) == 0) {
             maxVirtualMemorySize = rlimit.rlim_cur();
@@ -92,7 +92,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public void trySetMaxFileSize() {
+    public void tryInitMaxFileSize() {
         var rlimit = libc.newRLimit();
         if (libc.getrlimit(RLIMIT_FSIZE, rlimit) == 0) {
             maxFileSize = rlimit.rlim_cur();

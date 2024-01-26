@@ -11,6 +11,9 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.nio.file.Path;
+import java.util.OptionalLong;
+
 class NoopNativeAccess extends AbstractNativeAccess {
     private static final Logger logger = LogManager.getLogger(NativeAccess.class);
 
@@ -25,15 +28,21 @@ class NoopNativeAccess extends AbstractNativeAccess {
         logger.warn("Cannot lock memory because native access is not available");
     }
 
-    public void trySetMaxNumberOfThreads() {
-        logger.warn("Cannot set max number of threads because native access is not available");
+    public void tryInitMaxNumberOfThreads() {
+        logger.warn("Cannot init max number of threads because native access is not available");
     }
 
-    public void trySetMaxVirtualMemorySize() {
-        logger.warn("Cannot set max size of virtual memory because native access is not available");
+    public void tryInitMaxVirtualMemorySize() {
+        logger.warn("Cannot init max size of virtual memory because native access is not available");
     }
 
-    public void trySetMaxFileSize() {
-        logger.warn("Cannot set max file size because native access is not available");
+    public void tryInitMaxFileSize() {
+        logger.warn("Cannot init max file size because native access is not available");
+    }
+
+    @Override
+    public OptionalLong allocatedSizeInBytes(Path path) {
+        logger.warn("Cannot get allocated size of file [" + path + "] because native access is not available");
+        return OptionalLong.empty();
     }
 }

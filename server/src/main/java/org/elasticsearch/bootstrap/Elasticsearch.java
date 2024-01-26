@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
@@ -315,9 +314,9 @@ class Elasticsearch {
             });
         }
 
-        nativeAccess.trySetMaxNumberOfThreads();
-        nativeAccess.trySetMaxVirtualMemorySize();
-        nativeAccess.trySetMaxFileSize();
+        nativeAccess.tryInitMaxNumberOfThreads();
+        nativeAccess.tryInitMaxVirtualMemorySize();
+        nativeAccess.tryInitMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();

@@ -8,15 +8,25 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
+import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.statx;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.OptionalLong;
+
+import static org.elasticsearch.core.Strings.format;
 
 class LinuxNativeAccess extends PosixNativeAccess {
 
+    private static final int STATX_BLOCKS = 0x400;	/* Want/got stx_blocks */
 
-    private long maxNumberOfThreads = -1;
+    private final LinuxCLibrary linuxLibc;
 
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
         super(libraryProvider, 8, -1L, 9);
+        this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
     }
 
     @Override
@@ -32,7 +42,7 @@ class LinuxNativeAccess extends PosixNativeAccess {
     }
 
     @Override
-    public void trySetMaxNumberOfThreads() {
+    public void tryInitMaxNumberOfThreads() {
         // this is only valid on Linux and the value *is* different on OS X
         // see /usr/include/sys/resource.h on OS X
         // on Linux the resource RLIMIT_NPROC means *the number of threads*
@@ -45,5 +55,17 @@ class LinuxNativeAccess extends PosixNativeAccess {
         } else {
             logger.warn("unable to retrieve max number of threads [" + libc.strerror(libc.errno()) + "]");
         }
+    }
+
+    @Override
+    public OptionalLong allocatedSizeInBytes(Path path) {
+        assert Files.isRegularFile(path) : path;
+        statx stats = linuxLibc.newStatx();
+        final int rc = linuxLibc.statx(0, path.toAbsolutePath().toString(), 0, STATX_BLOCKS, stats);
+        if (rc != 0) {
+            logger.warn("Unable to get extended stats for file [" + path + "]: %s" + libc.strerror(libc.errno()));
+            return OptionalLong.empty();
+        }
+        return OptionalLong.of(stats.stx_blocks() * 512);
     }
 }

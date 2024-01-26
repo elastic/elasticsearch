@@ -12,6 +12,9 @@ import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 import java.lang.management.ManagementFactory;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.OptionalLong;
 
 class WindowsNativeAccess extends AbstractNativeAccess {
 
@@ -69,17 +72,46 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public void trySetMaxNumberOfThreads() {
+    public void tryInitMaxNumberOfThreads() {
         // no way to set limit for number of threads in Windows
     }
 
     @Override
-    public void trySetMaxVirtualMemorySize() {
+    public void tryInitMaxVirtualMemorySize() {
         // no way to set limit for virtual memory size in Windows
     }
 
     @Override
-    public void trySetMaxFileSize() {
+    public void tryInitMaxFileSize() {
         // no way to set limit for max file size in Windows
+    }
+
+    @Override
+    public OptionalLong allocatedSizeInBytes(Path path) {
+        assert Files.isRegularFile(path) : path;
+        String fileName = "\\\\?\\" + path;
+        final IntByReference lpFileSizeHigh = new IntByReference();
+
+        final int lpFileSizeLow = GetCompressedFileSizeW(fileName, lpFileSizeHigh);
+        if (lpFileSizeLow == INVALID_FILE_SIZE) {
+            final int err = Native.getLastError();
+            if (err != NO_ERROR) {
+                logger.warn("error [{}] when executing native method GetCompressedFileSizeW for file [{}]", err, path);
+                return OptionalLong.empty();
+            }
+        }
+
+        // convert lpFileSizeLow to unsigned long and combine with signed/shifted lpFileSizeHigh
+        final long allocatedSize = (((long) lpFileSizeHigh.getValue()) << Integer.SIZE) | Integer.toUnsignedLong(lpFileSizeLow);
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "executing native method GetCompressedFileSizeW returned [high={}, low={}, allocated={}] for file [{}]",
+                lpFileSizeHigh,
+                lpFileSizeLow,
+                allocatedSize,
+                path
+            );
+        }
+        return OptionalLong.of(allocatedSize);
     }
 }

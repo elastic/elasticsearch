@@ -27,15 +27,21 @@ import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 
+    // errno can change between system calls, so we capture it
+    private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
+    private static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
+    private static final VarHandle errno$vh = CAPTURE_ERRNO_LAYOUT.varHandle(groupElement("errno"));
+
     private static final MethodHandle strerror$mh;
     private static final MethodHandle geteuid$mh;
     private static final MethodHandle mlockall$mh;
     private static final MethodHandle getrlimit$mh;
     private static final MethodHandle setrlimit$mh;
 
-    private static final MemoryLayout rlimitLayout = MemoryLayout.structLayout(JAVA_LONG, JAVA_LONG);
-
     static {
+        Arena arena = Arena.ofAuto();
+        errnoState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
+
         strerror$mh = downcallHandle("strerror", FunctionDescriptor.of(ADDRESS, JAVA_INT));
         geteuid$mh = downcallHandle("geteuid", FunctionDescriptor.of(JAVA_INT));
         mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
@@ -44,12 +50,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
     }
 
-    // errno can change between system calls
-    private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
-    private static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
-    private static final VarHandle errno$vh = CAPTURE_ERRNO_LAYOUT.varHandle(groupElement("errno"));
-
-    private static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {
+    static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {
         return downcallHandle(function, functionDescriptor, CAPTURE_ERRNO_OPTION);
     }
 
@@ -86,12 +87,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         }
     }
 
-    private final MemorySegment errnoState;
-
-    JdkPosixCLibrary() {
-        Arena arena = Arena.ofShared();
-        errnoState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
-    }
+    static final MemorySegment errnoState;
 
     @Override
     public int errno() {
@@ -120,7 +116,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int mlockall(int flags) {
         try {
-            return (int)mlockall$mh.invokeExact(errnoState, flags);
+            return (int)mlockall$mh.invokeExact(flags, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -136,7 +132,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         assert rlimit instanceof JdkRLimit;
         var jdkRlimit = (JdkRLimit)rlimit;
         try {
-            return (int)getrlimit$mh.invokeExact(errnoState, resource, jdkRlimit.segment);
+            return (int)getrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -147,7 +143,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         assert rlimit instanceof JdkRLimit;
         var jdkRlimit = (JdkRLimit)rlimit;
         try {
-            return (int)setrlimit$mh.invokeExact(errnoState, resource, jdkRlimit.segment);
+            return (int)setrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

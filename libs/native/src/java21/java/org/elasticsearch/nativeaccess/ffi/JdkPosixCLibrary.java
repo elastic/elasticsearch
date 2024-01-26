@@ -27,7 +27,6 @@ import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 
-
     private static final MethodHandle strerror$mh;
     private static final MethodHandle geteuid$mh;
     private static final MethodHandle mlockall$mh;
@@ -52,6 +51,39 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
     private static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {
         return downcallHandle(function, functionDescriptor, CAPTURE_ERRNO_OPTION);
+    }
+
+    static class JdkRLimit implements RLimit {
+        private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_LONG, JAVA_LONG);
+        private static final VarHandle rlim_cur$vh = layout.varHandle(groupElement(0));
+        private static final VarHandle rlim_max$vh = layout.varHandle(groupElement(1));
+
+        private final MemorySegment segment;
+
+        JdkRLimit() {
+            var arena = Arena.ofAuto();
+            this.segment = arena.allocate(layout);
+        }
+
+        @Override
+        public long rlim_cur() {
+            return (long)rlim_cur$vh.get(segment);
+        }
+
+        @Override
+        public long rlim_max() {
+            return (long)rlim_max$vh.get(segment);
+        }
+
+        @Override
+        public void rlim_cur(long v) {
+            rlim_cur$vh.set(segment, v);
+        }
+
+        @Override
+        public void rlim_max(long v) {
+            rlim_max$vh.set(segment, v);
+        }
     }
 
     private final MemorySegment errnoState;
@@ -95,16 +127,16 @@ class JdkPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
+    public RLimit newRLimit() {
+        return new JdkRLimit();
+    }
+
+    @Override
     public int getrlimit(int resource, RLimit rlimit) {
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment segment = arena.allocate(rlimitLayout);
-
-            int ret = (int)getrlimit$mh.invokeExact(errnoState, resource, segment);
-
-            rlimit.rlim_cur = segment.getAtIndex(JAVA_LONG, 0);
-            rlimit.rlim_max = segment.getAtIndex(JAVA_LONG, 1);
-
-            return ret;
+        assert rlimit instanceof JdkRLimit;
+        var jdkRlimit = (JdkRLimit)rlimit;
+        try {
+            return (int)getrlimit$mh.invokeExact(errnoState, resource, jdkRlimit.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -112,13 +144,10 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
     @Override
     public int setrlimit(int resource, RLimit rlimit) {
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment segment = arena.allocate(rlimitLayout);
-
-            segment.setAtIndex(JAVA_LONG, 0, rlimit.rlim_cur);
-            segment.setAtIndex(JAVA_LONG, 1, rlimit.rlim_max);
-
-            return (int)setrlimit$mh.invokeExact(errnoState, resource, segment);
+        assert rlimit instanceof JdkRLimit;
+        var jdkRlimit = (JdkRLimit)rlimit;
+        try {
+            return (int)setrlimit$mh.invokeExact(errnoState, resource, jdkRlimit.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

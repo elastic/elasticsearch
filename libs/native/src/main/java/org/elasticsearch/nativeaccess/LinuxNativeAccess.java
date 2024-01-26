@@ -9,7 +9,6 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
-import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
 class LinuxNativeAccess extends PosixNativeAccess {
 
@@ -40,9 +39,9 @@ class LinuxNativeAccess extends PosixNativeAccess {
         // this is in opposition to BSD-derived OSes
         final int rlimit_nproc = 6;
 
-        var rlimit = new RLimit();
+        var rlimit = libc.newRLimit();
         if (libc.getrlimit(rlimit_nproc, rlimit) == 0) {
-            maxNumberOfThreads = rlimit.rlim_cur;
+            maxNumberOfThreads = rlimit.rlim_cur();
         } else {
             logger.warn("unable to retrieve max number of threads [" + libc.strerror(libc.errno()) + "]");
         }

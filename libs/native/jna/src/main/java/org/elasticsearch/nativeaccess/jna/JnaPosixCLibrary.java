@@ -31,19 +31,21 @@ class JnaPosixCLibrary implements PosixCLibrary {
     }
 
     @Override
+    public RLimit newRLimit() {
+        return new JnaRLimit();
+    }
+
+    @Override
     public int getrlimit(int resource, RLimit rlimit) {
-        JnaRLimit jnaRlimit = new JnaRLimit();
-        int ret = JnaStaticPosixCLibrary.getrlimit(resource, jnaRlimit);
-        rlimit.rlim_cur = jnaRlimit.rlim_cur.longValue();
-        rlimit.rlim_max = jnaRlimit.rlim_max.longValue();
-        return ret;
+        assert rlimit instanceof JnaRLimit;
+        var jnaRlimit = (JnaRLimit) rlimit;
+        return JnaStaticPosixCLibrary.getrlimit(resource, jnaRlimit);
     }
 
     @Override
     public int setrlimit(int resource, RLimit rlimit) {
-        JnaRLimit jnaRlimit = new JnaRLimit();
-        jnaRlimit.rlim_cur.setValue(rlimit.rlim_cur);
-        jnaRlimit.rlim_max.setValue(rlimit.rlim_max);
+        assert rlimit instanceof JnaRLimit;
+        var jnaRlimit = (JnaRLimit) rlimit;
         return JnaStaticPosixCLibrary.setrlimit(resource, jnaRlimit);
     }
 

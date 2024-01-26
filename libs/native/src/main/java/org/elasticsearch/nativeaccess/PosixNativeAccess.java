@@ -10,7 +10,6 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
-import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
 abstract class PosixNativeAccess extends AbstractNativeAccess {
 
@@ -58,11 +57,11 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
             long hardLimit = 0;
 
             // we only know RLIMIT_MEMLOCK for these two at the moment.
-            var rlimit = new RLimit();
+            var rlimit = libc.newRLimit();
             if (libc.getrlimit(RLIMIT_MEMLOCK, rlimit) == 0) {
                 rlimitSuccess = true;
-                softLimit = rlimit.rlim_cur;
-                hardLimit = rlimit.rlim_max;
+                softLimit = rlimit.rlim_cur();
+                hardLimit = rlimit.rlim_max();
             } else {
                 logger.warn("Unable to retrieve resource limits: {}", libc.strerror(libc.errno()));
             }
@@ -84,9 +83,9 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     @Override
     public void trySetMaxVirtualMemorySize() {
-        var rlimit = new RLimit();
+        var rlimit = libc.newRLimit();
         if (libc.getrlimit(RLIMIT_AS, rlimit) == 0) {
-            maxVirtualMemorySize = rlimit.rlim_cur;
+            maxVirtualMemorySize = rlimit.rlim_cur();
         } else {
             logger.warn("unable to retrieve max size virtual memory [" + libc.strerror(libc.errno()) + "]");
         }
@@ -94,9 +93,9 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     @Override
     public void trySetMaxFileSize() {
-        var rlimit = new RLimit();
+        var rlimit = libc.newRLimit();
         if (libc.getrlimit(RLIMIT_FSIZE, rlimit) == 0) {
-            maxFileSize = rlimit.rlim_cur;
+            maxFileSize = rlimit.rlim_cur();
         } else {
             logger.warn("unable to retrieve max file size [" + libc.strerror(libc.errno()) + "]");
         }

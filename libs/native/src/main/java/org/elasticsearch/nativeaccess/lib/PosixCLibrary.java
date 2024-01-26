@@ -15,19 +15,14 @@ public interface PosixCLibrary {
     int geteuid();
 
     /** corresponds to struct rlimit */
-    class RLimit {
-        public long rlim_cur;
-        public long rlim_max;
-
-        public RLimit() {
-            this(0, 0);
-        }
-
-        public RLimit(long rlim_cur, long rlim_max) {
-            this.rlim_cur = rlim_cur;
-            this.rlim_max = rlim_max;
-        }
+    interface RLimit {
+        long rlim_cur();
+        long rlim_max();
+        void rlim_cur(long v);
+        void rlim_max(long v);
     }
+
+    RLimit newRLimit();
 
     int getrlimit(int resource, RLimit rlimit);
 

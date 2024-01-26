@@ -14,6 +14,8 @@ import com.sun.jna.Structure;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
+import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
 import java.util.Arrays;
 import java.util.List;
@@ -43,13 +45,33 @@ final class JnaStaticPosixCLibrary {
     static native int geteuid();
 
     /** corresponds to struct rlimit */
-    public static final class JnaRLimit extends Structure implements Structure.ByReference {
+    public static final class JnaRLimit extends Structure implements Structure.ByReference, RLimit {
         public NativeLong rlim_cur = new NativeLong(0);
         public NativeLong rlim_max = new NativeLong(0);
 
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("rlim_cur", "rlim_max");
+        }
+
+        @Override
+        public long rlim_cur() {
+            return rlim_cur.longValue();
+        }
+
+        @Override
+        public long rlim_max() {
+            return rlim_max.longValue();
+        }
+
+        @Override
+        public void rlim_cur(long v) {
+            rlim_cur.setValue(v);
+        }
+
+        @Override
+        public void rlim_max(long v) {
+            rlim_max.setValue(v);
         }
     }
 

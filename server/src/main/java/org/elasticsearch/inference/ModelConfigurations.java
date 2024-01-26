@@ -32,7 +32,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         Objects.requireNonNull(taskSettings);
 
         return new ModelConfigurations(
-            model.getConfigurations().getModelId(),
+            model.getConfigurations().getInferenceEntityId(),
             model.getConfigurations().getTaskType(),
             model.getConfigurations().getService(),
             model.getServiceSettings(),
@@ -45,7 +45,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         Objects.requireNonNull(serviceSettings);
 
         return new ModelConfigurations(
-            model.getConfigurations().getModelId(),
+            model.getConfigurations().getInferenceEntityId(),
             model.getConfigurations().getTaskType(),
             model.getConfigurations().getService(),
             serviceSettings,

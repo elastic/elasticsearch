@@ -120,7 +120,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_FAILED_SHARD_COUNT_TRACKING)) {
             this.failedShards = in.readVInt();
         } else {
-            this.failedShards = shardFailures.length; /// MP TODO: add this to the Writeable
+            this.failedShards = shardFailures.length;
         }
     }
 
@@ -166,7 +166,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        ShardSearchFailure[] shardFailures,  // TODO: change to SearchShardFailures?
         Clusters clusters,
         String pointInTimeId
     ) {
@@ -189,6 +189,38 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         );
     }
 
+    /// MP TODO: new one added by me
+    public SearchResponse(
+        SearchResponseSections searchResponseSections,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailures shardFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
+        this(
+            searchResponseSections.hits,
+            searchResponseSections.aggregations,
+            searchResponseSections.suggest,
+            searchResponseSections.timedOut,
+            searchResponseSections.terminatedEarly,
+            searchResponseSections.profileResults,
+            searchResponseSections.numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            shardFailures.getNumFailures(),
+            tookInMillis,
+            shardFailures.getFailures(),
+            clusters,
+            pointInTimeId
+        );
+    }
+
     public SearchResponse(
         SearchHits hits,
         Aggregations aggregations,
@@ -206,26 +238,24 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         Clusters clusters,
         String pointInTimeId
     ) {
-        this.hits = hits;
-        hits.incRef();
-        this.aggregations = aggregations;
-        this.suggest = suggest;
-        this.profileResults = profileResults;
-        this.timedOut = timedOut;
-        this.terminatedEarly = terminatedEarly;
-        this.numReducePhases = numReducePhases;
-        this.scrollId = scrollId;
-        this.pointInTimeId = pointInTimeId;
-        this.clusters = clusters;
-        this.totalShards = totalShards;
-        this.successfulShards = successfulShards;
-        this.skippedShards = skippedShards;
-        this.tookInMillis = tookInMillis;
-        this.shardFailures = shardFailures;
-        this.failedShards = shardFailures.length;
-        assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
-        assert scrollId == null || pointInTimeId == null
-            : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            shardFailures == null ? 0 : shardFailures.length,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId
+        );
     }
 
     /// MP TODO: Newly added - use this from AbstractSearchAsyncAction?
@@ -374,7 +404,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * The failed number of shards the search was executed on.
      */
     public int getFailedShards() {
-        return shardFailures.length;
+        return failedShards; // WAS: shardFailures.length;
     }
 
     /**

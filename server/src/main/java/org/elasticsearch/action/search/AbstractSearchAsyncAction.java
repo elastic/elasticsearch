@@ -394,6 +394,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          * failed or if there was a failure and partial results are not allowed, then we immediately
          * fail. Otherwise we continue to the next phase.
          */
+        // MP TODO: I think this one can use the SearchShardFailures class?
         ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
         if (shardSearchFailures.length == getNumShards()) {
             shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
@@ -458,6 +459,26 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             onPhaseFailure(phase, "", e);
         }
+    }
+
+    private ShardSearchFailures buildShardSearchFailures() {
+        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
+        if (shardFailures == null) {
+            return new ShardSearchFailures(0, ShardSearchFailure.EMPTY_ARRAY);
+        }
+        List<ShardSearchFailure> entries = shardFailures.asList();
+        int maxFailures = 3;
+        int size = Math.min(maxFailures, entries.size());
+        if (size < entries.size()) {
+            System.err.printf(">>> XXX TRUNCATED FAILURES LIST: size: %d; ary-length: %d\n", size, entries.size());
+        }
+        // MP TODO: could add some dedup logic here to select different types of failures
+        // ExceptionsHelper.groupBy(shardSearchFailures);
+        ShardSearchFailure[] failures = new ShardSearchFailure[size];
+        for (int i = 0; i < size; i++) {
+            failures[i] = entries.get(i);
+        }
+        return new ShardSearchFailures(entries.size(), failures);
     }
 
     private ShardSearchFailure[] buildShardFailures() {
@@ -659,12 +680,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private SearchResponse buildSearchResponse(
         SearchResponseSections internalSearchResponse,
-        ShardSearchFailure[] failures,
+        ShardSearchFailures failures,
         String scrollId,
         String searchContextId
     ) {
         int numSuccess = successfulOps.get();
-        int numFailures = failures.length;
+        int numFailures = failures.getNumFailures();
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
         return new SearchResponse(
@@ -686,11 +707,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        ShardSearchFailure[] failures = buildShardFailures();
+        ShardSearchFailures failures = buildShardSearchFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (allowPartialResults == false && failures.length > 0) {
-            raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
+        if (allowPartialResults == false && failures.getNumFailures() > 0) {
+            raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures.getFailures()));
         } else {
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
             final String searchContextId;

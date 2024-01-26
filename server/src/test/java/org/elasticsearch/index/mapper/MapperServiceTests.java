@@ -39,7 +39,11 @@ public class MapperServiceTests extends MapperServiceTestCase {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
-        merge(mapperService, MergeReason.MAPPING_UPDATE, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
+        merge(
+            mapperService,
+            randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
+            mapping(b -> createMappingSpecifyingNumberOfFields(b, 1))
+        );
         assertThat("field was not created by mapping update", mapperService.fieldType("field0"), notNullValue());
     }
 

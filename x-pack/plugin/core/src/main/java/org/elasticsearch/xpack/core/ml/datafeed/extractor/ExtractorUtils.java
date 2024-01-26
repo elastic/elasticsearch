@@ -29,7 +29,7 @@ import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Collects common utility methods needed by various {@link DataExtractor} implementations
+ * Collects common utility methods needed by various DataExtractor implementations
  */
 public final class ExtractorUtils {
 

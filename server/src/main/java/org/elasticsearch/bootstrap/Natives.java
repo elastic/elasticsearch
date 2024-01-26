@@ -41,14 +41,6 @@ final class Natives {
         JNA_AVAILABLE = v;
     }
 
-    static void tryVirtualLock() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot virtual lock because JNA is not available");
-            return;
-        }
-        JNANatives.tryVirtualLock();
-    }
-
     /**
      * Retrieves the short path form of the specified path.
      *

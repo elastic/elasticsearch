@@ -9,6 +9,6 @@
 package org.elasticsearch.nativeaccess.jna;
 
 // temp, move to core
-public class Constants {
+class Constants {
     public static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS");
 }

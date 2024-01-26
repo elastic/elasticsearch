@@ -9,6 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -16,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class JNANativesTests extends ESTestCase {
     public void testMlockall() {
         if (Constants.MAC_OS_X) {
-            assertFalse("Memory locking is not available on OS X platforms", JNANatives.LOCAL_MLOCKALL);
+            assertFalse("Memory locking is not available on OS X platforms", NativeAccess.instance().isMemoryLocked());
         }
     }
 

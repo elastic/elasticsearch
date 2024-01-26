@@ -29,7 +29,7 @@ class NativeAccessHolder {
             } else if (os.startsWith("Mac OS")) {
                 inst = new MacNativeAccess(libraryProvider);
             } else if (os.startsWith("Windows")) {
-                inst = new WindowsNativeAccess();
+                inst = new WindowsNativeAccess(libraryProvider);
             } else {
                 logger.warn("Unsupported OS " + os + ". Native methods will be disabled.");
             }

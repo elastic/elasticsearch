@@ -16,7 +16,6 @@ import java.lang.foreign.Linker;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.StructLayout;
-import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.VarHandle;
 
@@ -24,11 +23,9 @@ import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
 
-public class JdkPosixCLibrary implements PosixCLibrary {
-
-    private static final Linker LINKER = Linker.nativeLinker();
-    private static final SymbolLookup SYMBOL_LOOKUP = LINKER.defaultLookup();
+class JdkPosixCLibrary implements PosixCLibrary {
 
     // errno can change between system calls
     private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
@@ -46,22 +43,14 @@ public class JdkPosixCLibrary implements PosixCLibrary {
     static {
         strerror$mh = downcallHandle("strerror", FunctionDescriptor.of(ADDRESS, JAVA_INT));
         geteuid$mh = downcallHandle("geteuid", FunctionDescriptor.of(JAVA_INT));
-        mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
-        var rlimitDesc = FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS);
+        mlockall$mh = downcallHandle("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        var rlimitDesc = FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS);
         getrlimit$mh = downcallHandleWithErrno("getrlimit", rlimitDesc);
-        setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
-    }
-
-    private static MemorySegment functionAddress(String function) {
-        return SYMBOL_LOOKUP.find(function).orElseThrow(
-            () -> new LinkageError("Function " + function + " could not be found in libc"));
-    }
-    private static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor) {
-        return LINKER.downcallHandle(functionAddress(function), functionDescriptor);
+        setrlimit$mh = downcallHandle("setrlimit", rlimitDesc);
     }
 
     private static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {
-        return LINKER.downcallHandle(functionAddress(function), functionDescriptor, CAPTURE_ERRNO_OPTION);
+        return downcallHandle(function, functionDescriptor, CAPTURE_ERRNO_OPTION);
     }
 
     private int lastErrno;
@@ -75,7 +64,7 @@ public class JdkPosixCLibrary implements PosixCLibrary {
     public String strerror(int errno) {
         try {
             MemorySegment str = (MemorySegment)strerror$mh.invokeExact(errno);
-            return str.getUtf8String(0);
+            return str.reinterpret(Long.MAX_VALUE).getUtf8String(0);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -94,7 +83,7 @@ public class JdkPosixCLibrary implements PosixCLibrary {
     public int mlockall(int flags) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment capturedState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
-            int ret = (int)mlockall$mh.invokeExact(flags);
+            int ret = (int)mlockall$mh.invokeExact(capturedState, flags);
             lastErrno = (int)ERRNO_HANDLE.get(capturedState);
             return ret;
         } catch (Throwable t) {
@@ -129,7 +118,7 @@ public class JdkPosixCLibrary implements PosixCLibrary {
             segment.setAtIndex(JAVA_LONG, 0, rlimit.rlim_cur);
             segment.setAtIndex(JAVA_LONG, 1, rlimit.rlim_max);
 
-            int ret = (int)getrlimit$mh.invokeExact(resource, segment);
+            int ret = (int)setrlimit$mh.invokeExact(resource, segment);
             lastErrno = (int)ERRNO_HANDLE.get(capturedState);
 
             return ret;

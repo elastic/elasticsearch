@@ -10,6 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -20,7 +21,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class EvilJNANativesTests extends ESTestCase {
+public class EvilNativesTests extends ESTestCase {
 
     public void testSetMaximumNumberOfThreads() throws IOException {
         if (Constants.LINUX) {
@@ -29,13 +30,13 @@ public class EvilJNANativesTests extends ESTestCase {
                 if (line != null && line.startsWith("Max processes")) {
                     final String[] fields = line.split("\\s+");
                     final long limit = "unlimited".equals(fields[2]) ? JNACLibrary.RLIM_INFINITY : Long.parseLong(fields[2]);
-                    assertThat(JNANatives.MAX_NUMBER_OF_THREADS, equalTo(limit));
+                    assertThat(NativeAccess.instance().getMaxNumberOfThreads(), equalTo(limit));
                     return;
                 }
             }
             fail("should have read max processes from /proc/self/limits");
         } else {
-            assertThat(JNANatives.MAX_NUMBER_OF_THREADS, equalTo(-1L));
+            assertThat(NativeAccess.instance().getMaxNumberOfThreads(), equalTo(-1L));
         }
     }
 

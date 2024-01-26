@@ -47,86 +47,12 @@ class JNANatives {
 
     static long MAX_FILE_SIZE = Long.MIN_VALUE;
 
-    static void trySetMaxNumberOfThreads() {
-        if (Constants.LINUX) {
-            // this is only valid on Linux and the value *is* different on OS X
-            // see /usr/include/sys/resource.h on OS X
-            // on Linux the resource RLIMIT_NPROC means *the number of threads*
-            // this is in opposition to BSD-derived OSes
-            final int rlimit_nproc = 6;
-
-            final JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
-            if (JNACLibrary.getrlimit(rlimit_nproc, rlimit) == 0) {
-                MAX_NUMBER_OF_THREADS = rlimit.rlim_cur.longValue();
-            } else {
-                logger.warn("unable to retrieve max number of threads [" + JNACLibrary.strerror(Native.getLastError()) + "]");
-            }
-        }
-    }
-
-    static void trySetMaxSizeVirtualMemory() {
-        if (Constants.LINUX || Constants.MAC_OS_X) {
-            final JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
-            if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_AS, rlimit) == 0) {
-                MAX_SIZE_VIRTUAL_MEMORY = rlimit.rlim_cur.longValue();
-            } else {
-                logger.warn("unable to retrieve max size virtual memory [" + JNACLibrary.strerror(Native.getLastError()) + "]");
-            }
-        }
-    }
-
-    static void trySetMaxFileSize() {
-        if (Constants.LINUX || Constants.MAC_OS_X) {
-            final JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
-            if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_FSIZE, rlimit) == 0) {
-                MAX_FILE_SIZE = rlimit.rlim_cur.longValue();
-            } else {
-                logger.warn("unable to retrieve max file size [" + JNACLibrary.strerror(Native.getLastError()) + "]");
-            }
-        }
-    }
-
     static String rlimitToString(long value) {
         assert Constants.LINUX || Constants.MAC_OS_X;
         if (value == JNACLibrary.RLIM_INFINITY) {
             return "unlimited";
         } else {
             return Long.toUnsignedString(value);
-        }
-    }
-
-    static void tryVirtualLock() {
-        JNAKernel32Library kernel = JNAKernel32Library.getInstance();
-        Pointer process = null;
-        try {
-            process = kernel.GetCurrentProcess();
-            // By default, Windows limits the number of pages that can be locked.
-            // Thus, we need to first increase the working set size of the JVM by
-            // the amount of memory we wish to lock, plus a small overhead (1MB).
-            SizeT size = new SizeT(JvmInfo.jvmInfo().getMem().getHeapInit().getBytes() + (1024 * 1024));
-            if (kernel.SetProcessWorkingSetSize(process, size, size) == false) {
-                logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code {}", Native.getLastError());
-            } else {
-                JNAKernel32Library.MemoryBasicInformation memInfo = new JNAKernel32Library.MemoryBasicInformation();
-                long address = 0;
-                while (kernel.VirtualQueryEx(process, new Pointer(address), memInfo, memInfo.size()) != 0) {
-                    boolean lockable = memInfo.State.longValue() == JNAKernel32Library.MEM_COMMIT
-                        && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_NOACCESS) != JNAKernel32Library.PAGE_NOACCESS
-                        && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_GUARD) != JNAKernel32Library.PAGE_GUARD;
-                    if (lockable) {
-                        kernel.VirtualLock(memInfo.BaseAddress, new SizeT(memInfo.RegionSize.longValue()));
-                    }
-                    // Move to the next region
-                    address += memInfo.RegionSize.longValue();
-                }
-                LOCAL_MLOCKALL = true;
-            }
-        } catch (UnsatisfiedLinkError e) {
-            // this will have already been logged by Kernel32Library, no need to repeat it
-        } finally {
-            if (process != null) {
-                kernel.CloseHandle(process);
-            }
         }
     }
 

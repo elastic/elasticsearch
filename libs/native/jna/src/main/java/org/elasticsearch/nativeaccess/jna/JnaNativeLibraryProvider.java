@@ -11,6 +11,7 @@ package org.elasticsearch.nativeaccess.jna;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
+import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 import java.util.Map;
@@ -37,6 +38,7 @@ public class JnaNativeLibraryProvider extends NativeLibraryProvider {
     }
 
     public JnaNativeLibraryProvider() {
-        super(Map.of(PosixCLibrary.class, JnaPosixCLibrary::new));
+        super(Map.of(PosixCLibrary.class, JnaPosixCLibrary::new,
+            Kernel32Library.class, JnaKernel32Library::new));
     }
 }

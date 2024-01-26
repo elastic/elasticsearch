@@ -79,11 +79,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             (PhaseExecutionInfo) a[12]
             // a[13] == "age"
             // a[20] == "time_since_index_creation"
-            // a[21] == "index_creation_date"
-            // a[22] == "lifecycle_date_field"
-            // a[23] == "phase_time_field"
-            // a[24] == "action_time_field"
-            // a[25] == "step_time_field"
         )
     );
     static {
@@ -116,11 +111,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SHRINK_INDEX_NAME);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), INDEX_CREATION_DATE_MILLIS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TIME_SINCE_INDEX_CREATION_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_CREATION_DATE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LIFECYCLE_DATE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PHASE_TIME_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ACTION_TIME_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STEP_TIME_FIELD);
     }
 
     private final String index;
@@ -472,38 +462,37 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (managedByILM) {
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
             if (indexCreationDate != null) {
-                builder.field(INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(), indexCreationDate);
-                builder.timeField(INDEX_CREATION_DATE_FIELD.getPreferredName(), indexCreationDate);
+                builder.timeField(
+                    INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
+                    INDEX_CREATION_DATE_FIELD.getPreferredName(),
+                    indexCreationDate
+                );
                 builder.field(
                     TIME_SINCE_INDEX_CREATION_FIELD.getPreferredName(),
                     getTimeSinceIndexCreation(nowSupplier).toHumanReadableString(2)
                 );
             }
             if (lifecycleDate != null) {
-                builder.field(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), lifecycleDate);
-                builder.timeField(LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
+                builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
                 builder.field(AGE_FIELD.getPreferredName(), getAge(nowSupplier).toHumanReadableString(2));
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);
             }
             if (phaseTime != null) {
-                builder.field(PHASE_TIME_MILLIS_FIELD.getPreferredName(), phaseTime);
-                builder.timeField(PHASE_TIME_FIELD.getPreferredName(), phaseTime);
+                builder.timeField(PHASE_TIME_MILLIS_FIELD.getPreferredName(), PHASE_TIME_FIELD.getPreferredName(), phaseTime);
             }
             if (action != null) {
                 builder.field(ACTION_FIELD.getPreferredName(), action);
             }
             if (actionTime != null) {
-                builder.field(ACTION_TIME_MILLIS_FIELD.getPreferredName(), actionTime);
-                builder.timeField(ACTION_TIME_FIELD.getPreferredName(), actionTime);
+                builder.timeField(ACTION_TIME_MILLIS_FIELD.getPreferredName(), ACTION_TIME_FIELD.getPreferredName(), actionTime);
             }
             if (step != null) {
                 builder.field(STEP_FIELD.getPreferredName(), step);
             }
             if (stepTime != null) {
-                builder.field(STEP_TIME_MILLIS_FIELD.getPreferredName(), stepTime);
-                builder.timeField(STEP_TIME_FIELD.getPreferredName(), stepTime);
+                builder.timeField(STEP_TIME_MILLIS_FIELD.getPreferredName(), STEP_TIME_FIELD.getPreferredName(), stepTime);
             }
             if (Strings.hasLength(failedStep)) {
                 builder.field(FAILED_STEP_FIELD.getPreferredName(), failedStep);

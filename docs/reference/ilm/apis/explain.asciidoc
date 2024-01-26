@@ -111,23 +111,18 @@ that the index is managed and in the `new` phase:
   "indices": {
     "my-index-000001": {
       "index": "my-index-000001",
-      "index_creation_date_millis": 1538475653281,        <1>
-      "index_creation_date": "2018-10-15T13:45:21.981Z",
-      "time_since_index_creation": "15s",                 <2>
-      "managed": true,                                    <3>
-      "policy": "my_policy",                              <4>
-      "lifecycle_date_millis": 1538475653281,             <5>
-      "lifecycle_date": "2018-10-15T13:45:21.981Z",
-      "age": "15s",                                       <6>
+      "index_creation_date_millis": 1538475653281,  <1>
+      "time_since_index_creation": "15s",           <2>
+      "managed": true,                              <3>
+      "policy": "my_policy",                        <4>
+      "lifecycle_date_millis": 1538475653281,       <5>
+      "age": "15s",                                 <6>
       "phase": "new",
-      "phase_time_millis": 1538475653317,                 <7>
-      "phase_time": "2018-10-15T13:45:22.577Z",
+      "phase_time_millis": 1538475653317,           <7>
       "action": "complete"
-      "action_time_millis": 1538475653317,                <8>
-      "action_time": "2018-10-15T13:45:22.577Z",
+      "action_time_millis": 1538475653317,          <8>
       "step": "complete",
-      "step_time_millis": 1538475653317,                  <9>
-      "step_time": "2018-10-15T13:45:22.577Z"
+      "step_time_millis": 1538475653317             <9>
     }
   }
 }
@@ -158,7 +153,6 @@ phase completes.
   "indices": {
     "test-000069": {
       "index": "test-000069",
-      "index_creation_date": "2018-10-15T13:45:21.981Z",
       "index_creation_date_millis": 1538475653281,
       "time_since_index_creation": "25.14s",
       "managed": true,
@@ -211,7 +205,6 @@ information for the step that's being performed on the index.
     "test-000020": {
       "index": "test-000020",
       "index_creation_date_millis": 1538475653281,
-      "index_creation_date": "2018-10-15T13:45:21.981Z",
       "time_since_index_creation": "4.12m",
       "managed": true,
       "policy": "my_lifecycle3",
@@ -278,7 +271,6 @@ the case.
     "test-000056": {
       "index": "test-000056",
       "index_creation_date_millis": 1538475653281,
-      "index_creation_date": "2018-10-15T13:45:21.981Z",
       "time_since_index_creation": "50.1d",
       "managed": true,
       "policy": "my_lifecycle3",

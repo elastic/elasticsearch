@@ -29,7 +29,6 @@ public class PhaseExecutionInfo implements ToXContentObject, Writeable {
     private static final ParseField PHASE_DEFINITION_FIELD = new ParseField("phase_definition");
     private static final ParseField VERSION_FIELD = new ParseField("version");
     private static final ParseField MODIFIED_DATE_IN_MILLIS_FIELD = new ParseField("modified_date_in_millis");
-    private static final ParseField MODIFIED_DATE_FIELD = new ParseField("modified_date");
 
     private static final ConstructingObjectParser<PhaseExecutionInfo, String> PARSER = new ConstructingObjectParser<>(
         "phase_execution_info",
@@ -41,7 +40,6 @@ public class PhaseExecutionInfo implements ToXContentObject, Writeable {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Phase::parse, PHASE_DEFINITION_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_IN_MILLIS_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), MODIFIED_DATE_FIELD);
     }
 
     public static PhaseExecutionInfo parse(XContentParser parser, String name) {
@@ -132,8 +130,7 @@ public class PhaseExecutionInfo implements ToXContentObject, Writeable {
             builder.field(PHASE_DEFINITION_FIELD.getPreferredName(), phase);
         }
         builder.field(VERSION_FIELD.getPreferredName(), version);
-        builder.field(MODIFIED_DATE_IN_MILLIS_FIELD.getPreferredName(), modifiedDate);
-        builder.timeField(MODIFIED_DATE_FIELD.getPreferredName(), modifiedDate);
+        builder.timeField(MODIFIED_DATE_IN_MILLIS_FIELD.getPreferredName(), "modified_date", modifiedDate);
         builder.endObject();
         return builder;
     }

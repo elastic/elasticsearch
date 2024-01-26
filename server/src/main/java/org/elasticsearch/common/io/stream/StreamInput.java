@@ -58,6 +58,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
  *
@@ -963,6 +965,10 @@ public abstract class StreamInput extends InputStream {
 
     public byte[] readByteArray() throws IOException {
         final int length = readArraySize();
+        return doReadByteArray(length);
+    }
+
+    protected byte[] doReadByteArray(int length) throws IOException {
         if (length == 0) {
             return EMPTY_BYTE_ARRAY;
         }
@@ -1055,6 +1061,26 @@ public abstract class StreamInput extends InputStream {
         @SuppressWarnings("unused") String name
     ) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    @Nullable
+    public <C extends NamedWriteable> C readNamedWriteable(
+        @SuppressWarnings("unused") Class<C> categoryClass,
+        @SuppressWarnings("unused") Symbol key
+    ) throws IOException {
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    public <C> Symbol readSymbol() throws IOException {
+        return getSymbol(readByteArray());
+    }
+
+    protected static <C> Symbol getSymbol(byte[] bytes) {
+        Symbol symbol = Symbol.lookup(bytes);
+        if (symbol == null) {
+            throw new IllegalArgumentException("Unknown symbol[" + new String(bytes, UTF_8) + "]");
+        }
+        return symbol;
     }
 
     /**

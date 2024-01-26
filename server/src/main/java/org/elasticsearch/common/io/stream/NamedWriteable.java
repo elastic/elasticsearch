@@ -19,4 +19,8 @@ public interface NamedWriteable extends Writeable {
      * Returns the name of the writeable object
      */
     String getWriteableName();
+
+    default Symbol getNameSymbol() {
+        return Symbol.ofConstant(getWriteableName());
+    }
 }

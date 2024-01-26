@@ -12,11 +12,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Symbol;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * A StreamInput that reads off a {@link BytesRefIterator}. This is used to provide
@@ -131,6 +134,23 @@ class BytesReferenceStreamInput extends StreamInput {
         Objects.checkFromIndexSize(offset(), len, bytesReference.length());
         final int bytesRead = read(b, bOffset, len);
         assert bytesRead == len : bytesRead + " vs " + len;
+    }
+
+    @Override
+    public <C> Symbol readSymbol() throws IOException {
+        final int length = readArraySize();
+        if (slice.hasArray() && slice.remaining() + 1 >= length) {
+            int start = slice.position() + slice.arrayOffset();
+            int end = start + length;
+            Symbol symbol = Symbol.lookup(slice.array(), start, end);
+            if (symbol == null) {
+                throw new IllegalArgumentException("Unknown symbol[" + new String(slice.array(), start, length, UTF_8) + "]");
+            }
+            slice.position(end - slice.arrayOffset());
+            return symbol;
+        } else {
+            return getSymbol(doReadByteArray(length));
+        }
     }
 
     @Override

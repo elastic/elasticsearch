@@ -989,8 +989,19 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
     public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
-        writeString(namedWriteable.getWriteableName());
+        Symbol symbol = namedWriteable.getNameSymbol();
+        assert assertSymbolMatches(symbol, namedWriteable);
+
+        symbol.writeTo(this);
         namedWriteable.writeTo(this);
+    }
+
+    private static boolean assertSymbolMatches(Symbol symbol, NamedWriteable namedWriteable) {
+        assert symbol != null : "Symbol required for NamedWriteable " + namedWriteable.getClass().getName();
+        assert namedWriteable.getWriteableName().equals(symbol.toString())
+            : "Unexpected Symbol " + symbol + " for NamedWriteable " + namedWriteable.getClass().getName();
+
+        return true;
     }
 
     /**

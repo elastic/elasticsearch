@@ -17,6 +17,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,6 +49,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         return cluster;
     }
 
+    @Ignore("https://github.com/elastic/elasticsearch/issues/104470")
     public void testBehavioralAnalyticsDataRetention() throws Exception {
         assumeTrue(
             "Data retention changed by default to DSL in " + DSL_DEFAULT_RETENTION_VERSION,

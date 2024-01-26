@@ -69,20 +69,25 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
         ActionListener<AcknowledgedResponse> listener
     ) {
         SubscribableListener.<ModelRegistry.UnparsedModel>newForked(modelConfigListener -> {
-            modelRegistry.getModel(request.getModelId(), modelConfigListener);
+            modelRegistry.getModel(request.getInferenceEntityId(), modelConfigListener);
         }).<Boolean>andThen((l1, unparsedModel) -> {
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
-                service.get().stop(request.getModelId(), l1);
+                service.get().stop(request.getInferenceEntityId(), l1);
             } else {
-                l1.onFailure(new ElasticsearchStatusException("No service found for model " + request.getModelId(), RestStatus.NOT_FOUND));
+                l1.onFailure(
+                    new ElasticsearchStatusException("No service found for model " + request.getInferenceEntityId(), RestStatus.NOT_FOUND)
+                );
             }
         }).<Boolean>andThen((l2, didStop) -> {
             if (didStop) {
-                modelRegistry.deleteModel(request.getModelId(), l2);
+                modelRegistry.deleteModel(request.getInferenceEntityId(), l2);
             } else {
                 l2.onFailure(
-                    new ElasticsearchStatusException("Failed to stop model " + request.getModelId(), RestStatus.INTERNAL_SERVER_ERROR)
+                    new ElasticsearchStatusException(
+                        "Failed to stop model " + request.getInferenceEntityId(),
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    )
                 );
             }
         }).addListener(listener.delegateFailure((l3, didDeleteModel) -> listener.onResponse(AcknowledgedResponse.of(didDeleteModel))));

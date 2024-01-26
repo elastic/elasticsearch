@@ -194,8 +194,12 @@ public class ServiceUtils {
         return optionalField;
     }
 
-    public static String parsePersistedConfigErrorMsg(String modelId, String serviceName) {
-        return format("Failed to parse stored model [%s] for [%s] service, please delete and add the service again", modelId, serviceName);
+    public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName) {
+        return format(
+            "Failed to parse stored model [%s] for [%s] service, please delete and add the service again",
+            inferenceEntityId,
+            serviceName
+        );
     }
 
     public static ElasticsearchStatusException createInvalidModelException(Model model) {
@@ -203,7 +207,7 @@ public class ServiceUtils {
             format(
                 "The internal model was invalid, please delete the service [%s] with id [%s] and add it again.",
                 model.getConfigurations().getService(),
-                model.getConfigurations().getModelId()
+                model.getConfigurations().getInferenceEntityId()
             ),
             RestStatus.INTERNAL_SERVER_ERROR
         );

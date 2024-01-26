@@ -29,17 +29,17 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
 
     public static class Request extends AcknowledgedRequest<DeleteInferenceModelAction.Request> {
 
-        private final String modelId;
+        private final String inferenceEntityId;
         private final TaskType taskType;
 
-        public Request(String modelId, String taskType) {
-            this.modelId = modelId;
+        public Request(String inferenceEntityId, String taskType) {
+            this.inferenceEntityId = inferenceEntityId;
             this.taskType = TaskType.fromStringOrStatusException(taskType);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.modelId = in.readString();
+            this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
         }
 
@@ -48,8 +48,8 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
             return null;
         }
 
-        public String getModelId() {
-            return modelId;
+        public String getInferenceEntityId() {
+            return inferenceEntityId;
         }
 
         public TaskType getTaskType() {
@@ -59,7 +59,7 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(modelId);
+            out.writeString(inferenceEntityId);
             taskType.writeTo(out);
         }
 
@@ -68,12 +68,12 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeleteInferenceModelAction.Request request = (DeleteInferenceModelAction.Request) o;
-            return Objects.equals(modelId, request.modelId) && taskType == request.taskType;
+            return Objects.equals(inferenceEntityId, request.inferenceEntityId) && taskType == request.taskType;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, taskType);
+            return Objects.hash(inferenceEntityId, taskType);
         }
     }
 }

@@ -27,8 +27,8 @@ public class Model {
         this(configurations, new ModelSecrets());
     }
 
-    public String getModelId() {
-        return configurations.getModelId();
+    public String getInferenceEntityId() {
+        return configurations.getInferenceEntityId();
     }
 
     public TaskType getTaskType() {

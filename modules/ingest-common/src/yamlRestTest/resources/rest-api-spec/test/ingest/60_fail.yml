@@ -1,6 +1,10 @@
 ---
 teardown:
   - do:
+      indices.delete:
+        index: "test"
+        ignore_unavailable: true
+  - do:
       ingest.delete_pipeline:
         id: "my_pipeline"
         ignore: 404
@@ -71,7 +75,7 @@ teardown:
   - match: { _source.error_message: "fail_processor_ran" }
 
 ---
-"Test Fail Processor with Upsert":
+"Test Fail Processor with Upsert (bulk)":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -108,3 +112,45 @@ teardown:
       get:
         index: test
         id: "3"
+
+---
+"Test Fail Processor with Upsert (_update)":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "fail": {
+                  "message": "error-message"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              default_pipeline: "my_pipeline"
+
+  - do:
+      update:
+        index: test
+        id: "4"
+        body:
+          script:
+            source: "ctx._source.foo = 'bar'"
+          upsert:
+            foo: "bar"
+      catch: /error-message/
+
+  - do:
+      catch: missing
+      get:
+        index: test
+        id: "4"

@@ -35,3 +35,8 @@ class org.apache.lucene.util.PriorityQueue @no_import{
     int size()
 }
 
+class org.apache.lucene.util.VectorUtil {
+    float dotProduct(float[], float[])
+    float cosine(float[], float[])
+    float[] l2normalize(float[])
+}

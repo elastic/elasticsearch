@@ -76,7 +76,7 @@ public class ScriptRankCoordinatorContext extends RankCoordinatorContext {
             for (int i = 0; i < topDocsList.size(); ++i) {
                 for (ScoreDoc scoreDoc : topDocsList.get(i).scoreDocs) {
                     scoreDoc.shardIndex = querySearchResult.getShardIndex();
-                    queues.get(i).add(scoreDoc);
+                    queues.get(i).insertWithOverflow(scoreDoc);
                 }
             }
         }

@@ -373,7 +373,10 @@ public class IndicesOptionsTests extends ESTestCase {
         );
         ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean());
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions);
+        IndicesOptions indicesOptions = IndicesOptions.newBuilder()
+            .concreteTargetOptions(concreteTargetOptions)
+            .wildcardOptions(wildcardOptions)
+            .build();
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);

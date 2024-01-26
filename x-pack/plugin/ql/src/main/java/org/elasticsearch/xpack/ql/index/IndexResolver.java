@@ -114,25 +114,23 @@ public class IndexResolver {
     public static final String SQL_TABLE = "TABLE";
     public static final String SQL_VIEW = "VIEW";
 
-    private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
-        IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
-        new IndicesOptions.WildcardOptions.Builder().resolveAliases(false).build(),
-        new IndicesOptions.GeneralOptions.Builder().removeThrottled(true).build()
-    );
-    private static final IndicesOptions FROZEN_INDICES_OPTIONS = new IndicesOptions(
-        IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
-        new IndicesOptions.WildcardOptions.Builder().resolveAliases(false).build()
-    );
+    private static final IndicesOptions INDICES_ONLY_OPTIONS = IndicesOptions.newBuilder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().resolveAliases(false))
+        .generalOptions(IndicesOptions.GeneralOptions.newBuilder().removeThrottled(true))
+        .build();
+    private static final IndicesOptions FROZEN_INDICES_OPTIONS = IndicesOptions.newBuilder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().resolveAliases(false))
+        .build();
 
-    public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = new IndicesOptions(
-        IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
-        IndicesOptions.WildcardOptions.DEFAULT_OPEN,
-        new IndicesOptions.GeneralOptions.Builder().removeThrottled(true).build()
-    );
-    public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = new IndicesOptions(
-        IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
-        IndicesOptions.WildcardOptions.DEFAULT_OPEN
-    );
+    public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.newBuilder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .generalOptions(IndicesOptions.GeneralOptions.newBuilder().removeThrottled(true))
+        .build();
+    public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = IndicesOptions.newBuilder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .build();
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of("_index");

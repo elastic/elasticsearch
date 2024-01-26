@@ -274,10 +274,9 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(
                 FreezeIndexAction.INSTANCE,
                 new FreezeRequest("test-idx").indicesOptions(
-                    new IndicesOptions(
-                        IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-                        new IndicesOptions.WildcardOptions.Builder().allowEmptyExpressions(false).build()
-                    )
+                    IndicesOptions.newBuilder()
+                        .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().allowEmptyExpressions(false))
+                        .build()
                 )
             )
         );
@@ -501,10 +500,9 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 FreezeIndexAction.INSTANCE,
                 new FreezeRequest("id*").setFreeze(false)
                     .indicesOptions(
-                        new IndicesOptions(
-                            IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-                            new IndicesOptions.WildcardOptions.Builder().allowEmptyExpressions(false).build()
-                        )
+                        IndicesOptions.newBuilder()
+                            .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().allowEmptyExpressions(false))
+                            .build()
                     )
             )
         );

@@ -41,8 +41,12 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     implements
         ToXContentFragment {
 
-    public IndicesOptions(ConcreteTargetOptions concreteTargetOptions, WildcardOptions wildcardOptions) {
-        this(concreteTargetOptions, wildcardOptions, GeneralOptions.DEFAULT);
+    public static IndicesOptions.Builder newBuilder() {
+        return new Builder();
+    }
+
+    public static IndicesOptions.Builder newBuilder(IndicesOptions indicesOptions) {
+        return new Builder(indicesOptions);
     }
 
     /**
@@ -86,13 +90,14 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         boolean allowEmptyExpressions
     ) implements Writeable, ToXContentFragment {
 
-        public static final WildcardOptions DEFAULT_OPEN = new WildcardOptions.Builder().build();
-        public static final WildcardOptions DEFAULT_OPEN_HIDDEN = new WildcardOptions.Builder().removeHidden(false).build();
-        public static final WildcardOptions DEFAULT_OPEN_CLOSED = new WildcardOptions.Builder().includeClosed(true).build();
-        public static final WildcardOptions DEFAULT_OPEN_CLOSED_HIDDEN = new WildcardOptions.Builder().includeClosed(true)
+        public static final WildcardOptions DEFAULT_OPEN = WildcardOptions.newBuilder().build();
+        public static final WildcardOptions DEFAULT_OPEN_HIDDEN = WildcardOptions.newBuilder().removeHidden(false).build();
+        public static final WildcardOptions DEFAULT_OPEN_CLOSED = WildcardOptions.newBuilder().includeClosed(true).build();
+        public static final WildcardOptions DEFAULT_OPEN_CLOSED_HIDDEN = WildcardOptions.newBuilder()
+            .includeClosed(true)
             .removeHidden(false)
             .build();
-        public static final WildcardOptions DEFAULT_NONE = new WildcardOptions.Builder().none().build();
+        public static final WildcardOptions DEFAULT_NONE = WildcardOptions.newBuilder().none().build();
 
         public static WildcardOptions read(StreamInput in) throws IOException {
             return new WildcardOptions(in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readBoolean());
@@ -172,9 +177,9 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             private boolean resolveAliases = true;
             private boolean allowEmptyExpressions = true;
 
-            public Builder() {}
+            Builder() {}
 
-            public Builder(WildcardOptions options) {
+            Builder(WildcardOptions options) {
                 includeOpen = options.includeOpen;
                 includeClosed = options.includeClosed;
                 removeHidden = options.removeHidden;
@@ -274,6 +279,14 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 return new WildcardOptions(includeOpen, includeClosed, removeHidden, resolveAliases, allowEmptyExpressions);
             }
         }
+
+        public static Builder newBuilder() {
+            return new Builder();
+        }
+
+        public static Builder newBuilder(WildcardOptions wildcardOptions) {
+            return new Builder(wildcardOptions);
+        }
     }
 
     /**
@@ -288,7 +301,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             Writeable,
             ToXContentFragment {
 
-        public static final GeneralOptions DEFAULT = new GeneralOptions.Builder().build();
+        public static final GeneralOptions DEFAULT = GeneralOptions.newBuilder().build();
 
         public static GeneralOptions read(StreamInput in) throws IOException {
             return new GeneralOptions(in.readBoolean(), in.readBoolean(), in.readBoolean());
@@ -322,7 +335,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
 
             public Builder() {}
 
-            public Builder(GeneralOptions options) {
+            Builder(GeneralOptions options) {
                 allowAliasToMultipleIndices = options.allowAliasToMultipleIndices;
                 allowClosedIndices = options.allowClosedIndices;
                 removeThrottled = options.removeThrottled;
@@ -358,6 +371,14 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 return new GeneralOptions(allowAliasToMultipleIndices, allowClosedIndices, removeThrottled);
             }
         }
+
+        public static Builder newBuilder() {
+            return new Builder();
+        }
+
+        public static Builder newBuilder(GeneralOptions generalOptions) {
+            return new Builder(generalOptions);
+        }
     }
 
     /**
@@ -369,7 +390,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         HIDDEN;
 
         static WildcardOptions toWildcardOptions(EnumSet<WildcardStates> states, boolean allowNoIndices, boolean ignoreAlias) {
-            return new WildcardOptions.Builder().includeOpen(states.contains(OPEN))
+            return WildcardOptions.newBuilder()
+                .includeOpen(states.contains(OPEN))
                 .includeClosed(states.contains(CLOSED))
                 .removeHidden(states.contains(HIDDEN) == false)
                 .allowEmptyExpressions(allowNoIndices)
@@ -399,59 +421,48 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     private static final String WILDCARD_NONE_DEPRECATION_MESSAGE = "Combining the value 'none' with other options is deprecated "
         + "because it is order sensitive. Please revise the expression to work without the 'none' option or only use 'none'.";
 
-    public static final IndicesOptions STRICT_EXPAND_OPEN = new IndicesOptions(
-        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN
-    );
-    public static final IndicesOptions LENIENT_EXPAND_OPEN = new IndicesOptions(
-        ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN
-    );
-    public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = new IndicesOptions(
-        ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN_HIDDEN
-    );
-    public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = new IndicesOptions(
-        ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN_CLOSED
-    );
-    public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = new IndicesOptions(
-        ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN
-    );
-    public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = new IndicesOptions(
-        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN_CLOSED
-    );
-    public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = new IndicesOptions(
-        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN
-    );
-    public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = new IndicesOptions(
-        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN,
-        new GeneralOptions.Builder().allowClosedIndices(false).build()
-    );
-    public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = new IndicesOptions(
-        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN_HIDDEN,
-        new GeneralOptions.Builder().allowClosedIndices(false).build()
-    );
-    public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = new IndicesOptions(
-        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_OPEN,
-        new GeneralOptions.Builder().removeThrottled(true).allowClosedIndices(false).build()
-    );
-    public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
-        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_NONE,
-        new GeneralOptions.Builder().allowAliasToMultipleIndices(false).allowClosedIndices(false).build()
-    );
-    public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
-        ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-        WildcardOptions.DEFAULT_NONE,
-        new GeneralOptions.Builder().allowClosedIndices(false).build()
-    );
+    public static final IndicesOptions DEFAULT = IndicesOptions.newBuilder().build();
+
+    public static final IndicesOptions STRICT_EXPAND_OPEN = DEFAULT;
+    public static final IndicesOptions LENIENT_EXPAND_OPEN = IndicesOptions.newBuilder()
+        .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .build();
+    public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = IndicesOptions.newBuilder()
+        .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_HIDDEN)
+        .build();
+    public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.newBuilder()
+        .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_CLOSED)
+        .build();
+    public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.newBuilder()
+        .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN)
+        .build();
+    public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = IndicesOptions.newBuilder()
+        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_CLOSED)
+        .build();
+    public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.newBuilder()
+        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN)
+        .build();
+    public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.newBuilder()
+        .generalOptions(GeneralOptions.newBuilder().allowClosedIndices(false))
+        .build();
+    public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = IndicesOptions.newBuilder()
+        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_HIDDEN)
+        .generalOptions(GeneralOptions.newBuilder().allowClosedIndices(false))
+        .build();
+    public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.newBuilder()
+        .generalOptions(GeneralOptions.newBuilder().removeThrottled(true).allowClosedIndices(false))
+        .build();
+    public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.newBuilder()
+        .wildcardOptions(WildcardOptions.DEFAULT_NONE)
+        .generalOptions(GeneralOptions.newBuilder().allowAliasToMultipleIndices(false).allowClosedIndices(false))
+        .build();
+    public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = IndicesOptions.newBuilder()
+        .wildcardOptions(WildcardOptions.DEFAULT_NONE)
+        .generalOptions(GeneralOptions.newBuilder().allowClosedIndices(false))
+        .build();
 
     /**
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
@@ -570,9 +581,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             options.contains(Option.ALLOW_EMPTY_WILDCARD_EXPRESSIONS),
             options.contains(Option.EXCLUDE_ALIASES)
         );
-        GeneralOptions generalOptions = new GeneralOptions.Builder().allowClosedIndices(
-            options.contains(Option.ERROR_WHEN_CLOSED_INDICES) == false
-        )
+        GeneralOptions generalOptions = GeneralOptions.newBuilder()
+            .allowClosedIndices(options.contains(Option.ERROR_WHEN_CLOSED_INDICES) == false)
             .allowAliasToMultipleIndices(options.contains(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES) == false)
             .removeThrottled(options.contains(Option.EXCLUDE_THROTTLED))
             .build();
@@ -583,6 +593,49 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             wildcardOptions,
             generalOptions
         );
+    }
+
+    public static class Builder {
+        private ConcreteTargetOptions concreteTargetOptions = ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS;
+        private WildcardOptions wildcardOptions = WildcardOptions.DEFAULT_OPEN;
+        private GeneralOptions generalOptions = GeneralOptions.DEFAULT;
+
+        Builder() {}
+
+        Builder(IndicesOptions indicesOptions) {
+            concreteTargetOptions = indicesOptions.concreteTargetOptions;
+            wildcardOptions = indicesOptions.wildcardOptions;
+            generalOptions = indicesOptions.generalOptions;
+        }
+
+        public Builder concreteTargetOptions(ConcreteTargetOptions concreteTargetOptions) {
+            this.concreteTargetOptions = concreteTargetOptions;
+            return this;
+        }
+
+        public Builder wildcardOptions(WildcardOptions wildcardOptions) {
+            this.wildcardOptions = wildcardOptions;
+            return this;
+        }
+
+        public Builder wildcardOptions(WildcardOptions.Builder wildcardOptions) {
+            this.wildcardOptions = wildcardOptions.build();
+            return this;
+        }
+
+        public Builder generalOptions(GeneralOptions generalOptions) {
+            this.generalOptions = generalOptions;
+            return this;
+        }
+
+        public Builder generalOptions(GeneralOptions.Builder generalOptions) {
+            this.generalOptions = generalOptions.build();
+            return this;
+        }
+
+        public IndicesOptions build() {
+            return new IndicesOptions(concreteTargetOptions, wildcardOptions, generalOptions);
+        }
     }
 
     public static IndicesOptions fromOptions(
@@ -668,13 +721,15 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         boolean ignoreAliases,
         boolean ignoreThrottled
     ) {
-        final WildcardOptions wildcards = new WildcardOptions.Builder().includeOpen(expandToOpenIndices)
+        final WildcardOptions wildcards = WildcardOptions.newBuilder()
+            .includeOpen(expandToOpenIndices)
             .includeClosed(expandToClosedIndices)
             .removeHidden(expandToHiddenIndices == false)
             .resolveAliases(ignoreAliases == false)
             .allowEmptyExpressions(allowNoIndices)
             .build();
-        final GeneralOptions generalOptions = new GeneralOptions.Builder().allowAliasToMultipleIndices(allowAliasesToMultipleIndices)
+        final GeneralOptions generalOptions = GeneralOptions.newBuilder()
+            .allowAliasToMultipleIndices(allowAliasesToMultipleIndices)
             .allowClosedIndices(forbidClosedIndices == false)
             .removeThrottled(ignoreThrottled)
             .build();
@@ -771,10 +826,9 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
 
     public static IndicesOptions fromXContent(XContentParser parser, @Nullable IndicesOptions defaults) throws IOException {
         boolean parsedWildcardStates = false;
-        WildcardOptions.Builder wildcardsBuilder = defaults == null ? null : new WildcardOptions.Builder(defaults.wildcardOptions());
-        GeneralOptions.Builder generalBuilder = new GeneralOptions.Builder().removeThrottled(
-            defaults != null && defaults.generalOptions().removeThrottled()
-        );
+        WildcardOptions.Builder wildcardsBuilder = defaults == null ? null : WildcardOptions.newBuilder(defaults.wildcardOptions());
+        GeneralOptions.Builder generalBuilder = GeneralOptions.newBuilder()
+            .removeThrottled(defaults != null && defaults.generalOptions().removeThrottled());
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
@@ -789,7 +843,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (parsedWildcardStates == false) {
                         parsedWildcardStates = true;
-                        wildcardsBuilder = new WildcardOptions.Builder();
+                        wildcardsBuilder = WildcardOptions.newBuilder();
                         List<String> values = new ArrayList<>();
                         while ((token = parser.nextToken()) != Token.END_ARRAY) {
                             if (token.isValue()) {
@@ -813,7 +867,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (parsedWildcardStates == false) {
                         parsedWildcardStates = true;
-                        wildcardsBuilder = new WildcardOptions.Builder();
+                        wildcardsBuilder = WildcardOptions.newBuilder();
                         wildcardsBuilder.expandStates(new String[] { parser.text() });
                     } else {
                         throw new ElasticsearchParseException("already parsed expand_wildcards");

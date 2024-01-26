@@ -34,10 +34,9 @@ public class DataStreamsActionUtil {
 
     public static IndicesOptions updateIndicesOptions(IndicesOptions indicesOptions) {
         if (indicesOptions.expandWildcardsOpen() == false) {
-            IndicesOptions.WildcardOptions updatedWildcardOptions = new IndicesOptions.WildcardOptions.Builder(
-                indicesOptions.wildcardOptions()
-            ).includeOpen(true).build();
-            indicesOptions = new IndicesOptions(indicesOptions.concreteTargetOptions(), updatedWildcardOptions);
+            indicesOptions = IndicesOptions.newBuilder(indicesOptions)
+                .wildcardOptions(IndicesOptions.WildcardOptions.newBuilder(indicesOptions.wildcardOptions()).includeOpen(true))
+                .build();
         }
         return indicesOptions;
     }

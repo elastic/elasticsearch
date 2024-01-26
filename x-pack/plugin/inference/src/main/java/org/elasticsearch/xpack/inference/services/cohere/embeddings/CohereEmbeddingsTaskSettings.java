@@ -159,12 +159,12 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     }
 
     /**
-     * Sets the input type field for the task settings if it is currently null and the passed in input type value is valid.
+     * Sets the input type field for the task settings if input type value is valid.
      * @param inputType the new input type to use
-     * @return task settings with the values set if they were previously null
+     * @return newly updated task settings
      */
-    public CohereEmbeddingsTaskSettings setIfAbsent(InputType inputType) {
-        if (this.inputType != null || VALID_INPUT_VALUES_LIST.contains(inputType) == false) {
+    public CohereEmbeddingsTaskSettings setInputType(InputType inputType) {
+        if (VALID_INPUT_VALUES_LIST.contains(inputType) == false) {
             return this;
         }
 

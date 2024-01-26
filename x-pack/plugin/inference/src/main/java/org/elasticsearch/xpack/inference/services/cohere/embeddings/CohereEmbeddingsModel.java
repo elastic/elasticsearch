@@ -80,6 +80,6 @@ public class CohereEmbeddingsModel extends CohereModel {
 
     public CohereEmbeddingsModel overrideWith(Map<String, Object> taskSettings, InputType inputType) {
         var requestTaskSettings = CohereEmbeddingsTaskSettings.fromMap(taskSettings);
-        return new CohereEmbeddingsModel(this, getTaskSettings().overrideWith(requestTaskSettings).setIfAbsent(inputType));
+        return new CohereEmbeddingsModel(this, getTaskSettings().overrideWith(requestTaskSettings).setInputType(inputType));
     }
 }

@@ -114,23 +114,23 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(null, CohereTruncation.START)));
     }
 
-    public void testSetIfAbsent_DoesNotSetInputType_IfAlreadySetInTaskSettings() {
+    public void testSetInputType_SetsInputType() {
         MatcherAssert.assertThat(
-            new CohereEmbeddingsTaskSettings(InputType.INGEST, null).setIfAbsent(InputType.SEARCH),
-            is(new CohereEmbeddingsTaskSettings(InputType.INGEST, null))
+            new CohereEmbeddingsTaskSettings(InputType.INGEST, null).setInputType(InputType.SEARCH),
+            is(new CohereEmbeddingsTaskSettings(InputType.SEARCH, null))
         );
     }
 
     public void testSetIfAbsent_DoesNotSetInputType_IfInputTypeIsInvalid() {
         MatcherAssert.assertThat(
-            new CohereEmbeddingsTaskSettings(null, null).setIfAbsent(InputType.UNSPECIFIED),
+            new CohereEmbeddingsTaskSettings(null, null).setInputType(InputType.UNSPECIFIED),
             is(new CohereEmbeddingsTaskSettings(null, null))
         );
     }
 
     public void testSetIfAbsent_SetsInputType_IfFieldIsNull() {
         MatcherAssert.assertThat(
-            new CohereEmbeddingsTaskSettings(null, null).setIfAbsent(InputType.INGEST),
+            new CohereEmbeddingsTaskSettings(null, null).setInputType(InputType.INGEST),
             is(new CohereEmbeddingsTaskSettings(InputType.INGEST, null))
         );
     }

@@ -1,6 +1,10 @@
 ---
 teardown:
   - do:
+      indices.delete:
+        index: "test"
+        ignore_unavailable: true
+  - do:
       ingest.delete_pipeline:
         id: "my_pipeline"
         ignore: 404
@@ -93,7 +97,7 @@ teardown:
         id: "3"
 
 ---
-"Test Drop Processor with Upsert":
+"Test Drop Processor with Upsert (_bulk)":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -129,3 +133,47 @@ teardown:
       get:
         index: test
         id: "4"
+
+---
+"Test Drop Processor with Upsert (_update)":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "drop": {
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              default_pipeline: "my_pipeline"
+
+  - do:
+      update:
+        index: test
+        id: "5"
+        body:
+          script:
+            source: "ctx._source.foo = 'bar'"
+          upsert:
+            foo: "bar"
+
+  - match: { _index: test }
+  - match: { _id: "5" }
+  - match: { result: noop }
+
+  - do:
+      catch: missing
+      get:
+        index: test
+        id: "5"

@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
@@ -21,8 +20,6 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -234,18 +231,6 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
     }
 
     @Override
-    protected void assertFromXContent(
-        InternalItemSetMapReduceAggregation<WordCounts, WordCounts, WordCounts, WordCounts> aggregation,
-        ParsedAggregation parsedAggregation
-    ) throws IOException {
-        ParsedWordCountMapReduceAggregation parsed = (ParsedWordCountMapReduceAggregation) parsedAggregation;
-        assertThat(parsed.getName(), equalTo(aggregation.getName()));
-
-        WordCountMapReducer.WordCounts wc = aggregation.getMapReduceResult();
-        assertMapEquals(wc.frequencies, parsed.getFrequencies());
-    }
-
-    @Override
     protected SearchPlugin registerPlugin() {
         return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
     }
@@ -266,18 +251,6 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
         );
 
         return namedWritables;
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                new ParseField(WordCountMapReducer.AGG_NAME),
-                (p, c) -> ParsedWordCountMapReduceAggregation.fromXContent(p, (String) c)
-            )
-        );
     }
 
     private static void assertMapEquals(Map<String, Long> expected, Map<String, Long> actual) {

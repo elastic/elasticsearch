@@ -19,7 +19,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
@@ -39,16 +38,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notANumber;
 import static org.mockito.Mockito.mock;
 
@@ -358,48 +353,6 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         return new InternalTopMetrics(name, instanceSortOrder, metricNames, size, topMetrics, instance.getMetadata());
     }
 
-    /**
-     * An extra test for parsing dates from xcontent because we can't random
-     * into {@link DocValueFormat.DateTime} because it doesn't
-     * implement {@link Object#equals(Object)}.
-     */
-    public void testFromXContentDates() throws IOException {
-        InternalTopMetrics aggregation = createTestInstance(
-            randomAlphaOfLength(3),
-            emptyMap(),
-            InternalTopMetricsTests::strictDateTime,
-            InternalTopMetricsTests::randomSortValue
-        );
-        ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), randomBoolean());
-        assertFromXContent(aggregation, parsedAggregation);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalTopMetrics aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        ParsedTopMetrics parsed = (ParsedTopMetrics) parsedAggregation;
-        assertThat(parsed.getName(), equalTo(aggregation.getName()));
-        assertThat(parsed.getTopMetrics(), hasSize(aggregation.getTopMetrics().size()));
-        for (int i = 0; i < parsed.getTopMetrics().size(); i++) {
-            ParsedTopMetrics.TopMetrics parsedTop = parsed.getTopMetrics().get(i);
-            InternalTopMetrics.TopMetric internalTop = aggregation.getTopMetrics().get(i);
-            Object expectedSort = internalTop.getSortFormat() == DocValueFormat.RAW
-                ? internalTop.getSortValue().getKey()
-                : internalTop.getSortValue().format(internalTop.getSortFormat());
-            assertThat(parsedTop.getSort(), equalTo(singletonList(expectedSort)));
-            assertThat(parsedTop.getMetrics().keySet(), hasSize(aggregation.getMetricNames().size()));
-            for (int m = 0; m < aggregation.getMetricNames().size(); m++) {
-                String name = aggregation.getMetricNames().get(m);
-                InternalTopMetrics.MetricValue value = internalTop.getMetricValues().get(m);
-                assertThat(parsedTop.getMetrics(), hasKey(name));
-                if (value.getFormat() == DocValueFormat.RAW) {
-                    assertThat(parsedTop.getMetrics().get(name), equalTo(value.numberValue()));
-                } else {
-                    assertThat(parsedTop.getMetrics().get(name), equalTo(value.getValue().format(value.getFormat())));
-                }
-            }
-        }
-    }
-
     @Override
     protected BuilderAndToReduce<InternalTopMetrics> randomResultsToReduce(String name, int size) {
         InternalTopMetrics prototype = createTestInstance();
@@ -498,10 +451,5 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             return SortValue.from(randomDoubleBetween(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999, DateUtils.MAX_MILLIS_BEFORE_9999, true));
         }
         return randomSortValue();
-    }
-
-    @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return path -> path.endsWith(".metrics");
     }
 }

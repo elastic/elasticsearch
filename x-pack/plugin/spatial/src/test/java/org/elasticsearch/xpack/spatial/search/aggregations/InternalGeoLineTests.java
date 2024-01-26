@@ -11,14 +11,12 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -136,11 +134,6 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
 
         assertArrayEquals(finalCappedSortVals, reduced.sortVals(), 0d);
         assertArrayEquals(finalCappedPoints, reduced.line());
-    }
-
-    @Override
-    protected void assertFromXContent(InternalGeoLine aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        // There is no ParsedGeoLine yet so we cannot test it here
     }
 
     @Override

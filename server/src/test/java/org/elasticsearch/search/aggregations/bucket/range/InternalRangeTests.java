@@ -82,11 +82,6 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange<Inte
     }
 
     @Override
-    protected Class<ParsedRange> implementationClass() {
-        return ParsedRange.class;
-    }
-
-    @Override
     protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
         return InternalRange.Bucket.class;
     }

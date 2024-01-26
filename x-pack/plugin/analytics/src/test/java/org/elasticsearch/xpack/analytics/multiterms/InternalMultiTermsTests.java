@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -263,11 +262,6 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             assertThat(bucketCounts.keySet(), hasItem(equalTo(key)));
             assertThat(bucketCounts.get(key), equalTo(bucket.docCount));
         }
-    }
-
-    @Override
-    protected void assertFromXContent(InternalMultiTerms min, ParsedAggregation parsedAggregation) {
-        // There is no ParsedMultiTerms yet so we cannot test it here
     }
 
     @Override

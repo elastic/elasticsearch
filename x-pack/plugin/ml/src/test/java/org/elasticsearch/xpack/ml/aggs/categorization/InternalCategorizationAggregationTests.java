@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,7 +26,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -81,11 +79,6 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
     }
 
     @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return p -> p.contains("key");
-    }
-
-    @Override
     protected InternalCategorizationAggregation createTestInstance(
         String name,
         Map<String, Object> metadata,
@@ -107,11 +100,6 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
             metadata,
             buckets
         );
-    }
-
-    @Override
-    protected Class<? extends ParsedMultiBucketAggregation<?>> implementationClass() {
-        return ParsedCategorization.class;
     }
 
     private static Map<Object, Long> toCounts(Stream<? extends InternalCategorizationAggregation.Bucket> buckets) {

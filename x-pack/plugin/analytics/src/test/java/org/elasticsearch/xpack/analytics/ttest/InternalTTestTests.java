@@ -16,7 +16,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -86,11 +85,6 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
     @Override
     protected boolean supportsSampling() {
         return true;
-    }
-
-    @Override
-    protected void assertFromXContent(InternalTTest min, ParsedAggregation parsedAggregation) {
-        // There is no ParsedTTest yet so we cannot test it here
     }
 
     @Override

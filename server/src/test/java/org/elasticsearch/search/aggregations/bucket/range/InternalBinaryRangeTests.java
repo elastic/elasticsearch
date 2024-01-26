@@ -78,11 +78,6 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
     }
 
     @Override
-    protected Class<ParsedBinaryRange> implementationClass() {
-        return ParsedBinaryRange.class;
-    }
-
-    @Override
     protected void assertReduced(InternalBinaryRange reduced, List<InternalBinaryRange> inputs) {
         int pos = 0;
         for (InternalBinaryRange input : inputs) {

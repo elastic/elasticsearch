@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -59,11 +58,6 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
         assertNotNull(expected);
         assertEquals(expected.getMax(), reduced.getMax(), 0);
         assertEquals(expected.getMin(), reduced.getMin(), 0);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalBoxplot min, ParsedAggregation parsedAggregation) {
-        // There is no ParsedBoxplot yet so we cannot test it here
     }
 
     @Override

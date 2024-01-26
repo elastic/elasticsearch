@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -133,13 +132,6 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         assertEquals(expectedAvg, reduced.getAvg(), delta);
         assertEquals(min, reduced.getMin(), 0d);
         assertEquals(max, reduced.getMax(), 0d);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalStats aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedStats);
-        ParsedStats parsed = (ParsedStats) parsedAggregation;
-        assertStats(aggregation, parsed);
     }
 
     static void assertStats(InternalStats aggregation, ParsedStats parsed) {

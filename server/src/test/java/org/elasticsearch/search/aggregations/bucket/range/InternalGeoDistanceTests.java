@@ -69,11 +69,6 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
     }
 
     @Override
-    protected Class<ParsedGeoDistance> implementationClass() {
-        return ParsedGeoDistance.class;
-    }
-
-    @Override
     protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
         return InternalGeoDistance.Bucket.class;
     }

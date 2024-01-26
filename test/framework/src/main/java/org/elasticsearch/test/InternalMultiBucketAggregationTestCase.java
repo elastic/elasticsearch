@@ -22,13 +22,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -100,18 +98,6 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations);
 
-    /**
-     * The parsed version used by the deprecated high level rest client or
-     * {@code null} if the deprecated high level rest client isn't supported
-     * by this agg.
-     */
-    protected abstract Class<? extends ParsedMultiBucketAggregation<?>> implementationClass();
-
-    @Override
-    protected final void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
-        assertMultiBucketsAggregations(aggregation, parsedAggregation, false);
-    }
-
     @Override
     public final T createTestInstanceForXContent() {
         return createTestInstanceForXContent(randomAlphaOfLength(5), createTestMetadata(), createSubAggregations());
@@ -119,18 +105,6 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     protected T createTestInstanceForXContent(String name, Map<String, Object> metadata, InternalAggregations subAggs) {
         return createTestInstance(name, metadata, subAggs);
-    }
-
-    public void testIterators() throws IOException {
-        final T aggregation = createTestInstanceForXContent();
-        assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false, false), true);
-    }
-
-    @Override
-    protected <P extends ParsedAggregation> P parseAndAssert(InternalAggregation aggregation, boolean shuffled, boolean addRandomFields)
-        throws IOException {
-        assumeFalse("deprecated high level rest client not supported", implementationClass() == null);
-        return super.parseAndAssert(aggregation, shuffled, addRandomFields);
     }
 
     @Override
@@ -191,13 +165,6 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     }
 
     protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
-        Class<? extends ParsedMultiBucketAggregation<?>> parsedClass = implementationClass();
-        assertNotNull("Parsed aggregation class must not be null", parsedClass);
-        assertTrue(
-            "Unexpected parsed class, expected instance of: " + actual + ", but was: " + parsedClass,
-            parsedClass.isInstance(actual)
-        );
-
         assertTrue(expected instanceof InternalAggregation);
         assertEquals(expected.getName(), actual.getName());
         assertEquals(expected.getMetadata(), actual.getMetadata());

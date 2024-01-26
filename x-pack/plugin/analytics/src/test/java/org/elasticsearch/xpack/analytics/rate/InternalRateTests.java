@@ -13,7 +13,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -69,11 +68,6 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
     protected void assertReduced(InternalRate reduced, List<InternalRate> inputs) {
         double expected = inputs.stream().mapToDouble(a -> a.sum).sum() / reduced.divisor;
         assertEquals(expected, reduced.getValue(), 0.00001);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalRate min, ParsedAggregation parsedAggregation) {
-        // There is no ParsedRate yet so we cannot test it here
     }
 
     @Override

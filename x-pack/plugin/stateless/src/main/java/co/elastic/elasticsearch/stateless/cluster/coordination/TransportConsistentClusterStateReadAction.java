@@ -68,7 +68,7 @@ public final class TransportConsistentClusterStateReadAction extends TransportAc
     // visible for testing
     static final String MASTER_NODE_ACTION = NAME + "[m]";
 
-    public static final ActionType<Response> TYPE = ActionType.localOnly(NAME);
+    public static final ActionType<Response> TYPE = new ActionType<>(NAME);
 
     private final Logger logger = LogManager.getLogger(TransportConsistentClusterStateReadAction.class);
     private final ClusterService clusterService;

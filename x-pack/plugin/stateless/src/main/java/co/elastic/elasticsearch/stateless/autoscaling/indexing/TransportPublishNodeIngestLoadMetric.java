@@ -35,7 +35,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportPublishNodeIngestLoadMetric extends TransportMasterNodeAction<PublishNodeIngestLoadRequest, ActionResponse.Empty> {
 
     public static final String NAME = "cluster:monitor/stateless/autoscaling/push_node_ingest_load";
-    public static final ActionType<ActionResponse.Empty> INSTANCE = ActionType.localOnly(NAME);
+    public static final ActionType<ActionResponse.Empty> INSTANCE = new ActionType<>(NAME);
 
     private final IngestMetricsService ingestMetricsService;
 

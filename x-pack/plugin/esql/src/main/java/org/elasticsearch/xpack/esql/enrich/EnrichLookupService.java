@@ -281,7 +281,8 @@ public class EnrichLookupService {
                 );
                 BlockLoader loader = ctx.blockLoader(
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType())
+                    EsqlDataTypes.isUnsupported(extractField.dataType()),
+                    MappedFieldType.FieldExtractPreference.NONE
                 );
                 fields.add(
                     new ValuesSourceReaderOperator.FieldInfo(
@@ -300,9 +301,12 @@ public class EnrichLookupService {
                 new ValuesSourceReaderOperator(
                     driverContext.blockFactory(),
                     fields,
-                    List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.searcher().getIndexReader(), () -> {
-                        throw new UnsupportedOperationException("can't load _source as part of enrich");
-                    })),
+                    List.of(
+                        new ValuesSourceReaderOperator.ShardContext(
+                            searchContext.searcher().getIndexReader(),
+                            searchContext::newSourceLoader
+                        )
+                    ),
                     0
                 )
             );

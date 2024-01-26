@@ -131,7 +131,6 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -232,7 +231,22 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static EnumSet<ProductFeature> availableFeatures;
     private static Set<String> nodesVersions;
-    private static TestFeatureService testFeatureService = ALL_FEATURES;
+
+    private static final TestFeatureService ALL_FEATURES = new TestFeatureService() {
+        @Override
+        public boolean clusterHasFeature(String featureId) {
+            return true;
+        }
+
+        @Override
+        public Set<String> getAllSupportedFeatures() {
+            throw new UnsupportedOperationException(
+                "Only available to properly initialized TestFeatureService. See ESRestTestCase#createTestFeatureService"
+            );
+        }
+    };
+
+    protected static TestFeatureService testFeatureService = ALL_FEATURES;
 
     protected static Set<String> getCachedNodesVersions() {
         assert nodesVersions != null;
@@ -260,6 +274,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         return testFeatureService.clusterHasFeature(feature.id());
     }
 
+    protected static boolean testFeatureServiceInitialized() {
+        return testFeatureService != ALL_FEATURES;
+    }
+
     @Before
     public void initClient() throws IOException {
         if (client == null) {
@@ -267,7 +285,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert availableFeatures == null;
             assert nodesVersions == null;
-            assert testFeatureService == ALL_FEATURES;
+            assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
@@ -329,7 +347,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }
 
-        assert testFeatureService != ALL_FEATURES;
+        assert testFeatureServiceInitialized();
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;

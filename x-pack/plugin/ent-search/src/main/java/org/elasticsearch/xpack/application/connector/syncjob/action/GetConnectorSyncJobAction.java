@@ -34,7 +34,7 @@ public class GetConnectorSyncJobAction extends ActionType<GetConnectorSyncJobAct
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/get";
 
     private GetConnectorSyncJobAction() {
-        super(NAME, GetConnectorSyncJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -16,7 +16,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretRequest;
 import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretRequest;

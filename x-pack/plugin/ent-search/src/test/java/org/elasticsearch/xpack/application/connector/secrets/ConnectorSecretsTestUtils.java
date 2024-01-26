@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.connector.secrets;
 
 import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretRequest;
+import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretRequest;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretRequest;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.application.connector.secrets.action.PostConnecto
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public class ConnectorSecretsTestUtils {
 
@@ -28,15 +30,19 @@ public class ConnectorSecretsTestUtils {
         return new GetConnectorSecretResponse(id, value);
     }
 
-    public static DeleteConnectorSecretRequest getRandomDeleteConnectorSecretRequest() {
-        return new DeleteConnectorSecretRequest(randomAlphaOfLengthBetween(0, 20));
-    }
-
     public static PostConnectorSecretRequest getRandomPostConnectorSecretRequest() {
         return new PostConnectorSecretRequest(randomAlphaOfLengthBetween(1, 20));
     }
 
     public static PostConnectorSecretResponse getRandomPostConnectorSecretResponse() {
         return new PostConnectorSecretResponse(randomAlphaOfLength(10));
+    }
+
+    public static DeleteConnectorSecretRequest getRandomDeleteConnectorSecretRequest() {
+        return new DeleteConnectorSecretRequest(randomAlphaOfLengthBetween(1, 20));
+    }
+
+    public static DeleteConnectorSecretResponse getRandomDeleteConnectorSecretResponse() {
+        return new DeleteConnectorSecretResponse(randomBoolean());
     }
 }

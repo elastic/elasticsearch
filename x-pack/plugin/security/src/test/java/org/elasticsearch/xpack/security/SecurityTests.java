@@ -999,7 +999,7 @@ public class SecurityTests extends ESTestCase {
         verify(mockedJwtRealm).reload(same(inputSettings));
     }
 
-    public void testReloadWithFailures() {
+    public void testReloadWithFailures() throws Exception {
         final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
 
         final boolean failRemoteClusterCredentialsReload = randomBoolean();

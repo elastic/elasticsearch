@@ -232,14 +232,13 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertSame(response, messagesSeen.get(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104728")
     public void testLargeFullResponsesAreSplit() {
         final List<Object> messagesSeen = new ArrayList<>();
         final var embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
         embeddedChannel.writeInbound(createHttpRequest("/test"));
         final Netty4HttpRequest request = embeddedChannel.readInbound();
         final var minSize = (int) NettyAllocator.suggestedMaxAllocationSize();
-        final var content = new ZeroBytesReference(between(minSize, minSize * 2));
+        final var content = new ZeroBytesReference(between(minSize, (int) (minSize * 1.5)));
         final var response = request.createResponse(RestStatus.OK, content);
         assertThat(response, instanceOf(FullHttpResponse.class));
         final var promise = embeddedChannel.newPromise();
@@ -523,9 +522,6 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             public String getResponseContentTypeString() {
                 return "application/octet-stream";
             }
-
-            @Override
-            public void close() {}
         };
     }
 

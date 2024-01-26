@@ -42,7 +42,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
     public static final String NAME = "cluster:admin/xpack/connector/put";
 
     public PutConnectorAction() {
-        super(NAME, PutConnectorAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

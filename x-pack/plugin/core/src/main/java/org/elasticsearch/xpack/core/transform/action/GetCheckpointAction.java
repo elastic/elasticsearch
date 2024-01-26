@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -45,7 +44,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private GetCheckpointAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {

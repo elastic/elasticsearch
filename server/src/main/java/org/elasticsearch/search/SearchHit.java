@@ -824,7 +824,7 @@ public final class SearchHit implements Writeable, ChunkedToXContentObject, RefC
 
     // public because we render hit as part of completion suggestion option
     public Iterator<? extends ToXContent> toInnerXContentChunked(ToXContent.Params outerParams) {
-        var chunks = new ArrayList<Iterator<ToXContent>>();
+        var chunks = new ArrayList<Iterator<? extends ToXContent>>();
 
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
@@ -845,7 +845,7 @@ public final class SearchHit implements Writeable, ChunkedToXContentObject, RefC
             chunks.add(Iterators.single((builder, params) -> builder.field(Fields._ID, id)));
         }
         if (nestedIdentity != null) {
-            // TODO?
+            // NestedIdentity is small, but can have multiple levels of nesting - consider moving it to Chunked too.
             chunks.add(Iterators.single(nestedIdentity));
         }
         if (version != -1) {
@@ -925,8 +925,7 @@ public final class SearchHit implements Writeable, ChunkedToXContentObject, RefC
             );
         }
 
-        // TODO
-        chunks.add(Iterators.single((builder, params) -> sortValues.toXContent(builder, params)));
+        chunks.add(sortValues.toXContentChunked(outerParams));
 
         if (matchedQueries != null && matchedQueries.isEmpty() == false) {
             boolean includeMatchedQueriesScore = outerParams.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);

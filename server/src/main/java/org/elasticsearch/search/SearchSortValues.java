@@ -8,22 +8,26 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.SearchHit.Fields;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-public class SearchSortValues implements ToXContentFragment, Writeable {
+public class SearchSortValues implements ChunkedToXContent, Writeable {
 
     private static final Object[] EMPTY_ARRAY = new Object[0];
     static final SearchSortValues EMPTY = new SearchSortValues(EMPTY_ARRAY);
@@ -64,15 +68,19 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         if (formattedSortValues.length > 0) {
-            builder.startArray(Fields.SORT);
-            for (Object sortValue : formattedSortValues) {
-                builder.value(sortValue);
-            }
-            builder.endArray();
+            return Iterators.concat(
+                ChunkedToXContentHelper.startArray(Fields.SORT),
+                Iterators.flatMap(
+                    Iterators.forArray(formattedSortValues),
+                    sortValue -> Iterators.single((builder, params) -> builder.value(sortValue))
+                ),
+                ChunkedToXContentHelper.endArray()
+            );
+        } else {
+            return Collections.emptyIterator();
         }
-        return builder;
     }
 
     public static SearchSortValues fromXContent(XContentParser parser) throws IOException {

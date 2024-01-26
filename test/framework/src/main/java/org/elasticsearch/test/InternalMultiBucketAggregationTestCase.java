@@ -22,7 +22,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -173,7 +172,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
         assertTrue(expected instanceof InternalMultiBucketAggregation.InternalBucket);
-        assertTrue(actual instanceof ParsedMultiBucketAggregation.ParsedBucket);
+        assertTrue(actual instanceof InternalMultiBucketAggregation.InternalBucket);
 
         assertEquals(expected.getKey(), actual.getKey());
         assertEquals(expected.getKeyAsString(), actual.getKeyAsString());

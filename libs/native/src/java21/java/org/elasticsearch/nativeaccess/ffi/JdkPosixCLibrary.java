@@ -27,10 +27,6 @@ import static org.elasticsearch.nativeaccess.ffi.RuntimeHelper.downcallHandle;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 
-    // errno can change between system calls
-    private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
-    private static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
-    private static final VarHandle ERRNO_HANDLE = CAPTURE_ERRNO_LAYOUT.varHandle(groupElement("errno"));
 
     private static final MethodHandle strerror$mh;
     private static final MethodHandle geteuid$mh;
@@ -43,21 +39,31 @@ class JdkPosixCLibrary implements PosixCLibrary {
     static {
         strerror$mh = downcallHandle("strerror", FunctionDescriptor.of(ADDRESS, JAVA_INT));
         geteuid$mh = downcallHandle("geteuid", FunctionDescriptor.of(JAVA_INT));
-        mlockall$mh = downcallHandle("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
         var rlimitDesc = FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS);
         getrlimit$mh = downcallHandleWithErrno("getrlimit", rlimitDesc);
-        setrlimit$mh = downcallHandle("setrlimit", rlimitDesc);
+        setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
     }
+
+    // errno can change between system calls
+    private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
+    private static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
+    private static final VarHandle errno$vh = CAPTURE_ERRNO_LAYOUT.varHandle(groupElement("errno"));
 
     private static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {
         return downcallHandle(function, functionDescriptor, CAPTURE_ERRNO_OPTION);
     }
 
-    private int lastErrno;
+    private final MemorySegment errnoState;
+
+    JdkPosixCLibrary() {
+        Arena arena = Arena.ofShared();
+        errnoState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
+    }
 
     @Override
     public int errno() {
-        return lastErrno;
+        return (int)errno$vh.get(errnoState);
     }
 
     @Override
@@ -81,11 +87,8 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
     @Override
     public int mlockall(int flags) {
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment capturedState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
-            int ret = (int)mlockall$mh.invokeExact(capturedState, flags);
-            lastErrno = (int)ERRNO_HANDLE.get(capturedState);
-            return ret;
+        try {
+            return (int)mlockall$mh.invokeExact(errnoState, flags);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -94,11 +97,9 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int getrlimit(int resource, RLimit rlimit) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment capturedState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
             MemorySegment segment = arena.allocate(rlimitLayout);
 
-            int ret = (int)getrlimit$mh.invokeExact(capturedState, resource, segment);
-            lastErrno = (int)ERRNO_HANDLE.get(capturedState);
+            int ret = (int)getrlimit$mh.invokeExact(errnoState, resource, segment);
 
             rlimit.rlim_cur = segment.getAtIndex(JAVA_LONG, 0);
             rlimit.rlim_max = segment.getAtIndex(JAVA_LONG, 1);
@@ -112,16 +113,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int setrlimit(int resource, RLimit rlimit) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment capturedState = arena.allocate(CAPTURE_ERRNO_LAYOUT);
             MemorySegment segment = arena.allocate(rlimitLayout);
 
             segment.setAtIndex(JAVA_LONG, 0, rlimit.rlim_cur);
             segment.setAtIndex(JAVA_LONG, 1, rlimit.rlim_max);
 
-            int ret = (int)setrlimit$mh.invokeExact(resource, segment);
-            lastErrno = (int)ERRNO_HANDLE.get(capturedState);
-
-            return ret;
+            return (int)setrlimit$mh.invokeExact(errnoState, resource, segment);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

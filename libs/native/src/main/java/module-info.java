@@ -6,7 +6,7 @@ module org.elasticsearch.nativeaccess {
     requires java.management;
 
     exports org.elasticsearch.nativeaccess;
-    exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.nativeaccess.jna;
+    exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.nativeaccess.jna, org.elasticsearch.base;
 
     uses NativeLibraryProvider;
 }

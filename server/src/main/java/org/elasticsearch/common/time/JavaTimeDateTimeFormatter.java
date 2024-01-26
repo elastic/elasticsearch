@@ -18,7 +18,7 @@ import java.util.Optional;
 
 class JavaTimeDateTimeFormatter implements DateTimeFormatter {
 
-    private final java.time.format.DateTimeFormatter formatter;
+    final java.time.format.DateTimeFormatter formatter;
 
     JavaTimeDateTimeFormatter(java.time.format.DateTimeFormatter formatter) {
         this.formatter = formatter;

@@ -23,7 +23,7 @@ class DateTimeParser {
         }
     }
 
-    public static Result tryParse(CharSequence str) {
+    public static Result tryParse(CharSequence str, ZoneOffset defaultOffset) {
         int len = str.length();
 
         Integer years = parseInt(str, 0, 4);
@@ -37,15 +37,15 @@ class DateTimeParser {
         Integer days = parseInt(str, 8, 10);
         if (days == null) return Result.error(8);
 
-        if (len == 10) return new Result(new DateTime(years, months, days, null, null, null, null, null));
+        if (len == 10) return new Result(new DateTime(years, months, days, null, null, null, null, defaultOffset));
 
         if (str.charAt(10) != 'T') return Result.error(10);
-        if (len == 11) return new Result(new DateTime(years, months, days, null, null, null, null, null));
+        if (len == 11) return new Result(new DateTime(years, months, days, null, null, null, null, defaultOffset));
 
         Integer hours = parseInt(str, 11, 13);
         if (hours == null) return Result.error(11);
         if (len == 13) {
-            return new Result(new DateTime(years, months, days, hours, 0, 0, 0, null));
+            return new Result(new DateTime(years, months, days, hours, 0, 0, 0, defaultOffset));
         }
         if (isTimezone(str, 13)) {
             ZoneOffset timezone = parseTimezone(str, 13);
@@ -57,7 +57,7 @@ class DateTimeParser {
         Integer minutes = parseInt(str, 14, 16);
         if (minutes == null) return Result.error(14);
         if (len == 16) {
-            return new Result(new DateTime(years, months, days, hours, minutes, 0, 0, null));
+            return new Result(new DateTime(years, months, days, hours, minutes, 0, 0, defaultOffset));
         }
         if (isTimezone(str, 16)) {
             ZoneOffset timezone = parseTimezone(str, 16);
@@ -71,7 +71,7 @@ class DateTimeParser {
         Integer seconds = parseInt(str, 17, 19);
         if (seconds == null) return Result.error(17);
         if (len == 19) {
-            return new Result(new DateTime(years, months, days, hours, minutes, seconds, 0, null));
+            return new Result(new DateTime(years, months, days, hours, minutes, seconds, 0, defaultOffset));
         }
         if (isTimezone(str, 19)) {
             ZoneOffset timezone = parseTimezone(str, 19);
@@ -103,7 +103,7 @@ class DateTimeParser {
         }
 
         if (len == pos) {
-            return new Result(new DateTime(years, months, days, hours, minutes, seconds, nanos, null));
+            return new Result(new DateTime(years, months, days, hours, minutes, seconds, nanos, defaultOffset));
         }
         if (isTimezone(str, pos)) {
             ZoneOffset timezone = parseTimezone(str, pos);
@@ -138,23 +138,29 @@ class DateTimeParser {
 
         Integer hours = parseInt(str, pos, pos += 2);
         if (hours == null) return null;
-        if (len == pos) return ZoneOffset.ofHours(positive ? hours : -hours);
+        if (len == pos) return ofHoursMinutesSeconds(hours, 0, 0, positive);
 
         // zone offset may or may not have a : in the middle
         if (str.charAt(pos) == ':') pos++;
 
         Integer minutes = parseInt(str, pos, pos += 2);
         if (minutes == null) return null;
-        if (len == pos) return ZoneOffset.ofHoursMinutes(positive ? hours : -hours, minutes);
+        if (len == pos) return ofHoursMinutesSeconds(hours, minutes, 0, positive);
 
         // if there are seconds, there should be a : before them
         if (str.charAt(pos++) != ':') return null;
 
         Integer seconds = parseInt(str, pos, pos += 2);
         if (seconds == null) return null;
-        if (len == pos) return ZoneOffset.ofHoursMinutesSeconds(positive ? hours : -hours, minutes, seconds);
+        if (len == pos) return ofHoursMinutesSeconds(hours, minutes, seconds, positive);
 
         return null;
+    }
+
+    private static ZoneOffset ofHoursMinutesSeconds(int hours, int minutes, int seconds, boolean positive) {
+        int totalSeconds = hours * 3600 + minutes * 60 + seconds;
+        if (positive == false) totalSeconds = -totalSeconds;
+        return ZoneOffset.ofTotalSeconds(totalSeconds);
     }
 
     private static final char ZERO = '0';

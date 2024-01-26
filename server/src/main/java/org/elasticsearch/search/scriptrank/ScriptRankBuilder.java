@@ -91,7 +91,7 @@ public class ScriptRankBuilder extends RankBuilder { // TODO: This needs to beco
     @Override
     public FetchSubPhaseProcessor buildFetchSubPhaseProcessor(FetchContext fetchContext) {
         FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
-        if (fetchSourceContext == null || fetchSourceContext.fetchSource() == false) {
+        if (fetchSourceContext == null || (fields.isEmpty() == false && fetchSourceContext.fetchSource() == false)) {
             return null;
         }
         assert fetchSourceContext.fetchSource();

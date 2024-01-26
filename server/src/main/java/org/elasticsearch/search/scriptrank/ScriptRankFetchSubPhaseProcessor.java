@@ -10,14 +10,10 @@ package org.elasticsearch.search.scriptrank;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.FetchContext;
-import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -39,9 +35,8 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
     private final List<Query> queries;
 
     private final SourceFilter sourceFilter;
-    private volatile boolean wait = true;
 
-    private Logger logger = LogManager.getLogger(ScriptRankFetchSubPhaseProcessor.class);
+    private final Logger logger = LogManager.getLogger(ScriptRankFetchSubPhaseProcessor.class);
 
     public ScriptRankFetchSubPhaseProcessor(
         FetchContext fetchContext,
@@ -55,36 +50,13 @@ public class ScriptRankFetchSubPhaseProcessor implements FetchSubPhaseProcessor 
             null
         );
         this.queries = new ArrayList<>();
-        logger.info("STARTING REWRITE");
         for (QueryBuilder queryBuilder : queryBuilders) {
-            logger.info("REWRITING: " + queryBuilder);
-            Rewriteable.rewriteAndFetch(queryBuilder, fetchContext.getSearchExecutionContext(), new ActionListener<>() {
-                @Override
-                public void onResponse(QueryBuilder queryBuilder) {
-                    try {
-                        Query query = queryBuilder.toQuery(fetchContext.getSearchExecutionContext());
-                        logger.info("ADDING QUERY: " + query);
-                        queries.add(fetchContext.searcher().rewrite(query));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    } finally {
-                        wait = false;
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.info("FAILED TO ADD QUERY");
-                    wait = false;
-                    throw new IllegalArgumentException(e);
-                }
-            });
-            logger.info("STARTING WAITING");
-            while (wait);
-            logger.info("ENDING WAITING");
-            wait = true;
+            try {
+                queries.add(queryBuilder.toQuery(fetchContext.getSearchExecutionContext()));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
-        logger.info("ENDING REWRITE");
     }
 
     @Override

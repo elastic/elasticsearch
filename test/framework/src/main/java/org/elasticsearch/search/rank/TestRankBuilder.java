@@ -13,7 +13,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.fetch.FetchContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,7 +27,7 @@ import java.util.List;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class TestRankBuilder extends RankBuilder {
+public class TestRankBuilder extends RankBuilder { // TODO noop
 
     public static final String NAME = "rank_test";
 
@@ -84,6 +87,11 @@ public class TestRankBuilder extends RankBuilder {
     }
 
     @Override
+    public FetchSubPhaseProcessor buildFetchSubPhaseProcessor(FetchContext fetchContext) {
+        return null;
+    }
+
+    @Override
     protected boolean doEquals(RankBuilder other) {
         return true;
     }
@@ -91,5 +99,10 @@ public class TestRankBuilder extends RankBuilder {
     @Override
     protected int doHashCode() {
         return 0;
+    }
+
+    @Override
+    public TestRankBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        return this;
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -34,7 +35,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * The builder to support RRF. Adds user-defined parameters for window size and rank constant.
  */
-public class RRFRankBuilder extends RankBuilder {
+public class RRFRankBuilder extends RankBuilder { // TODO rewrite is a noop
 
     public static final int DEFAULT_RANK_CONSTANT = 60;
 
@@ -120,5 +121,10 @@ public class RRFRankBuilder extends RankBuilder {
     @Override
     protected int doHashCode() {
         return Objects.hash(rankConstant);
+    }
+
+    @Override
+    public RRFRankBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        return this;
     }
 }

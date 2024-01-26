@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -30,7 +31,7 @@ import java.util.Objects;
  * and subsequent generation of appropriate contexts for handling searches that
  * require multiple queries for global rank relevance.
  */
-public abstract class RankBuilder implements VersionedNamedWriteable, ToXContentObject {
+public abstract class RankBuilder implements VersionedNamedWriteable, ToXContentObject, Rewriteable<RankBuilder> { // TODO
 
     public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 

@@ -14,6 +14,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -26,10 +28,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class ScriptRankBuilder extends RankBuilder {
+public class ScriptRankBuilder extends RankBuilder { // TODO: This needs to become a rewritable
 
     public static ScriptRankBuilder fromXContent(XContentParser parser) {
         throw new UnsupportedOperationException("Use Retrievers instead");
@@ -105,5 +108,17 @@ public class ScriptRankBuilder extends RankBuilder {
     @Override
     protected int doHashCode() {
         return Objects.hash(script, fields, queries);
+    }
+
+    @Override
+    public ScriptRankBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        List<QueryBuilder> rewrittenQueries = new ArrayList<>();
+        for (var query : queries) {
+            rewrittenQueries.add(Rewriteable.rewrite(query, ctx));
+        }
+        if (rewrittenQueries.equals(queries) == false) {
+            return new ScriptRankBuilder(windowSize(), script, fields, rewrittenQueries);
+        }
+        return this;
     }
 }

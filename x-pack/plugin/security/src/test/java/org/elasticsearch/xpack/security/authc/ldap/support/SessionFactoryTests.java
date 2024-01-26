@@ -227,7 +227,7 @@ public class SessionFactoryTests extends ESTestCase {
             }
 
             @Override
-            public void reload(Settings settings) {
+            public void reload(Settings settings) throws Exception {
                 // no-op
             }
         };

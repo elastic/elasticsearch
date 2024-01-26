@@ -122,7 +122,7 @@ public class LdapSessionFactory extends SessionFactory {
     }
 
     @Override
-    public void reload(Settings settings) {
+    public void reload(Settings settings) throws Exception {
         // nothing to reload in DN template mode
     }
 

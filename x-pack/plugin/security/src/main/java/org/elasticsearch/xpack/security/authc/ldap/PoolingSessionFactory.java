@@ -121,7 +121,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
     }
 
     @Override
-    public void reload(Settings settings) {
+    public void reload(Settings settings) throws Exception {
         final SimpleBindRequest oldRequest = bindRequest.get();
         final SimpleBindRequest newRequest = buildBindRequest(settings);
         if (bindRequestEquals(newRequest, oldRequest) == false) {

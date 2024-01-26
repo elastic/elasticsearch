@@ -473,7 +473,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         }
 
         @Override
-        public void reload(Settings settings) {
+        public void reload(Settings settings) throws Exception {
             // no-op
         }
     }

@@ -58,7 +58,6 @@ public class TestFeatureResetIT extends TransformRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100596")
     public void testTransformFeatureReset() throws Exception {
         String indexName = "basic-crud-reviews";
         String transformId = "batch-transform-feature-reset";
@@ -91,7 +90,8 @@ public class TestFeatureResetIT extends TransformRestTestCase {
 
         putTransform(continuousTransformId, Strings.toString(config), RequestOptions.DEFAULT);
         startTransform(continuousTransformId, RequestOptions.DEFAULT);
-        client().performRequest(new Request(HttpPost.METHOD_NAME, "/_features/_reset"));
+
+        assertOK(client().performRequest(new Request(HttpPost.METHOD_NAME, "/_features/_reset")));
 
         Response response = adminClient().performRequest(new Request("GET", "/_cluster/state?metric=metadata"));
         Map<String, Object> metadata = (Map<String, Object>) ESRestTestCase.entityAsMap(response).get("metadata");
@@ -118,5 +118,4 @@ public class TestFeatureResetIT extends TransformRestTestCase {
         Map<String, Object> transformIndices = ESRestTestCase.entityAsMap(adminClient().performRequest(new Request("GET", ".transform-*")));
         assertThat("Indices were: " + transformIndices, transformIndices, is(anEmptyMap()));
     }
-
 }

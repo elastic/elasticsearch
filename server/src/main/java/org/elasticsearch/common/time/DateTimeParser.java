@@ -26,6 +26,7 @@ class DateTimeParser {
     public static Result tryParse(CharSequence str, ZoneOffset defaultOffset) {
         int len = str.length();
 
+        // years, months, days are mandatory
         Integer years = parseInt(str, 0, 4);
         if (years == null) return Result.error(0);
         if (len == 4 || str.charAt(4) != '-') return Result.error(4);
@@ -37,6 +38,7 @@ class DateTimeParser {
         Integer days = parseInt(str, 8, 10);
         if (days == null) return Result.error(8);
 
+        // all time fields are optional
         if (len == 10) return new Result(new DateTime(years, months, days, null, null, null, null, defaultOffset));
 
         if (str.charAt(10) != 'T') return Result.error(10);
@@ -61,9 +63,7 @@ class DateTimeParser {
         }
         if (isTimezone(str, 16)) {
             ZoneOffset timezone = parseTimezone(str, 16);
-            return timezone == null
-                ? Result.error(16)
-                : new Result(new DateTime(years, months, days, hours, minutes, 0, 0, timezone));
+            return timezone == null ? Result.error(16) : new Result(new DateTime(years, months, days, hours, minutes, 0, 0, timezone));
         }
 
         if (str.charAt(16) != ':') return Result.error(16);
@@ -177,9 +177,5 @@ class DateTimeParser {
             result -= c - ZERO;
         }
         return -result;
-    }
-
-    private static boolean checkPosition(CharSequence str, int pos, char c) {
-        return str.length() > pos && str.charAt(pos) == c;
     }
 }

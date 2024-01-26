@@ -66,6 +66,18 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         this.draft = new FilteringRules(in);
     }
 
+    public FilteringRules getActive() {
+        return active;
+    }
+
+    public String getDomain() {
+        return domain;
+    }
+
+    public FilteringRules getDraft() {
+        return draft;
+    }
+
     private static final ParseField ACTIVE_FIELD = new ParseField("active");
     private static final ParseField DOMAIN_FIELD = new ParseField("domain");
     private static final ParseField DRAFT_FIELD = new ParseField("draft");

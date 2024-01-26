@@ -15,6 +15,6 @@ public class AnalyzeIndexDiskUsageAction extends ActionType<AnalyzeIndexDiskUsag
     public static final String NAME = "indices:admin/analyze_disk_usage";
 
     public AnalyzeIndexDiskUsageAction() {
-        super(NAME, AnalyzeIndexDiskUsageResponse::new);
+        super(NAME);
     }
 }

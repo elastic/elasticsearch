@@ -42,7 +42,7 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/post";
 
     private PostConnectorSyncJobAction() {
-        super(NAME, PostConnectorSyncJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

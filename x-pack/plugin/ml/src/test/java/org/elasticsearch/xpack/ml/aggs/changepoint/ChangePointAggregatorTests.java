@@ -264,6 +264,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104798")
     public void testSlopeDown() throws IOException {
         NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
         AtomicInteger i = new AtomicInteger(40);

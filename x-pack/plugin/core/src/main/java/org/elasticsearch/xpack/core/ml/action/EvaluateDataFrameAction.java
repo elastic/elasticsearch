@@ -46,7 +46,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/evaluate";
 
     private EvaluateDataFrameAction() {
-        super(NAME, EvaluateDataFrameAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

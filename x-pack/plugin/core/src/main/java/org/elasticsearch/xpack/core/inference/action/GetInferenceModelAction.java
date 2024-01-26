@@ -29,7 +29,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
     public static final String NAME = "cluster:admin/xpack/inference/get";
 
     public GetInferenceModelAction() {
-        super(NAME, GetInferenceModelAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<GetInferenceModelAction.Request> {

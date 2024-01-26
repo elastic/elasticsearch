@@ -42,7 +42,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/inference";
 
     public InferenceAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

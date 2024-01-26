@@ -119,7 +119,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private EmbeddedChannel makeEmbeddedChannelWithSimulatedWork(int numberOfRequests) {
-        return new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests, null) {
+        return new EmbeddedChannel(new Netty4HttpPipeliningHandler(numberOfRequests, null) {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                 ctx.fireChannelRead(pipelinedRequest);
@@ -185,7 +185,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testPipeliningRequestsAreReleased() {
         final int numberOfRequests = 10;
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests + 1, null));
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(numberOfRequests + 1, null));
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));
@@ -232,14 +232,13 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertSame(response, messagesSeen.get(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104728")
     public void testLargeFullResponsesAreSplit() {
         final List<Object> messagesSeen = new ArrayList<>();
         final var embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
         embeddedChannel.writeInbound(createHttpRequest("/test"));
         final Netty4HttpRequest request = embeddedChannel.readInbound();
         final var minSize = (int) NettyAllocator.suggestedMaxAllocationSize();
-        final var content = new ZeroBytesReference(between(minSize, minSize * 2));
+        final var content = new ZeroBytesReference(between(minSize, (int) (minSize * 1.5)));
         final var response = request.createResponse(RestStatus.OK, content);
         assertThat(response, instanceOf(FullHttpResponse.class));
         final var promise = embeddedChannel.newPromise();
@@ -494,7 +493,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private Netty4HttpPipeliningHandler getTestHttpHandler() {
-        return new Netty4HttpPipeliningHandler(logger, Integer.MAX_VALUE, mock(Netty4HttpServerTransport.class)) {
+        return new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, mock(Netty4HttpServerTransport.class)) {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                 ctx.fireChannelRead(pipelinedRequest);
@@ -523,9 +522,6 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             public String getResponseContentTypeString() {
                 return "application/octet-stream";
             }
-
-            @Override
-            public void close() {}
         };
     }
 

@@ -34,8 +34,15 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 
 /**
- * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
- * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
+ * Contains all the multi-target syntax options. These options are split into groups depending on what aspect of the syntax they
+ * influence.
+ *
+ * @param concreteTargetOptions, applies only to concrete targets and defines how the response will handle when a concrete
+ *                               target does not exist.
+ * @param wildcardOptions, applies only to wildcard expressions and defines how the wildcards will be expanded and if it will
+ *                        be acceptable to have expressions that results to no indices.
+ * @param generalOptions, applies to all the resolved indices and defines if throttled will be included and if certain type of
+ *                        aliases or indices are allowed, or they will throw an error.
  */
 public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, WildcardOptions wildcardOptions, GeneralOptions generalOptions)
     implements
@@ -90,14 +97,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         boolean allowEmptyExpressions
     ) implements Writeable, ToXContentFragment {
 
-        public static final WildcardOptions DEFAULT_OPEN = WildcardOptions.newBuilder().build();
-        public static final WildcardOptions DEFAULT_OPEN_HIDDEN = WildcardOptions.newBuilder().removeHidden(false).build();
-        public static final WildcardOptions DEFAULT_OPEN_CLOSED = WildcardOptions.newBuilder().includeClosed(true).build();
-        public static final WildcardOptions DEFAULT_OPEN_CLOSED_HIDDEN = WildcardOptions.newBuilder()
-            .includeClosed(true)
-            .removeHidden(false)
-            .build();
-        public static final WildcardOptions DEFAULT_NONE = WildcardOptions.newBuilder().none().build();
+        public static final WildcardOptions DEFAULT = WildcardOptions.newBuilder().build();
 
         public static WildcardOptions read(StreamInput in) throws IOException {
             return new WildcardOptions(in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readBoolean(), in.readBoolean());
@@ -429,38 +429,38 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = IndicesOptions.newBuilder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_HIDDEN)
+        .wildcardOptions(WildcardOptions.newBuilder().removeHidden(false))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.newBuilder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_CLOSED)
+        .wildcardOptions(WildcardOptions.newBuilder().includeClosed(true))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.newBuilder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN)
+        .wildcardOptions(WildcardOptions.newBuilder().includeClosed(true).removeHidden(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = IndicesOptions.newBuilder()
-        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_CLOSED)
+        .wildcardOptions(WildcardOptions.newBuilder().includeClosed(true))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.newBuilder()
-        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_CLOSED_HIDDEN)
+        .wildcardOptions(WildcardOptions.newBuilder().includeClosed(true).removeHidden(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.newBuilder()
         .generalOptions(GeneralOptions.newBuilder().allowClosedIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = IndicesOptions.newBuilder()
-        .wildcardOptions(WildcardOptions.DEFAULT_OPEN_HIDDEN)
+        .wildcardOptions(WildcardOptions.newBuilder().removeHidden(false))
         .generalOptions(GeneralOptions.newBuilder().allowClosedIndices(false))
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.newBuilder()
         .generalOptions(GeneralOptions.newBuilder().removeThrottled(true).allowClosedIndices(false))
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.newBuilder()
-        .wildcardOptions(WildcardOptions.DEFAULT_NONE)
+        .wildcardOptions(WildcardOptions.newBuilder().none())
         .generalOptions(GeneralOptions.newBuilder().allowAliasToMultipleIndices(false).allowClosedIndices(false))
         .build();
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = IndicesOptions.newBuilder()
-        .wildcardOptions(WildcardOptions.DEFAULT_NONE)
+        .wildcardOptions(WildcardOptions.newBuilder().none())
         .generalOptions(GeneralOptions.newBuilder().allowClosedIndices(false))
         .build();
 
@@ -597,7 +597,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
 
     public static class Builder {
         private ConcreteTargetOptions concreteTargetOptions = ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS;
-        private WildcardOptions wildcardOptions = WildcardOptions.DEFAULT_OPEN;
+        private WildcardOptions wildcardOptions = WildcardOptions.DEFAULT;
         private GeneralOptions generalOptions = GeneralOptions.DEFAULT;
 
         Builder() {}

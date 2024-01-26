@@ -2293,7 +2293,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 state,
                 new IndicesOptions(
                     IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
-                    IndicesOptions.WildcardOptions.DEFAULT_OPEN,
+                    IndicesOptions.WildcardOptions.DEFAULT,
                     IndicesOptions.GeneralOptions.newBuilder().removeThrottled(true).build()
                 ),
                 "ind*",
@@ -2306,7 +2306,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(
                 state,
-                IndicesOptions.newBuilder().wildcardOptions(IndicesOptions.WildcardOptions.DEFAULT_OPEN_CLOSED).build(),
+                IndicesOptions.newBuilder().wildcardOptions(IndicesOptions.WildcardOptions.newBuilder().includeClosed(true)).build(),
                 "ind*",
                 "test-index"
             );

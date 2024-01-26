@@ -1,0 +1,21 @@
+{
+  "index_patterns": ["metrics-*.otel-*"],
+  "priority": 120,
+  "data_stream": {},
+  "composed_of": [
+    "metrics@tsdb-settings",
+    "metrics@custom",
+    "metrics-otel@custom",
+    "otel@mappings",
+    "metrics-otel@mappings",
+    "ecs@mappings"
+  ],
+  "ignore_missing_component_templates": ["metrics@custom", "metrics-otel@custom"],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "OpenTelemetry metrics template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

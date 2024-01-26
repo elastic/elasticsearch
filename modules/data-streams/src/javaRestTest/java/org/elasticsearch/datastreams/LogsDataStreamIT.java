@@ -777,10 +777,15 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     static List<Object> searchDocs(RestClient client, String dataStreamName, String query) throws IOException {
+        Map<String, Object> hits = search(client, dataStreamName, query);
+        return (List<Object>) hits.get("hits");
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> search(RestClient client, String dataStreamName, String query) throws IOException {
         Request request = new Request("GET", "/" + dataStreamName + "/_search");
         request.setJsonEntity(query);
-        Map<String, Object> hits = (Map<String, Object>) entityAsMap(client.performRequest(request)).get("hits");
-        return (List<Object>) hits.get("hits");
+        return entityAsMap(client.performRequest(request));
     }
 
     @SuppressWarnings("unchecked")

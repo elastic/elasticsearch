@@ -1,0 +1,90 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "data_stream.type": {
+          "type": "constant_keyword",
+          "value": "metrics"
+        },
+        "data_stream.dataset": {
+          "type": "constant_keyword"
+        },
+        "data_stream.namespace": {
+          "type": "constant_keyword"
+        },
+        "start_time": {
+          "type": "date_nanos"
+        },
+        "metrics": {
+          "properties": {
+            "gauge": {
+              "type": "object",
+              "dynamic": true
+            },
+            "up_down_counter": {
+              "type": "object",
+              "dynamic": true
+            },
+            "counter": {
+              "type": "object",
+              "dynamic": true
+            },
+            "histogram": {
+              "type": "object",
+              "dynamic": true
+            },
+            "summary": {
+              "type": "object",
+              "dynamic": true
+            }
+          }
+        }
+      },
+      "dynamic_templates": [
+        {
+          "units": {
+            "path_match": "metrics.*.*",
+            "path_unmatch": "metrics.*.*.*",
+            "match_mapping_type": "object",
+            "mapping": {
+              "subobjects": false,
+              "type": "object"
+            }
+          }
+        },
+        {
+          "histograms": {
+            "path_match": "metrics.histogram.*.*",
+            "mapping": {
+              "type": "histogram"
+            }
+          }
+        },
+        {
+          "counter": {
+            "path_match": "metrics.counter.*.*",
+            "mapping": {
+              "type": "{dynamic_type}",
+              "time_series_metric": "counter"
+            }
+          }
+        },
+        {
+          "gauge": {
+            "path_match": "metrics.gauge.*.*",
+            "mapping": {
+              "type": "{dynamic_type}",
+              "time_series_metric": "gauge"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "_meta": {
+    "description": "OpenTelemetry mappings for the metrics index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

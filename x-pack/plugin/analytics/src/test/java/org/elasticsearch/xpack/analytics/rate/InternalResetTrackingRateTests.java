@@ -8,13 +8,9 @@
 package org.elasticsearch.xpack.analytics.rate;
 
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.util.ArrayList;
@@ -137,17 +133,6 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
         }
         internalRates.add(rate(startValue, currentValue, startTime, endTime, resetComp, Rounding.DateTimeUnit.SECOND_OF_MINUTE));
         return new BuilderAndToReduce<>(mock(RateAggregationBuilder.class), internalRates);
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(InternalResetTrackingRate.NAME), (p, c) -> {
-                assumeTrue("There is no ParsedRate yet", false);
-                return null;
-            })
-        );
     }
 
     public void testIncludes() {

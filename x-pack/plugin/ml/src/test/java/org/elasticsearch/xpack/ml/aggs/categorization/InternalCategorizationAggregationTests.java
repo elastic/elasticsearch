@@ -10,13 +10,9 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.junit.After;
 import org.junit.Before;
@@ -48,18 +44,6 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
     @Override
     protected SearchPlugin registerPlugin() {
         return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                new ParseField(CategorizeTextAggregationBuilder.NAME),
-                (p, c) -> ParsedCategorization.fromXContent(p, (String) c)
-            )
-        );
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/87240")

@@ -7,16 +7,11 @@
 
 package org.elasticsearch.xpack.analytics.stringstats;
 
-import org.elasticsearch.client.analytics.ParsedStringStats;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.util.HashMap;
@@ -34,18 +29,6 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
     @Override
     protected SearchPlugin registerPlugin() {
         return new AnalyticsPlugin();
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                new ParseField(StringStatsAggregationBuilder.NAME),
-                (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c)
-            )
-        );
     }
 
     @Override

@@ -134,6 +134,7 @@ return output;
         record LookupData(Map<String, Object> fields, float[] queryScores) {
         }
 
+        // TODO: John clean this up.
         Map<RankKey, LookupData> lookup = new HashMap<>();
         for (var fetchResult : fetchResultsArray.asList()) {
             for (var hit : fetchResult.fetchResult().hits().getHits()) {

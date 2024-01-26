@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,6 +17,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -185,6 +187,24 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
     @Override
     protected SearchPlugin registerPlugin() {
         return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
+    }
+
+    @Override
+    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>(super.getNamedWriteables());
+
+        namedWritables.add(
+            new NamedWriteableRegistry.Entry(
+                InternalAggregation.class,
+                WordCountMapReducer.AGG_NAME,
+                in -> new InternalItemSetMapReduceAggregation<>(in, (mapReducerReader) -> {
+                    in.readString();
+                    return new WordCountMapReducer(mapReducerReader);
+                })
+            )
+        );
+
+        return namedWritables;
     }
 
     private static void assertMapEquals(Map<String, Long> expected, Map<String, Long> actual) {

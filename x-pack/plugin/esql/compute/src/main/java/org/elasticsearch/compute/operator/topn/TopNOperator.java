@@ -71,12 +71,15 @@ public class TopNOperator implements Operator, Accountable {
          */
         final BreakingBytesRefBuilder values;
 
-        Row(CircuitBreaker breaker, List<SortOrder> sortOrders) {
+        Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedValueSize) {
             boolean success = false;
             try {
                 keys = new BreakingBytesRefBuilder(breaker, "topn");
                 values = new BreakingBytesRefBuilder(breaker, "topn");
                 bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
+                if (preAllocatedValueSize > 0) {
+                    values.grow(preAllocatedValueSize);
+                }
                 success = true;
             } finally {
                 if (success == false) {
@@ -273,6 +276,12 @@ public class TopNOperator implements Operator, Accountable {
     private final List<SortOrder> sortOrders;
 
     private Row spare;
+    /**
+     * Esp. in case of many fields, a row's values can become quite large; growing from an empty row every time is expensive due
+     * to lots of allocations. Instead, keep track of the last row's actual size and use that to pre-allocate memory for the next row.
+     */
+    private int lastSeenRowValuesSize = 32;
+
     private Iterator<Page> output;
 
     public TopNOperator(
@@ -349,12 +358,16 @@ public class TopNOperator implements Operator, Accountable {
 
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-                    spare = new Row(breaker, sortOrders);
+                    spare = new Row(breaker, sortOrders, lastSeenRowValuesSize);
                 } else {
                     spare.keys.clear();
                     spare.values.clear();
                 }
                 rowFiller.row(i, spare);
+                // We may have over-allocated memory based on the last row's size.
+                spare.values.shrinkToFit();
+                lastSeenRowValuesSize = spare.values.length();
+
                 spare = inputQueue.insertWithOverflow(spare);
             }
         } finally {

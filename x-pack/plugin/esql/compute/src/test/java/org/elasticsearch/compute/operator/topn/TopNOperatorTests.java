@@ -431,7 +431,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             sortOrders,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders);
+        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0);
         rf.row(position, row);
         return row;
     }

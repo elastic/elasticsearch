@@ -52,17 +52,33 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
      * {@code capacity}.
      */
     public void grow(int capacity) {
-        int oldLength = bytes.bytes.length;
-        if (oldLength > capacity) {
+        int oldCapacity = bytes.bytes.length;
+        if (oldCapacity > capacity) {
             return;
         }
-        int newLength = ArrayUtil.oversize(capacity, Byte.BYTES);
+        int newCapacity = ArrayUtil.oversize(capacity, Byte.BYTES);
+        setCapacity(newCapacity);
+    }
+
+    public void shrinkToFit() {
+        if (bytes.length == bytes.bytes.length) {
+            return;
+        }
+        setCapacity(bytes.length);
+    }
+
+    private void setCapacity(int capacity) {
+        int oldCapacity = bytes.bytes.length;
         breaker.addEstimateBytesAndMaybeBreak(
-            RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + newLength),
+            RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + capacity),
             label
         );
-        bytes.bytes = ArrayUtil.growExact(bytes.bytes, newLength);
-        breaker.addWithoutBreaking(-RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + oldLength));
+
+        final byte[] copy = new byte[capacity];
+        System.arraycopy(bytes.bytes, 0, copy, 0, Math.min(capacity, bytes.bytes.length));
+        bytes.bytes = copy;
+
+        breaker.addWithoutBreaking(-RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + oldCapacity));
     }
 
     /**
@@ -80,7 +96,7 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     }
 
     /**
-     * The number of bytes in to this buffer. It is <strong>not></strong>
+     * The number of bytes in this buffer. It is <strong>not></strong>
      * the capacity of the buffer.
      */
     public int length() {

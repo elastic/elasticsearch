@@ -15,27 +15,12 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.time.temporal.UnsupportedTemporalTypeException;
 
-class DateTime implements TemporalAccessor {
-
-    private final int years;
-    private final int months;
-    private final int days;
-    private final Integer hours;
-    private final Integer minutes;
-    private final Integer seconds;
-    private final Integer nanos;
-    private final ZoneOffset offset;
-
-    DateTime(int years, int months, int days, Integer hours, Integer minutes, Integer seconds, Integer nanos, ZoneOffset offset) {
-        this.years = years;
-        this.months = months;
-        this.days = days;
-        this.hours = hours;
-        this.minutes = minutes;
-        this.seconds = seconds;
-        this.nanos = nanos;
-        this.offset = offset;
-    }
+/**
+ * Provides information on a parsed datetime
+ */
+record DateTime(int years, int months, int days, Integer hours, Integer minutes, Integer seconds, Integer nanos, ZoneOffset offset)
+    implements
+        TemporalAccessor {
 
     @Override
     public boolean isSupported(TemporalField field) {

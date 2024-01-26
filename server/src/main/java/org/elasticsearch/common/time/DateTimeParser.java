@@ -8,9 +8,14 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.core.Nullable;
+
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAccessor;
 
+/**
+ * Parses datetimes in ISO9601 format (and subsequences of)
+ */
 class DateTimeParser {
 
     record Result(TemporalAccessor result, int errorIndex) {
@@ -23,8 +28,13 @@ class DateTimeParser {
         }
     }
 
-    public static Result tryParse(CharSequence str, ZoneOffset defaultOffset) {
+    static Result tryParse(CharSequence str, @Nullable ZoneOffset defaultOffset) {
         int len = str.length();
+
+        /*
+         * This parses datetimes in the format YYYY-MM-ddTHH:mm:ss.SSS[tz]
+         * Years, months, days are mandatory, everything else is optional (in order)
+         */
 
         // years, months, days are mandatory
         Integer years = parseInt(str, 0, 4);
@@ -87,7 +97,7 @@ class DateTimeParser {
         // so we keep parsing numbers until we get to not a number
         int nanos = 0;
         int pos;
-        for (pos = 20; pos < len; pos++) {
+        for (pos = 20; pos < len && pos < 29; pos++) {
             char c = str.charAt(pos);
             if (c < ZERO || c > NINE) break;
             nanos = (nanos << 1) + (nanos << 3);
@@ -159,8 +169,7 @@ class DateTimeParser {
 
     private static ZoneOffset ofHoursMinutesSeconds(int hours, int minutes, int seconds, boolean positive) {
         int totalSeconds = hours * 3600 + minutes * 60 + seconds;
-        if (positive == false) totalSeconds = -totalSeconds;
-        return ZoneOffset.ofTotalSeconds(totalSeconds);
+        return ZoneOffset.ofTotalSeconds(positive ? totalSeconds : -totalSeconds);
     }
 
     private static final char ZERO = '0';

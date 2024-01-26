@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -68,10 +67,6 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
         assertNotNull("Internal bucket class must not be null", internalBucketClass);
         assertTrue(internalBucketClass.isInstance(expected));
 
-        Class<?> parsedBucketClass = parsedRangeBucketClass();
-        assertNotNull("Parsed bucket class must not be null", parsedBucketClass);
-        assertTrue(parsedBucketClass.isInstance(actual));
-
         Range.Bucket expectedRange = (Range.Bucket) expected;
         Range.Bucket actualRange = (Range.Bucket) actual;
 
@@ -82,6 +77,4 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     }
 
     protected abstract Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass();
-
-    protected abstract Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass();
 }

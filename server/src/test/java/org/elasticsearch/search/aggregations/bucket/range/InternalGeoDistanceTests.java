@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -71,11 +70,6 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
     @Override
     protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
         return InternalGeoDistance.Bucket.class;
-    }
-
-    @Override
-    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
-        return ParsedGeoDistance.ParsedBucket.class;
     }
 
     @Override

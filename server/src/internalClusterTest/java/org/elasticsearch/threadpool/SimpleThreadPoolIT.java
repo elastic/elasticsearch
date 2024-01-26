@@ -111,6 +111,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104652")
     public void testThreadPoolMetrics() throws Exception {
         internalCluster().startNode();
 

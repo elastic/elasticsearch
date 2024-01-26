@@ -15,6 +15,7 @@ import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.DateMilliVector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -53,31 +54,32 @@ import java.util.function.IntToLongFunction;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 
-@Seed("72404B36EFE39D13")
 public class ArrowResponseTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<ArrowResponse.Column> justInt = List.of(new ArrowResponse.Column("int", "a"));
+        List<ArrowResponse.Column> justInt = List.of(new ArrowResponse.Column("integer", "a"));
         List<ArrowResponse.Column> justLong = List.of(new ArrowResponse.Column("long", "a"));
         List<ArrowResponse.Column> justDouble = List.of(new ArrowResponse.Column("double", "a"));
+        List<ArrowResponse.Column> justDate = List.of(new ArrowResponse.Column("date", "a"));
         List<ArrowResponse.Column> justKeyword = List.of(new ArrowResponse.Column("keyword", "a"));
 
         List<TestCase> cases = new ArrayList<>();
 
-        cases.add(new TestCase("int no pages", justInt, () -> List.of()));
-        TestCase.cases(cases, "int all zeros", justInt, () -> new Page(intVector(10, i -> 0).asBlock()));
-        TestCase.cases(cases, "int increment", justInt, () -> new Page(intVector(10, i -> i).asBlock()));
-        TestCase.cases(cases, "int random", justInt, () -> new Page(intVector(between(1, 10_000), i -> randomInt()).asBlock()));
+        cases.add(new TestCase("integer no pages", justInt, () -> List.of()));
+        TestCase.cases(cases, "integer all zeros", justInt, () -> new Page(intVector(10, i -> 0).asBlock()));
+        TestCase.cases(cases, "integer increment", justInt, () -> new Page(intVector(10, i -> i).asBlock()));
 
         cases.add(new TestCase("long no pages", justLong, () -> List.of()));
         TestCase.cases(cases, "long all zeros", justLong, () -> new Page(longVector(10, i -> 0L).asBlock()));
         TestCase.cases(cases, "long increment", justLong, () -> new Page(longVector(10, i -> i).asBlock()));
-        TestCase.cases(cases, "long random", justLong, () -> new Page(longVector(between(1, 10_000), i -> randomLong()).asBlock()));
 
         cases.add(new TestCase("double no pages", justDouble, () -> List.of()));
         TestCase.cases(cases, "double all zeros", justDouble, () -> new Page(doubleVector(10, i -> 0L).asBlock()));
         TestCase.cases(cases, "double increment", justDouble, () -> new Page(doubleVector(10, i -> i).asBlock()));
-        TestCase.cases(cases, "double random", justDouble, () -> new Page(doubleVector(between(1, 10_000), i -> randomDouble()).asBlock()));
+
+        cases.add(new TestCase("date no pages", justDate, () -> List.of()));
+        TestCase.cases(cases, "date all zeros", justDate, () -> new Page(longVector(10, i -> 0L).asBlock()));
+        TestCase.cases(cases, "date increment", justDate, () -> new Page(longVector(10, i -> i).asBlock()));
 
         cases.add(new TestCase("keyword no pages", justKeyword, () -> List.of()));
         TestCase.cases(
@@ -94,36 +96,45 @@ public class ArrowResponseTests extends ESTestCase {
             justKeyword,
             () -> new Page(bytesRefVector(10, i -> i % 2 == 0 ? new BytesRef("foo") : new BytesRef("bar")).asBlock())
         );
-        TestCase.cases(cases, "keyword random", justKeyword, () -> new Page(fullyRandomKeywordVector(between(1, 10_000))));
 
-        TestCase.cases(
-            cases,
-            "keyword|int|double",
-            List.of(
-                new ArrowResponse.Column("keyword", "a"),
-                new ArrowResponse.Column("int", "b"),
-                new ArrowResponse.Column("double", "c")
-            ),
-            () -> {
-                int positions = between(1, 10_000);
-                return new Page(
-                    bytesRefVector(positions, i -> new BytesRef(randomAlphaOfLengthBetween(0, 100))).asBlock(),
-                    intVector(positions, i -> randomInt()).asBlock(),
-                    doubleVector(positions, i -> randomDouble()).asBlock()
-                );
-            }
-        );
         for (Map.Entry<String, IntFunction<Block>> first : RANDOM.entrySet()) {
+            TestCase.cases(
+                cases,
+                first.getKey(),
+                List.of(new ArrowResponse.Column(first.getKey(), "a")),
+                () -> new Page(first.getValue().apply(between(1, 10_000)))
+            );
+
             for (Map.Entry<String, IntFunction<Block>> second : RANDOM.entrySet()) {
                 TestCase.cases(
                     cases,
-                    first.getKey() + "|" + second.getKey() + "random",
+                    first.getKey() + "|" + second.getKey(),
                     List.of(new ArrowResponse.Column(first.getKey(), "a"), new ArrowResponse.Column(second.getKey(), "b")),
                     () -> {
                         int positions = between(1, 10_000);
                         return new Page(first.getValue().apply(positions), second.getValue().apply(positions));
                     }
                 );
+
+                for (Map.Entry<String, IntFunction<Block>> third : RANDOM.entrySet()) {
+                    TestCase.cases(
+                        cases,
+                        first.getKey() + "|" + second.getKey() + "|" + third.getKey(),
+                        List.of(
+                            new ArrowResponse.Column(first.getKey(), "a"),
+                            new ArrowResponse.Column(second.getKey(), "b"),
+                            new ArrowResponse.Column(third.getKey(), "c")
+                        ),
+                        () -> {
+                            int positions = between(1, 10_000);
+                            return new Page(
+                                first.getValue().apply(positions),
+                                second.getValue().apply(positions),
+                                third.getValue().apply(positions)
+                            );
+                        }
+                    );
+                }
             }
         }
 
@@ -132,8 +143,9 @@ public class ArrowResponseTests extends ESTestCase {
 
     private static final Map<String, IntFunction<Block>> RANDOM = Map.ofEntries(
         Map.entry("double", ArrowResponseTests::fullyRandomDoubleVector),
-        Map.entry("int", ArrowResponseTests::fullyRandomIntVector),
+        Map.entry("integer", ArrowResponseTests::fullyRandomIntVector),
         Map.entry("long", ArrowResponseTests::fullyRandomLongVector),
+        Map.entry("date", ArrowResponseTests::fullyRandomLongVector),
         Map.entry("keyword", ArrowResponseTests::fullyRandomKeywordVector)
     );
 
@@ -240,7 +252,7 @@ public class ArrowResponseTests extends ESTestCase {
                                 }
                                 arrow.setValueCount(v.getPositionCount());
                             }
-                            case "int" -> {
+                            case "integer" -> {
                                 IntBlock b = page.getBlock(c);
                                 IntVector v = b.asVector();
                                 if (v == null) {
@@ -260,6 +272,19 @@ public class ArrowResponseTests extends ESTestCase {
                                     throw new IllegalArgumentException();
                                 }
                                 BigIntVector arrow = (BigIntVector) schemaRoot.getVector(c);
+                                arrow.allocateNew(v.getPositionCount());
+                                for (int p = 0; p < v.getPositionCount(); p++) {
+                                    arrow.set(p, v.getLong(p));
+                                }
+                                arrow.setValueCount(v.getPositionCount());
+                            }
+                            case "date" -> {
+                                LongBlock b = page.getBlock(c);
+                                LongVector v = b.asVector();
+                                if (v == null) {
+                                    throw new IllegalArgumentException();
+                                }
+                                DateMilliVector arrow = (DateMilliVector) schemaRoot.getVector(c);
                                 arrow.allocateNew(v.getPositionCount());
                                 for (int p = 0; p < v.getPositionCount(); p++) {
                                     arrow.set(p, v.getLong(p));

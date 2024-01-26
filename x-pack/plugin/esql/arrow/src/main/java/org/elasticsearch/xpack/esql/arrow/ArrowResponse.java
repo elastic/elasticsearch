@@ -446,11 +446,12 @@ public class ArrowResponse implements Releasable {
 
     static FieldType arrowFieldType(String fieldType) {
         return switch (fieldType) {
+            case "date" -> FieldType.nullable(Types.MinorType.DATEMILLI.getType());
             case "double" -> FieldType.nullable(Types.MinorType.FLOAT8.getType());
-            case "int" -> FieldType.nullable(Types.MinorType.INT.getType());
+            case "integer" -> FieldType.nullable(Types.MinorType.INT.getType());
             case "long" -> FieldType.nullable(Types.MinorType.BIGINT.getType());
             case "keyword", "text" -> FieldType.nullable(Types.MinorType.VARCHAR.getType());
-            default -> throw new UnsupportedOperationException("NOCOMMIT");
+            default -> throw new UnsupportedOperationException("NOCOMMIT " + fieldType);
         };
     }
 }

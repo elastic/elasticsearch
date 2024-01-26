@@ -39,7 +39,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         strerror$mh = downcallHandle("strerror", FunctionDescriptor.of(ADDRESS, JAVA_INT));
         geteuid$mh = downcallHandle("geteuid", FunctionDescriptor.of(JAVA_INT));
         mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
-        var rlimitDesc = FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS);
+        var rlimitDesc = FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS);
         getrlimit$mh = downcallHandleWithErrno("getrlimit", rlimitDesc);
         setrlimit$mh = downcallHandleWithErrno("setrlimit", rlimitDesc);
     }
@@ -83,6 +83,11 @@ class JdkPosixCLibrary implements PosixCLibrary {
         @Override
         public void rlim_max(long v) {
             rlim_max$vh.set(segment, v);
+        }
+
+        @Override
+        public String toString() {
+            return "JdkRLimit[rlim_cur=" + rlim_cur() + ", rlim_max=" + rlim_max();
         }
     }
 
@@ -136,7 +141,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         assert rlimit instanceof JdkRLimit;
         var jdkRlimit = (JdkRLimit)rlimit;
         try {
-            return (int)getrlimit$mh.invokeExact(errnoState, resource, jdkRlimit.segment);
+            return (int)getrlimit$mh.invokeExact(resource, jdkRlimit.segment, errnoState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

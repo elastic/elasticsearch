@@ -48,7 +48,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         return cluster;
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/104470")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104470")
     public void testBehavioralAnalyticsDataRetention() throws Exception {
         assumeTrue(
             "Data retention changed by default to DSL in " + DSL_DEFAULT_RETENTION_VERSION,

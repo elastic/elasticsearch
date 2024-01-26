@@ -36,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportPublishHeapMemoryMetrics extends TransportMasterNodeAction<PublishHeapMemoryMetricsRequest, ActionResponse.Empty> {
 
     public static final String NAME = "cluster:monitor/stateless/autoscaling/publish_heap_memory_metrics";
-    public static final ActionType<ActionResponse.Empty> INSTANCE = ActionType.localOnly(NAME);
+    public static final ActionType<ActionResponse.Empty> INSTANCE = new ActionType<>(NAME);
 
     private final MemoryMetricsService memoryMetricsService;
 

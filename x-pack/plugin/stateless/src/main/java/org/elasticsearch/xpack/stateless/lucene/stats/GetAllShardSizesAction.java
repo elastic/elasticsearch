@@ -41,7 +41,7 @@ import java.util.Map;
 public class GetAllShardSizesAction {
 
     public static final String NAME = "cluster:monitor/stateless/autoscaling/get_all_shard_sizes";
-    public static final ActionType<GetAllShardSizesAction.Response> INSTANCE = ActionType.localOnly(NAME);
+    public static final ActionType<GetAllShardSizesAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private GetAllShardSizesAction() {/* no instances */}
 

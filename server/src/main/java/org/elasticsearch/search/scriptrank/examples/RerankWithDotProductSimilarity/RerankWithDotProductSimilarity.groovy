@@ -1,4 +1,4 @@
-package org.elasticsearch.search.scriptrank.examples.RerankWithCosineSimilarity
+package org.elasticsearch.search.scriptrank.examples.RerankWithDotProductSimilarity
 
 import org.apache.lucene.search.ScoreDoc
 import org.apache.lucene.util.VectorUtil

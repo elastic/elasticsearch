@@ -6,7 +6,7 @@
 
 [source,esql]
 ----
-COUNT_DISTINCT(column[, precision_threshold])
+COUNT_DISTINCT(expression[, precision_threshold])
 ----
 
 *Parameters*

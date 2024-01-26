@@ -32,8 +32,8 @@ include::{esql-specs}/stats.csv-spec[tag=avg-result]
 |===
 
 The expression can use inline functions. For example, to calculate the average
-salary change, you can use `MV_AVG` to first average the multiple values per
-employee, and use the result with the `AVG` function:
+over a multivalued column, first use `MV_AVG` to average the multiple values per
+row, and use the result with the `AVG` function:
 
 [source.merge.styled,esql]
 ----

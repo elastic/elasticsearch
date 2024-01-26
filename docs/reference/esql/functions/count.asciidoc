@@ -44,3 +44,15 @@ include::{esql-specs}/docs.csv-spec[tag=countAll]
 |===
 include::{esql-specs}/docs.csv-spec[tag=countAll-result]
 |===
+
+The expression can use inline functions. This example splits a string into
+multiple values using the `SPLIT` function and counts the values:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=docsCountWithExpression]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=docsCountWithExpression-result]
+|===

@@ -100,7 +100,7 @@ include::{esql-specs}/stats.csv-spec[tag=docsStatsAvgNestedExpression]
 include::{esql-specs}/stats.csv-spec[tag=docsStatsAvgNestedExpression-result]
 |===
 
-An example of grouping by an expression is to group employees on the first
+An example of grouping by an expression is grouping employees on the first
 letter of their last name:
 
 [source.merge.styled,esql]

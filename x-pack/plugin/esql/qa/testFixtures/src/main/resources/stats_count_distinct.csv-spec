@@ -156,12 +156,12 @@ m:long  | languages:i
 docsCountDistinctWithExpression#[skip:-8.12.99,reason:supported in 8.13+]
 // tag::docsCountDistinctWithExpression[]
 ROW words="foo;bar;baz;qux;quux;foo"
-| STATS COUNT_DISTINCT(SPLIT(words, ";"))
+| STATS distinct_word_count = COUNT_DISTINCT(SPLIT(words, ";"))
 // end::docsCountDistinctWithExpression[]
 ;
 
 // tag::docsCountDistinctWithExpression-result[]
-COUNT_DISTINCT(SPLIT(words, ";")):long
+distinct_word_count:long
 5
 // end::docsCountDistinctWithExpression-result[]
 ;

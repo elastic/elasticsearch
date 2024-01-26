@@ -1044,3 +1044,42 @@ max_avg_salary_change:double
 13.75
 // end::docsStatsMaxNestedExpression-result[]
 ;
+
+docsStatsMinNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMinNestedExpression[]
+FROM employees
+| STATS min_avg_salary_change = MIN(MV_AVG(salary_change))
+// end::docsStatsMinNestedExpression[]
+;
+
+// tag::docsStatsMinNestedExpression-result[]
+min_avg_salary_change:double
+-8.46
+// end::docsStatsMinNestedExpression-result[]
+;
+
+docsStatsSumNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsSumNestedExpression[]
+FROM employees
+| STATS num_sal_changes = SUM(MV_COUNT(salary_change))
+// end::docsStatsSumNestedExpression[]
+;
+
+// tag::docsStatsSumNestedExpression-result[]
+num_sal_changes:long
+183
+// end::docsStatsSumNestedExpression-result[]
+;
+
+docsCountWithExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsCountWithExpression[]
+ROW words="foo;bar;baz;qux;quux;foo"
+| STATS word_count = COUNT(SPLIT(words, ";"))
+// end::docsCountWithExpression[]
+;
+
+// tag::docsCountWithExpression-result[]
+word_count:long
+6
+// end::docsCountWithExpression-result[]
+;

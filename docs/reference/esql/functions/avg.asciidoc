@@ -6,15 +6,15 @@
 
 [source,esql]
 ----
-AVG(column)
+AVG(expression)
 ----
 
-`column`::
-Numeric column. If `null`, the function returns `null`.
+`expression`::
+Numeric expression. If `null`, the function returns `null`.
 
 *Description*
 
-The average of a numeric field.
+The average of a numeric expression.
 
 *Supported types*
 

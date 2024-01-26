@@ -28,7 +28,7 @@ public class UpdateConnectorLastSeenAction extends ActionType<ConnectorUpdateAct
     public static final String NAME = "cluster:admin/xpack/connector/update_last_seen";
 
     public UpdateConnectorLastSeenAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

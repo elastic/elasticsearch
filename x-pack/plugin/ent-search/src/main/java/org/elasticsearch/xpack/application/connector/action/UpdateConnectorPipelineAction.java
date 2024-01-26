@@ -37,7 +37,7 @@ public class UpdateConnectorPipelineAction extends ActionType<ConnectorUpdateAct
     public static final String NAME = "cluster:admin/xpack/connector/update_pipeline";
 
     public UpdateConnectorPipelineAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

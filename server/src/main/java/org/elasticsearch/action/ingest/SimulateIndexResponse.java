@@ -9,7 +9,6 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +35,7 @@ public class SimulateIndexResponse extends IndexResponse {
         super(in);
         this.source = in.readBytesReference();
         this.sourceXContentType = XContentType.valueOf(in.readString());
-        setShardInfo(new ReplicationResponse.ShardInfo(0, 0));
+        setShardInfo(ShardInfo.EMPTY);
     }
 
     @SuppressWarnings("this-escape")
@@ -52,7 +51,7 @@ public class SimulateIndexResponse extends IndexResponse {
         super(new ShardId(index, "", 0), id == null ? "<n/a>" : id, 0, 0, version, true, pipelines);
         this.source = source;
         this.sourceXContentType = sourceXContentType;
-        setShardInfo(new ReplicationResponse.ShardInfo(0, 0));
+        setShardInfo(ShardInfo.EMPTY);
     }
 
     @Override

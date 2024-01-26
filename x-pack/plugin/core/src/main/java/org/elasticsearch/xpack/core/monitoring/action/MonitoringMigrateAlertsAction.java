@@ -14,6 +14,6 @@ public class MonitoringMigrateAlertsAction extends ActionType<MonitoringMigrateA
     public static final String NAME = "cluster:admin/xpack/monitoring/migrate/alerts";
 
     public MonitoringMigrateAlertsAction() {
-        super(NAME, MonitoringMigrateAlertsResponse::new);
+        super(NAME);
     }
 }

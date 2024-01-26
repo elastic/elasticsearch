@@ -53,16 +53,42 @@ public class APMAgentSettingsTests extends ESTestCase {
         verify(apmAgentSettings).setAgentSetting("span_compression_enabled", "true");
     }
 
+    public void testSetAgentsSettingsWithTelemetryPrefix() {
+        APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
+        Settings settings = Settings.builder()
+            .put("tracing.apm.enabled", true)
+            .put("telemetry.metrics.enabled", true)
+            .put("telemetry.agent.server_url", "https://my-apm-server.example.com")
+            .put("telemetry.agent.metrics_interval", "1s")
+            .build();
+        apmAgentSettings.syncAgentSystemProperties(settings);
+
+        verify(apmAgentSettings).setAgentSetting("recording", "true");
+        verify(apmAgentSettings).setAgentSetting("metrics_interval", "1s");
+        verify(apmAgentSettings).setAgentSetting("server_url", "https://my-apm-server.example.com");
+    }
+
     /**
      * Check that invalid or forbidden APM agent settings are rejected.
      */
     public void testRejectForbiddenOrUnknownSettings() {
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
-            .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "unknown", "true")
-            .build();
+        Exception exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(
+                Settings.builder()
+                    .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+                    .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "unknown", "true")
+                    .build()
+            )
+        );
+        assertThat(exception.getMessage(), containsString("[telemetry.agent.unknown]"));
 
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(settings));
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(
+                Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).put("tracing.apm.agent.unknown", "true").build()
+            )
+        );
         assertThat(exception.getMessage(), containsString("[tracing.apm.agent.unknown]"));
     }
 }

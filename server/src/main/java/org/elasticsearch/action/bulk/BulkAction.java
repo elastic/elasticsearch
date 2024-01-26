@@ -22,7 +22,7 @@ public class BulkAction extends ActionType<BulkResponse> {
     );
 
     private BulkAction() {
-        super(NAME, BulkResponse::new);
+        super(NAME);
     }
 
 }

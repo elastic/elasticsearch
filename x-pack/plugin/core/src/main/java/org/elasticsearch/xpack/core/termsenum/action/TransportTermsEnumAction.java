@@ -598,7 +598,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                                 }
 
                                 @Override
-                                public Executor executor(ThreadPool threadPool) {
+                                public Executor executor() {
                                     return TransportResponseHandler.TRANSPORT_WORKER;
                                 }
 
@@ -625,7 +625,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices());
 
                 var remoteClient = remoteClusterService.getRemoteClusterClient(clusterAlias, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-                remoteClient.execute(TermsEnumAction.INSTANCE, req, new ActionListener<>() {
+                remoteClient.execute(TermsEnumAction.REMOTE_TYPE, req, new ActionListener<>() {
                     @Override
                     public void onResponse(TermsEnumResponse termsEnumResponse) {
                         onRemoteClusterResponse(

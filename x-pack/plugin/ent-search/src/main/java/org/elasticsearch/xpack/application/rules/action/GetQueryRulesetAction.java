@@ -35,7 +35,7 @@ public class GetQueryRulesetAction extends ActionType<GetQueryRulesetAction.Resp
     public static final String NAME = "cluster:admin/xpack/query_rules/get";
 
     private GetQueryRulesetAction() {
-        super(NAME, GetQueryRulesetAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

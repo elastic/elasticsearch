@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.external.request.Request;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForFailureStatusCode;
@@ -32,10 +32,10 @@ public class HttpUtilsTests extends ESTestCase {
 
         var thrownException = expectThrows(
             IllegalStateException.class,
-            () -> checkForFailureStatusCode(mockThrottlerManager(), mock(Logger.class), mock(HttpRequestBase.class), result)
+            () -> checkForFailureStatusCode(mockThrottlerManager(), mock(Logger.class), mock(Request.class), result)
         );
 
-        assertThat(thrownException.getMessage(), is("Unhandled redirection for request [null] status [300]"));
+        assertThat(thrownException.getMessage(), is("Unhandled redirection for request from model id [null] status [300]"));
     }
 
     public void testCheckForFailureStatusCode_DoesNotThrowWhenStatusCodeIs200() {
@@ -47,7 +47,7 @@ public class HttpUtilsTests extends ESTestCase {
 
         var result = new HttpResult(httpResponse, new byte[0]);
 
-        checkForFailureStatusCode(mockThrottlerManager(), mock(Logger.class), mock(HttpRequestBase.class), result);
+        checkForFailureStatusCode(mockThrottlerManager(), mock(Logger.class), mock(Request.class), result);
     }
 
     public void testCheckForEmptyBody_DoesNotThrowWhenTheBodyIsNotEmpty() {
@@ -56,7 +56,7 @@ public class HttpUtilsTests extends ESTestCase {
 
         var result = new HttpResult(httpResponse, new byte[] { 'a' });
 
-        checkForEmptyBody(mockThrottlerManager(), mock(Logger.class), mock(HttpRequestBase.class), result);
+        checkForEmptyBody(mockThrottlerManager(), mock(Logger.class), mock(Request.class), result);
     }
 
     public void testCheckForEmptyBody_ThrowsWhenTheBodyIsEmpty() {
@@ -67,9 +67,9 @@ public class HttpUtilsTests extends ESTestCase {
 
         var thrownException = expectThrows(
             IllegalStateException.class,
-            () -> checkForEmptyBody(mockThrottlerManager(), mock(Logger.class), mock(HttpRequestBase.class), result)
+            () -> checkForEmptyBody(mockThrottlerManager(), mock(Logger.class), mock(Request.class), result)
         );
 
-        assertThat(thrownException.getMessage(), is("Response body was empty for request [null]"));
+        assertThat(thrownException.getMessage(), is("Response body was empty for request from model id [null]"));
     }
 }

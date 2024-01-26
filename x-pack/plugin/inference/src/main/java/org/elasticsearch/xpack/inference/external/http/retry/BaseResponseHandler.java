@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
@@ -52,22 +51,22 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         return requestType;
     }
 
-    protected Exception buildError(String message, HttpRequestBase request, HttpResult result) {
+    protected Exception buildError(String message, Request request, HttpResult result) {
         var errorEntityMsg = errorParseFunction.apply(result);
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
 
         if (errorEntityMsg == null) {
             return new ElasticsearchStatusException(
-                format("%s for request [%s] status [%s]", message, request.getRequestLine(), responseStatusCode),
+                format("%s for request from model id [%s] status [%s]", message, request.getModelId(), responseStatusCode),
                 toRestStatus(responseStatusCode)
             );
         }
 
         return new ElasticsearchStatusException(
             format(
-                "%s for request [%s] status [%s]. Error message: [%s]",
+                "%s for request from model id [%s] status [%s]. Error message: [%s]",
                 message,
-                request.getRequestLine(),
+                request.getModelId(),
                 responseStatusCode,
                 errorEntityMsg.getErrorMessage()
             ),

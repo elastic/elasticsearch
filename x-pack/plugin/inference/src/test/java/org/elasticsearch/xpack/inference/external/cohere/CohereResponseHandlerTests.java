@@ -11,7 +11,6 @@ import org.apache.http.Header;
 import org.apache.http.HeaderElement;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -19,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.hamcrest.MatcherAssert;
 
 import java.nio.charset.StandardCharsets;
@@ -39,7 +39,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received a server error status code for request [null] status [503]")
+            containsString("Received a server error status code for request from model id [null] status [503]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
@@ -49,7 +49,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received a rate limit status code for request [null] status [429]")
+            containsString("Received a rate limit status code for request from model id [null] status [429]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
@@ -59,7 +59,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request [null] status [400]")
+            containsString("Received an unsuccessful status code for request from model id [null] status [400]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
@@ -72,7 +72,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received a texts array too large response for request [null] status [400]")
+            containsString("Received a texts array too large response for request from model id [null] status [400]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
@@ -82,7 +82,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Received an authentication error status code for request [null] status [401]")
+            containsString("Received an authentication error status code for request from model id [null] status [401]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
@@ -92,7 +92,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
-            containsString("Unhandled redirection for request [null] status [300]")
+            containsString("Unhandled redirection for request from model id [null] status [300]")
         );
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
@@ -117,10 +117,10 @@ public class CohereResponseHandlerTests extends ESTestCase {
                 }
             """, errorMessage);
 
-        var httpRequest = mock(HttpRequestBase.class);
+        var mockRequest = mock(Request.class);
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
         var handler = new CohereResponseHandler("", (request, result) -> null);
 
-        handler.checkForFailureStatusCode(httpRequest, httpResult);
+        handler.checkForFailureStatusCode(mockRequest, httpResult);
     }
 }

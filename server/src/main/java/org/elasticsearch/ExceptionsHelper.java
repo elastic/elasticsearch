@@ -262,6 +262,21 @@ public final class ExceptionsHelper {
         });
     }
 
+    // MP TODO: IDEA - implement this?
+    /**
+     * Deduplicate failures, returning the first 'max' number of deduplicated failures.
+     * If aggressive=false, failures will be deduplicated by message and index.
+     * If aggressive=true, failures will be deduplicated only by message
+     * @param failures
+     * @param max
+     * @param aggressive
+     * @return
+     */
+    public static ShardOperationFailedException[] groupByMessage(ShardOperationFailedException[] failures, int max, boolean aggressive) {
+        // MP TODO: IDEA: this could also add a final Exception (at the n-1) slot that summarizes all exceptions truncated (not included)
+        return null;
+    }
+
     /**
      * Deduplicate the failures by exception message and index.
      * @param failures array to deduplicate

@@ -467,18 +467,24 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             return new ShardSearchFailures(0, ShardSearchFailure.EMPTY_ARRAY);
         }
         List<ShardSearchFailure> entries = shardFailures.asList();
+        // TODO: IDEA: create ExceptionsHelper.groupBy that works from a List?
+        // TODO: IDEA: create ExceptionsHelper.groupBy that takes a max number of failures to return?
+        ShardOperationFailedException[] grouped = ExceptionsHelper.groupBy(entries.toArray(new ShardSearchFailure[0]));
+        System.err.println("XXX grouped size: " + grouped.length);
+
         int maxFailures = 3;
-        int size = Math.min(maxFailures, entries.size());
+        int size = Math.min(maxFailures, grouped.length);
+        // MP TODO start --
         if (size < entries.size()) {
             System.err.printf(">>> XXX TRUNCATED FAILURES LIST: size: %d; ary-length: %d\n", size, entries.size());
         }
-        // MP TODO: could add some dedup logic here to select different types of failures
-        // ExceptionsHelper.groupBy(shardSearchFailures);
-        ShardSearchFailure[] failures = new ShardSearchFailure[size];
+        // MP TODO end --
+        ShardSearchFailure[] retained = new ShardSearchFailure[size];
         for (int i = 0; i < size; i++) {
-            failures[i] = entries.get(i);
+            retained[i] = (ShardSearchFailure) grouped[i];
         }
-        return new ShardSearchFailures(entries.size(), failures);
+
+        return new ShardSearchFailures(entries.size(), retained);
     }
 
     private ShardSearchFailure[] buildShardFailures() {

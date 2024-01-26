@@ -16,6 +16,9 @@ public class ShardSearchFailures {  // TODO: convert to Record?
     private final int numFailures;
     private final ShardSearchFailure[] failures;
 
+    // MP TODO: IDEA: also accept the full list of failures as well as a truncated list
+    // MP TODO you would sift the truncated list to determine RestStatus and keep that as an instance var also
+
     public ShardSearchFailures(int numFailures, ShardSearchFailure[] failures) {
         this.numFailures = numFailures;
         this.failures = failures;

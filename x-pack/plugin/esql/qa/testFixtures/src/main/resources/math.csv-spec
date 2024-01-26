@@ -209,6 +209,171 @@ salary:integer | s:double
 74572          | 193184
 73851          | 1330201
 ;
+// START To be removed
+
+log#[skip:-8.12.99,reason:new scalar function added in 8.13]
+// tag::log[]
+ROW base = 2.0, value = 8.0
+| EVAL s = LOG(base, value)
+// end::log[]
+;
+
+// tag::log-result[]
+base: double | value: double | s:double
+2.0          | 8.0               |3.0
+// end::log-result[]
+;
+
+logofNegativeValue#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 2.0, value = -2
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base: double | value: integer | s:double
+2.0          | -2                 | null
+;
+
+logofNegativeBase#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = -2, value = 2.0
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base: integer | value: double | s:double
+-2            | 2.0               | null
+;
+
+logofBaseOne#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 1, value = 2
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of base 1
+
+base: integer | value: integer | s:double
+1             | 2                  | null
+;
+
+logofZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 2.0, value = 0.0
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base:double | value:double | s:double
+2.0         | 0.0              |null
+;
+
+logofNegativeZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 2.0, value = -0.0
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base:double | value:double | s:double
+2.0         | -0.0             |null
+;
+
+logofIntLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 10, value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:integer | value:long      | s:double
+10           | 1000000000000       | 12
+;
+
+logofLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_long(1000000000000), value = 10
+| EVAL s = LOG(base, value);
+
+base:long             | value:integer | s:double
+1000000000000         | 10                | 0.08333333333333333
+;
+
+logofLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_long(1000000000000), value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:long      | value:long | s:double
+1000000000000  | 1000000000000  |1.0
+;
+
+logofLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_long(1000000000000), value = 10.0
+| EVAL s = LOG(base, value);
+
+base:long             | value:double | s:double
+1000000000000         | 10.0              | 0.08333333333333333
+;
+
+logofDoubleLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 10.0, value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:double | value:long | s:double
+10.0        | 1000000000000  | 12
+;
+
+logofLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_long(1000000000000), value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:long     | value:UNSIGNED_LONG | s:double
+1000000000000 | 1000000000000000000     | 1.5
+;
+
+logofUnsignedLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_ul(1000000000000000000), value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:long | s:double
+1000000000000000000 | 1000000000000  | 0.6666666666666666
+;
+
+logofIntUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 10, value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:integer | value:UNSIGNED_LONG | s:double
+10           | 1000000000000000000     | 18.0
+;
+
+logofUnsignedLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_ul(1000000000000000000), value = 10
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:integer | s:double
+1000000000000000000 | 10                | 0.05555555555555555
+;
+
+logofUnsignedLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_ul(1000000000000000000), value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:UNSIGNED_LONG | s:double
+1000000000000000000 | 1000000000000000000     | 1.0
+;
+
+logofUnsignedLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_ul(1000000000000000000), value = 1000000000.0
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:double | s:double
+1000000000000000000 | 1.0E9             | 0.5
+;
+
+logofDoubleUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 10.0, value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:double | value:UNSIGNED_LONG | s:double
+10.0        | 1000000000000000000     | 18.0
+;
 
 log10
 // tag::log10[]

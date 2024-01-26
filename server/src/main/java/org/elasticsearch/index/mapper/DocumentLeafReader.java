@@ -291,6 +291,7 @@ class DocumentLeafReader extends LeafReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
     }

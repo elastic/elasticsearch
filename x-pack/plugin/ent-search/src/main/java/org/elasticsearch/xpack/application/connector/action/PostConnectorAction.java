@@ -42,7 +42,7 @@ public class PostConnectorAction extends ActionType<PostConnectorAction.Response
     public static final String NAME = "cluster:admin/xpack/connector/post";
 
     public PostConnectorAction() {
-        super(NAME, PostConnectorAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

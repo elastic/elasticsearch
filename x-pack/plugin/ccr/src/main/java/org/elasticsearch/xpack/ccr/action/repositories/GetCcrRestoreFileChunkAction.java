@@ -49,7 +49,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
     }
 
     private GetCcrRestoreFileChunkAction(String name) {
-        super(name, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse::new);
+        super(name);
     }
 
     abstract static class TransportGetCcrRestoreFileChunkAction extends HandledTransportAction<

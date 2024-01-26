@@ -40,7 +40,7 @@ public class UpdateConnectorLastSyncStatsAction extends ActionType<ConnectorUpda
     public static final String NAME = "cluster:admin/xpack/connector/update_last_sync_stats";
 
     public UpdateConnectorLastSyncStatsAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -48,11 +48,11 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
     );
 
     private PutCcrRestoreSessionAction() {
-        super(INTERNAL_NAME, Writeable.Reader.localOnly());
+        super(INTERNAL_NAME);
     }
 
     private PutCcrRestoreSessionAction(String name) {
-        super(name, Writeable.Reader.localOnly());
+        super(name);
     }
 
     abstract static class TransportPutCcrRestoreSessionAction extends TransportSingleShardAction<

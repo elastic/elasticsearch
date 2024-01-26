@@ -162,7 +162,7 @@ public class ObjectMapper extends Mapper {
                     // This can also happen due to multiple index templates being merged into a single mappings definition using
                     // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
                     // mix of object notation and dot notation.
-                    mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext));
+                    mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
@@ -403,6 +403,14 @@ public class ObjectMapper extends Mapper {
         return builder;
     }
 
+    /**
+     * Returns a copy of this object mapper that doesn't have any fields and runtime fields.
+     * This is typically used in the context of a mapper merge when there's not enough budget to add the entire object.
+     */
+    ObjectMapper withoutMappers() {
+        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, Map.of());
+    }
+
     @Override
     public String name() {
         return this.fullPath;
@@ -542,10 +550,15 @@ public class ObjectMapper extends Mapper {
                 Mapper mergeWithMapper = iterator.next();
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
 
+                Mapper merged = null;
                 if (mergeIntoMapper == null) {
-                    mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
+                    if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.mapperSize())) {
+                        merged = mergeWithMapper;
+                    } else if (mergeWithMapper instanceof ObjectMapper om) {
+                        merged = truncateObjectMapper(reason, objectMergeContext, om);
+                    }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                    mergedMappers.put(objectMapper.simpleName(), objectMapper.merge(mergeWithMapper, reason, objectMergeContext));
+                    merged = objectMapper.merge(mergeWithMapper, reason, objectMergeContext);
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                     if (mergeWithMapper instanceof NestedObjectMapper) {
@@ -557,13 +570,27 @@ public class ObjectMapper extends Mapper {
                     // If we're merging template mappings when creating an index, then a field definition always
                     // replaces an existing one.
                     if (reason == MergeReason.INDEX_TEMPLATE) {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
+                        merged = mergeWithMapper;
                     } else {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
+                        merged = mergeIntoMapper.merge(mergeWithMapper, objectMergeContext);
                     }
+                }
+                if (merged != null) {
+                    mergedMappers.put(merged.simpleName(), merged);
                 }
             }
             return Map.copyOf(mergedMappers);
+        }
+
+        private static ObjectMapper truncateObjectMapper(MergeReason reason, MapperMergeContext context, ObjectMapper objectMapper) {
+            // there's not enough capacity for the whole object mapper,
+            // so we're just trying to add the shallow object, without it's sub-fields
+            ObjectMapper shallowObjectMapper = objectMapper.withoutMappers();
+            if (context.decrementFieldBudgetIfPossible(shallowObjectMapper.mapperSize())) {
+                // now trying to add the sub-fields one by one via a merge, until we hit the limit
+                return shallowObjectMapper.merge(objectMapper, reason, context);
+            }
+            return null;
         }
     }
 

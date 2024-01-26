@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,12 +16,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.InternalItemSetMapReduceAggregationTests.WordCountMapReducer.WordCounts;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
@@ -37,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -151,49 +146,6 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
 
     }
 
-    static class ParsedWordCountMapReduceAggregation extends ParsedAggregation {
-
-        private Map<String, Long> frequencies;
-
-        @SuppressWarnings("unchecked")
-        static ParsedWordCountMapReduceAggregation fromXContent(XContentParser parser, final String name) throws IOException {
-            Map<String, Object> values = parser.map();
-            Map<String, Long> frequencies = ((Map<String, Object>) values.getOrDefault(
-                Aggregation.CommonFields.BUCKETS.getPreferredName(),
-                Collections.emptyMap()
-            )).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> ((Integer) e.getValue()).longValue()));
-
-            ParsedWordCountMapReduceAggregation parsed = new ParsedWordCountMapReduceAggregation(
-                frequencies,
-                (Map<String, Object>) values.get(InternalAggregation.CommonFields.META.getPreferredName())
-            );
-            parsed.setName(name);
-            return parsed;
-        }
-
-        ParsedWordCountMapReduceAggregation(Map<String, Long> frequencies, Map<String, Object> metadata) {
-            this.frequencies = frequencies;
-            this.metadata = metadata;
-        }
-
-        @Override
-        public String getType() {
-            return WordCountMapReducer.AGG_NAME;
-        }
-
-        @Override
-        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-            if (frequencies.isEmpty() == false) {
-                builder.field(Aggregation.CommonFields.BUCKETS.getPreferredName(), getFrequencies());
-            }
-            return builder;
-        }
-
-        public Map<String, Long> getFrequencies() {
-            return frequencies;
-        }
-    }
-
     @Override
     protected InternalItemSetMapReduceAggregation<WordCounts, WordCounts, WordCounts, WordCounts> createTestInstance(
         String name,
@@ -233,24 +185,6 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
     @Override
     protected SearchPlugin registerPlugin() {
         return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>(super.getNamedWriteables());
-
-        namedWritables.add(
-            new NamedWriteableRegistry.Entry(
-                InternalAggregation.class,
-                WordCountMapReducer.AGG_NAME,
-                in -> new InternalItemSetMapReduceAggregation<>(in, (mapReducerReader) -> {
-                    in.readString();
-                    return new WordCountMapReducer(mapReducerReader);
-                })
-            )
-        );
-
-        return namedWritables;
     }
 
     private static void assertMapEquals(Map<String, Long> expected, Map<String, Long> actual) {

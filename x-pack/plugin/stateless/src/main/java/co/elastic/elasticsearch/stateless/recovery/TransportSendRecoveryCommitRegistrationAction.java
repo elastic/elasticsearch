@@ -46,7 +46,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportSendRecoveryCommitRegistrationAction extends HandledTransportAction<RegisterCommitRequest, RegisterCommitResponse> {
 
     public static final String NAME = "internal:index/shard/recovery:send_recovery_commit_registration";
-    public static final ActionType<RegisterCommitResponse> TYPE = ActionType.localOnly(NAME);
+    public static final ActionType<RegisterCommitResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportSendRecoveryCommitRegistrationAction.class);
 
     private final ClusterService clusterService;

@@ -42,7 +42,7 @@ import java.io.IOException;
 public class GetShardSizeAction {
 
     public static final String NAME = "cluster:monitor/stateless/autoscaling/get_shard_size";
-    public static final ActionType<Response> INSTANCE = ActionType.localOnly(NAME);
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
     private GetShardSizeAction() {/* no instances */}
 

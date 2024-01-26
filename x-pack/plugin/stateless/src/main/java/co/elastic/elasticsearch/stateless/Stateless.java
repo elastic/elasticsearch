@@ -197,11 +197,11 @@ public class Stateless extends Plugin
 
     public static final String NAME = "stateless";
 
-    public static final ActionType<GetBlobStoreStatsNodesResponse> GET_BLOB_STORE_STATS_ACTION = ActionType.localOnly(
+    public static final ActionType<GetBlobStoreStatsNodesResponse> GET_BLOB_STORE_STATS_ACTION = new ActionType<>(
         "cluster:monitor/" + NAME + "/blob_store/stats/get"
     );
 
-    public static final ActionType<ClearBlobCacheNodesResponse> CLEAR_BLOB_CACHE_ACTION = ActionType.localOnly(
+    public static final ActionType<ClearBlobCacheNodesResponse> CLEAR_BLOB_CACHE_ACTION = new ActionType<>(
         "cluster:admin/" + NAME + "/blob_cache/clear"
     );
 

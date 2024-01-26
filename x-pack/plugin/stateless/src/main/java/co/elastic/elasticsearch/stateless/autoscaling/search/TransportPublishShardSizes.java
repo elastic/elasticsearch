@@ -36,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportPublishShardSizes extends TransportMasterNodeAction<PublishShardSizesRequest, ActionResponse.Empty> {
 
     public static final String NAME = "cluster:monitor/stateless/autoscaling/push_shard_sizes";
-    public static final ActionType<ActionResponse.Empty> INSTANCE = ActionType.localOnly(NAME);
+    public static final ActionType<ActionResponse.Empty> INSTANCE = new ActionType<>(NAME);
 
     private final SearchMetricsService searchTierMetricsService;
 

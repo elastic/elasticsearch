@@ -336,6 +336,7 @@ public class IndicesOptionsTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
+        ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean());
         WildcardOptions wildcardOptions = new WildcardOptions(
             randomBoolean(),
             randomBoolean(),
@@ -344,9 +345,8 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         GeneralOptions generalOptions = new GeneralOptions(randomBoolean(), randomBoolean(), randomBoolean());
-        ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean());
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, generalOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);

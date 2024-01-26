@@ -430,7 +430,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
             }
-            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents, transport));
+            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport));
             transport.serverAcceptedChannel(nettyHttpChannel);
         }
 

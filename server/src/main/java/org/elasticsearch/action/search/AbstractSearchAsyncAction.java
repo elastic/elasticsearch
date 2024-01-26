@@ -65,6 +65,7 @@ import static org.elasticsearch.core.Strings.format;
  * distributed frequencies
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
+    public static final int MAX_FAILURES_IN_RESPONSE = 3;
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -467,18 +468,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             return new ShardSearchFailures(0, ShardSearchFailure.EMPTY_ARRAY);
         }
         List<ShardSearchFailure> entries = shardFailures.asList();
-        // TODO: IDEA: create ExceptionsHelper.groupBy that works from a List?
-        // TODO: IDEA: create ExceptionsHelper.groupBy that takes a max number of failures to return?
-        ShardOperationFailedException[] grouped = ExceptionsHelper.groupBy(entries.toArray(new ShardSearchFailure[0]));
-        System.err.println("XXX grouped size: " + grouped.length);
+        ShardOperationFailedException[] grouped = ExceptionsHelper.groupBy(
+            entries.toArray(new ShardSearchFailure[0]),
+            MAX_FAILURES_IN_RESPONSE,
+            true
+        );
 
-        int maxFailures = 3;
-        int size = Math.min(maxFailures, grouped.length);
-        // MP TODO start --
-        if (size < entries.size()) {
-            System.err.printf(">>> XXX TRUNCATED FAILURES LIST: size: %d; ary-length: %d\n", size, entries.size());
-        }
-        // MP TODO end --
+        int size = Math.min(MAX_FAILURES_IN_RESPONSE, grouped.length);
         ShardSearchFailure[] retained = new ShardSearchFailure[size];
         for (int i = 0; i < size; i++) {
             retained[i] = (ShardSearchFailure) grouped[i];

@@ -59,7 +59,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -156,16 +156,17 @@ public class SearchResponseMergerTests extends ESTestCase {
             );
             int numIndices = numResponses * randomIntBetween(1, 3);
             Iterator<Map.Entry<String, Index[]>> indicesPerCluster = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
+            String errorMessage = "error 123";
             for (int i = 0; i < numResponses; i++) {
                 Map.Entry<String, Index[]> entry = indicesPerCluster.next();
                 String clusterAlias = entry.getKey();
                 Index[] indices = entry.getValue();
-                int numFailures = randomIntBetween(1, 10);
+                int numFailures = randomIntBetween(1, 35);
                 ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
                 for (int j = 0; j < numFailures; j++) {
                     ShardId shardId = new ShardId(randomFrom(indices), j);
                     SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias);
-                    ShardSearchFailure failure = new ShardSearchFailure(new IllegalArgumentException(), searchShardTarget);
+                    ShardSearchFailure failure = new ShardSearchFailure(new IllegalArgumentException(errorMessage), searchShardTarget);
                     shardSearchFailures[j] = failure;
                     priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
                 }
@@ -195,10 +196,12 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(priorityQueue.size(), mergedResponse.getFailedShards());
                 ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertEquals(priorityQueue.size(), shardFailures.length);
+
+                int expectedTotalNumFailuresInResponse = Math.min(priorityQueue.size(), AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE);
+                assertEquals(expectedTotalNumFailuresInResponse, shardFailures.length);
                 for (ShardSearchFailure shardFailure : shardFailures) {
-                    ShardSearchFailure expected = priorityQueue.poll().v2();
-                    assertSame(expected, shardFailure);
+                    assertThat(shardFailure.toString(), containsString("IllegalArgumentException"));
+                    assertThat(shardFailure.toString(), containsString(errorMessage));
                 }
             } finally {
                 mergedResponse.decRef();
@@ -217,18 +220,19 @@ public class SearchResponseMergerTests extends ESTestCase {
                 emptyReduceContextBuilder()
             )
         ) {
-            PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
+            int totalNumFailures = 0;
+            String errorMessage = "error 123";
             for (int i = 0; i < numResponses; i++) {
                 int numFailures = randomIntBetween(1, 10);
+                totalNumFailures += numFailures;
                 ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
                 for (int j = 0; j < numFailures; j++) {
                     String index = "index-" + i;
                     ShardId shardId = new ShardId(index, index + "-uuid", j);
-                    ElasticsearchException elasticsearchException = new ElasticsearchException(new IllegalArgumentException());
+                    ElasticsearchException elasticsearchException = new ElasticsearchException(new IllegalArgumentException(errorMessage));
                     elasticsearchException.setShard(shardId);
                     ShardSearchFailure failure = new ShardSearchFailure(elasticsearchException);
                     shardSearchFailures[j] = failure;
-                    priorityQueue.add(Tuple.tuple(shardId, failure));
                 }
                 SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
@@ -254,12 +258,13 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getTotalShards());
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
-                assertEquals(priorityQueue.size(), mergedResponse.getFailedShards());
+                assertEquals(totalNumFailures, mergedResponse.getFailedShards());
                 ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertEquals(priorityQueue.size(), shardFailures.length);
+                int expectedNumFailuresInResponse = Math.min(totalNumFailures, AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE);
+                assertEquals(expectedNumFailuresInResponse, shardFailures.length);
                 for (ShardSearchFailure shardFailure : shardFailures) {
-                    ShardSearchFailure expected = priorityQueue.poll().v2();
-                    assertSame(expected, shardFailure);
+                    assertThat(shardFailure.toString(), containsString("IllegalArgumentException"));
+                    assertThat(shardFailure.toString(), containsString(errorMessage));
                 }
             } finally {
                 mergedResponse.decRef();
@@ -278,13 +283,16 @@ public class SearchResponseMergerTests extends ESTestCase {
                 emptyReduceContextBuilder()
             )
         ) {
+            String errorMessage = "error 123";
             List<ShardSearchFailure> expectedFailures = new ArrayList<>();
+            int totNumFailures = 0;
             for (int i = 0; i < numResponses; i++) {
                 int numFailures = randomIntBetween(1, 50);
+                totNumFailures += numFailures;
                 ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
                 for (int j = 0; j < numFailures; j++) {
                     ShardSearchFailure shardSearchFailure = new ShardSearchFailure(
-                        new ElasticsearchException(new IllegalArgumentException())
+                        new ElasticsearchException(new IllegalArgumentException(errorMessage))
                     );
                     shardSearchFailures[j] = shardSearchFailure;
                     expectedFailures.add(shardSearchFailure);
@@ -308,8 +316,13 @@ public class SearchResponseMergerTests extends ESTestCase {
             assertEquals(numResponses, merger.numResponses());
             var mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
-                ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
+                ShardSearchFailure[] mergedShardFailures = mergedResponse.getShardFailures();
+                int expectedNumFailuresInResponse = Math.min(totNumFailures, AbstractSearchAsyncAction.MAX_FAILURES_IN_RESPONSE);
+                assertEquals(expectedNumFailuresInResponse, mergedShardFailures.length);
+                for (ShardSearchFailure mergedShardFailure : mergedShardFailures) {
+                    assertThat(mergedShardFailure.toString(), containsString("IllegalArgumentException"));
+                    assertThat(mergedShardFailure.toString(), containsString(errorMessage));
+                }
             } finally {
                 mergedResponse.decRef();
             }

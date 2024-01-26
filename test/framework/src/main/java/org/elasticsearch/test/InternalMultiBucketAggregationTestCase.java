@@ -17,10 +17,8 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -121,82 +119,6 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         for (MultiBucketsAggregation.Bucket reducedBucket : reduced) {
             MultiBucketsAggregation.Bucket sampledBucket = sampledIt.next();
             assertEquals(sampledBucket.getDocCount(), samplingContext.scaleUp(reducedBucket.getDocCount()));
-        }
-    }
-
-    private void assertMultiBucketsAggregations(Aggregation expected, Aggregation actual, boolean checkOrder) {
-        assertTrue(expected instanceof MultiBucketsAggregation);
-        MultiBucketsAggregation expectedMultiBucketsAggregation = (MultiBucketsAggregation) expected;
-
-        assertTrue(actual instanceof MultiBucketsAggregation);
-        MultiBucketsAggregation actualMultiBucketsAggregation = (MultiBucketsAggregation) actual;
-
-        assertMultiBucketsAggregation(expectedMultiBucketsAggregation, actualMultiBucketsAggregation, checkOrder);
-
-        List<? extends MultiBucketsAggregation.Bucket> expectedBuckets = expectedMultiBucketsAggregation.getBuckets();
-        List<? extends MultiBucketsAggregation.Bucket> actualBuckets = actualMultiBucketsAggregation.getBuckets();
-        assertEquals(expectedBuckets.size(), actualBuckets.size());
-
-        if (checkOrder) {
-            Iterator<? extends MultiBucketsAggregation.Bucket> expectedIt = expectedBuckets.iterator();
-            Iterator<? extends MultiBucketsAggregation.Bucket> actualIt = actualBuckets.iterator();
-            while (expectedIt.hasNext()) {
-                MultiBucketsAggregation.Bucket expectedBucket = expectedIt.next();
-                MultiBucketsAggregation.Bucket actualBucket = actualIt.next();
-                assertBucket(expectedBucket, actualBucket, true);
-            }
-        } else {
-            for (MultiBucketsAggregation.Bucket expectedBucket : expectedBuckets) {
-                final Object expectedKey = expectedBucket.getKey();
-                boolean found = false;
-
-                for (MultiBucketsAggregation.Bucket actualBucket : actualBuckets) {
-                    final Object actualKey = actualBucket.getKey();
-                    if ((actualKey != null && actualKey.equals(expectedKey)) || (actualKey == null && expectedKey == null)) {
-                        found = true;
-                        assertBucket(expectedBucket, actualBucket, false);
-                        break;
-                    }
-                }
-                assertTrue("Failed to find bucket with key [" + expectedBucket.getKey() + "]", found);
-            }
-        }
-    }
-
-    protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
-        assertTrue(expected instanceof InternalAggregation);
-        assertEquals(expected.getName(), actual.getName());
-        assertEquals(expected.getMetadata(), actual.getMetadata());
-        assertEquals(expected.getType(), actual.getType());
-    }
-
-    protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
-        assertTrue(expected instanceof InternalMultiBucketAggregation.InternalBucket);
-        assertTrue(actual instanceof InternalMultiBucketAggregation.InternalBucket);
-
-        assertEquals(expected.getKey(), actual.getKey());
-        assertEquals(expected.getKeyAsString(), actual.getKeyAsString());
-        assertEquals(expected.getDocCount(), actual.getDocCount());
-
-        Aggregations expectedAggregations = expected.getAggregations();
-        Aggregations actualAggregations = actual.getAggregations();
-        assertEquals(expectedAggregations.asList().size(), actualAggregations.asList().size());
-
-        if (checkOrder) {
-            Iterator<Aggregation> expectedIt = expectedAggregations.iterator();
-            Iterator<Aggregation> actualIt = actualAggregations.iterator();
-
-            while (expectedIt.hasNext()) {
-                Aggregation expectedAggregation = expectedIt.next();
-                Aggregation actualAggregation = actualIt.next();
-                assertMultiBucketsAggregations(expectedAggregation, actualAggregation, true);
-            }
-        } else {
-            for (Aggregation expectedAggregation : expectedAggregations) {
-                Aggregation actualAggregation = actualAggregations.get(expectedAggregation.getName());
-                assertNotNull(actualAggregation);
-                assertMultiBucketsAggregations(expectedAggregation, actualAggregation, false);
-            }
         }
     }
 

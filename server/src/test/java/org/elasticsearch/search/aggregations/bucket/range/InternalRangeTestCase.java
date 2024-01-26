@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.List;
@@ -57,23 +56,6 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
             actualCounts.compute(bucket.getKeyAsString(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected final void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
-        super.assertBucket(expected, actual, checkOrder);
-
-        Class<?> internalBucketClass = internalRangeBucketClass();
-        assertNotNull("Internal bucket class must not be null", internalBucketClass);
-        assertTrue(internalBucketClass.isInstance(expected));
-
-        Range.Bucket expectedRange = (Range.Bucket) expected;
-        Range.Bucket actualRange = (Range.Bucket) actual;
-
-        assertEquals(expectedRange.getFrom(), actualRange.getFrom());
-        assertEquals(expectedRange.getFromAsString(), actualRange.getFromAsString());
-        assertEquals(expectedRange.getTo(), actualRange.getTo());
-        assertEquals(expectedRange.getToAsString(), actualRange.getToAsString());
     }
 
     protected abstract Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass();

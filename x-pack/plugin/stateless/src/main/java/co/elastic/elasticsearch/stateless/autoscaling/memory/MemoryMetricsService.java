@@ -56,8 +56,21 @@ public class MemoryMetricsService implements ClusterStateListener {
     );
     private static final Logger logger = LogManager.getLogger(MemoryMetricsService.class);
     private static final int SENDING_PRIMARY_SHARD_ID = 0;
-    private static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
-    private static final long WORKLOAD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(500).getBytes();
+    // let each shard use 4MB, which matches what we see in heap dumps (with a bit of margin).
+    // It also means that a 2GB heap node can handle around 300 shards.
+    // visible for testing
+    static final long SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(4).getBytes();
+    // visible for testing
+    static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
+    // visible for testing
+    /**
+     * See:
+     * https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#_consider_additional_heap_overheads
+     * for the origin of this.
+     */
+    static final long WORKLOAD_MEMORY_OVERHEAD = ByteSizeValue.ofMb(500).getBytes();
+    // cap node mem request to 48Gb. All current instance types have max size beyond that and none have a size 2x that.
+    private static final long MAX_NODE_MEMORY = ByteSizeValue.ofGb(48).getBytes();
     private volatile boolean initialized = false;
     private final Map<Index, IndexMemoryMetrics> indicesMemoryMetrics = new ConcurrentHashMap<>();
 
@@ -76,7 +89,19 @@ public class MemoryMetricsService implements ClusterStateListener {
     public MemoryMetrics getMemoryMetrics() {
         final IndexMemoryMetrics totalIndicesMappingSize = getTotalIndicesMappingSize();
 
-        final long nodeMemoryInBytes = HeapToSystemMemory.dataNode(INDEX_MEMORY_OVERHEAD * indicesCount() + WORKLOAD_MEMORY_OVERHEAD);
+        // we assume 1 shard per index for now, divide by 2 because shards are spread on at least 2 nodes.
+        final long nodeMemoryInBytes = Math.min(
+            HeapToSystemMemory.dataNode((INDEX_MEMORY_OVERHEAD + (SHARD_MEMORY_OVERHEAD / 2)) * indicesCount() + WORKLOAD_MEMORY_OVERHEAD),
+            MAX_NODE_MEMORY
+        );
+
+        // notice that autoscaling controller adds the node memory multiplied by replicas to the tier memory:
+        // https://github.com/elastic/elasticsearch-serverless/pull/1372/files#r1467399624
+        // That indirectly adds the necessary total shard and indices memory due to being included in the node memory above.
+        // We should notice however, that the node memory is capped to 48GB, so once we move beyond that size, this will
+        // result in too little total memory. We accept that for now, since fixing this will need a contract change between
+        // ES and the autoscaling controller. Additionally, if we were to return a higher node memory, the result would be
+        // too high, since the node memory is multiplied by replicas.
         final long tierMemoryInBytes = HeapToSystemMemory.dataNode(totalIndicesMappingSize.sizeInBytes);
 
         return new MemoryMetrics(nodeMemoryInBytes, tierMemoryInBytes, totalIndicesMappingSize.metricQuality);

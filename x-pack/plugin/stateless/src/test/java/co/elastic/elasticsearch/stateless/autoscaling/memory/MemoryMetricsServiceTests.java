@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
@@ -46,6 +47,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class MemoryMetricsServiceTests extends ESTestCase {
 
@@ -293,5 +295,26 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 )
             );
         });
+    }
+
+    public void testSpecificValues() {
+        boolean small = randomBoolean();
+        long size = small ? between(1, 1000) : randomLongBetween(ByteSizeUnit.GB.toBytes(1), ByteSizeUnit.GB.toBytes(2));
+
+        service.getIndicesMemoryMetrics()
+            .put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(size, 0, MetricQuality.EXACT, "node-0", 0));
+
+        MemoryMetrics memoryMetrics = service.getMemoryMetrics();
+        assertThat(
+            memoryMetrics.nodeMemoryInBytes(),
+            equalTo(
+                (MemoryMetricsService.INDEX_MEMORY_OVERHEAD + MemoryMetricsService.SHARD_MEMORY_OVERHEAD / 2
+                    + MemoryMetricsService.WORKLOAD_MEMORY_OVERHEAD) * 2
+            )
+        );
+        assertThat(memoryMetrics.totalMemoryInBytes(), equalTo(small ? HeapToSystemMemory.dataNode(1) : size * 2));
+
+        // a relatively high starting point, coming from 500MB heap work * 2 (for memory)
+        assertThat(memoryMetrics.nodeMemoryInBytes(), lessThan(ByteSizeUnit.MB.toBytes(1200)));
     }
 }

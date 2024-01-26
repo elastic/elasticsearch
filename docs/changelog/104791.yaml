@@ -1,0 +1,5 @@
+pr: 104791
+summary: Add human-readable dates in ILM explain API response
+area: ILM+SLM
+type: enhancement
+issues: []

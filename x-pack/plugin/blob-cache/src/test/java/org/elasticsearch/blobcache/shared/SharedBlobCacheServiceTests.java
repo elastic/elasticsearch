@@ -355,6 +355,70 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     /**
+     * Test when many objects need to decay, in particular useful to measure how long the decay task takes.
+     * For 1M objects (with no assertions) it took 26ms locally.
+     */
+    public void testMassiveDecay() throws IOException {
+        int regions = 1024; // to measure decay time, increase to 1024*1024 and disable assertions.
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(regions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1)).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            Runnable decay = () -> {
+                assertThat(taskQueue.hasRunnableTasks(), is(true));
+                long before = System.currentTimeMillis();
+                taskQueue.runAllRunnableTasks();
+                long after = System.currentTimeMillis();
+                logger.debug("took {} ms", (after - before));
+            };
+            long fileLength = size(regions + 100);
+            Object cacheKey = new Object();
+            for (int i = 0; i < regions; ++i) {
+                cacheService.get(cacheKey, fileLength, i);
+                if (Integer.bitCount(i) == 1) {
+                    logger.debug("did {} gets", i);
+                }
+            }
+            assertThat(taskQueue.hasRunnableTasks(), is(false));
+            cacheService.get(cacheKey, fileLength, regions);
+            decay.run();
+            int maxRounds = 5;
+            for (int round = 2; round <= maxRounds; ++round) {
+                for (int i = round; i < regions + round; ++i) {
+                    cacheService.get(cacheKey, fileLength, i);
+                    if (Integer.bitCount(i) == 1) {
+                        logger.debug("did {} gets", i);
+                    }
+                }
+                decay.run();
+            }
+
+            Map<Integer, Integer> freqs = new HashMap<>();
+            for (int i = maxRounds; i < regions + maxRounds; ++i) {
+                int freq = cacheService.getFreq(cacheService.get(cacheKey, fileLength, i)) - 2;
+                freqs.compute(freq, (k, v) -> v == null ? 1 : v + 1);
+                if (Integer.bitCount(i) == 1) {
+                    logger.debug("did {} gets", i);
+                }
+            }
+            assertThat(freqs.get(4), equalTo(regions - maxRounds + 1));
+        }
+    }
+
+    /**
      * Exercise SharedBlobCacheService#get in multiple threads to trigger any assertion errors.
      * @throws IOException
      */

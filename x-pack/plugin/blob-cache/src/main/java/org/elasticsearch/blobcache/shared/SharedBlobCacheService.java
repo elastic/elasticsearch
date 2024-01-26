@@ -1563,7 +1563,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
             }
             end = System.currentTimeMillis();
-            logger.info("Decay took {} ms (acquire lock: {} ms)", end-now, afterLock-now);
+            logger.info("Decay took {} ms (acquire lock: {} ms)", end - now, afterLock - now);
         }
 
         class DecayAndNewEpochTask extends AbstractRunnable {

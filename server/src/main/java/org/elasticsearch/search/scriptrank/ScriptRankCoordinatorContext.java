@@ -12,6 +12,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHits;
@@ -136,6 +137,7 @@ return output;
         Map<RankKey, LookupData> lookup = new HashMap<>();
         for (var fetchResult : fetchResultsArray.asList()) {
             for (var hit : fetchResult.fetchResult().hits().getHits()) {
+                LogManager.getLogger(ScriptRankCoordinatorContext.class).info("RANK_KEY ID ["+ hit.docId() + "] SHARD [" + fetchResult.getShardIndex() + "]");
                 lookup.put(
                     new RankKey(hit.docId(), fetchResult.getShardIndex()),
                     new LookupData(
@@ -151,6 +153,7 @@ return output;
             List<ScriptRankDoc> currentRetrieverResults = new ArrayList<>();
             while (queue.size() != 0) {
                 ScoreDoc scoreDoc = queue.pop();
+                LogManager.getLogger(ScriptRankCoordinatorContext.class).info("SCORE_DOC ID ["+ scoreDoc.doc + "] SHARD [" + scoreDoc.shardIndex + "]");
                 var lookupData = lookup.get(new RankKey(scoreDoc.doc, scoreDoc.shardIndex));
                 currentRetrieverResults.add(
                     new ScriptRankDoc(

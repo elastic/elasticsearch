@@ -108,5 +108,4 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     public String toString() {
         return Strings.toString(this, true, true);
     }
-
 }

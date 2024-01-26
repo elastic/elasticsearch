@@ -4,14 +4,11 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.ml.datafeed.extractor;
+package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -29,21 +26,11 @@ import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Collects common utility methods needed by various DataExtractor implementations
+ * Utility methods used for datafeed configuration.
  */
-public final class ExtractorUtils {
+public final class DatafeedConfigUtils {
 
-    private static final String EPOCH_MILLIS = "epoch_millis";
-
-    private ExtractorUtils() {}
-
-    /**
-     * Combines a user query with a time range query.
-     */
-    public static QueryBuilder wrapInTimeRangeQuery(QueryBuilder userQuery, String timeField, long start, long end) {
-        QueryBuilder timeQuery = new RangeQueryBuilder(timeField).gte(start).lt(end).format(EPOCH_MILLIS);
-        return new BoolQueryBuilder().filter(userQuery).filter(timeQuery);
-    }
+    private DatafeedConfigUtils() {}
 
     /**
      * Find the (date) histogram in {@code aggFactory} and extract its interval.

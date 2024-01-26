@@ -8,6 +8,7 @@
 
 curl -X GET -u elastic:password "localhost:9200/demo/_search?pretty" -H 'Content-Type: application/json' -d'
 {
+  "_source": false,
   "retriever": {
     "script_rank": {
       "window_size": 10,
@@ -34,7 +35,8 @@ curl -X GET -u elastic:password "localhost:9200/demo/_search?pretty" -H 'Content
             "num_candidates": 10
           }
         }
-      ]
+      ],
+      "fields":["kw"]
     }
   }
 }

@@ -1548,7 +1548,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private void computeDecay() {
+            long now = System.currentTimeMillis();
+            long afterLock;
+            long end;
             synchronized (SharedBlobCacheService.this) {
+                afterLock = System.currentTimeMillis();
                 appendLevel1ToLevel0();
                 for (int i = 2; i < maxFreq; i++) {
                     assert freqs[i - 1] == null;
@@ -1558,6 +1562,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     assert freqs[i - 1] == null || invariant(freqs[i - 1], true);
                 }
             }
+            end = System.currentTimeMillis();
+            logger.info("Decay took {} ms (acquire lock: {} ms)", end-now, afterLock-now);
         }
 
         class DecayAndNewEpochTask extends AbstractRunnable {

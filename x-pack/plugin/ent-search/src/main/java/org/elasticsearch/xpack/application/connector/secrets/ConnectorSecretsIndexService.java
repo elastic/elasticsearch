@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.application.connector.secrets;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretRequest;
+import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretRequest;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretResponse;
@@ -92,5 +95,16 @@ public class ConnectorSecretsIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    public void deleteSecret(DeleteConnectorSecretRequest request, ActionListener<DeleteConnectorSecretResponse> listener) {
+        clientWithOrigin.prepareDelete(CONNECTOR_SECRETS_INDEX_NAME, request.id())
+            .execute(listener.delegateFailureAndWrap((delegate, deleteResponse) -> {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
+                    return;
+                }
+                delegate.onResponse(new DeleteConnectorSecretResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED));
+            }));
     }
 }

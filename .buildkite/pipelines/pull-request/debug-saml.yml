@@ -108,3 +108,62 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
+  - label: "debug-saml-tests-checkPart2-{{matrix}}"
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2  --no-build-cache
+    timeout_in_minutes: 300
+    matrix:
+      - "51"
+      - "52"
+      - "53"
+      - "54"
+      - "55"
+      - "56"
+      - "57"
+      - "58"
+      - "59"
+      - "60"
+      - "61"
+      - "62"
+      - "63"
+      - "64"
+      - "65"
+      - "66"
+      - "67"
+      - "68"
+      - "69"
+      - "70"
+      - "71"
+      - "72"
+      - "73"
+      - "74"
+      - "75"
+      - "76"
+      - "77"
+      - "78"
+      - "79"
+      - "80"
+      - "81"
+      - "82"
+      - "83"
+      - "84"
+      - "85"
+      - "86"
+      - "87"
+      - "88"
+      - "89"
+      - "90"
+      - "91"
+      - "92"
+      - "93"
+      - "94"
+      - "95"
+      - "96"
+      - "97"
+      - "98"
+      - "99"
+      - "100"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

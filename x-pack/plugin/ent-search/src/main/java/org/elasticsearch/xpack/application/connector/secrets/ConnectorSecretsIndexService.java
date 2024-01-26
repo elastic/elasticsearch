@@ -97,11 +97,11 @@ public class ConnectorSecretsIndexService {
         }
     }
 
-    public void deleteSecret(DeleteConnectorSecretRequest request, ActionListener<DeleteConnectorSecretResponse> listener) {
-        clientWithOrigin.prepareDelete(CONNECTOR_SECRETS_INDEX_NAME, request.id())
+    public void deleteSecret(String id, ActionListener<DeleteConnectorSecretResponse> listener) {
+        clientWithOrigin.prepareDelete(CONNECTOR_SECRETS_INDEX_NAME, id)
             .execute(listener.delegateFailureAndWrap((delegate, deleteResponse) -> {
                 if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
+                    delegate.onFailure(new ResourceNotFoundException("No secret with id [" + id + "]"));
                     return;
                 }
                 delegate.onResponse(new DeleteConnectorSecretResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED));

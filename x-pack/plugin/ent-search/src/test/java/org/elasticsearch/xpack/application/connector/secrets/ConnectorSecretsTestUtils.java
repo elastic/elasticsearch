@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector.secrets;
 
+import org.elasticsearch.xpack.application.connector.secrets.action.DeleteConnectorSecretRequest;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretRequest;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetConnectorSecretResponse;
 import org.elasticsearch.xpack.application.connector.secrets.action.PostConnectorSecretRequest;
@@ -25,6 +26,10 @@ public class ConnectorSecretsTestUtils {
         final String id = randomAlphaOfLength(10);
         final String value = randomAlphaOfLength(10);
         return new GetConnectorSecretResponse(id, value);
+    }
+
+    public static DeleteConnectorSecretRequest getRandomDeleteConnectorSecretRequest() {
+        return new DeleteConnectorSecretRequest(randomAlphaOfLengthBetween(0, 20));
     }
 
     public static PostConnectorSecretRequest getRandomPostConnectorSecretRequest() {

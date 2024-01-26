@@ -36,6 +36,6 @@ public class TransportDeleteConnectorSecretAction extends HandledTransportAction
     }
 
     protected void doExecute(Task task, DeleteConnectorSecretRequest request, ActionListener<DeleteConnectorSecretResponse> listener) {
-        connectorSecretsIndexService.deleteSecret(request, listener);
+        connectorSecretsIndexService.deleteSecret(request.id(), listener);
     }
 }

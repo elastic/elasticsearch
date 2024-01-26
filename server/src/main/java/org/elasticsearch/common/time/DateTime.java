@@ -46,7 +46,7 @@ class DateTime implements TemporalAccessor {
                 case MINUTE_OF_HOUR -> minutes != null;
                 case SECOND_OF_MINUTE -> seconds != null;
                 case NANO_OF_SECOND -> nanos != null;
-                case INSTANT_SECONDS -> hours != null && minutes != null && seconds != null;
+                case INSTANT_SECONDS -> hours != null && minutes != null && seconds != null && nanos != null;
                 case OFFSET_SECONDS -> offset != null;
                 default -> false;
             };

@@ -45,11 +45,11 @@ class DateTimeParser {
         Integer hours = parseInt(str, 11, 13);
         if (hours == null) return Result.error(11);
         if (len == 13) {
-            return new Result(new DateTime(years, months, days, hours, null, null, null, null));
+            return new Result(new DateTime(years, months, days, hours, 0, 0, 0, null));
         }
         if (isTimezone(str, 13)) {
             ZoneOffset timezone = parseTimezone(str, 13);
-            return timezone == null ? Result.error(13) : new Result(new DateTime(years, months, days, hours, null, null, null, timezone));
+            return timezone == null ? Result.error(13) : new Result(new DateTime(years, months, days, hours, 0, 0, 0, timezone));
         }
 
         if (str.charAt(13) != ':') return Result.error(13);
@@ -57,13 +57,13 @@ class DateTimeParser {
         Integer minutes = parseInt(str, 14, 16);
         if (minutes == null) return Result.error(14);
         if (len == 16) {
-            return new Result(new DateTime(years, months, days, hours, minutes, null, null, null));
+            return new Result(new DateTime(years, months, days, hours, minutes, 0, 0, null));
         }
         if (isTimezone(str, 16)) {
             ZoneOffset timezone = parseTimezone(str, 16);
             return timezone == null
                 ? Result.error(16)
-                : new Result(new DateTime(years, months, days, hours, minutes, null, null, timezone));
+                : new Result(new DateTime(years, months, days, hours, minutes, 0, 0, timezone));
         }
 
         if (str.charAt(16) != ':') return Result.error(16);
@@ -71,13 +71,13 @@ class DateTimeParser {
         Integer seconds = parseInt(str, 17, 19);
         if (seconds == null) return Result.error(17);
         if (len == 19) {
-            return new Result(new DateTime(years, months, days, hours, minutes, seconds, null, null));
+            return new Result(new DateTime(years, months, days, hours, minutes, seconds, 0, null));
         }
         if (isTimezone(str, 19)) {
             ZoneOffset timezone = parseTimezone(str, 19);
             return timezone == null
                 ? Result.error(19)
-                : new Result(new DateTime(years, months, days, hours, minutes, seconds, null, timezone));
+                : new Result(new DateTime(years, months, days, hours, minutes, seconds, 0, timezone));
         }
 
         char decSeparator = str.charAt(19);

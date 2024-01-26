@@ -41,6 +41,12 @@ setup:
   - is_false: hits.hits.0._id
   - is_false: hits.hits.0._source
 
+---
+"Stored fields - Support _none_ wrapped in array":
+  - skip:
+      version: " - 8.12.99"
+      reason: This was raising an NPE until 8.13.0
+
   - do:
       search:
         rest_total_hits_as_int: true

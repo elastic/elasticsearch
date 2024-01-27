@@ -36,6 +36,10 @@ public interface NativeAccess {
 
     long getMaxFileSize();
 
+    void tryInstallSystemCallFilter(Path tmpFile);
+
+    boolean isSystemCallFilterInstalled();
+
     /**
      * Retrieves the actual number of bytes of disk storage used to store a specified file.
      *

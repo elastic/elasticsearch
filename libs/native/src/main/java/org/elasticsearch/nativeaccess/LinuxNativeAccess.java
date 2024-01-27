@@ -68,4 +68,9 @@ class LinuxNativeAccess extends PosixNativeAccess {
         }
         return OptionalLong.of(stats.stx_blocks() * 512);
     }
+
+    @Override
+    public void tryInstallSystemCallFilter(Path tmpFile) {
+        // TODO
+    }
 }

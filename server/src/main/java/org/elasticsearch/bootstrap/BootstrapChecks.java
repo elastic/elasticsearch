@@ -592,7 +592,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().isSystemCallFilterInstalled();
         }
 
         @Override
@@ -616,7 +616,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().isSystemCallFilterInstalled();
         }
 
         // visible for testing

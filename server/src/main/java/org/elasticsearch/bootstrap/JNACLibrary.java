@@ -8,7 +8,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Structure;
 
@@ -29,11 +28,11 @@ final class JNACLibrary {
     public static final long RLIM_INFINITY = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
 
     static {
-        try {
+        /*try {
             Native.register("c");
         } catch (UnsatisfiedLinkError e) {
             logger.warn("unable to link C library. native methods (mlockall) will be disabled.", e);
-        }
+        }*/
     }
 
 

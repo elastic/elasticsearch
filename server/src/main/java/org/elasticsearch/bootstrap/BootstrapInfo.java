@@ -35,13 +35,6 @@ public final class BootstrapInfo {
     }
 
     /**
-     * Returns true if system call filter is installed (supported systems only)
-     */
-    public static boolean isSystemCallFilterInstalled() {
-        return Natives.isSystemCallFilterInstalled();
-    }
-
-    /**
      * Returns information about the console (tty) attached to the server process, or {@code null}
      * if no console is attached.
      */

@@ -21,6 +21,7 @@ abstract class AbstractNativeAccess implements NativeAccess {
     // the maximum number of threads that can be created for
     // the user ID that owns the running Elasticsearch process
     protected long maxNumberOfThreads = -1;
+    protected boolean systemCallFilterInstalled = false;
 
     @Override
     public boolean isMemoryLocked() {
@@ -40,5 +41,10 @@ abstract class AbstractNativeAccess implements NativeAccess {
     @Override
     public long getMaxNumberOfThreads() {
         return maxNumberOfThreads;
+    }
+
+    @Override
+    public boolean isSystemCallFilterInstalled() {
+        return systemCallFilterInstalled;
     }
 }

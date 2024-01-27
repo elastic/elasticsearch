@@ -9,6 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.test.ESTestCase;
 
 /** Simple tests system call filter is working. */
@@ -20,7 +21,7 @@ public class SystemCallFilterTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        assumeTrue("requires system call filter installation", Natives.isSystemCallFilterInstalled());
+        assumeTrue("requires system call filter installation", NativeAccess.instance().isSystemCallFilterInstalled());
         // otherwise security manager will block the execution, no fun
         assumeTrue("cannot test with security manager enabled", System.getSecurityManager() == null);
         // otherwise, since we don't have TSYNC support, rules are not applied to the test thread

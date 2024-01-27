@@ -127,7 +127,7 @@ class JnaStaticKernel32Library {
     static native Pointer GetCurrentProcess();
 
     /**
-     * @see Kernel32Library#CloseHandle(long)
+     * @see Kernel32Library#CloseHandle(Kernel32Library.Handle)
      */
     static native boolean CloseHandle(Pointer handle);
 
@@ -142,12 +142,12 @@ class JnaStaticKernel32Library {
     static native boolean VirtualLock(Pointer address, SizeT size);
 
     /**
-     * @see org.elasticsearch.nativeaccess.lib.Kernel32Library#VirtualQueryEx(long, long, Kernel32Library.MemoryBasicInformation)
+     * @see org.elasticsearch.nativeaccess.lib.Kernel32Library#VirtualQueryEx(Kernel32Library.Handle, long, Kernel32Library.MemoryBasicInformation)
      */
     static native int VirtualQueryEx(Pointer handle, Pointer address, JnaMemoryBasicInformation memoryInfo, int length);
 
     /**
-     * @see Kernel32Library#SetProcessWorkingSetSize(long, long, long)
+     * @see Kernel32Library#SetProcessWorkingSetSize(Kernel32Library.Handle, long, long)
      */
     static native boolean SetProcessWorkingSetSize(Pointer handle, SizeT minSize, SizeT maxSize);
 
@@ -167,4 +167,91 @@ class JnaStaticKernel32Library {
      * @return true if the handler is correctly set
      */
     static native boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
+
+    /**
+     * Creates or opens a new job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms682409%28v=vs.85%29.aspx
+     *
+     * @param jobAttributes security attributes
+     * @param name job name
+     * @return job handle if the function succeeds
+     */
+    static native Pointer CreateJobObjectW(Pointer jobAttributes, String name);
+
+    /**
+     * Associates a process with an existing job
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms681949%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param process process handle
+     * @return true if the function succeeds
+     */
+    static native boolean AssignProcessToJobObject(Pointer job, Pointer process);
+
+    /**
+     * Basic limit information for a job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
+     */
+    static class JnaJobObjectBasicLimitInformation extends Structure implements Structure.ByReference, Kernel32Library.JobObjectBasicLimitInformation {
+        public byte[] _ignore1 = new byte[16];
+        public int LimitFlags;
+        public byte[] _ignore2 = new byte[16];
+        public int ActiveProcessLimit;
+        public byte[] _ignore3 = new byte[16];
+
+        JnaJobObjectBasicLimitInformation() {
+            super(8);
+        }
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                "_ignore1",
+                "LimitFlags",
+                "_ignore2",
+                "ActiveProcessLimit",
+                "_ignore3"
+            );
+        }
+
+        @Override
+        public void setLimitFlags(int v) {
+            LimitFlags = v;
+        }
+
+        @Override
+        public void setActiveProcessLimit(int v) {
+            ActiveProcessLimit = v;
+        }
+    }
+
+    /**
+     * Get job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684925%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @param infoLength size of information structure
+     * @param returnLength length of data written back to structure (or null if not wanted)
+     * @return true if the function succeeds
+     */
+    static native boolean QueryInformationJobObject(Pointer job, int infoClass, JnaJobObjectBasicLimitInformation info, int infoLength, Pointer returnLength);
+
+    /**
+     * Set job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686216%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @param infoLength size of information structure
+     * @return true if the function succeeds
+     */
+    static native boolean SetInformationJobObject(Pointer job, int infoClass, JnaJobObjectBasicLimitInformation info, int infoLength);
 }

@@ -34,4 +34,9 @@ class MacNativeAccess extends PosixNativeAccess {
         // nothing like xstat for macos?
         return OptionalLong.empty();
     }
+
+    @Override
+    public void tryInstallSystemCallFilter(Path tmpFile) {
+        // TODO
+    }
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
 
 import java.util.function.IntConsumer;
@@ -18,9 +17,11 @@ import java.util.function.IntConsumer;
  */
 public interface Kernel32Library {
 
-    long GetCurrentProcess();
+    interface Handle {}
 
-    boolean CloseHandle(long handle);
+    Handle GetCurrentProcess();
+
+    boolean CloseHandle(Handle handle);
 
     int GetLastError();
 
@@ -59,25 +60,25 @@ public interface Kernel32Library {
      *
      * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366907%28v=vs.85%29.aspx
      *
-     * @param processHandle A handle to the process whose memory information is queried.
+     * @param handle A handle to the process whose memory information is queried.
      * @param address A pointer to the base address of the region of pages to be queried.
      * @param memoryInfo A pointer to a structure in which information about the specified page range is returned.
      * @return the actual number of bytes returned in the information buffer.
      * @apiNote the dwLength parameter is handled by the underlying implementation
      */
-    int VirtualQueryEx(long processHandle, long address, MemoryBasicInformation memoryInfo);
+    int VirtualQueryEx(Handle handle, long address, MemoryBasicInformation memoryInfo);
 
     /**
      * Sets the minimum and maximum working set sizes for the specified process.
      *
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686234%28v=vs.85%29.aspx
      *
-     * @param processHandle A handle to the process whose working set sizes is to be set.
+     * @param handle A handle to the process whose working set sizes is to be set.
      * @param minSize The minimum working set size for the process, in bytes.
      * @param maxSize The maximum working set size for the process, in bytes.
      * @return true if the function succeeds.
      */
-    boolean SetProcessWorkingSetSize(long processHandle, long minSize, long maxSize);
+    boolean SetProcessWorkingSetSize(Handle handle, long minSize, long maxSize);
 
     /**
      * Retrieves the actual number of bytes of disk storage used to store a specified file.
@@ -110,4 +111,64 @@ public interface Kernel32Library {
      * @return true if the handler is correctly set
      */
     boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add);
+
+    /**
+     * Creates or opens a new job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms682409%28v=vs.85%29.aspx
+     *
+     * @apiNote the two params to this are omitted because all implementations pass null for them both
+     * @return job handle if the function succeeds
+     */
+    Handle CreateJobObjectW();
+
+    /**
+     * Associates a process with an existing job
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms681949%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param process process handle
+     * @return true if the function succeeds
+     */
+    boolean AssignProcessToJobObject(Handle job, Handle process);
+
+    /**
+     * Basic limit information for a job object
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
+     */
+    interface JobObjectBasicLimitInformation {
+        void setLimitFlags(int v);
+        void setActiveProcessLimit(int v);
+    }
+
+    JobObjectBasicLimitInformation newJobObjectBasicLimitInformation();
+
+    /**
+     * Get job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684925%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @return true if the function succeeds
+     * @apiNote The infoLength parameter is omitted because implementions handle passing it
+     * @apiNote The returnLength parameter is omitted because all implementations pass null
+     */
+    boolean QueryInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info);
+
+    /**
+     * Set job limit and state information
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686216%28v=vs.85%29.aspx
+     *
+     * @param job job handle
+     * @param infoClass information class constant
+     * @param info pointer to information structure
+     * @return true if the function succeeds
+     * @apiNote The infoLength parameter is omitted because implementions handle passing it
+     */
+    boolean SetInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info);
 }

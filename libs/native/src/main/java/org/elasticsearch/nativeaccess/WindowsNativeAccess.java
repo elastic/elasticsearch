@@ -9,6 +9,7 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
+import org.elasticsearch.nativeaccess.lib.Kernel32Library.Handle;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 import java.lang.management.ManagementFactory;
@@ -30,6 +31,16 @@ class WindowsNativeAccess extends AbstractNativeAccess {
 
     private static final int INVALID_FILE_SIZE = -1;
 
+    /**
+     * Constant for JOBOBJECT_BASIC_LIMIT_INFORMATION in Query/Set InformationJobObject
+     */
+    private static final int JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS = 2;
+
+    /**
+     * Constant for LimitFlags, indicating a process limit has been set
+     */
+    private static final int JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 8;
+
     private final Kernel32Library kernel;
 
     WindowsNativeAccess(NativeLibraryProvider libraryProvider) {
@@ -43,35 +54,29 @@ class WindowsNativeAccess extends AbstractNativeAccess {
 
     @Override
     public void tryLockMemory() {
-        long processHandle = 0;
-        try {
-            processHandle = kernel.GetCurrentProcess();
-            // By default, Windows limits the number of pages that can be locked.
-            // Thus, we need to first increase the working set size of the JVM by
-            // the amount of memory we wish to lock, plus a small overhead (1MB).
-            long size = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getInit() + (1024 * 1024);
-            if (kernel.SetProcessWorkingSetSize(processHandle, size, size) == false) {
-                logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code {}", kernel.GetLastError());
-            } else {
-                var memInfo = kernel.newMemoryBasicInformation();
-                long address = 0;
-                while (kernel.VirtualQueryEx(processHandle, address, memInfo) != 0) {
-                    boolean lockable = memInfo.State() == MEM_COMMIT
-                        && (memInfo.Protect() & PAGE_NOACCESS) != PAGE_NOACCESS
-                        && (memInfo.Protect() & PAGE_GUARD) != PAGE_GUARD;
-                    if (lockable) {
-                        kernel.VirtualLock(memInfo.BaseAddress(), memInfo.RegionSize());
-                    }
-                    // Move to the next region
-                    address += memInfo.RegionSize();
+        Handle process = kernel.GetCurrentProcess();
+        // By default, Windows limits the number of pages that can be locked.
+        // Thus, we need to first increase the working set size of the JVM by
+        // the amount of memory we wish to lock, plus a small overhead (1MB).
+        long size = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getInit() + (1024 * 1024);
+        if (kernel.SetProcessWorkingSetSize(process, size, size) == false) {
+            logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code {}", kernel.GetLastError());
+        } else {
+            var memInfo = kernel.newMemoryBasicInformation();
+            long address = 0;
+            while (kernel.VirtualQueryEx(process, address, memInfo) != 0) {
+                boolean lockable = memInfo.State() == MEM_COMMIT
+                    && (memInfo.Protect() & PAGE_NOACCESS) != PAGE_NOACCESS
+                    && (memInfo.Protect() & PAGE_GUARD) != PAGE_GUARD;
+                if (lockable) {
+                    kernel.VirtualLock(memInfo.BaseAddress(), memInfo.RegionSize());
                 }
-                memoryLocked = true;
+                // Move to the next region
+                address += memInfo.RegionSize();
             }
-        } finally {
-            if (processHandle != 0) {
-                kernel.CloseHandle(processHandle);
-            }
+            memoryLocked = true;
         }
+        // note: no need to close the process handle because GetCurrentProcess returns a pseudo handle
     }
 
     @Override
@@ -87,6 +92,38 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     @Override
     public void tryInitMaxFileSize() {
         // no way to set limit for max file size in Windows
+    }
+
+    @Override
+    public void tryInstallSystemCallFilter(Path tmpFile) {
+        // create a new Job
+        Handle job = kernel.CreateJobObjectW();
+        if (job == null) {
+            throw new UnsupportedOperationException("CreateJobObject: " + kernel.GetLastError());
+        }
+
+        try {
+            // retrieve the current basic limits of the job
+            int clazz = JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS;
+            Kernel32Library.JobObjectBasicLimitInformation info = kernel.newJobObjectBasicLimitInformation();
+            if (kernel.QueryInformationJobObject(job, clazz, info) == false) {
+                throw new UnsupportedOperationException("QueryInformationJobObject: " + kernel.GetLastError());
+            }
+            // modify the number of active processes to be 1 (exactly the one process we will add to the job).
+            info.setActiveProcessLimit(1);
+            info.setLimitFlags(JOB_OBJECT_LIMIT_ACTIVE_PROCESS);
+            if (kernel.SetInformationJobObject(job, clazz, info) == false) {
+                throw new UnsupportedOperationException("SetInformationJobObject: " + kernel.GetLastError());
+            }
+            // assign ourselves to the job
+            if (kernel.AssignProcessToJobObject(job, kernel.GetCurrentProcess()) == false) {
+                throw new UnsupportedOperationException("AssignProcessToJobObject: " + kernel.GetLastError());
+            }
+        } finally {
+            kernel.CloseHandle(job);
+        }
+
+        logger.debug("Windows ActiveProcessLimit initialization successful");
     }
 
     @Override

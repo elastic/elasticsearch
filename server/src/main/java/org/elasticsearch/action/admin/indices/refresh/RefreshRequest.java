@@ -19,7 +19,6 @@ import java.io.IOException;
  * default a refresh is scheduled periodically.
  *
  * @see org.elasticsearch.client.internal.IndicesAdminClient#refresh(RefreshRequest)
- * @see RefreshResponse
  */
 public class RefreshRequest extends BroadcastRequest<RefreshRequest> {
 

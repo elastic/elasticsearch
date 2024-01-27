@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -614,7 +613,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                                 }
 
                                 @Override
-                                public Executor executor(ThreadPool threadPool) {
+                                public Executor executor() {
                                     return coordinationExecutor;
                                 }
 
@@ -640,12 +639,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             try {
                 TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices());
 
-                Client remoteClient = remoteClusterService.getRemoteClusterClient(
-                    transportService.getThreadPool(),
-                    clusterAlias,
-                    coordinationExecutor
-                );
-                remoteClient.execute(TermsEnumAction.INSTANCE, req, new ActionListener<>() {
+                var remoteClient = remoteClusterService.getRemoteClusterClient(clusterAlias, coordinationExecutor);
+                remoteClient.execute(TermsEnumAction.REMOTE_TYPE, req, new ActionListener<>() {
                     @Override
                     public void onResponse(TermsEnumResponse termsEnumResponse) {
                         onRemoteClusterResponse(

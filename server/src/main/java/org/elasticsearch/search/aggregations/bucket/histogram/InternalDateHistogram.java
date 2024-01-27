@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -232,6 +233,14 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         this.downsampledResultsOffset = downsampledResultsOffset;
     }
 
+    boolean versionSupportsDownsamplingTimezone(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ)
+            || version.between(
+                TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ_8_12_PATCH,
+                TransportVersions.NODE_STATS_REQUEST_SIMPLIFIED
+            );
+    }
+
     /**
      * Stream from a stream.
      */
@@ -247,7 +256,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         offset = in.readLong();
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ)) {
+        if (versionSupportsDownsamplingTimezone(in.getTransportVersion())) {
             downsampledResultsOffset = in.readBoolean();
         } else {
             downsampledResultsOffset = false;
@@ -265,7 +274,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         out.writeLong(offset);
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ)) {
+        if (versionSupportsDownsamplingTimezone(out.getTransportVersion())) {
             out.writeBoolean(downsampledResultsOffset);
         }
         out.writeCollection(buckets);

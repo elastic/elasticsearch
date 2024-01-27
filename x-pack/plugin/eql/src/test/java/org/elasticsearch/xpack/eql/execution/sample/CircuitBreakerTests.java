@@ -29,6 +29,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -171,8 +172,8 @@ public class CircuitBreakerTests extends ESTestCase {
 
     private Sample mockSample() {
         List<SearchHit> searchHits = new ArrayList<>();
-        searchHits.add(new SearchHit(1, String.valueOf(1)));
-        searchHits.add(new SearchHit(2, String.valueOf(2)));
+        searchHits.add(SearchHit.unpooled(1, String.valueOf(1)));
+        searchHits.add(SearchHit.unpooled(2, String.valueOf(2)));
         return new Sample(new SequenceKey(randomAlphaOfLength(10)), searchHits);
     }
 
@@ -224,7 +225,7 @@ public class CircuitBreakerTests extends ESTestCase {
             ActionListener.respondAndRelease(
                 listener,
                 (Response) new SearchResponse(
-                    null,
+                    SearchHits.EMPTY_WITH_TOTAL_HITS,
                     aggs,
                     null,
                     false,

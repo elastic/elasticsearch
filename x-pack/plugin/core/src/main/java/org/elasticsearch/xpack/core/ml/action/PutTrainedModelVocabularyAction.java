@@ -34,7 +34,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/vocabulary/put";
 
     private PutTrainedModelVocabularyAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -86,12 +86,12 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             } else {
                 this.merges = List.of();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 this.scores = in.readCollectionAsList(StreamInput::readDouble);
             } else {
                 this.scores = List.of();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 this.allowOverwriting = in.readBoolean();
             } else {
                 this.allowOverwriting = false;
@@ -136,10 +136,10 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
                 out.writeStringCollection(merges);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeCollection(scores, StreamOutput::writeDouble);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 out.writeBoolean(allowOverwriting);
             }
         }

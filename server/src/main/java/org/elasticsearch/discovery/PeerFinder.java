@@ -24,7 +24,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -40,6 +39,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.Strings.format;
@@ -352,10 +352,17 @@ public abstract class PeerFinder {
         }
     }
 
+    public Set<DiscoveryNode> getMastersOfPeers() {
+        synchronized (mutex) {
+            return peersByAddress.values().stream().flatMap(p -> p.lastKnownMasterNode.stream()).collect(Collectors.toSet());
+        }
+    }
+
     private class Peer {
         private final TransportAddress transportAddress;
         private final SetOnce<ProbeConnectionResult> probeConnectionResult = new SetOnce<>();
         private volatile boolean peersRequestInFlight;
+        private Optional<DiscoveryNode> lastKnownMasterNode = Optional.empty();
 
         Peer(TransportAddress transportAddress) {
             this.transportAddress = transportAddress;
@@ -439,9 +446,20 @@ public abstract class PeerFinder {
                 @Override
                 public void onFailure(Exception e) {
                     if (verboseFailureLogging) {
+
+                        final String believedMasterBy;
+                        synchronized (mutex) {
+                            believedMasterBy = peersByAddress.values()
+                                .stream()
+                                .filter(p -> p.lastKnownMasterNode.map(DiscoveryNode::getAddress).equals(Optional.of(transportAddress)))
+                                .findFirst()
+                                .map(p -> " [current master according to " + p.getDiscoveryNode().descriptionWithoutAttributes() + "]")
+                                .orElse("");
+                        }
+
                         if (logger.isDebugEnabled()) {
                             // log message at level WARN, but since DEBUG logging is enabled we include the full stack trace
-                            logger.warn(() -> format("%s discovery result", Peer.this), e);
+                            logger.warn(() -> format("%s%s discovery result", Peer.this, believedMasterBy), e);
                         } else {
                             final StringBuilder messageBuilder = new StringBuilder();
                             Throwable cause = e;
@@ -452,7 +470,7 @@ public abstract class PeerFinder {
                             final String message = messageBuilder.length() < 1024
                                 ? messageBuilder.toString()
                                 : (messageBuilder.substring(0, 1023) + "...");
-                            logger.warn("{} discovery result{}", Peer.this, message);
+                            logger.warn("{}{} discovery result{}", Peer.this, believedMasterBy, message);
                         }
                     } else {
                         logger.debug(() -> format("%s discovery result", Peer.this), e);
@@ -504,6 +522,7 @@ public abstract class PeerFinder {
                             return;
                         }
 
+                        lastKnownMasterNode = response.getMasterNode();
                         response.getMasterNode().ifPresent(node -> startProbe(node.getAddress()));
                         for (DiscoveryNode node : response.getKnownPeers()) {
                             startProbe(node.getAddress());
@@ -524,7 +543,7 @@ public abstract class PeerFinder {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return clusterCoordinationExecutor;
                 }
             };
@@ -545,7 +564,13 @@ public abstract class PeerFinder {
 
         @Override
         public String toString() {
-            return "address [" + transportAddress + "], node [" + getDiscoveryNode() + "], requesting [" + peersRequestInFlight + "]";
+            return "address ["
+                + transportAddress
+                + "], node ["
+                + Optional.ofNullable(probeConnectionResult.get())
+                    .map(result -> result.getDiscoveryNode().descriptionWithoutAttributes())
+                    .orElse("unknown")
+                + (peersRequestInFlight ? " [request in flight]" : "");
         }
     }
 }

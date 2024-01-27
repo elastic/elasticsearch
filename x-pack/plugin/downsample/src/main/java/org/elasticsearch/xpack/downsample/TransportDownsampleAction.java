@@ -17,12 +17,12 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -848,7 +848,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     /**
      * Updates the downsample target index metadata (task status)
      */
-    class RefreshDownsampleIndexActionListener implements ActionListener<RefreshResponse> {
+    class RefreshDownsampleIndexActionListener implements ActionListener<BroadcastResponse> {
 
         private final ActionListener<AcknowledgedResponse> actionListener;
         private final TaskId parentTask;
@@ -868,7 +868,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         @Override
-        public void onResponse(final RefreshResponse response) {
+        public void onResponse(final BroadcastResponse response) {
             if (response.getFailedShards() != 0) {
                 logger.info("Post refresh failed [{}],{}", downsampleIndexName, Strings.toString(response));
             }

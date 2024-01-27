@@ -111,6 +111,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final GoogleCloudStorageService storageService;
     private final GoogleCloudStorageOperationsStats stats;
     private final int bufferSize;
+    private final boolean defaultGCSContentEncoding;
     private final BigArrays bigArrays;
 
     GoogleCloudStorageBlobStore(
@@ -121,6 +122,18 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BigArrays bigArrays,
         int bufferSize
     ) {
+        this(bucketName, clientName, repositoryName, storageService, bigArrays, bufferSize, ENABLE_DEFAULT_GCP_COMPRESSION);
+    }
+
+    GoogleCloudStorageBlobStore(
+        String bucketName,
+        String clientName,
+        String repositoryName,
+        GoogleCloudStorageService storageService,
+        BigArrays bigArrays,
+        int bufferSize,
+        boolean defaultGCSContentEncoding
+    ) {
         this.bucketName = bucketName;
         this.clientName = clientName;
         this.repositoryName = repositoryName;
@@ -128,6 +141,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.bigArrays = bigArrays;
         this.stats = new GoogleCloudStorageOperationsStats(bucketName);
         this.bufferSize = bufferSize;
+        this.defaultGCSContentEncoding = defaultGCSContentEncoding;
     }
 
     private Storage client() throws IOException {
@@ -486,7 +500,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         try {
             final Storage.BlobTargetOption[] targetOptions;
             // By default GCS will gzip compress uploads. We disable this unless the system property to re-enable this has been configured
-            if (ENABLE_DEFAULT_GCP_COMPRESSION == false) {
+            if (defaultGCSContentEncoding == false) {
                 targetOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_COMPRESSION : OVERWRITE_NO_COMPRESSION;
             } else {
                 targetOptions = failIfAlreadyExists ? NO_OVERWRITE_COMPRESSION : OVERWRITE_COMPRESSION;

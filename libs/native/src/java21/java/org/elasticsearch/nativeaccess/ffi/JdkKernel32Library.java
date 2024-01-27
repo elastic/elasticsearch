@@ -327,7 +327,7 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkProcess = (JdkHandle) process;
 
         try {
-            return (boolean)AssignProcessToJobObject$mh.invokeExact(jdkJob.address, jdkProcess.address);
+            return (boolean)AssignProcessToJobObject$mh.invokeExact(jdkJob.address, jdkProcess.address, lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -351,7 +351,8 @@ class JdkKernel32Library implements Kernel32Library {
                 infoClass,
                 jdkInfo.segment,
                 jdkInfo.segment.byteSize(),
-                null);
+                null,
+                lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -365,7 +366,7 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkInfo = (JdkJobObjectBasicLimitInformation) info;
 
         try {
-            return (boolean)SetInformationJobObject$mh.invokeExact(jdkJob.address, infoClass, jdkInfo.segment, jdkInfo.segment.byteSize());
+            return (boolean)SetInformationJobObject$mh.invokeExact(jdkJob.address, infoClass, jdkInfo.segment, jdkInfo.segment.byteSize(), lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

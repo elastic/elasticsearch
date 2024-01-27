@@ -1554,6 +1554,97 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
     }
 
+    public void testLiteralInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+    }
+
+    public void testLiteralBehindEvalInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1
+            |stats x
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+    }
+
+    public void testLiteralsInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1 + 2
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+    }
+
+    public void testLiteralsBehindEvalInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1 + 2
+            |stats x
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+    }
+
+    public void testFoldableInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1 + 2 by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+    }
+
+    public void testLiteralsInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats "a" by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+    }
+
+    public void testFoldableBehindEvalInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1 + 2
+            |stats x by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+    }
+
+    public void testFoldableInGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats x by 1
+            """));
+
+        assertThat(e.getMessage(), containsString("aggregate function"));
+    }
+
+    public void testScalarsInStats() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats salary % 3 by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function or group"));
+    }
+
+    public void testScalarsIn() {
+        assertProjection("""
+             from test
+            |stats e = salary + max(salary) by languages
+            """, "e", "languages");
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

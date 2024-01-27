@@ -78,10 +78,6 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
-            "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",
-            error("from test | stats x = emp_no + avg(emp_no) by emp_no")
-        );
-        assertEquals(
             "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = percentile(languages, languages) by emp_no")
         );

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -148,23 +149,20 @@ public class Verifier {
             // check aggregates
             agg.aggregates().forEach(e -> {
                 var exp = Alias.unwrap(e);
-                if (exp instanceof AggregateFunction af) {
+                Holder<Boolean> foundAgg = new Holder<>(false);
+                exp.forEachUp(AggregateFunction.class, af -> {
+                    foundAgg.set(true);
                     af.field().forEachDown(AggregateFunction.class, f -> {
                         failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                     });
-                } else {
-                    if (Expressions.match(agg.groupings(), g -> Alias.unwrap(g).semanticEquals(exp)) == false) {
-                        failures.add(
-                            fail(
-                                exp,
-                                "expected an aggregate function or group but got ["
-                                    + exp.sourceText()
-                                    + "] of type ["
-                                    + exp.nodeName()
-                                    + "]"
-                            )
-                        );
-                    }
+                });
+                if (foundAgg.get() == false && Expressions.match(agg.groupings(), g -> Alias.unwrap(g).semanticEquals(exp)) == false) {
+                    failures.add(
+                        fail(
+                            exp,
+                            "expected an aggregate function or group but got [" + exp.sourceText() + "] of type [" + exp.nodeName() + "]"
+                        )
+                    );
                 }
             });
 

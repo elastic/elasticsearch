@@ -1103,3 +1103,37 @@ STATS ck = COUNT(job_positions),
 ck:l | cb:l | cd:l | ci:l | c:l | csv:l 
 221  | 204  | 183  | 183  | 100 | 100
 ;
+
+nestedAggsNoGrouping
+FROM employees
+| STATS x = AVG(salary) /2 + MAX(salary), a = AVG(salary), m = MAX(salary)
+;
+
+x:d       | a:d      | m:i
+99123.275 | 48248.55 |74999
+;
+
+nestedAggsWithGrouping
+FROM employees
+| STATS x = ROUND(AVG(salary % 3)) + MAX(emp_no), y = MIN(emp_no / 3) + 10 - MEDIAN(salary) by z = languages % 2
+| SORT z
+;
+
+x:d   | y:d       | z:i
+10101 | -41474.0  | 0
+10098 | -45391.0  | 1
+10030 | -44714.5  | null
+;
+
+nestedAggsWithScalars
+FROM employees
+| STATS x = CONCAT(TO_STRING(ROUND(AVG(salary % 3))), TO_STRING(MAX(emp_no))), 
+        y = ROUND((MIN(emp_no / 3) + PI() - MEDIAN(salary))/E()) 
+        BY z = languages % 2
+;
+
+x:s        | y:d        | z:i
+1.010029   | -16452.0   | null
+1.010100   | -15260.0   | 0
+1.010097   | -16701.0   | 1
+;

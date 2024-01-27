@@ -21,7 +21,7 @@ abstract class AbstractNativeAccess implements NativeAccess {
     // the maximum number of threads that can be created for
     // the user ID that owns the running Elasticsearch process
     protected long maxNumberOfThreads = -1;
-    protected boolean systemCallFilterInstalled = false;
+    protected ExecSandboxState execSandboxState = ExecSandboxState.NONE;
 
     @Override
     public boolean isMemoryLocked() {
@@ -44,7 +44,7 @@ abstract class AbstractNativeAccess implements NativeAccess {
     }
 
     @Override
-    public boolean isSystemCallFilterInstalled() {
-        return systemCallFilterInstalled;
+    public ExecSandboxState getExecSandboxState() {
+        return execSandboxState;
     }
 }

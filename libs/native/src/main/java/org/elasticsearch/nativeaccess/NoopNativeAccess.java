@@ -41,13 +41,8 @@ class NoopNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public void tryInstallSystemCallFilter(Path tmpFile) {
+    public void tryInstallExecSandbox() {
         logger.warn("Cannot install system call filter because native access is not available");
-    }
-
-    @Override
-    public boolean isSystemCallFilterInstalled() {
-        return false;
     }
 
     @Override

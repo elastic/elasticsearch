@@ -37,9 +37,9 @@ public interface NativeAccess {
 
     long getMaxFileSize();
 
-    void tryInstallSystemCallFilter(Path tmpFile);
+    void tryInstallExecSandbox();
 
-    boolean isSystemCallFilterInstalled();
+    ExecSandboxState getExecSandboxState();
 
     /**
      * Retrieves the actual number of bytes of disk storage used to store a specified file.
@@ -81,5 +81,11 @@ public interface NativeAccess {
          * @return true if the handler processed the event, false otherwise. If false, the next handler will be called.
          */
         boolean handle(int code);
+    }
+
+    enum ExecSandboxState {
+        NONE,
+        EXISTING_THREADS,
+        ALL_THREADS
     }
 }

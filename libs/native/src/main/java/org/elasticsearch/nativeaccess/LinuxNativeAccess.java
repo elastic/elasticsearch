@@ -68,7 +68,7 @@ class LinuxNativeAccess extends PosixNativeAccess {
     }
 
     @Override
-    public void tryInstallSystemCallFilter(Path tmpFile) {
+    public void tryInstallExecSandbox() {
         // TODO
     }
 }

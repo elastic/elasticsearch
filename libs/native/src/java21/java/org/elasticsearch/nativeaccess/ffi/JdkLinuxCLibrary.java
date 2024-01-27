@@ -24,7 +24,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.ffi.JdkPosixCLibrary.downcallHandleWithErrno;
 import static org.elasticsearch.nativeaccess.ffi.JdkPosixCLibrary.errnoState;
 
-public class JdkLinuxCLibrary implements LinuxCLibrary {
+class JdkLinuxCLibrary implements LinuxCLibrary {
 
     private static final MethodHandle statx$mh;
 

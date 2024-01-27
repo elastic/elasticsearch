@@ -165,7 +165,6 @@ class Elasticsearch {
 
         nodeEnv.validateNativesConfig(); // temporary directories are important for JNA
         initializeNatives(
-            nodeEnv.tmpFile(),
             BootstrapSettings.MEMORY_LOCK_SETTING.get(args.nodeSettings()),
             true, // always install system call filters, not user-configurable since 8.0.0
             BootstrapSettings.CTRLHANDLER_SETTING.get(args.nodeSettings())
@@ -269,12 +268,11 @@ class Elasticsearch {
     /**
      * Initialize native resources.
      *
-     * @param tmpFile          the temp directory
      * @param mlockAll         whether or not to lock memory
      * @param systemCallFilter whether or not to install system call filters
      * @param ctrlHandler      whether or not to install the ctrl-c handler (applies to Windows only)
      */
-    static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
+    static void initializeNatives(final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Elasticsearch.class);
 
         var nativeAccess = NativeAccess.instance();
@@ -291,7 +289,7 @@ class Elasticsearch {
              *
              * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
              */
-            nativeAccess.tryInstallSystemCallFilter(tmpFile);
+            nativeAccess.tryInstallExecSandbox();
         }
 
         // mlockall if requested

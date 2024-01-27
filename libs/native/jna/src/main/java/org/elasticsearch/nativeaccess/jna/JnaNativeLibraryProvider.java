@@ -12,6 +12,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
+import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
@@ -45,6 +46,8 @@ public class JnaNativeLibraryProvider extends NativeLibraryProvider {
                 JnaPosixCLibrary::new,
                 LinuxCLibrary.class,
                 JnaLinuxCLibrary::new,
+                MacCLibrary.class,
+                JnaMacCLibrary::new,
                 Kernel32Library.class,
                 JnaKernel32Library::new
             )

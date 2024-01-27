@@ -95,7 +95,7 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public void tryInstallSystemCallFilter(Path tmpFile) {
+    public void tryInstallExecSandbox() {
         // create a new Job
         Handle job = kernel.CreateJobObjectW();
         if (job == null) {

@@ -38,9 +38,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 
@@ -52,6 +54,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
@@ -427,12 +430,24 @@ public class ConnectorSyncJobIndexService {
                         return;
                     }
                     try {
-                        final Connector syncJobConnectorInfo = ConnectorSyncJob.syncJobConnectorFromXContentBytes(
+                        final Connector connector = Connector.fromXContentBytes(
                             response.getSourceAsBytesRef(),
                             connectorId,
                             XContentType.JSON
                         );
-                        listener.onResponse(syncJobConnectorInfo);
+
+                        // Build the connector representation for sync job
+                        final Connector syncJobConnector = new Connector.Builder().setConnectorId(connector.getConnectorId())
+                            .setFiltering(null)
+                            .setSyncJobFiltering(transformConnectorFilteringToSyncJobRepresentation(connector.getFiltering()))
+                            .setIndexName(connector.getIndexName())
+                            .setLanguage(connector.getLanguage())
+                            .setPipeline(connector.getPipeline())
+                            .setServiceType(connector.getServiceType())
+                            .setConfiguration(connector.getConfiguration())
+                            .build();
+
+                        listener.onResponse(syncJobConnector);
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -446,6 +461,20 @@ public class ConnectorSyncJobIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Transforms the first {@link ConnectorFiltering} object from a list into a {@link FilteringRules} representation for a sync job.
+     * This method specifically extracts the 'active' filtering rules from the first {@link ConnectorFiltering} object in the list,
+     * if the list is neither null nor empty.
+     *
+     * @param connectorFiltering The list of {@link ConnectorFiltering} objects to be transformed. Can be null or empty.
+     */
+    FilteringRules transformConnectorFilteringToSyncJobRepresentation(List<ConnectorFiltering> connectorFiltering) {
+        return Optional.ofNullable(connectorFiltering)
+            .filter(list -> list.isEmpty() == false)
+            .map(list -> list.get(0).getActive())
+            .orElse(null);
     }
 
     /**

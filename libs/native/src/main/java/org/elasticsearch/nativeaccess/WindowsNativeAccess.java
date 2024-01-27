@@ -63,7 +63,7 @@ class WindowsNativeAccess extends AbstractNativeAccess {
             logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code {}", kernel.GetLastError());
         } else {
             var memInfo = kernel.newMemoryBasicInformation();
-            long address = 0;
+            var address = memInfo.BaseAddress();
             while (kernel.VirtualQueryEx(process, address, memInfo) != 0) {
                 boolean lockable = memInfo.State() == MEM_COMMIT
                     && (memInfo.Protect() & PAGE_NOACCESS) != PAGE_NOACCESS
@@ -72,7 +72,7 @@ class WindowsNativeAccess extends AbstractNativeAccess {
                     kernel.VirtualLock(memInfo.BaseAddress(), memInfo.RegionSize());
                 }
                 // Move to the next region
-                address += memInfo.RegionSize();
+                address = address.add(memInfo.RegionSize());
             }
             memoryLocked = true;
         }

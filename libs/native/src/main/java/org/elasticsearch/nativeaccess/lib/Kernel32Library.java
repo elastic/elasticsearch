@@ -19,6 +19,10 @@ public interface Kernel32Library {
 
     interface Handle {}
 
+    interface Address {
+        Address add(long offset);
+    }
+
     Handle GetCurrentProcess();
 
     boolean CloseHandle(Handle handle);
@@ -32,9 +36,7 @@ public interface Kernel32Library {
      * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366775%28v=vs.85%29.aspx
      */
     interface MemoryBasicInformation {
-        long BaseAddress();
-        long AllocationBase();
-        long AllocationProtect();
+        Address BaseAddress();
         long RegionSize();
         long State();
         long Protect();
@@ -53,7 +55,7 @@ public interface Kernel32Library {
      * @param size The size of the region to be locked, in bytes.
      * @return true if the function succeeds
      */
-    boolean VirtualLock(long address, long size);
+    boolean VirtualLock(Address address, long size);
 
     /**
      * Retrieves information about a range of pages within the virtual address space of a specified process.
@@ -66,7 +68,7 @@ public interface Kernel32Library {
      * @return the actual number of bytes returned in the information buffer.
      * @apiNote the dwLength parameter is handled by the underlying implementation
      */
-    int VirtualQueryEx(Handle handle, long address, MemoryBasicInformation memoryInfo);
+    int VirtualQueryEx(Handle handle, Address address, MemoryBasicInformation memoryInfo);
 
     /**
      * Sets the minimum and maximum working set sizes for the specified process.

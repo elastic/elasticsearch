@@ -23,11 +23,25 @@ import java.util.function.IntConsumer;
 
 class JnaKernel32Library implements Kernel32Library {
 
-    private class JnaHandle implements Handle {
+    private static class JnaHandle implements Handle {
         final Pointer pointer;
 
         JnaHandle(Pointer pointer) {
             this.pointer = pointer;
+        }
+    }
+
+    static class JnaAddress implements Address {
+        final Pointer pointer;
+
+        JnaAddress(Pointer pointer) {
+            this.pointer = pointer;
+        }
+
+
+        @Override
+        public Address add(long offset) {
+            return new JnaAddress(new Pointer(Pointer.nativeValue(pointer) + offset));
         }
     }
 
@@ -54,19 +68,23 @@ class JnaKernel32Library implements Kernel32Library {
     }
 
     @Override
-    public boolean VirtualLock(long address, long size) {
-        return JnaStaticKernel32Library.VirtualLock(new Pointer(address), new SizeT(size));
+    public boolean VirtualLock(Address address, long size) {
+        assert address instanceof JnaAddress;
+        var jnaAddress = (JnaAddress) address;
+        return JnaStaticKernel32Library.VirtualLock(jnaAddress.pointer, new SizeT(size));
     }
 
     @Override
-    public int VirtualQueryEx(Handle handle, long address, MemoryBasicInformation memoryInfo) {
+    public int VirtualQueryEx(Handle handle, Address address, MemoryBasicInformation memoryInfo) {
         assert handle instanceof JnaHandle;
+        assert address instanceof JnaAddress;
         assert memoryInfo instanceof JnaMemoryBasicInformation;
         var jnaHandle = (JnaHandle) handle;
+        var jnaAddress = (JnaAddress) address;
         var jnaMemoryInfo = (JnaMemoryBasicInformation) memoryInfo;
         return JnaStaticKernel32Library.VirtualQueryEx(
             jnaHandle.pointer,
-            new Pointer(address),
+            jnaAddress.pointer,
             jnaMemoryInfo,
             jnaMemoryInfo.size());
     }

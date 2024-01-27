@@ -24,7 +24,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.NativeAccess.ConsoleCtrlHandler;
+import org.elasticsearch.nativeaccess.jna.JnaKernel32Library.JnaAddress;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
+import org.elasticsearch.nativeaccess.lib.Kernel32Library.Address;
 
 import java.util.Arrays;
 import java.util.List;
@@ -54,32 +56,21 @@ class JnaStaticKernel32Library {
      */
     static class JnaMemoryBasicInformation extends Structure implements Kernel32Library.MemoryBasicInformation {
         // note: these members must be public for jna to set them
-        public Pointer BaseAddress;
-        public Pointer AllocationBase;
-        public NativeLong AllocationProtect;
-        public SizeT RegionSize;
+        public Pointer BaseAddress = new Pointer(0);
+        public byte[] _ignore = new byte[16];
+        public SizeT RegionSize = new SizeT();
         public NativeLong State;
         public NativeLong Protect;
         public NativeLong Type;
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type");
+            return Arrays.asList("BaseAddress", "_ignore", "RegionSize", "State", "Protect", "Type");
         }
 
         @Override
-        public long BaseAddress() {
-            return Pointer.nativeValue(BaseAddress);
-        }
-
-        @Override
-        public long AllocationBase() {
-            return Pointer.nativeValue(AllocationBase);
-        }
-
-        @Override
-        public long AllocationProtect() {
-            return AllocationProtect.longValue();
+        public Address BaseAddress() {
+            return new JnaAddress(BaseAddress);
         }
 
         @Override
@@ -137,12 +128,12 @@ class JnaStaticKernel32Library {
     static native int GetLastError();
 
     /**
-     * @see org.elasticsearch.nativeaccess.lib.Kernel32Library#VirtualLock(long, long)
+     * @see org.elasticsearch.nativeaccess.lib.Kernel32Library#VirtualLock(Address, long)
      */
     static native boolean VirtualLock(Pointer address, SizeT size);
 
     /**
-     * @see org.elasticsearch.nativeaccess.lib.Kernel32Library#VirtualQueryEx(Kernel32Library.Handle, long, Kernel32Library.MemoryBasicInformation)
+     * @see org.elasticsearch.nativeaccess.lib.Kernel32Library#VirtualQueryEx(Kernel32Library.Handle, Address, Kernel32Library.MemoryBasicInformation)
      */
     static native int VirtualQueryEx(Pointer handle, Pointer address, JnaMemoryBasicInformation memoryInfo, int length);
 

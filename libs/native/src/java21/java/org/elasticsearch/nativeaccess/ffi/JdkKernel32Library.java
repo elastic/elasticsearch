@@ -103,43 +103,45 @@ class JdkKernel32Library implements Kernel32Library {
         }
     }
 
+    static class JdkAddress implements Address {
+        MemorySegment address;
+
+        JdkAddress(MemorySegment address) {
+            this.address = address;
+        }
+
+
+        @Override
+        public Address add(long offset) {
+            return new JdkAddress(MemorySegment.ofAddress(address.address()));
+        }
+    }
+
     static class JdkMemoryBasicInformation implements MemoryBasicInformation {
         private static final MemoryLayout layout = MemoryLayout.structLayout(
             ADDRESS,
-            ADDRESS,
-            JAVA_LONG,
+            paddingLayout(16),
             JAVA_LONG,
             JAVA_LONG,
             JAVA_LONG,
             JAVA_LONG);
         private static final VarHandle BaseAddress$vh = layout.varHandle(groupElement(0));
-        private static final VarHandle AllocationBase$vh = layout.varHandle(groupElement(1));
-        private static final VarHandle AllocationProtect$vh = layout.varHandle(groupElement(2));
-        private static final VarHandle RegionSize$vh = layout.varHandle(groupElement(3));
-        private static final VarHandle State$vh = layout.varHandle(groupElement(4));
-        private static final VarHandle Protect$vh = layout.varHandle(groupElement(5));
-        private static final VarHandle Type$vh = layout.varHandle(groupElement(6));
+        private static final VarHandle RegionSize$vh = layout.varHandle(groupElement(2));
+        private static final VarHandle State$vh = layout.varHandle(groupElement(3));
+        private static final VarHandle Protect$vh = layout.varHandle(groupElement(4));
+        private static final VarHandle Type$vh = layout.varHandle(groupElement(5));
 
         private final MemorySegment segment;
 
         JdkMemoryBasicInformation() {
             var arena = Arena.ofAuto();
             this.segment = arena.allocate(layout);
+            this.segment.fill((byte) 0);
         }
 
         @Override
-        public long BaseAddress() {
-            return ((MemorySegment)BaseAddress$vh.get(segment)).address();
-        }
-
-        @Override
-        public long AllocationBase() {
-            return ((MemorySegment)AllocationBase$vh.get(segment)).address();
-        }
-
-        @Override
-        public long AllocationProtect() {
-            return (long)AllocationProtect$vh.get(segment);
+        public Address BaseAddress() {
+            return new JdkAddress((MemorySegment)BaseAddress$vh.get(segment));
         }
 
         @Override
@@ -213,6 +215,7 @@ class JdkKernel32Library implements Kernel32Library {
     public boolean CloseHandle(Handle handle) {
         assert handle instanceof JdkHandle;
         var jdkHandle = (JdkHandle) handle;
+
         try {
             return (boolean)CloseHandle$mh.invokeExact(jdkHandle.address, lastErrorState);
         } catch (Throwable t) {
@@ -231,24 +234,30 @@ class JdkKernel32Library implements Kernel32Library {
     }
 
     @Override
-    public boolean VirtualLock(long address, long size) {
+    public boolean VirtualLock(Address address, long size) {
+        assert address instanceof JdkAddress;
+        var jdkAddress = (JdkAddress) address;
+
         try {
-            return (boolean)VirtualLock$mh.invokeExact(MemorySegment.ofAddress(address), size, lastErrorState);
+            return (boolean)VirtualLock$mh.invokeExact(jdkAddress.address, size, lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
     }
 
     @Override
-    public int VirtualQueryEx(Handle process, long address, MemoryBasicInformation memoryInfo) {
+    public int VirtualQueryEx(Handle process, Address address, MemoryBasicInformation memoryInfo) {
         assert process instanceof JdkHandle;
+        assert address instanceof JdkAddress;
         assert memoryInfo instanceof JdkMemoryBasicInformation;
         var jdkProcess = (JdkHandle) process;
+        var jdkAddress = (JdkAddress) address;
         var jdkMemoryInfo = (JdkMemoryBasicInformation)memoryInfo;
+
         try {
             return (int)VirtualQueryEx$mh.invokeExact(
                 jdkProcess.address,
-                MemorySegment.ofAddress(address),
+                jdkAddress.address,
                 jdkMemoryInfo.segment,
                 jdkMemoryInfo.segment.byteSize(),
                 lastErrorState);
@@ -303,6 +312,7 @@ class JdkKernel32Library implements Kernel32Library {
     public boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add) {
         Arena arena = Arena.ofAuto(); // auto arena so it lasts as long as the handler lasts
         MemorySegment nativeHandler = upcallStub(ConsoleCtrlHandler_handle$mh, handler, ConsoleCtrlHandler_handle$fd, arena);
+
         try {
             return (boolean)SetConsoleCtrlHandler$mh.invokeExact(nativeHandler, add);
         } catch (Throwable t) {
@@ -366,7 +376,12 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkInfo = (JdkJobObjectBasicLimitInformation) info;
 
         try {
-            return (boolean)SetInformationJobObject$mh.invokeExact(jdkJob.address, infoClass, jdkInfo.segment, jdkInfo.segment.byteSize(), lastErrorState);
+            return (boolean)SetInformationJobObject$mh.invokeExact(
+                jdkJob.address,
+                infoClass,
+                jdkInfo.segment,
+                jdkInfo.segment.byteSize(),
+                lastErrorState);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

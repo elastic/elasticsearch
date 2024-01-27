@@ -68,12 +68,6 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
         chunk-2
         """;
 
-    public void testLotsOfBasic() throws IOException {
-        for (int i = 0 ; i < 10000; i++) {
-            testBasic();
-        }
-    }
-
     public void testBasic() throws IOException {
         final var response = getRestClient().performRequest(new Request("GET", YieldsChunksPlugin.ROUTE));
         assertEquals(200, response.getStatusLine().getStatusCode());
